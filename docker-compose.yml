@@ -1,0 +1,10 @@
+services:
+  mtgsearch:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - mtgsearch-data:/app/data
+
+volumes:
+  mtgsearch-data:

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MTG Collection Search</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    MTG Search
+  </div>
+  <div class="hdr-right">
+    <button class="theme-btn" id="themeToggle" onclick="toggleTheme()">☀ Light</button>
+    <button class="theme-btn" id="logoutBtn" onclick="logout()" style="display:none">Sign out</button>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- Tab bar -->
+<div class="tab-bar">
+  <button class="tab-btn active" id="tab-btn-available" onclick="setTab('available')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Available@
+  </button>
+  <button class="tab-btn" id="tab-btn-collections" onclick="setTab('collections')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    Collections
+  </button>
+  <button class="tab-btn" id="tab-btn-players" onclick="setTab('players')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
+    Players &amp; Decks
+  </button>
+  <button class="tab-btn" id="tab-btn-scryfall" onclick="setTab('scryfall')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    Scryfall Search
+  </button>
+  <button class="tab-btn" id="tab-btn-sets" onclick="setTab('sets')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+    Set Browser
+  </button>
+  <button class="tab-btn" id="tab-btn-wants" onclick="setTab('wants')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    Want Lists
+  </button>
+</div>
+
+<!-- Collections tab -->
+<div id="tab-collections" class="tab-pane" style="display:none">
+<div class="page-layout">
+<div class="main-col">
+
+  <!-- Add collection -->
+  <div class="panel">
+    <div class="panel-title collapsible" onclick="togglePanel('add-col')">
+      Add Collection
+      <svg class="chevron" id="chv-add-col" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="panel-body" id="pb-add-col">
+    <div class="add-form">
+      <div class="field">
+        <label>Label (person's name)</label>
+        <input id="nameInput" type="text" class="name-input" placeholder="Tim">
+      </div>
+      <div class="field">
+        <label>Archidekt or Moxfield URL</label>
+        <input id="urlInput" type="text" class="url-input" placeholder="archidekt.com/… or moxfield.com/collection/…">
+      </div>
+      <button class="btn-primary" onclick="addFromUrl()">Load from URL</button>
+    </div>
+
+    <div class="add-divider"><span>or import a CSV file</span></div>
+
+    <div class="add-form">
+      <button class="btn-secondary btn-csv" onclick="openCsvPicker(null)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload CSV file
+      </button>
+      <span style="font-size:.78rem;color:var(--muted);align-self:center">
+        Archidekt (<em>Collection → Export → CSV</em>) or Moxfield (<em>Collection → Download</em>)
+      </span>
+    </div>
+
+    <div id="addError" class="error-msg"></div>
+    </div><!-- /pb-add-col -->
+  </div>
+
+  <!-- Saved collections -->
+  <div class="panel" id="collectionsPanel" style="display:none">
+    <div class="panel-title collapsible" onclick="togglePanel('collections')">
+      Collections
+      <svg class="chevron" id="chv-collections" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="panel-body" id="pb-collections">
+      <div class="collections-list" id="collectionsList"></div>
+    </div>
+  </div>
+
+  <!-- Search + view toggle -->
+  <div class="panel">
+    <div class="search-row">
+      <input id="searchInput" type="text" class="search-input" placeholder="Search by card name…" oninput="scheduleRender()">
+      <span id="resultInfo" class="result-info"></span>
+      <div class="view-toggle">
+        <button class="view-btn active" id="btnList" onclick="setViewMode('list')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          List
+        </button>
+        <button class="view-btn" id="btnGrid" onclick="setViewMode('grid')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Grid
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="panel">
+    <div id="listView">
+      <div class="table-wrap">
+        <table id="resultsTable">
+          <thead>
+            <tr id="headerRow">
+              <th data-sort="name">Card Name</th>
+              <th data-sort="total">Total</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody">
+            <tr><td colspan="99" class="empty-state">Add a collection above to get started.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div id="gridView" style="display:none">
+      <div class="card-grid" id="cardGrid"></div>
+    </div>
+  </div>
+
+</div><!-- /main-col -->
+
+<!-- Deck sidebar -->
+<div class="deck-col">
+  <div class="panel deck-panel" id="deckPanel">
+    <div class="panel-title">Deck</div>
+    <div id="deckEmpty">
+      <button class="deck-upload-btn" onclick="document.getElementById('deckInput').click()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Load Deck CSV
+      </button>
+    </div>
+    <div id="deckLoaded" style="display:none;flex:1;overflow:hidden;display:none;flex-direction:column">
+      <div class="deck-header">
+        <div>
+          <div class="deck-name" id="deckName"></div>
+          <div class="deck-stats" id="deckStats"></div>
+        </div>
+        <button class="btn-remove" style="padding:.2rem .5rem;font-size:.7rem;flex-shrink:0" onclick="clearDeck()">✕</button>
+      </div>
+      <button class="deck-filter-row" id="deckFilterBtn" onclick="toggleDeckFilter()">
+        <span>Filter results by deck</span>
+        <span class="tog-pill"></span>
+      </button>
+      <div class="deck-list" id="deckList"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /page-layout -->
+</div><!-- /tab-collections -->
+
+<!-- Players & Decks tab -->
+<div id="tab-players" class="tab-pane" style="display:none">
+  <div class="players-add-bar">
+    <span style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);flex-shrink:0">Add Player</span>
+    <input type="text" id="playerNameInput" style="flex:1;min-width:160px;max-width:280px" placeholder="Player name…">
+    <button class="btn-primary" style="padding:.5rem 1.1rem;flex-shrink:0" onclick="confirmAddPlayer()">+ Add Player</button>
+  </div>
+  <div id="playersList"></div>
+</div><!-- /tab-players -->
+
+<!-- Scryfall Search tab -->
+<div id="tab-scryfall" class="tab-pane" style="display:none">
+  <div class="panel" style="margin-bottom:1rem">
+    <div class="search-row">
+      <input id="sfInput" type="text" class="search-input"
+             placeholder="Search Scryfall… (e.g. t:creature c:red cmc=3)"
+             onkeydown="if(event.key==='Enter')doScryfallSearch()"
+             style="max-width:none;flex:1">
+      <button class="btn-primary" style="flex-shrink:0;padding:.55rem 1.1rem" onclick="doScryfallSearch()">Search</button>
+      <span id="sfInfo" class="result-info" style="flex-shrink:0"></span>
+      <div class="view-toggle" style="flex-shrink:0">
+        <button class="view-btn active" id="sf-size-sm" onclick="setSfSize('small')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+        <button class="view-btn" id="sf-size-lg" onclick="setSfSize('large')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </button>
+      </div>
+    </div>
+    <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">
+      Tip: <code style="font-size:.73rem;color:var(--primary-tx)">t:legendary t:creature</code> · <code style="font-size:.73rem;color:var(--primary-tx)">c:g cmc=3</code> · <code style="font-size:.73rem;color:var(--primary-tx)">"exact name"</code> — results show which collections own each card.
+    </div>
+  </div>
+  <div id="sfResults"></div>
+</div>
+
+<!-- Set Browser tab -->
+<div id="tab-sets" class="tab-pane" style="display:none">
+  <div class="panel" style="margin-bottom:1rem">
+    <div class="search-row" style="flex-wrap:wrap;gap:.6rem">
+      <input id="setSearchInput" type="text" class="search-input" placeholder="Filter sets…" oninput="filterSets()" style="max-width:280px">
+      <div class="view-toggle" style="flex-shrink:0">
+        <button class="view-btn active" id="setFilterAll"     onclick="setSetFilter('all')">All</button>
+        <button class="view-btn"        id="setFilterOwned"   onclick="setSetFilter('owned')">Owned</button>
+        <button class="view-btn"        id="setFilterUnowned" onclick="setSetFilter('unowned')">Unowned</button>
+      </div>
+      <div class="view-toggle" style="flex-shrink:0;margin-left:auto">
+        <button class="view-btn active" id="setViewList" onclick="setSetView('list')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+        <button class="view-btn"        id="setViewGrid" onclick="setSetView('grid')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="setList" class="set-list">
+      <span style="font-size:.82rem;color:var(--muted)">Loading sets…</span>
+    </div>
+    <div id="setInfoBar" class="set-info-bar" style="display:none"></div>
+  </div>
+  <div id="setCards"></div>
+</div>
+
+<!-- Want Lists tab -->
+<div id="tab-wants" class="tab-pane" style="display:none">
+  <div class="panel" style="margin-bottom:1rem">
+
+    <!-- Add player inline -->
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding-bottom:.85rem;margin-bottom:.85rem;border-bottom:1px solid var(--border)">
+      <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);flex-shrink:0">Add Player</span>
+      <input type="text" id="wantNewPlayerInput" style="flex:1;min-width:150px;max-width:240px" placeholder="Player name…"
+             onkeydown="if(event.key==='Enter')confirmWantAddPlayer()">
+      <button class="btn-primary" style="padding:.48rem 1rem;flex-shrink:0" onclick="confirmWantAddPlayer()">+ Add Player</button>
+    </div>
+
+    <!-- Add card to want list -->
+    <div class="panel-title" style="margin-bottom:.65rem">Add to Want List</div>
+    <div class="want-add-bar">
+      <select id="wantPlayerSel" style="padding:.5rem .7rem;border-radius:8px;border:1.5px solid var(--border);background:var(--card-2);color:var(--text);font-family:inherit;font-size:.88rem;outline:none;flex-shrink:0">
+        <option value="">Select player…</option>
+      </select>
+      <div class="autocomplete-wrap">
+        <input id="wantCardInput" type="text" style="width:100%" placeholder="Card name…"
+               oninput="wantAcInput()" onkeydown="if(event.key==='Enter')addWant()">
+        <div id="wantAcDrop" class="ac-dropdown"></div>
+      </div>
+      <button class="btn-primary"   style="padding:.5rem 1rem;flex-shrink:0" onclick="addWant()">+ Add</button>
+      <button class="btn-secondary" style="padding:.5rem 1rem;flex-shrink:0" onclick="document.getElementById('wantCsvInput').click()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import CSV
+      </button>
+    </div>
+  </div>
+  <div id="wantResults"></div>
+</div>
+
+<!-- Available@ tab (shown first / by default) -->
+<div id="tab-available" class="tab-pane">
+  <div id="availLoading" style="text-align:center;padding:3rem 1rem;color:var(--muted)">Loading calendar…</div>
+  <div id="availApp" style="display:none">
+
+    <!-- Name bar -->
+    <div class="panel" style="margin-bottom:1rem">
+      <div class="panel-body" id="pb-avail-name" style="padding:.875rem 1rem">
+        <div class="avail-name-bar">
+          <label for="availNameInput">Who are you?</label>
+          <input type="text" id="availNameInput" placeholder="Your name" maxlength="80"
+                 oninput="availOnNameChange(this.value)">
+          <span class="avail-name-hint" id="availNameHint">Enter your name to mark your availability</span>
+          <button class="avail-remove-btn" id="availRemoveBtn" style="display:none"
+                  onclick="availRemoveSelf()">Remove me</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="avail-layout">
+      <!-- Calendar -->
+      <div class="panel">
+        <div class="panel-body" id="pb-avail-cal" style="padding:.875rem 1rem">
+          <div class="cal-header">
+            <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()">&#8249;</button>
+            <span class="month-title" id="availMonthTitle"></span>
+            <button class="nav-btn" onclick="availNextMonth()">&#8250;</button>
+          </div>
+          <div class="cal-grid" id="availCalGrid"></div>
+        </div>
+      </div>
+
+      <!-- Best days -->
+      <div class="panel">
+        <div class="panel-title" style="font-size:.95rem;font-weight:700">Best upcoming days</div>
+        <div class="panel-body" id="pb-avail-best" style="padding:.875rem 1rem">
+          <div id="availBestDays"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<!-- Hidden CSV file inputs -->
+<input type="file" id="csvInput"     accept=".csv"          style="display:none">
+<input type="file" id="deckInput"    accept=".csv"          style="display:none">
+<input type="file" id="wantCsvInput" accept=".csv,.txt"     style="display:none">
+
+<!-- Card image tooltip (list view only) -->
+<div id="cardTooltip"><img id="tooltipImg" alt=""></div>
+
+<script src="js/state.js"></script>
+<script src="js/scryfall.js"></script>
+<script src="js/collections.js"></script>
+<script src="js/players.js"></script>
+<script src="js/search.js"></script>
+<script src="js/sets.js"></script>
+<script src="js/wants.js"></script>
+<script src="js/available.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

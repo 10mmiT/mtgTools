@@ -1,0 +1,133 @@
+// ── Collapsible panels ────────────────────────────────────────────────────
+const collapseState = JSON.parse(localStorage.getItem('mtgsearch_collapse') || '{}');
+
+function togglePanel(id) {
+  collapseState[id] = !collapseState[id];
+  localStorage.setItem('mtgsearch_collapse', JSON.stringify(collapseState));
+  applyCollapse(id);
+}
+
+function applyCollapse(id) {
+  const body = document.getElementById(`pb-${id}`);
+  const chv  = document.getElementById(`chv-${id}`);
+  const closed = !!collapseState[id];
+  if (body) body.classList.toggle('closed', closed);
+  if (chv)  chv.classList.toggle('closed', closed);
+}
+
+function initCollapses() {
+  ['add-col', 'collections'].forEach(applyCollapse);
+}
+
+function togglePlayerSection(playerId, event) {
+  // Don't collapse when clicking the action buttons
+  if (event.target.closest('button')) return;
+  const id  = `player-${playerId}`;
+  collapseState[id] = !collapseState[id];
+  localStorage.setItem('mtgsearch_collapse', JSON.stringify(collapseState));
+  const body = document.getElementById(`pb-${id}`);
+  const chv  = document.getElementById(`chv-${id}`);
+  const closed = !!collapseState[id];
+  if (body) body.style.display = closed ? 'none' : '';
+  if (chv)  chv.classList.toggle('closed', closed);
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('mtgsearch_theme') || 'dark';
+  document.documentElement.dataset.theme = saved;
+  document.getElementById('themeToggle').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
+}
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('mtgsearch_theme', next);
+  document.getElementById('themeToggle').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
+}
+
+// ── View mode ─────────────────────────────────────────────────────────────
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById('btnList').classList.toggle('active', mode === 'list');
+  document.getElementById('btnGrid').classList.toggle('active', mode === 'grid');
+  renderResults();
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+function setTab(tab) {
+  document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
+  document.getElementById(`tab-${tab}`).style.display = '';
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`tab-btn-${tab}`).classList.add('active');
+  if (tab === 'sets')      initSetBrowser();
+  if (tab === 'wants')     renderWantList();
+  if (tab === 'available') initAvailable();
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+async function initAuth() {
+  try {
+    const res  = await fetch('/api/auth-status');
+    const data = await res.json();
+    const btn  = document.getElementById('logoutBtn');
+    if (btn) btn.style.display = data.protected ? '' : 'none';
+  } catch {}
+}
+
+async function logout() {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/login';
+}
+
+// ── Card image tooltip (list view) ────────────────────────────────────────
+const _tip    = document.getElementById('cardTooltip');
+const _tipImg = document.getElementById('tooltipImg');
+let _tipTimer = null;
+
+document.addEventListener('mouseover', e => {
+  const link = e.target.closest('.card-link');
+  if (!link) return;
+  clearTimeout(_tipTimer);
+  _tipTimer = setTimeout(async () => {
+    const name = link.dataset.name;
+    if (!scryfallCache.has(name)) await ensureScryfallImages([name]);
+    const uri = scryfallCache.get(name);
+    if (!uri) return;
+    _tipImg.src = uri;
+    _tip.style.display = 'block';
+  }, 120);
+});
+
+document.addEventListener('mouseout', e => {
+  if (!e.target.closest('.card-link')) return;
+  clearTimeout(_tipTimer);
+  _tip.style.display = 'none';
+});
+
+document.addEventListener('mousemove', e => {
+  if (_tip.style.display === 'none') return;
+  const W = 216, H = 300, pad = 14;
+  const left = (e.clientX + pad + W > window.innerWidth)  ? e.clientX - pad - W : e.clientX + pad;
+  const top  = (e.clientY - 20 + H > window.innerHeight)  ? window.innerHeight - H - 8 : e.clientY - 20;
+  _tip.style.left = left + 'px';
+  _tip.style.top  = top  + 'px';
+});
+
+_tipImg.addEventListener('error', () => { _tip.style.display = 'none'; });
+
+// ── Event listeners ───────────────────────────────────────────────────────
+document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFromUrl(); });
+document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFromUrl(); });
+document.getElementById('playerNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmAddPlayer(); });
+
+// ── Init ──────────────────────────────────────────────────────────────────
+initTheme();
+initAuth();
+initAvailable();
+loadFromStorage().then(() => {
+  initCollapses();
+  renderPlayers();
+  renderCollections();
+  renderResults();
+});

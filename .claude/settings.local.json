@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:archidekt.com)",
+      "Bash(npm install *)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/Me/AppData/Roaming/**)",
+      "Read(//c/Users/Me/**)",
+      "Bash(deno --version)",
+      "WebFetch(domain:api.moxfield.com)",
+      "WebFetch(domain:moxfield.com)",
+      "WebSearch",
+      "WebFetch(domain:api2.moxfield.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:crystaldoc.info)",
+      "Bash(docker build *)",
+      "PowerShell(docker build -t mtgsearch \"c:\\\\Users\\\\Me\\\\Kode\\\\mtgsearch\" 2>&1)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:playgroup.gg)",
+      "Bash(python3 -c ' *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Me\\\\Kode\\\\available@\" -Recurse -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\Me\\\\Kode\\\\available@\\\\public\" -Name)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Me\\\\Kode\\\\mtgsearch\\\\public\\\\\" -ErrorAction SilentlyContinue; if \\(-not \\(Test-Path \"C:\\\\Users\\\\Me\\\\Kode\\\\mtgsearch\\\\public\\\\available\"\\)\\) { New-Item -ItemType Directory -Path \"C:\\\\Users\\\\Me\\\\Kode\\\\mtgsearch\\\\public\\\\available\" })",
+      "PowerShell(Get-Command node, npm -ErrorAction SilentlyContinue)",
+      "PowerShell($env:PATH; [System.IO.Directory]::Exists\\(\"C:\\\\Program Files\\\\nodejs\"\\))"
+    ]
+  }
+}

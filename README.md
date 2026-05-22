@@ -1,0 +1,151 @@
+# MTG Collection Search
+
+Search across multiple Magic: The Gathering collections at once, compare deck lists against what you own, browse sets, track want lists, and coordinate group availability — all from a single self-hosted web app.
+
+## Features
+
+### Available@ tab
+- Shared group availability calendar — mark which days you're free
+- Enter your name once; it's remembered in the browser
+- Click any future day to toggle your availability
+- "Best upcoming days" panel ranks days by how many people are free
+- All availability data persists across restarts
+
+### Collections tab
+- Add collections from Archidekt (URL or CSV export) or Moxfield (CSV export only — Moxfield's API blocks automated access)
+- Results table shows card name, a column per collection, and a total; sortable by any column
+- Grid view shows full card images with per-collection ownership badges
+- Hover over any card name (list view) for a Scryfall image tooltip
+- Click a card name to open it on Scryfall
+- Collapsible "Add Collection" and "Collections" panels to save space
+- Right-side **Deck Comparison** panel: load a deck and see which cards you own, with a toggle to filter the table to deck cards only
+
+### Players & Decks tab
+- Add players by name; each gets a unique colour
+- Add decks to players — enter a deck name and commander name; the commander's card art (fetched from Scryfall) becomes the tile background
+- Optionally link an Archidekt URL to load the full card list for comparison
+- Any URL (Moxfield, TappedOut, etc.) can be saved as a "View ↗" link on the tile
+- Edit any deck in-place (name, commander, link)
+- Click **Load for comparison** to send a deck to the Deck Comparison panel and switch to the Collections tab automatically
+- All deck metadata and commander art URLs persist across restarts
+
+### Scryfall Search tab
+- Full Scryfall query syntax: `t:legendary t:creature`, `c:g cmc=3`, `"exact name"`, etc.
+- Results show which of your collections own each card and in what quantity
+- Small (list) or large (grid) view toggle
+- Search on Enter or button click — no auto-search while typing to stay within Scryfall's rate limits
+
+### Set Browser tab
+- Browse every non-digital MTG set (expansions, Commander, Masters, etc.)
+- Filter sets by name or code
+- Click a set to load all its cards with collection ownership shown inline
+- "Only show owned cards" / "Only show unowned cards" filters
+- Shows how many cards from the set are owned across all collections
+- List and grid view toggle
+
+### Want Lists tab
+- Per-player want lists with Scryfall autocomplete as you type
+- Combined table across all players: see who wants each card and whether anyone in the group already owns it
+- Cards wanted by multiple players sort to the top
+- Remove individual wants with one click
+- All want lists persist across restarts
+
+### General
+- Dark theme by default, toggleable to light; preference saved in the browser
+- Collapsible panels throughout (Add Collection, Collections, each player section)
+- Optional app-level password protection (set `APP_PASSWORD` environment variable)
+
+## Getting Started
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+### Run
+
+```bash
+docker compose up --build
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+Data is stored in a Docker volume (`mtgsearch-data`) and persists across restarts and rebuilds.
+
+### Password protection (optional)
+
+Set the `APP_PASSWORD` environment variable to require a password on the login page:
+
+```yaml
+# docker-compose.yml
+services:
+  mtgsearch:
+    environment:
+      - APP_PASSWORD=yourpassword
+```
+
+### Stop
+
+```bash
+docker compose down
+```
+
+## Adding Collections
+
+| Source | Method | Notes |
+|--------|--------|-------|
+| Archidekt | Paste collection URL | `archidekt.com/collection/v2/…` |
+| Archidekt | Import CSV | Collection → Export → CSV |
+| Moxfield | Import CSV | Collection → Download (CSV) |
+
+Moxfield collection URLs are not supported — their API is behind Cloudflare bot protection with no public access.
+
+## Adding Decks (Players & Decks tab)
+
+1. Add a player by name.
+2. Click **+ Add Deck** and fill in:
+   - **Deck name** (required)
+   - **Commander name** — looked up on Scryfall for the tile background art
+   - **Link** (optional) — any URL becomes the "View ↗" button; an Archidekt URL also loads the full card list for comparison
+
+## Project Structure
+
+```
+mtgsearch/
+├── server.js          # Express server — API routes, available@ calendar, auth
+├── available-db.js    # SQLite setup for the availability calendar
+├── public/
+│   ├── index.html     # Single-page app shell
+│   ├── login.html     # Password login page
+│   ├── css/
+│   │   └── style.css
+│   └── js/
+│       ├── state.js       # App state, storage, helpers
+│       ├── collections.js # Collection CRUD and results rendering
+│       ├── players.js     # Players and decks
+│       ├── search.js      # Scryfall search tab
+│       ├── sets.js        # Set browser tab
+│       ├── wants.js       # Want lists tab
+│       ├── available.js   # Available@ calendar tab
+│       ├── scryfall.js    # Scryfall image cache helpers
+│       └── main.js        # Init, theme, tabs, tooltips
+├── Dockerfile
+├── docker-compose.yml
+└── data/              # Created at runtime inside the container (Docker volume)
+    ├── state.json     # Collections, players, decks, want lists
+    └── available.db   # Availability calendar (SQLite)
+```
+
+## Tech Stack & Credits
+
+| Component | Credit |
+|-----------|--------|
+| **[Express](https://expressjs.com/)** | Server framework — MIT licence |
+| **[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)** | SQLite for the availability calendar — MIT licence |
+| **[Scryfall API](https://scryfall.com/docs/api)** | Card data, images, search, and autocomplete. Free to use; please follow their [rate limit guidelines](https://scryfall.com/docs/api#rate-limits). Scryfall search is triggered manually (Enter / button) rather than on every keystroke. |
+| **[Archidekt](https://archidekt.com)** | Collection and deck data via their public REST API |
+| **[Moxfield](https://moxfield.com)** | Collection data via CSV export |
+| **[Docker](https://www.docker.com/)** | Containerisation |
+
+Card images and search data are provided by Scryfall. Scryfall is not produced by or endorsed by Wizards of the Coast.
+
+Magic: The Gathering is © Wizards of the Coast LLC.
