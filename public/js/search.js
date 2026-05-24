@@ -125,6 +125,7 @@ function renderSfCardSmall(card) {
       <div class="sf-name-row">
         <a class="sf-card-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}">${esc(card.name)}</a>
         ${mana ? `<span class="sf-mana">${esc(mana)}</span>` : ''}
+        ${wantBtnHtml(card.name)}
       </div>
       <div class="sf-type">${esc(card.type_line || '')}</div>
       <div class="sf-ownership">${owned || '<span class="sf-not-owned">Not in any collection</span>'}</div>
@@ -145,7 +146,10 @@ function renderSfCardLarge(card) {
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
-      <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}">${esc(card.name)}</a>
+      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem">
+        <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
+        ${wantBtnHtml(card.name)}
+      </div>
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

@@ -14,6 +14,8 @@
     MTG Search
   </div>
   <div class="hdr-right">
+    <span class="user-badge" id="userBadge" style="display:none"></span>
+    <button class="theme-btn" id="changePwBtn" onclick="openChangePassword()" style="display:none">Change Password</button>
     <button class="theme-btn" id="themeToggle" onclick="toggleTheme()">☀ Light</button>
     <button class="theme-btn" id="logoutBtn" onclick="logout()" style="display:none">Sign out</button>
   </div>
@@ -46,6 +48,18 @@
   <button class="tab-btn" id="tab-btn-wants" onclick="setTab('wants')">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
     Want Lists
+  </button>
+  <button class="tab-btn" id="tab-btn-lands" onclick="setTab('lands')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20l5-10 4 7 3-5 6 8H3z"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
+    Mana Base
+  </button>
+  <button class="tab-btn" id="tab-btn-deckview" onclick="setTab('deckview')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="6" y1="12" x2="10" y2="12"/></svg>
+    Deck View
+  </button>
+  <button class="tab-btn" id="tab-btn-admin" onclick="setTab('admin')" style="display:none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/><circle cx="18" cy="18" r="3"/><path d="M18 15v6M15 18h6"/></svg>
+    Admin
   </button>
 </div>
 
@@ -174,7 +188,7 @@
 
 <!-- Players & Decks tab -->
 <div id="tab-players" class="tab-pane" style="display:none">
-  <div class="players-add-bar">
+  <div class="players-add-bar" id="addPlayerBar">
     <span style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);flex-shrink:0">Add Player</span>
     <input type="text" id="playerNameInput" style="flex:1;min-width:160px;max-width:280px" placeholder="Player name…">
     <button class="btn-primary" style="padding:.5rem 1.1rem;flex-shrink:0" onclick="confirmAddPlayer()">+ Add Player</button>
@@ -240,7 +254,7 @@
   <div class="panel" style="margin-bottom:1rem">
 
     <!-- Add player inline -->
-    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding-bottom:.85rem;margin-bottom:.85rem;border-bottom:1px solid var(--border)">
+    <div id="wantAddPlayerBar" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding-bottom:.85rem;margin-bottom:.85rem;border-bottom:1px solid var(--border)">
       <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);flex-shrink:0">Add Player</span>
       <input type="text" id="wantNewPlayerInput" style="flex:1;min-width:150px;max-width:240px" placeholder="Player name…"
              onkeydown="if(event.key==='Enter')confirmWantAddPlayer()">
@@ -311,17 +325,284 @@
   </div>
 </div>
 
+<!-- Mana Base Calculator tab -->
+<div id="tab-lands" class="tab-pane" style="display:none">
+<div class="lands-layout">
+
+  <!-- Left column: inputs -->
+  <div class="lands-inputs-col">
+
+    <!-- Deck size -->
+    <div class="panel">
+      <div class="panel-title">Deck Size</div>
+      <div class="view-toggle" style="width:fit-content;margin-bottom:.75rem">
+        <button class="view-btn land-preset-btn" data-size="40">40 <span class="preset-sub">Limited</span></button>
+        <button class="view-btn land-preset-btn active" data-size="60">60 <span class="preset-sub">Constructed</span></button>
+        <button class="view-btn land-preset-btn" data-size="100">100 <span class="preset-sub">Commander</span></button>
+      </div>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <input type="number" id="landsCustomSize" class="lands-num-input" placeholder="Custom…" min="1" max="500" style="width:110px" oninput="landsOnCustomSize(this.value)">
+        <span class="lands-hint">cards</span>
+      </div>
+    </div>
+
+    <!-- Mana pips -->
+    <div class="panel">
+      <div class="panel-title">Mana Pips in Casting Costs</div>
+      <p class="lands-sub">Count each colored symbol across all your non-land cards. Ignore generic mana (numbers).</p>
+      <div class="lands-pips-grid">
+        <div class="lands-pip-field">
+          <div class="lands-pip-icon" style="background:rgba(200,184,122,.18);border-color:#c8b87a">
+            <span class="lands-color-letter" style="color:#c8b87a">W</span>
+          </div>
+          <label class="lands-pip-name" style="color:#c8b87a">White</label>
+          <input type="number" id="pip-W" class="lands-num-input" placeholder="0" min="0">
+        </div>
+        <div class="lands-pip-field">
+          <div class="lands-pip-icon" style="background:rgba(74,144,217,.18);border-color:#4a90d9">
+            <span class="lands-color-letter" style="color:#4a90d9">U</span>
+          </div>
+          <label class="lands-pip-name" style="color:#4a90d9">Blue</label>
+          <input type="number" id="pip-U" class="lands-num-input" placeholder="0" min="0">
+        </div>
+        <div class="lands-pip-field">
+          <div class="lands-pip-icon" style="background:rgba(122,122,138,.18);border-color:#7a7a8a">
+            <span class="lands-color-letter" style="color:#aaa">B</span>
+          </div>
+          <label class="lands-pip-name" style="color:#aaa">Black</label>
+          <input type="number" id="pip-B" class="lands-num-input" placeholder="0" min="0">
+        </div>
+        <div class="lands-pip-field">
+          <div class="lands-pip-icon" style="background:rgba(217,74,74,.18);border-color:#d94a4a">
+            <span class="lands-color-letter" style="color:#d94a4a">R</span>
+          </div>
+          <label class="lands-pip-name" style="color:#d94a4a">Red</label>
+          <input type="number" id="pip-R" class="lands-num-input" placeholder="0" min="0">
+        </div>
+        <div class="lands-pip-field">
+          <div class="lands-pip-icon" style="background:rgba(58,154,92,.18);border-color:#3a9a5c">
+            <span class="lands-color-letter" style="color:#3a9a5c">G</span>
+          </div>
+          <label class="lands-pip-name" style="color:#3a9a5c">Green</label>
+          <input type="number" id="pip-G" class="lands-num-input" placeholder="0" min="0">
+        </div>
+        <div class="lands-pip-field">
+          <div class="lands-pip-icon" style="background:rgba(160,160,160,.12);border-color:#888">
+            <span class="lands-color-letter" style="color:#aaa">C</span>
+          </div>
+          <label class="lands-pip-name" style="color:#aaa">Colorless</label>
+          <input type="number" id="pip-C" class="lands-num-input" placeholder="0" min="0">
+        </div>
+      </div>
+    </div>
+
+    <!-- Non-basic lands -->
+    <div class="panel">
+      <div class="panel-title">Non-Basic Lands</div>
+      <p class="lands-sub">How many dual lands, fetch lands, or other non-basics are you including? These count toward your land total but are subtracted before basics are calculated.</p>
+      <div class="lands-nonbasic-grid">
+        <div class="lands-nonbasic-field">
+          <label class="lands-pip-name">Dual lands</label>
+          <input type="number" id="nb-dual" class="lands-num-input" placeholder="0" min="0">
+        </div>
+        <div class="lands-nonbasic-field">
+          <label class="lands-pip-name">Fetch lands</label>
+          <input type="number" id="nb-fetch" class="lands-num-input" placeholder="0" min="0">
+        </div>
+        <div class="lands-nonbasic-field">
+          <label class="lands-pip-name">Other non-basics</label>
+          <input type="number" id="nb-other" class="lands-num-input" placeholder="0" min="0">
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-secondary" style="font-size:.8rem;padding:.4rem .9rem" onclick="landsReset()">Reset all</button>
+  </div>
+
+  <!-- Right column: results -->
+  <div class="lands-results-col">
+    <div class="panel" style="position:sticky;top:4.5rem">
+      <div class="panel-title">Recommended Mana Base</div>
+      <div id="landsSummaryCards" class="lands-summary-cards"></div>
+      <div id="landsResultRows" class="lands-result-rows" style="margin-top:1rem"></div>
+      <div id="landsEmptyState" class="lands-empty-state">
+        Set your deck size and enter pip counts to see recommendations.
+      </div>
+    </div>
+  </div>
+
+</div>
+</div><!-- /tab-lands -->
+
+<!-- Deck View tab -->
+<div id="tab-deckview" class="tab-pane" style="display:none">
+
+  <!-- Load panel -->
+  <div class="panel" style="margin-bottom:1rem">
+    <div class="panel-title" style="margin-bottom:.75rem">Load Deck</div>
+    <div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px">
+        <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:.35rem">Archidekt URL</label>
+        <div style="display:flex;gap:.5rem">
+          <input type="text" id="dvUrlInput" placeholder="archidekt.com/decks/…" style="flex:1"
+                 onkeydown="if(event.key==='Enter')dvLoadUrl()">
+          <button class="btn-primary" style="padding:.52rem 1.1rem;flex-shrink:0" onclick="dvLoadUrl()">Load</button>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:.35rem">CSV File</label>
+        <button class="btn-secondary" onclick="document.getElementById('dvCsvInput').click()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload CSV
+        </button>
+      </div>
+    </div>
+    <div class="error-msg" id="dvError" style="margin-top:.6rem"></div>
+  </div>
+
+  <!-- Info bar (shown when a deck is loaded) -->
+  <div id="dvInfoBar" class="panel" style="display:none;margin-bottom:1rem">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div id="dvDeckName" style="font-size:1.05rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div id="dvDeckStats" style="font-size:.8rem;color:var(--muted);margin-top:.1rem"></div>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center;flex-shrink:0">
+        <div class="view-toggle">
+          <button class="view-btn active" id="dv-list-btn" onclick="dvSetView('list')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+          <button class="view-btn" id="dv-grid-btn" onclick="dvSetView('grid')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </button>
+        </div>
+        <button class="btn-primary" style="padding:.45rem 1rem" onclick="dvLoadForComparison()">Load for Comparison</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deck content -->
+  <div id="dvContent"></div>
+
+</div><!-- /tab-deckview -->
+
+<!-- Admin tab -->
+<div id="tab-admin" class="tab-pane" style="display:none">
+
+  <!-- Pending account requests -->
+  <div class="panel" style="margin-bottom:1rem">
+    <div class="panel-title" style="margin-bottom:.75rem">
+      Pending Account Requests
+      <span id="adminReqBadge" style="display:none;background:var(--primary);color:#fff;font-size:.7rem;padding:.15rem .5rem;border-radius:999px;margin-left:.5rem;font-weight:700;vertical-align:middle"></span>
+      <button class="btn-update" style="float:right;font-size:.72rem" onclick="adminLoadRequests()">Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Username</th><th>Requested</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="adminRequestsBody">
+          <tr><td colspan="3" class="empty-state">No pending requests.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Create user -->
+  <div class="panel" style="margin-bottom:1rem">
+    <div class="panel-title">Create User Account</div>
+    <form onsubmit="adminCreateUser(event)" class="admin-create-form">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="newUsername" autocapitalize="none" placeholder="username" required style="width:180px">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="newPassword" placeholder="password" required style="width:180px">
+      </div>
+      <div class="field">
+        <label>Role</label>
+        <select id="newRole" style="padding:.52rem .7rem;border-radius:8px;border:1.5px solid var(--border);background:var(--card-2);color:var(--text);font-family:inherit;font-size:.9rem;outline:none">
+          <option value="player">Player</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Linked Player</label>
+        <select id="newPlayerId" style="padding:.52rem .7rem;border-radius:8px;border:1.5px solid var(--border);background:var(--card-2);color:var(--text);font-family:inherit;font-size:.9rem;outline:none;max-width:200px">
+          <option value="">— No linked player —</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:flex-end">
+        <button type="submit" class="btn-primary" style="padding:.52rem 1.1rem">Create</button>
+      </div>
+    </form>
+    <div class="error-msg" id="adminCreateError" style="margin-top:.6rem"></div>
+  </div>
+
+  <!-- Users table -->
+  <div class="panel">
+    <div class="panel-title" style="margin-bottom:.75rem">
+      All Users
+      <button class="btn-update" style="float:right;font-size:.72rem" onclick="adminLoadUsers()">Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Linked Player</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminUsersBody">
+          <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /tab-admin -->
+
 </div><!-- /container -->
+
+<!-- Change Password modal -->
+<div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);align-items:center;justify-content:center">
+  <div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:1.5rem;width:calc(100% - 2rem);max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+    <div style="font-size:1.05rem;font-weight:700;margin-bottom:1.1rem">Change Password</div>
+    <div style="margin-bottom:.65rem">
+      <label style="font-size:.8rem;color:var(--muted);margin-bottom:.3rem;display:block">Current password</label>
+      <input type="password" id="cpCurrentPw" style="width:100%;box-sizing:border-box" placeholder="Current password">
+    </div>
+    <div style="margin-bottom:.65rem">
+      <label style="font-size:.8rem;color:var(--muted);margin-bottom:.3rem;display:block">New password</label>
+      <input type="password" id="cpNewPw" style="width:100%;box-sizing:border-box" placeholder="New password (min 6 chars)">
+    </div>
+    <div style="margin-bottom:.9rem">
+      <label style="font-size:.8rem;color:var(--muted);margin-bottom:.3rem;display:block">Confirm new password</label>
+      <input type="password" id="cpConfirmPw" style="width:100%;box-sizing:border-box" placeholder="Confirm new password"
+             onkeydown="if(event.key==='Enter')submitChangePassword()">
+    </div>
+    <div id="cpError" style="color:var(--danger);font-size:.82rem;margin-bottom:.6rem;display:none"></div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end">
+      <button class="btn-secondary" style="padding:.45rem .9rem" onclick="closeChangePassword()">Cancel</button>
+      <button class="btn-primary"   style="padding:.45rem .9rem" id="cpSubmitBtn" onclick="submitChangePassword()">Save</button>
+    </div>
+  </div>
+</div>
 
 <!-- Hidden CSV file inputs -->
 <input type="file" id="csvInput"     accept=".csv"          style="display:none">
 <input type="file" id="deckInput"    accept=".csv"          style="display:none">
 <input type="file" id="wantCsvInput" accept=".csv,.txt"     style="display:none">
+<input type="file" id="dvCsvInput"   accept=".csv,.txt"     style="display:none">
 
 <!-- Card image tooltip (list view only) -->
 <div id="cardTooltip"><img id="tooltipImg" alt=""></div>
 
 <script src="js/state.js"></script>
+<script src="js/auth.js"></script>
 <script src="js/scryfall.js"></script>
 <script src="js/collections.js"></script>
 <script src="js/players.js"></script>
@@ -329,6 +610,9 @@
 <script src="js/sets.js"></script>
 <script src="js/wants.js"></script>
 <script src="js/available.js"></script>
+<script src="js/lands.js"></script>
+<script src="js/deckview.js"></script>
+<script src="js/admin.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

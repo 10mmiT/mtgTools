@@ -168,9 +168,29 @@ function availInitUI() {
   document.getElementById('availLoading').style.display = 'none';
   document.getElementById('availApp').style.display     = '';
 
+  // For logged-in non-admin users, pin the name to their linked player
+  const openMode = currentUser?.username === 'guest';
+  if (currentUser && currentUser.role !== 'admin' && !openMode) {
+    const linked = currentUser.playerId
+      ? state.players.find(p => p.id === currentUser.playerId)
+      : null;
+    if (linked) {
+      availName = linked.name;
+    } else {
+      // No linked player — show notice and disable calendar interaction
+      const hint = document.getElementById('availNameHint');
+      if (hint) hint.textContent = 'Your account is not linked to a player. Ask an admin to link it.';
+    }
+  }
+
   const nameInp = document.getElementById('availNameInput');
   if (nameInp) {
-    nameInp.value = availName;
+    nameInp.value    = availName;
+    const openMode   = currentUser?.username === 'guest';
+    const isLocked   = currentUser && currentUser.role !== 'admin' && !openMode;
+    nameInp.readOnly = isLocked;
+    nameInp.style.opacity = isLocked ? '.65' : '';
+    nameInp.style.cursor  = isLocked ? 'default' : '';
     availOnNameChange(availName);
   }
   availRenderCalendar();

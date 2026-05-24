@@ -969,3 +969,375 @@ td { padding: .45rem .75rem; }
 .best-day-date  { font-size: .9375rem; font-weight: 700; }
 .best-day-count { font-size: .8125rem; color: var(--muted); }
 .best-day-names { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* ── User badge (header) ─────────────────────────────────────────────────── */
+.user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: rgba(255,255,255,.1);
+  border: 1.5px solid rgba(255,255,255,.2);
+  border-radius: 7px;
+  padding: .28rem .7rem;
+  font-size: .8rem;
+  font-weight: 700;
+  color: rgba(255,255,255,.9);
+  white-space: nowrap;
+}
+.user-badge::before { content: '●'; font-size: .45rem; color: rgba(255,255,255,.5); vertical-align: middle; }
+.user-badge-admin::before { color: #fbbf24; }
+
+/* ── Want quick-add button ───────────────────────────────────────────────── */
+.want-quick-btn {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-size: .85rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s, color .12s;
+  padding: 0;
+  font-family: inherit;
+}
+.want-quick-btn:hover:not(:disabled) { background: var(--primary); color: #fff; }
+.want-quick-btn.want-quick-added { border-color: #10b981; color: #10b981; cursor: default; }
+.want-quick-btn:disabled { opacity: .7; }
+
+/* ── Want toast notification ─────────────────────────────────────────────── */
+.want-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(1rem);
+  background: #10b981;
+  color: #fff;
+  font-size: .875rem;
+  font-weight: 600;
+  padding: .65rem 1.25rem;
+  border-radius: 9px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.4);
+  opacity: 0;
+  transition: opacity .2s, transform .2s;
+  pointer-events: none;
+  z-index: 2000;
+  white-space: nowrap;
+}
+.want-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── Admin panel ─────────────────────────────────────────────────────────── */
+.admin-create-form {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.admin-actions { display: flex; gap: .4rem; align-items: center; }
+
+.badge-admin  { background: rgba(245,158,11,.15); color: #fbbf24; }
+.badge-player { background: var(--primary-lt); color: var(--primary-tx); }
+
+/* ── Mana Base Calculator ─────────────────────────────────────────────── */
+.lands-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 900px) { .lands-layout { grid-template-columns: 1fr; } }
+
+.lands-inputs-col { display: flex; flex-direction: column; gap: 1rem; }
+.lands-results-col {}
+
+.lands-num-input {
+  width: 80px;
+  background: var(--card-2);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: .5rem .65rem;
+  font-size: .9rem;
+  font-family: inherit;
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  flex-shrink: 0;
+}
+.lands-num-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(168,85,247,.18);
+}
+input[type=number].lands-num-input::-webkit-inner-spin-button,
+input[type=number].lands-num-input::-webkit-outer-spin-button { opacity: .4; }
+
+.lands-hint { font-size: .82rem; color: var(--muted); }
+.lands-sub  { font-size: .82rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.5; }
+
+.preset-sub { font-size: .68rem; font-weight: 400; opacity: .7; display: block; }
+
+/* Pip grid */
+.lands-pips-grid {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.lands-pip-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .4rem;
+}
+
+.lands-pip-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lands-color-letter {
+  font-size: .85rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.lands-pip-name {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.lands-pip-field .lands-num-input { width: 64px; text-align: center; }
+
+/* Non-basics */
+.lands-nonbasic-grid {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.lands-nonbasic-field {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+/* Summary stat cards */
+.lands-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .6rem;
+  margin-bottom: .5rem;
+}
+
+.lands-stat-card {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .75rem .5rem;
+  text-align: center;
+}
+.lands-stat-highlight {
+  border-color: var(--primary);
+  background: var(--primary-lt);
+}
+
+.lands-stat-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+}
+.lands-stat-highlight .lands-stat-val { color: var(--primary-tx); }
+
+.lands-stat-lbl {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  margin-top: .3rem;
+}
+.lands-stat-highlight .lands-stat-lbl { color: var(--primary-tx); opacity: .7; }
+
+/* Result rows */
+.lands-result-rows { display: flex; flex-direction: column; gap: .55rem; }
+
+.lands-row {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+}
+
+.lands-row-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.lands-row-icon .lands-color-letter { font-size: .72rem; }
+
+.lands-name {
+  font-size: .875rem;
+  font-weight: 600;
+  min-width: 72px;
+  flex-shrink: 0;
+}
+
+.lands-bar-wrap {
+  flex: 1;
+  height: 10px;
+  background: var(--card-2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.lands-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width .3s ease;
+  min-width: 2px;
+  opacity: .85;
+}
+
+.lands-count {
+  font-size: 1rem;
+  font-weight: 800;
+  min-width: 26px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.lands-share {
+  font-size: .75rem;
+  color: var(--muted);
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.lands-empty-state {
+  font-size: .875rem;
+  color: var(--muted);
+  padding: 1rem 0 .25rem;
+  line-height: 1.5;
+}
+
+/* ── Deck Viewer ────────────────────────────────────────────────────────── */
+.dv-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: 1.1rem;
+}
+.dv-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: var(--card-2);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: .25rem .65rem;
+  font-size: .78rem;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.dv-summary-pill:hover { border-color: var(--primary); }
+.dv-summary-cat { font-weight: 600; }
+.dv-summary-n {
+  background: var(--primary-lt);
+  color: var(--primary-tx);
+  border-radius: 999px;
+  padding: .05rem .38rem;
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.dv-section { margin-bottom: 1.25rem; }
+
+.dv-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .45rem 0 .4rem;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: .45rem;
+}
+.dv-section-title {
+  font-size: .82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--primary-tx);
+}
+.dv-section-count {
+  font-size: .75rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.dv-list { display: flex; flex-direction: column; gap: .18rem; }
+
+.dv-row {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr 7rem 1fr auto;
+  align-items: center;
+  gap: .5rem;
+  padding: .28rem .4rem;
+  border-radius: 6px;
+  font-size: .87rem;
+}
+.dv-row:hover { background: var(--card-2); }
+
+.dv-qty {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: right;
+}
+.dv-name {
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-name:hover { color: var(--primary); }
+.dv-mana {
+  font-size: .74rem;
+  color: var(--muted);
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-type {
+  font-size: .76rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-own { font-size: .75rem; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .dv-row {
+    grid-template-columns: 2rem 1fr auto;
+    grid-template-rows: auto auto;
+  }
+  .dv-mana { display: none; }
+  .dv-type { grid-column: 2; font-size: .72rem; }
+  .dv-own  { grid-column: 3; grid-row: 1; }
+}

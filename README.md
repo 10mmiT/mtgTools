@@ -50,10 +50,18 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Remove individual wants with one click
 - All want lists persist across restarts
 
+### Mana Base Calculator tab
+- Choose a deck size preset — 40 (Limited), 60 (Constructed), 100 (Commander) — or enter a custom size
+- Enter the count of each colored mana pip (W/U/B/R/G) and colorless (C/Wastes) across your non-land cards
+- Enter how many non-basic lands (duals, fetches, other) you're already including
+- Instantly shows: total lands recommended, non-basics you entered, and how many basics to add
+- Distributes basic lands proportionally by pip count using the largest-remainder method so the numbers always add up exactly
+- Colors with no pips are hidden from the results
+
 ### General
 - Dark theme by default, toggleable to light; preference saved in the browser
 - Collapsible panels throughout (Add Collection, Collections, each player section)
-- Optional app-level password protection (set `APP_PASSWORD` environment variable)
+- Per-user login system with player-linked accounts and an admin role
 
 ## Getting Started
 
@@ -71,17 +79,40 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 Data is stored in a Docker volume (`mtgsearch-data`) and persists across restarts and rebuilds.
 
-### Password protection (optional)
+### User accounts
 
-Set the `APP_PASSWORD` environment variable to require a password on the login page:
+The app uses per-player user accounts with two roles: **player** and **admin**.
+
+Set `ADMIN_PASSWORD` to enable auth. The `admin` account is created (or updated) automatically from this value on every startup:
 
 ```yaml
 # docker-compose.yml
 services:
   mtgsearch:
     environment:
-      - APP_PASSWORD=yourpassword
+      - ADMIN_PASSWORD=yourpassword
 ```
+
+Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, everyone has full access (same as the old single-password behaviour).
+
+**First-time setup:**
+1. Set `ADMIN_PASSWORD` and start the container.
+2. Sign in at `/login` as `admin` with that password.
+3. Go to the **Admin** tab.
+4. Create an account for each player (username + password + role = Player).
+5. Link each account to the matching entry in the Players & Decks tab using the "Linked Player" dropdown — this is what drives access control.
+
+**What each role can do:**
+
+| Action | Player | Admin |
+|--------|--------|-------|
+| View everything | ✓ | ✓ |
+| Add/remove from own want list | ✓ | ✓ |
+| Edit other players' want lists | — | ✓ |
+| Toggle own availability | ✓ | ✓ |
+| Toggle others' availability | — | ✓ |
+| Manage collections & decks | ✓ (own) | ✓ |
+| Admin panel / user management | — | ✓ |
 
 ### Stop
 
@@ -126,13 +157,16 @@ mtgsearch/
 │       ├── sets.js        # Set browser tab
 │       ├── wants.js       # Want lists tab
 │       ├── available.js   # Available@ calendar tab
+│       ├── lands.js       # Mana base calculator tab
+│       ├── auth.js        # Session auth state, want quick-add
+│       ├── admin.js       # Admin panel (user management)
 │       ├── scryfall.js    # Scryfall image cache helpers
 │       └── main.js        # Init, theme, tabs, tooltips
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
     ├── state.json     # Collections, players, decks, want lists
-    └── available.db   # Availability calendar (SQLite)
+    └── available.db   # Availability calendar + user accounts (SQLite)
 ```
 
 ## Tech Stack & Credits

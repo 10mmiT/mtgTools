@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MTG Search — Sign In</title>
+  <style>
+    :root {
+      --bg: #111118; --card: #1c1c27; --card-2: #25253a; --border: #32324a;
+      --text: #f0f0f5; --muted: #9090b0; --primary: #a855f7; --primary-dk: #9333ea;
+      --primary-lt: #2e1065; --primary-tx: #e9d5ff; --danger: #ef4444;
+      --hdr-bg: #0c0916; --radius: 10px; --shadow: 0 2px 12px rgba(0,0,0,.45);
+    }
+    [data-theme="light"] {
+      --bg: #f3eeff; --card: #ffffff; --card-2: #f5f0ff; --border: #ddd0f5;
+      --text: #1a0a2e; --muted: #7060a0; --primary: #7c3aed; --primary-dk: #6d28d9;
+      --primary-lt: #ede9fe; --primary-tx: #4c1d95; --hdr-bg: #7c3aed;
+      --shadow: 0 1px 4px rgba(80,0,160,.1);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    header {
+      background: var(--hdr-bg); padding: .875rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 10px rgba(0,0,0,.5);
+    }
+    .logo { color: #fff; font-size: 1.2rem; font-weight: 800; letter-spacing: -.3px; display: flex; align-items: center; gap: .5rem; }
+    .theme-btn {
+      border: 1.5px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1);
+      color: rgba(255,255,255,.9); border-radius: 7px; padding: .3rem .75rem;
+      font-size: .8rem; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .theme-btn:hover { background: rgba(255,255,255,.2); }
+    main {
+      flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem;
+    }
+    .login-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 2.25rem 2rem; width: 100%; max-width: 360px;
+    }
+    .login-title {
+      font-size: 1.3rem; font-weight: 800; margin-bottom: .25rem; text-align: center;
+    }
+    .login-sub {
+      font-size: .82rem; color: var(--muted); text-align: center; margin-bottom: 1.75rem;
+    }
+    .field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: 1rem; }
+    label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+    input[type="text"], input[type="password"] {
+      background: var(--card-2); border: 1.5px solid var(--border); border-radius: 8px;
+      padding: .6rem .75rem; font-size: .95rem; font-family: inherit; color: var(--text);
+      outline: none; transition: border-color .15s, box-shadow .15s; width: 100%;
+    }
+    input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(168,85,247,.18); }
+    .btn-login {
+      width: 100%; background: var(--primary); color: #fff; border: none; border-radius: 8px;
+      padding: .7rem; font-size: 1rem; font-weight: 700; cursor: pointer;
+      font-family: inherit; margin-top: .5rem; transition: background .15s;
+    }
+    .btn-login:hover { background: var(--primary-dk); }
+    .btn-login:disabled { opacity: .6; cursor: not-allowed; }
+    .error-msg {
+      background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35);
+      color: #f87171; border-radius: 7px; padding: .55rem .75rem;
+      font-size: .84rem; margin-bottom: 1rem; display: none;
+    }
+    .success-msg {
+      background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.3);
+      color: #10b981; border-radius: 7px; padding: .55rem .75rem;
+      font-size: .84rem; margin-bottom: 1rem; display: none;
+    }
+    .link-btn {
+      background: none; border: none; color: var(--primary); cursor: pointer;
+      font-size: inherit; font-family: inherit; padding: 0; font-weight: 600;
+      text-decoration: underline; text-decoration-style: dotted;
+    }
+    .link-btn:hover { color: var(--primary-dk); }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    MTG Search
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
+</header>
+
+<main>
+  <div class="login-card">
+
+    <!-- Sign-in section -->
+    <div id="loginSection">
+      <div class="login-title">Sign In</div>
+      <div class="login-sub">Enter your username and password to continue</div>
+      <div class="error-msg" id="loginError"></div>
+      <form onsubmit="doLogin(event)">
+        <div class="field">
+          <label for="usernameInput">Username</label>
+          <input type="text" id="usernameInput" autocomplete="username" autocapitalize="none" required>
+        </div>
+        <div class="field">
+          <label for="passwordInput">Password</label>
+          <input type="password" id="passwordInput" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+      </form>
+      <div style="text-align:center;margin-top:1.25rem;font-size:.82rem;color:var(--muted)">
+        No account? <button type="button" class="link-btn" onclick="showRequestForm()">Request access →</button>
+      </div>
+    </div>
+
+    <!-- Account request section -->
+    <div id="requestSection" style="display:none">
+      <div class="login-title">Request Account</div>
+      <div class="login-sub">Your request will be reviewed by an admin</div>
+      <div class="error-msg"   id="reqError"></div>
+      <div class="success-msg" id="reqSuccess">Request submitted! An admin will review it and activate your account.</div>
+      <form onsubmit="doRequestAccount(event)" id="reqForm">
+        <div class="field">
+          <label for="reqUsername">Username</label>
+          <input type="text" id="reqUsername" autocomplete="username" autocapitalize="none" required>
+        </div>
+        <div class="field">
+          <label for="reqPassword">Password</label>
+          <input type="password" id="reqPassword" autocomplete="new-password" required>
+        </div>
+        <div class="field">
+          <label for="reqConfirm">Confirm Password</label>
+          <input type="password" id="reqConfirm" autocomplete="new-password" required>
+        </div>
+        <button type="submit" class="btn-login" id="reqBtn">Send Request</button>
+      </form>
+      <div style="text-align:center;margin-top:1.25rem;font-size:.82rem;color:var(--muted)">
+        Have an account? <button type="button" class="link-btn" onclick="showLoginForm()">Sign in →</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+  function toggleTheme() {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('mtgsearch_theme', next);
+    document.querySelector('.theme-btn').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
+  }
+  (function() {
+    const saved = localStorage.getItem('mtgsearch_theme') || 'dark';
+    document.documentElement.dataset.theme = saved;
+    document.querySelector('.theme-btn').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
+  })();
+
+  function showRequestForm() {
+    document.getElementById('loginSection').style.display   = 'none';
+    document.getElementById('requestSection').style.display = '';
+    document.getElementById('reqError').style.display       = 'none';
+    document.getElementById('reqSuccess').style.display     = 'none';
+    document.getElementById('reqUsername').focus();
+  }
+  function showLoginForm() {
+    document.getElementById('requestSection').style.display = 'none';
+    document.getElementById('loginSection').style.display   = '';
+    document.getElementById('loginError').style.display     = 'none';
+    document.getElementById('usernameInput').focus();
+  }
+
+  async function doRequestAccount(e) {
+    e.preventDefault();
+    const username  = document.getElementById('reqUsername').value.trim();
+    const password  = document.getElementById('reqPassword').value;
+    const confirm   = document.getElementById('reqConfirm').value;
+    const errEl     = document.getElementById('reqError');
+    const successEl = document.getElementById('reqSuccess');
+    const btn       = document.getElementById('reqBtn');
+    errEl.style.display = 'none';
+    if (password !== confirm) {
+      errEl.textContent   = 'Passwords do not match.';
+      errEl.style.display = 'block';
+      return;
+    }
+    btn.disabled    = true;
+    btn.textContent = 'Sending…';
+    try {
+      const res  = await fetch('/api/auth/request-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      document.getElementById('reqForm').style.display = 'none';
+      successEl.style.display = 'block';
+    } catch (err) {
+      errEl.textContent   = err.message;
+      errEl.style.display = 'block';
+      btn.disabled        = false;
+      btn.textContent     = 'Send Request';
+    }
+  }
+
+  async function doLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('usernameInput').value.trim();
+    const password = document.getElementById('passwordInput').value;
+    const errEl    = document.getElementById('loginError');
+    const btn      = document.getElementById('loginBtn');
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try {
+      const res  = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Login failed');
+      window.location.href = '/';
+    } catch (err) {
+      errEl.textContent    = err.message;
+      errEl.style.display  = 'block';
+      btn.disabled         = false;
+      btn.textContent      = 'Sign In';
+    }
+  }
+</script>
+</body>
+</html>

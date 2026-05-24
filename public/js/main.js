@@ -54,6 +54,32 @@ function setViewMode(mode) {
   renderResults();
 }
 
+// ── State refresh ─────────────────────────────────────────────────────────
+let _lastRefresh = 0;
+
+async function refreshState() {
+  if (document.visibilityState === 'hidden') return;
+  // Skip if a collection is currently loading to avoid clobbering it
+  if (state.collections.some(c => c.status === 'loading' || c.status === 'updating')) return;
+  // Rate-limit to once every 15 seconds
+  if (Date.now() - _lastRefresh < 15_000) return;
+  _lastRefresh = Date.now();
+  try {
+    const res = await fetch('/api/state');
+    if (!res.ok) return;
+    hydrateState(await res.json());
+    renderPlayers();
+    renderCollections();
+    const activeTab = document.querySelector('.tab-btn.active')?.id?.replace('tab-btn-', '');
+    if (activeTab === 'collections') renderResults();
+    if (activeTab === 'wants')       renderWantList();
+    if (activeTab === 'sets' && currentSet) renderSetCards();
+  } catch {}
+}
+
+// Poll every 30 seconds while the page is open
+setInterval(refreshState, 30_000);
+
 // ── Tab switching ─────────────────────────────────────────────────────────
 function setTab(tab) {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
@@ -63,22 +89,13 @@ function setTab(tab) {
   if (tab === 'sets')      initSetBrowser();
   if (tab === 'wants')     renderWantList();
   if (tab === 'available') initAvailable();
+  if (tab === 'lands')     initLands();
+  if (tab === 'admin')   { initAdmin(); adminRenderPlayerOpts(); }
+  // Refresh shared data when switching to any tab that shows other users' content
+  if (['players', 'wants', 'collections', 'sets', 'deckview'].includes(tab)) refreshState();
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────
-async function initAuth() {
-  try {
-    const res  = await fetch('/api/auth-status');
-    const data = await res.json();
-    const btn  = document.getElementById('logoutBtn');
-    if (btn) btn.style.display = data.protected ? '' : 'none';
-  } catch {}
-}
-
-async function logout() {
-  await fetch('/api/logout', { method: 'POST' });
-  window.location.href = '/login';
-}
+// auth functions are in auth.js (logout, authInit)
 
 // ── Card image tooltip (list view) ────────────────────────────────────────
 const _tip    = document.getElementById('cardTooltip');
@@ -123,11 +140,11 @@ document.getElementById('playerNameInput').addEventListener('keydown', e => { if
 
 // ── Init ──────────────────────────────────────────────────────────────────
 initTheme();
-initAuth();
-initAvailable();
-loadFromStorage().then(() => {
-  initCollapses();
-  renderPlayers();
-  renderCollections();
-  renderResults();
+authInit().then(() => {
+  loadFromStorage().then(() => {
+    initCollapses();
+    renderPlayers();
+    renderCollections();
+    renderResults();
+  });
 });

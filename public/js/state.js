@@ -66,14 +66,18 @@ async function saveToStorage() {
   const data = stateToJSON();
   if (USE_LOCAL) {
     try {
-      await fetch('/api/state', {
+      const res = await fetch('/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
       return;
     } catch (e) {
-      console.warn('Server save failed, falling back to localStorage:', e);
+      console.warn('Server save failed:', e.message);
     }
   }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}

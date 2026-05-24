@@ -264,6 +264,8 @@ function renderPlayers() {
   const list = document.getElementById('playersList');
   if (!list) return;
 
+  const isAdmin = currentUser?.role === 'admin';
+
   if (!state.players.length) {
     list.innerHTML = `<div style="color:var(--muted);font-size:.9rem;text-align:center;padding:3rem 1rem">
       No players yet — add one above to get started.
@@ -272,6 +274,8 @@ function renderPlayers() {
   }
 
   list.innerHTML = state.players.map(player => {
+    const canEdit = isAdmin || isMyPlayer(player.id);
+
     const tilesHTML = player.decks.map(d => {
       if (d.editing) {
         return `<div class="deck-tile-edit" data-deck-id="${d.id}">
@@ -312,8 +316,8 @@ function renderPlayers() {
           <div class="deck-tile-bottom">
             <span class="deck-tile-count">${countInfo}</span>
             <button class="btn-load-tile"  onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Load</button>
-            <button class="btn-edit-tile"  onclick="startEditDeck('${player.id}','${d.id}')">Edit</button>
-            <button class="btn-remove-tile" onclick="removeDeck('${player.id}','${d.id}')">✕</button>
+            ${canEdit ? `<button class="btn-edit-tile"  onclick="startEditDeck('${player.id}','${d.id}')">Edit</button>` : ''}
+            ${canEdit ? `<button class="btn-remove-tile" onclick="removeDeck('${player.id}','${d.id}')">✕</button>` : ''}
           </div>
         </div>
       </div>`;
@@ -323,11 +327,11 @@ function renderPlayers() {
     return `<div class="player-section">
       <div class="player-header" style="--pc:${player.color}" onclick="togglePlayerSection('${player.id}', event)">
         <span class="player-name-lbl">${esc(player.name)}</span>
-        <button class="btn-player-add-deck" onclick="openAddDeck('${player.id}')">+ Add Deck</button>
-        <button class="btn-player-remove" onclick="removePlayer('${player.id}')">✕</button>
+        ${canEdit ? `<button class="btn-player-add-deck" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
+        ${isAdmin ? `<button class="btn-player-remove" onclick="removePlayer('${player.id}')">✕</button>` : ''}
         <svg class="chevron ${pCollapsed ? 'closed' : ''}" id="chv-player-${player.id}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="add-deck-form" id="adf_${player.id}" data-player="${player.id}">
+      ${canEdit ? `<div class="add-deck-form" id="adf_${player.id}" data-player="${player.id}">
         <input type="text" name="deckname"  placeholder="Deck name…"              style="flex:1;min-width:130px">
         <input type="text" name="commander" placeholder="Commander name…"          style="flex:1.2;min-width:160px">
         <input type="text" name="deckurl"   placeholder="Archidekt URL (optional)" style="flex:1.5;min-width:200px"
@@ -336,10 +340,10 @@ function renderPlayers() {
           <button class="btn-primary"   style="padding:.35rem .7rem;font-size:.82rem" onclick="confirmAddDeck('${player.id}')">Add</button>
           <button class="btn-secondary" style="padding:.35rem .7rem;font-size:.82rem" onclick="document.getElementById('adf_${player.id}').classList.remove('open')">Cancel</button>
         </div>
-      </div>
+      </div>` : ''}
       <div class="deck-tiles-grid ${pCollapsed ? 'closed' : ''}" id="pb-player-${player.id}"
            style="${pCollapsed ? 'display:none' : ''}">${tilesHTML ||
-        `<div style="color:var(--muted);font-size:.85rem;font-style:italic;padding:.5rem 0">No decks yet — click + Add Deck above.</div>`
+        `<div style="color:var(--muted);font-size:.85rem;font-style:italic;padding:.5rem 0">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
       }</div>
     </div>`;
   }).join('');

@@ -73,36 +73,47 @@ document.getElementById('wantCsvInput').addEventListener('change', e => {
   reader.readAsText(file);
 });
 
-function addWant() {
+async function addWant() {
   const playerId = document.getElementById('wantPlayerSel').value;
   const cardName = document.getElementById('wantCardInput').value.trim();
   if (!playerId || !cardName) return;
-  const player = state.players.find(p => p.id === playerId);
-  if (!player) return;
-  if (!player.wantList) player.wantList = [];
-  if (player.wantList.includes(cardName)) return;
-  player.wantList.push(cardName);
-  document.getElementById('wantCardInput').value = '';
-  closeAc();
-  saveToStorage();
-  renderWantList();
+  if (!isMyPlayer(playerId)) { alert('You can only add to your own want list.'); return; }
+  try {
+    const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/wants`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cardName }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    const player = state.players.find(p => p.id === playerId);
+    if (player) { if (!player.wantList) player.wantList = []; if (!player.wantList.includes(cardName)) player.wantList.push(cardName); }
+    document.getElementById('wantCardInput').value = '';
+    closeAc();
+    renderWantList();
+  } catch (e) { alert(`Could not add to wants: ${e.message}`); }
 }
 
-function removeWant(playerId, cardName) {
-  const player = state.players.find(p => p.id === playerId);
-  if (!player) return;
-  player.wantList = (player.wantList || []).filter(c => c !== cardName);
-  saveToStorage();
-  renderWantList();
+async function removeWant(playerId, cardName) {
+  if (!isMyPlayer(playerId)) { alert('You can only remove from your own want list.'); return; }
+  try {
+    const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/wants/${encodeURIComponent(cardName)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    const player = state.players.find(p => p.id === playerId);
+    if (player) player.wantList = (player.wantList || []).filter(c => c !== cardName);
+    renderWantList();
+  } catch (e) { alert(`Could not remove: ${e.message}`); }
 }
 
 function renderWantList() {
   // Populate player dropdown
   const sel = document.getElementById('wantPlayerSel');
   if (sel) {
-    const prev = sel.value;
+    const prev    = sel.value || currentUser?.playerId || '';
+    const visible = currentUser?.role === 'admin'
+      ? state.players
+      : state.players.filter(p => p.id === currentUser?.playerId);
     sel.innerHTML = '<option value="">Select player…</option>' +
-      state.players.map(p =>
+      visible.map(p =>
         `<option value="${p.id}" ${p.id === prev ? 'selected' : ''}>${esc(p.name)}</option>`
       ).join('');
   }
@@ -141,9 +152,10 @@ function renderWantList() {
     const href  = `https://scryfall.com/search?q=!%22${encodeURIComponent(cardName)}%22`;
     const cells = activePlayers.map(p => {
       if (!wanterIds.has(p.id)) return `<td style="text-align:center;color:var(--border)">—</td>`;
+      const canEdit = isMyPlayer(p.id);
       return `<td style="text-align:center">
         <span class="want-check" style="color:${p.color}">✓
-          <button class="want-rm" onclick="removeWant('${p.id}','${esc(cardName)}')" title="Remove">✕</button>
+          ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${esc(cardName)}')" title="Remove">✕</button>` : ''}
         </span>
       </td>`;
     }).join('');

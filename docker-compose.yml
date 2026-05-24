@@ -5,6 +5,8 @@ services:
       - "3000:3000"
     volumes:
       - mtgsearch-data:/app/data
+    environment:
+      - ADMIN_PASSWORD=Supericus
 
 volumes:
   mtgsearch-data:
