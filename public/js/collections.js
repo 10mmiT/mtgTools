@@ -157,7 +157,7 @@ async function fetchAllPages(col) {
     col.status   = 'loaded';
     col.savedAt  = new Date().toISOString();
     col.updating = false;
-    saveToStorage();
+    saveCollection(col);
   } catch (err) {
     col.status   = 'error';
     col.error    = err.message;
@@ -219,13 +219,14 @@ document.getElementById('csvInput').addEventListener('change', e => {
           col.error    = null;
           col.savedAt  = new Date().toISOString();
           col.updating = false;
+          saveCollection(col);
         }
         pendingCsvKey = null;
       } else {
         const name = pendingCsvName || file.name.replace(/\.csv$/i, '');
         document.getElementById('addError').style.display = 'none';
 
-        state.collections.push({
+        const col = {
           key:      `csv:${Date.now()}`,
           name,
           source,
@@ -238,11 +239,12 @@ document.getElementById('csvInput').addEventListener('change', e => {
           error:    null,
           savedAt:  new Date().toISOString(),
           updating: false,
-        });
+        };
+        state.collections.push(col);
+        saveCollection(col);
         document.getElementById('nameInput').value = '';
       }
 
-      saveToStorage();
       renderCollections();
       renderResults();
     } catch (err) {
@@ -257,6 +259,22 @@ document.getElementById('csvInput').addEventListener('change', e => {
   };
   reader.readAsText(file);
 });
+
+// ── Collection persistence (SQLite-backed via server) ─────────────────────
+async function saveCollection(col) {
+  try {
+    const res = await fetch('/api/collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: col.key, name: col.name, source: col.source, id: col.id,
+        color: col.color, cards: Object.fromEntries(col.cards),
+        entries: col.entries, total: col.total, savedAt: col.savedAt,
+      }),
+    });
+    if (!res.ok) console.warn('Collection save failed:', (await res.json().catch(()=>({}))).error);
+  } catch (e) { console.warn('Collection save failed:', e.message); }
+}
 
 // ── Update / Remove collection ────────────────────────────────────────────
 function updateCollection(key) {
@@ -275,9 +293,10 @@ function updateCollection(key) {
 
 function removeCollection(key) {
   state.collections = state.collections.filter(c => c.key !== key);
-  saveToStorage();
   renderCollections();
   renderResults();
+  fetch(`/api/collections/${encodeURIComponent(key)}`, { method: 'DELETE' })
+    .catch(e => console.warn('Collection remove failed:', e.message));
 }
 
 // ── Render collections ────────────────────────────────────────────────────

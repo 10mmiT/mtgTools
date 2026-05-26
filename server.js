@@ -336,38 +336,84 @@ app.delete('/available/api/calendars/:id/persons/:name', requireAuth, (req, res)
   res.json({ ok: true });
 });
 
+// ── One-time migration: move collections from state.json → SQLite ─────────────
+(function migrateCollections() {
+  const count = db.prepare('SELECT COUNT(*) AS n FROM collections').get().n;
+  if (count > 0) return;
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    const raw  = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    const cols = Array.isArray(raw) ? raw : (raw.collections || []);
+    if (!cols.length) return;
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const c of cols) {
+      insert.run(c.key, c.name, c.source, c.id || null, c.color || '#a855f7',
+        JSON.stringify(c.cards || {}), c.entries || 0, c.total || null, c.savedAt || null);
+    }
+    console.log(`Migrated ${cols.length} collection(s) from state.json to SQLite`);
+  } catch (e) { console.warn('Collection migration skipped:', e.message); }
+})();
+
 // ── MTG Collection state ──────────────────────────────────────────────────────
 app.get('/api/state', requireAuth, (req, res) => {
   try {
-    if (!fs.existsSync(DATA_FILE)) return res.json({ collections: [], players: [] });
-    const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    res.json(Array.isArray(raw) ? { collections: raw, players: [] } : raw);
+    const raw  = fs.existsSync(DATA_FILE) ? JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')) : {};
+    const players = Array.isArray(raw) ? [] : (raw.players || []);
+    const collections = db.prepare('SELECT * FROM collections ORDER BY rowid').all().map(r => ({
+      key: r.key, name: r.name, source: r.source, id: r.col_id,
+      color: r.color, cards: JSON.parse(r.cards_json || '{}'),
+      entries: r.entries, total: r.total, savedAt: r.saved_at,
+    }));
+    res.json({ collections, players });
   } catch { res.json({ collections: [], players: [] }); }
 });
 
 app.post('/api/state', requireAuth, express.json({ limit: '10mb' }), (req, res) => {
-  const sess = getSession(req);
+  const sess    = getSession(req);
+  const current = readState();
+  const players = req.body.players || [];
   if (sess.role !== 'admin') {
-    const current = readState();
-    const inc = req.body;
     // Non-admin cannot add or remove players
     const curIds = new Set((current.players || []).map(p => p.id));
-    const incIds = new Set((inc.players   || []).map(p => p.id));
+    const incIds = new Set(players.map(p => p.id));
     if (curIds.size !== incIds.size || [...curIds].some(id => !incIds.has(id)))
       return res.status(403).json({ error: 'Forbidden' });
     // Non-admin cannot modify other players' decks
     for (const cp of (current.players || [])) {
       if (cp.id === sess.playerId) continue;
-      const ip = (inc.players || []).find(p => p.id === cp.id);
+      const ip = players.find(p => p.id === cp.id);
       if (!ip || JSON.stringify(cp.decks) !== JSON.stringify(ip.decks))
         return res.status(403).json({ error: 'Forbidden' });
     }
   }
   try {
-    fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify(req.body));
+    writeState({ ...current, players });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Collections (SQLite-backed) ───────────────────────────────────────────────
+app.post('/api/collections', requireAuth, express.json({ limit: '10mb' }), (req, res) => {
+  const { key, name, source, id, color, cards, entries, total, savedAt } = req.body || {};
+  if (!key || !name || !source) return res.status(400).json({ error: 'key, name, source required' });
+  db.prepare(`
+    INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET
+      name=excluded.name, source=excluded.source, col_id=excluded.col_id,
+      color=excluded.color, cards_json=excluded.cards_json,
+      entries=excluded.entries, total=excluded.total, saved_at=excluded.saved_at
+  `).run(key, name, source, id || null, color || '#a855f7',
+    JSON.stringify(cards || {}), entries || 0, total || null, savedAt || null);
+  res.json({ ok: true });
+});
+
+app.delete('/api/collections/:key', requireAuth, (req, res) => {
+  db.prepare('DELETE FROM collections WHERE key = ?').run(decodeURIComponent(req.params.key));
+  res.json({ ok: true });
 });
 
 // ── Archidekt / Moxfield proxies ──────────────────────────────────────────────

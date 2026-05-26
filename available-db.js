@@ -37,6 +37,17 @@ db.exec(`
     password_hash TEXT NOT NULL,
     requested_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS collections (
+    key        TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    col_id     TEXT,
+    color      TEXT NOT NULL,
+    cards_json TEXT NOT NULL DEFAULT '{}',
+    entries    INTEGER NOT NULL DEFAULT 0,
+    total      INTEGER,
+    saved_at   TEXT
+  );
 `);
 
 const DEFAULT_CAL_ID = 'default';

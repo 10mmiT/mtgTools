@@ -17,12 +17,6 @@ let pendingCsvName = null;
 // ── Storage (server DB with localStorage fallback) ────────────────────────
 function stateToJSON() {
   return {
-    collections: state.collections
-      .filter(c => c.status === 'loaded')
-      .map(c => ({
-        key: c.key, name: c.name, source: c.source, id: c.id, color: c.color,
-        cards: Object.fromEntries(c.cards), entries: c.entries, total: c.total, savedAt: c.savedAt,
-      })),
     players: state.players.map(p => ({
       id: p.id, name: p.name, color: p.color,
       wantList: p.wantList || [],
