@@ -131,7 +131,7 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | Data path (inside container) | `/app/data` |
 | Environment variable | `ADMIN_PASSWORD` |
 
-Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so collections, players, decks, and want lists survive container restarts. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
+Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. Collections are stored in `available.db` (SQLite); players, decks, and want lists are stored in `state.json`. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
 
 ### Stop
 
@@ -185,8 +185,8 @@ mtgsearch/
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
-    ├── state.json     # Collections, players, decks, want lists
-    └── available.db   # Availability calendar + user accounts (SQLite)
+    ├── state.json     # Players, decks, want lists
+    └── available.db   # Collections, availability calendar, user accounts (SQLite)
 ```
 
 ## Tech Stack & Credits
