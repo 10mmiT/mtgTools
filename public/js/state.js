@@ -2,8 +2,6 @@
 const STORAGE_KEY    = 'mtgsearch_v3';
 const COLORS         = ['#a855f7','#3b82f6','#10b981','#f59e0b','#ec4899','#0ea5e9','#6366f1','#ef4444'];
 const PLAYER_COLORS  = ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d399','#fbbf24','#60a5fa'];
-const USE_LOCAL      = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
 // ── State ─────────────────────────────────────────────────────────────────
 const state = {
   collections: [],
@@ -64,33 +62,29 @@ function hydrateState(raw) {
 
 async function saveToStorage() {
   const data = stateToJSON();
-  if (USE_LOCAL) {
-    try {
-      const res = await fetch('/api/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
-      return;
-    } catch (e) {
-      console.warn('Server save failed:', e.message);
+  try {
+    const res = await fetch('/api/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
+    return;
+  } catch (e) {
+    console.warn('Server save failed, falling back to localStorage:', e.message);
   }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
 }
 
 async function loadFromStorage() {
-  if (USE_LOCAL) {
-    try {
-      const res = await fetch('/api/state');
-      if (res.ok) { hydrateState(await res.json()); return; }
-    } catch (e) {
-      console.warn('Server load failed, falling back to localStorage:', e);
-    }
+  try {
+    const res = await fetch('/api/state');
+    if (res.ok) { hydrateState(await res.json()); return; }
+  } catch (e) {
+    console.warn('Server load failed, falling back to localStorage:', e);
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

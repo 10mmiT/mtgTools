@@ -71,12 +71,9 @@ function parseInput(raw) {
 
 function apiPageUrl(col, page) {
   if (col.source === 'moxfield') {
-    if (!USE_LOCAL) return null;
     return `/api/moxfield/collection/${col.id}/cards?pageNumber=${page}&pageSize=100`;
   }
-  if (USE_LOCAL) return `/api/archidekt/collection/${col.id}?page=${page}&pageSize=100`;
-  const t = encodeURIComponent(`https://archidekt.com/api/collection/${col.id}/?page=${page}&pageSize=100`);
-  return `https://api.allorigins.win/raw?url=${t}`;
+  return `/api/archidekt/collection/${col.id}?page=${page}&pageSize=100`;
 }
 
 function sourceLabel(source) {
@@ -96,10 +93,6 @@ function addFromUrl() {
   const key = `${parsed.source}:${parsed.id}`;
   if (state.collections.find(c => c.key === key)) { showError(errEl, 'That collection is already loaded.'); return; }
 
-  if (parsed.source === 'moxfield' && !USE_LOCAL) {
-    showError(errEl, 'Moxfield requires the local server. Open this app via http://localhost:3000 (run with Docker).');
-    return;
-  }
 
   errEl.style.display = 'none';
 
