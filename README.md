@@ -123,6 +123,16 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | Manage collections & decks | ✓ (own) | ✓ |
 | Admin panel / user management | — | ✓ |
 
+### Container reference
+
+| Setting | Value |
+|---------|-------|
+| Container port | `3000` |
+| Data path (inside container) | `/app/data` |
+| Environment variable | `ADMIN_PASSWORD` |
+
+Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so collections, players, decks, and want lists survive container restarts. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
+
 ### Stop
 
 ```bash
