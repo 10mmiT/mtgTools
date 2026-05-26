@@ -50,6 +50,13 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Remove individual wants with one click
 - All want lists persist across restarts
 
+### Deck View tab
+- Load a deck from an Archidekt URL or a CSV file (qty, name format)
+- Cards grouped by type: Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other
+- Clickable summary strip at the top — click a category to jump to that section
+- List view (compact rows with mana cost, type, and ownership) or grid view (card images)
+- **Load for Comparison** button sends the deck to the Collections tab comparison panel
+
 ### Mana Base Calculator tab
 - Choose a deck size preset — 40 (Limited), 60 (Constructed), 100 (Commander) — or enter a custom size
 - Enter the count of each colored mana pip (W/U/B/R/G) and colorless (C/Wastes) across your non-land cards
@@ -83,20 +90,22 @@ Data is stored in a Docker volume (`mtgsearch-data`) and persists across restart
 
 The app uses per-player user accounts with two roles: **player** and **admin**.
 
-Set `ADMIN_PASSWORD` to enable auth. The `admin` account is created (or updated) automatically from this value on every startup:
+Set `ADMIN_PASSWORD` to enable auth. The `admin` account is created (or updated) automatically from this value on every startup.
 
-```yaml
-# docker-compose.yml
-services:
-  mtgsearch:
-    environment:
-      - ADMIN_PASSWORD=yourpassword
+Copy `.env.example` to `.env` and set your password:
+
+```bash
+cp .env.example .env
+# then edit .env:
+ADMIN_PASSWORD=yourpassword
 ```
+
+The `docker-compose.yml` reads from `.env` automatically. Never commit `.env` — it is listed in `.gitignore`.
 
 Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, everyone has full access (same as the old single-password behaviour).
 
 **First-time setup:**
-1. Set `ADMIN_PASSWORD` and start the container.
+1. Create `.env` with `ADMIN_PASSWORD` set and start the container.
 2. Sign in at `/login` as `admin` with that password.
 3. Go to the **Admin** tab.
 4. Create an account for each player (username + password + role = Player).
@@ -158,10 +167,11 @@ mtgsearch/
 │       ├── wants.js       # Want lists tab
 │       ├── available.js   # Available@ calendar tab
 │       ├── lands.js       # Mana base calculator tab
-│       ├── auth.js        # Session auth state, want quick-add
-│       ├── admin.js       # Admin panel (user management)
+│       ├── auth.js        # Session auth state, change password
+│       ├── admin.js       # Admin panel (user management, account requests)
+│       ├── deckview.js    # Deck View tab (Archidekt/CSV loader, categorised view)
 │       ├── scryfall.js    # Scryfall image cache helpers
-│       └── main.js        # Init, theme, tabs, tooltips
+│       └── main.js        # Init, theme, tabs, tooltips, state polling
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
