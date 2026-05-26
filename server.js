@@ -360,15 +360,25 @@ app.delete('/available/api/calendars/:id/persons/:name', requireAuth, (req, res)
 // ── MTG Collection state ──────────────────────────────────────────────────────
 app.get('/api/state', requireAuth, (req, res) => {
   try {
-    const raw  = fs.existsSync(DATA_FILE) ? JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')) : {};
+    const raw     = fs.existsSync(DATA_FILE) ? JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')) : {};
     const players = Array.isArray(raw) ? [] : (raw.players || []);
-    const collections = db.prepare('SELECT * FROM collections ORDER BY rowid').all().map(r => ({
-      key: r.key, name: r.name, source: r.source, id: r.col_id,
-      color: r.color, cards: JSON.parse(r.cards_json || '{}'),
-      entries: r.entries, total: r.total, savedAt: r.saved_at,
-    }));
+    const collections = db.prepare('SELECT * FROM collections ORDER BY rowid').all().map(r => {
+      try {
+        return {
+          key: r.key, name: r.name, source: r.source, id: r.col_id,
+          color: r.color, cards: JSON.parse(r.cards_json || '{}'),
+          entries: r.entries, total: r.total, savedAt: r.saved_at,
+        };
+      } catch (e) {
+        console.error(`Failed to parse collection ${r.key}:`, e.message);
+        return null;
+      }
+    }).filter(Boolean);
     res.json({ collections, players });
-  } catch { res.json({ collections: [], players: [] }); }
+  } catch (e) {
+    console.error('GET /api/state error:', e.message);
+    res.json({ collections: [], players: [] });
+  }
 });
 
 app.post('/api/state', requireAuth, express.json({ limit: '10mb' }), (req, res) => {
@@ -399,16 +409,21 @@ app.post('/api/state', requireAuth, express.json({ limit: '10mb' }), (req, res) 
 app.post('/api/collections', requireAuth, express.json({ limit: '10mb' }), (req, res) => {
   const { key, name, source, id, color, cards, entries, total, savedAt } = req.body || {};
   if (!key || !name || !source) return res.status(400).json({ error: 'key, name, source required' });
-  db.prepare(`
-    INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(key) DO UPDATE SET
-      name=excluded.name, source=excluded.source, col_id=excluded.col_id,
-      color=excluded.color, cards_json=excluded.cards_json,
-      entries=excluded.entries, total=excluded.total, saved_at=excluded.saved_at
-  `).run(key, name, source, id || null, color || '#a855f7',
-    JSON.stringify(cards || {}), entries || 0, total || null, savedAt || null);
-  res.json({ ok: true });
+  try {
+    db.prepare(`
+      INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET
+        name=excluded.name, source=excluded.source, col_id=excluded.col_id,
+        color=excluded.color, cards_json=excluded.cards_json,
+        entries=excluded.entries, total=excluded.total, saved_at=excluded.saved_at
+    `).run(key, name, source, id || null, color || '#a855f7',
+      JSON.stringify(cards || {}), entries || 0, total || null, savedAt || null);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Collection save error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.delete('/api/collections/:key', requireAuth, (req, res) => {

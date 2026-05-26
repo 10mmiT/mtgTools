@@ -154,10 +154,20 @@ async function fetchAllPages(col) {
       page++;
     }
 
-    col.status   = 'loaded';
     col.savedAt  = new Date().toISOString();
     col.updating = false;
-    saveCollection(col);
+    // Keep status 'loading' while saving so refreshState doesn't run and
+    // overwrite in-memory state before the SQLite write completes.
+    try {
+      await saveCollection(col);
+    } catch (e) {
+      col.status = 'error';
+      col.error  = `Saved locally but failed to persist: ${e.message}`;
+      renderCollections();
+      renderResults();
+      return;
+    }
+    col.status = 'loaded';
   } catch (err) {
     col.status   = 'error';
     col.error    = err.message;
@@ -203,7 +213,7 @@ document.getElementById('csvInput').addEventListener('change', e => {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = ev => {
+  reader.onload = async ev => {
     try {
       const { cards, source } = importCSV(ev.target.result, file.name);
       const total = [...cards.values()].reduce((s, c) => s + c.qty, 0);
@@ -219,7 +229,7 @@ document.getElementById('csvInput').addEventListener('change', e => {
           col.error    = null;
           col.savedAt  = new Date().toISOString();
           col.updating = false;
-          saveCollection(col);
+          await saveCollection(col);
         }
         pendingCsvKey = null;
       } else {
@@ -241,7 +251,7 @@ document.getElementById('csvInput').addEventListener('change', e => {
           updating: false,
         };
         state.collections.push(col);
-        saveCollection(col);
+        await saveCollection(col);
         document.getElementById('nameInput').value = '';
       }
 
@@ -262,18 +272,19 @@ document.getElementById('csvInput').addEventListener('change', e => {
 
 // ── Collection persistence (SQLite-backed via server) ─────────────────────
 async function saveCollection(col) {
-  try {
-    const res = await fetch('/api/collections', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        key: col.key, name: col.name, source: col.source, id: col.id,
-        color: col.color, cards: Object.fromEntries(col.cards),
-        entries: col.entries, total: col.total, savedAt: col.savedAt,
-      }),
-    });
-    if (!res.ok) console.warn('Collection save failed:', (await res.json().catch(()=>({}))).error);
-  } catch (e) { console.warn('Collection save failed:', e.message); }
+  const res = await fetch('/api/collections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key: col.key, name: col.name, source: col.source, id: col.id,
+      color: col.color, cards: Object.fromEntries(col.cards),
+      entries: col.entries, total: col.total, savedAt: col.savedAt,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
 }
 
 // ── Update / Remove collection ────────────────────────────────────────────
