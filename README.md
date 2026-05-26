@@ -193,3 +193,4 @@ mtgsearch/
 Card images and search data are provided by Scryfall. Scryfall is not produced by or endorsed by Wizards of the Coast.
 
 Magic: The Gathering is © Wizards of the Coast LLC.
+
