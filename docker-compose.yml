@@ -1,12 +1,13 @@
 services:
   mtgsearch:
+    image: ${DOCKERHUB_USERNAME:-local}/mtgtools:latest
     build: .
     ports:
       - "3000:3000"
     volumes:
       - mtgsearch-data:/app/data
-    environment:
-      - ADMIN_PASSWORD=Supericus
+    env_file:
+      - .env
 
 volumes:
   mtgsearch-data:
