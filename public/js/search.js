@@ -1,11 +1,12 @@
 // ── Scryfall Search ───────────────────────────────────────────────────────
 const sfState = { query: '', nextPage: null, loading: false, timer: null };
-let sfViewSize = 'small'; // 'small' | 'large'
+let sfViewSize = 'list'; // 'list' | 'grid' | 'xl'
 
 function setSfSize(size) {
   sfViewSize = size;
-  document.getElementById('sf-size-sm').classList.toggle('active', size === 'small');
-  document.getElementById('sf-size-lg').classList.toggle('active', size === 'large');
+  document.getElementById('sf-size-sm').classList.toggle('active', size === 'list');
+  document.getElementById('sf-size-lg').classList.toggle('active', size === 'grid');
+  document.getElementById('sf-size-xl').classList.toggle('active', size === 'xl');
   // Re-render existing results in the new size
   const container = document.getElementById('sfResults');
   if (container.dataset.cards) {
@@ -85,9 +86,9 @@ function renderSfPage(cards, append) {
     container.removeAttribute('data-cards');
     // Wrap in correct container element based on size
     container.insertAdjacentHTML('beforeend',
-      sfViewSize === 'large'
-        ? '<div class="sf-grid" id="sfGrid"></div>'
-        : '<div class="sf-results" id="sfGrid"></div>'
+      sfViewSize === 'xl'   ? '<div class="sf-grid-xl" id="sfGrid"></div>'
+      : sfViewSize === 'grid' ? '<div class="sf-grid" id="sfGrid"></div>'
+      : '<div class="sf-results" id="sfGrid"></div>'
     );
   }
 
@@ -97,9 +98,9 @@ function renderSfPage(cards, append) {
   const prev = container.dataset.cards ? JSON.parse(container.dataset.cards) : [];
   container.dataset.cards = JSON.stringify(append ? [...prev, ...cards] : cards);
 
-  const html = sfViewSize === 'large'
-    ? cards.map(card => renderSfCardLarge(card)).join('')
-    : cards.map(card => renderSfCardSmall(card)).join('');
+  const html = sfViewSize === 'xl'   ? cards.map(card => renderSfCardXL(card)).join('')
+             : sfViewSize === 'grid' ? cards.map(card => renderSfCardLarge(card)).join('')
+             : cards.map(card => renderSfCardSmall(card)).join('');
 
   grid.insertAdjacentHTML('beforeend', html);
 
@@ -117,6 +118,7 @@ function renderSfCardSmall(card) {
   const sfUrl  = card.scryfall_uri || `https://scryfall.com/card/${card.id}`;
   const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
   const owned  = sfCardOwnership(card.name);
+  const price  = renderPrice(card);
   return `<div class="sf-card">
     <a href="${sfUrl}" target="_blank" rel="noopener" class="sf-thumb">
       ${imgUrl ? `<img src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">` : '<div class="sf-thumb-ph"></div>'}
@@ -125,6 +127,7 @@ function renderSfCardSmall(card) {
       <div class="sf-name-row">
         <a class="sf-card-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}">${esc(card.name)}</a>
         ${mana ? `<span class="sf-mana">${renderMana(mana)}</span>` : ''}
+        ${price}
         ${wantBtnHtml(card.name)}
       </div>
       <div class="sf-type">${esc(card.type_line || '')}</div>
@@ -139,6 +142,7 @@ function renderSfCardLarge(card) {
   const sfUrl  = card.scryfall_uri || `https://scryfall.com/card/${card.id}`;
   const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
   const owned  = sfCardOwnership(card.name);
+  const price  = renderPrice(card);
   return `<div class="sf-card-lg">
     <a href="${sfUrl}" target="_blank" rel="noopener">
       ${imgUrl
@@ -148,8 +152,37 @@ function renderSfCardLarge(card) {
     <div class="sf-card-lg-footer">
       <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
+        ${price}
         ${wantBtnHtml(card.name)}
       </div>
+      <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
+    </div>
+  </div>`;
+}
+
+function renderSfCardXL(card) {
+  const face   = card.card_faces?.[0];
+  const imgUrl = card.image_uris?.large || card.image_uris?.normal || face?.image_uris?.large || face?.image_uris?.normal || '';
+  const sfUrl  = card.scryfall_uri || `https://scryfall.com/card/${card.id}`;
+  const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
+  const owned  = sfCardOwnership(card.name);
+  const price  = renderPrice(card);
+  const mana   = card.mana_cost || face?.mana_cost || '';
+  const type   = card.type_line || face?.type_line || '';
+  return `<div class="sf-card-lg">
+    <a href="${sfUrl}" target="_blank" rel="noopener">
+      ${imgUrl
+        ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
+        : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
+    </a>
+    <div class="sf-card-lg-footer">
+      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+        <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
+        ${price}
+        ${wantBtnHtml(card.name)}
+      </div>
+      ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
+      ${type ? `<div style="font-size:.7rem;color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

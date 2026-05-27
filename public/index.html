@@ -208,12 +208,13 @@
       <button class="btn-primary" style="flex-shrink:0;padding:.55rem 1.1rem" onclick="doScryfallSearch()">Search</button>
       <span id="sfInfo" class="result-info" style="flex-shrink:0"></span>
       <div class="view-toggle" style="flex-shrink:0">
-        <button class="view-btn active" id="sf-size-sm" onclick="setSfSize('small')">
+        <button class="view-btn active" id="sf-size-sm" onclick="setSfSize('list')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         </button>
-        <button class="view-btn" id="sf-size-lg" onclick="setSfSize('large')">
+        <button class="view-btn" id="sf-size-lg" onclick="setSfSize('grid')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         </button>
+        <button class="view-btn" id="sf-size-xl" onclick="setSfSize('xl')" style="font-size:.72rem;font-weight:700">XL</button>
       </div>
     </div>
     <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">
@@ -240,6 +241,7 @@
         <button class="view-btn"        id="setViewGrid" onclick="setSetView('grid')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         </button>
+        <button class="view-btn"        id="setViewXl"   onclick="setSetView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
       </div>
     </div>
     <div id="setList" class="set-list">
@@ -277,6 +279,15 @@
       <button class="btn-secondary" style="padding:.5rem 1rem;flex-shrink:0" onclick="document.getElementById('wantCsvInput').click()">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import CSV
       </button>
+      <div class="view-toggle" style="margin-left:auto;flex-shrink:0">
+        <button class="view-btn active" id="want-view-list" onclick="setWantView('list')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+        <button class="view-btn" id="want-view-grid" onclick="setWantView('grid')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </button>
+        <button class="view-btn" id="want-view-xl" onclick="setWantView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
+      </div>
     </div>
   </div>
   <div id="wantResults"></div>
@@ -476,6 +487,7 @@
           <button class="view-btn" id="dv-grid-btn" onclick="dvSetView('grid')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
           </button>
+          <button class="view-btn" id="dv-xl-btn" onclick="dvSetView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
         </div>
         <button class="btn-primary" style="padding:.45rem 1rem" onclick="dvLoadForComparison()">Load for Comparison</button>
       </div>

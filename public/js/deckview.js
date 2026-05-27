@@ -134,6 +134,7 @@ function dvSetView(v) {
   dvView = v;
   document.getElementById('dv-list-btn')?.classList.toggle('active', v === 'list');
   document.getElementById('dv-grid-btn')?.classList.toggle('active', v === 'grid');
+  document.getElementById('dv-xl-btn')?.classList.toggle('active', v === 'xl');
   if (dvDeck) dvRender();
 }
 
@@ -189,9 +190,9 @@ function dvRender() {
     .filter(cat => groups[cat].length > 0)
     .map(cat => {
       const count = groups[cat].reduce((s, c) => s + c.qty, 0);
-      return dvView === 'grid'
-        ? dvGridSection(cat, count, groups[cat])
-        : dvListSection(cat, count, groups[cat]);
+      return dvView === 'xl'   ? dvGridSectionXL(cat, count, groups[cat])
+           : dvView === 'grid' ? dvGridSection(cat, count, groups[cat])
+           : dvListSection(cat, count, groups[cat]);
     }).join('');
 
   content.innerHTML = `
@@ -207,11 +208,13 @@ function dvListSection(cat, count, cards) {
     const type  = sf?.type_line  || face?.type_line  || '';
     const href  = `https://scryfall.com/search?q=!%22${encodeURIComponent(c.name)}%22`;
     const owned = sfCardOwnership(c.name);
+    const price = renderPrice(sf);
     return `<div class="dv-row">
       <span class="dv-qty">×${c.qty}</span>
       <a class="dv-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(c.name)}">${esc(c.name)}</a>
       ${mana ? `<span class="dv-mana">${renderMana(mana)}</span>` : '<span class="dv-mana"></span>'}
       <span class="dv-type">${esc(type)}</span>
+      <span class="dv-price">${price}</span>
       <span class="dv-own">${owned || ''}</span>
     </div>`;
   }).join('');
@@ -231,6 +234,7 @@ function dvGridSection(cat, count, cards) {
     const imgUrl = sf?.image_uris?.normal || face?.image_uris?.normal || '';
     const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(c.name)}%22`;
     const owned  = sfCardOwnership(c.name);
+    const price  = renderPrice(sf);
     return `<div class="sf-card-lg">
       <a href="${sf?.scryfall_uri || href}" target="_blank" rel="noopener">
         ${imgUrl
@@ -242,6 +246,7 @@ function dvGridSection(cat, count, cards) {
           <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
              data-name="${esc(c.name)}" title="${esc(c.name)}" style="margin-bottom:0;flex:1">${esc(c.name)}</a>
           ${c.qty > 1 ? `<span style="font-size:.72rem;font-weight:700;color:var(--muted)">×${c.qty}</span>` : ''}
+          ${price}
         </div>
         <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
       </div>
@@ -253,5 +258,43 @@ function dvGridSection(cat, count, cards) {
       <span class="dv-section-count">${count}</span>
     </div>
     <div class="sf-grid">${tiles}</div>
+  </div>`;
+}
+
+function dvGridSectionXL(cat, count, cards) {
+  const tiles = cards.map(c => {
+    const sf     = dvCardData.get(c.name);
+    const face   = sf?.card_faces?.[0];
+    const imgUrl = sf?.image_uris?.large || sf?.image_uris?.normal || face?.image_uris?.large || face?.image_uris?.normal || '';
+    const mana   = sf?.mana_cost || face?.mana_cost || '';
+    const type   = sf?.type_line || face?.type_line || '';
+    const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(c.name)}%22`;
+    const owned  = sfCardOwnership(c.name);
+    const price  = renderPrice(sf);
+    return `<div class="sf-card-lg">
+      <a href="${sf?.scryfall_uri || href}" target="_blank" rel="noopener">
+        ${imgUrl
+          ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(c.name)}">`
+          : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
+      </a>
+      <div class="sf-card-lg-footer">
+        <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+          <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
+             data-name="${esc(c.name)}" title="${esc(c.name)}" style="margin-bottom:0;flex:1">${esc(c.name)}</a>
+          ${c.qty > 1 ? `<span style="font-size:.72rem;font-weight:700;color:var(--muted)">×${c.qty}</span>` : ''}
+          ${price}
+        </div>
+        ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
+        ${type ? `<div style="font-size:.7rem;color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
+        <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="dv-section" id="dv-sec-${cat}">
+    <div class="dv-section-hdr">
+      <span class="dv-section-title">${cat}</span>
+      <span class="dv-section-count">${count}</span>
+    </div>
+    <div class="sf-grid-xl">${tiles}</div>
   </div>`;
 }

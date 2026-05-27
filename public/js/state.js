@@ -99,6 +99,13 @@ async function loadFromStorage() {
 // ── Helpers ───────────────────────────────────────────────────────────────
 function showError(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 
+// Render a Cardmarket (EUR) price from a Scryfall card object.
+function renderPrice(card) {
+  const eur = card?.prices?.eur;
+  if (!eur) return '';
+  return `<span class="card-price">€${parseFloat(eur).toFixed(2)}</span>`;
+}
+
 // Render a Scryfall mana cost string like "{2}{W}{B}" as mana-font icons.
 // Falls back to escaped text for any symbol the font doesn't cover.
 function renderMana(cost) {

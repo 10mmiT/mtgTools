@@ -30,7 +30,8 @@
       "Bash(git commit -m 'Warn on startup when /app/data has no volume mount *)",
       "Bash(git push *)",
       "Bash(git commit -m 'Move players/decks/want-lists from state.json to SQLite *)",
-      "Bash(git commit -m 'Rename mtgsearch → mtgtools throughout *)"
+      "Bash(git commit -m 'Rename mtgsearch → mtgtools throughout *)",
+      "Bash(git commit -m 'Fix deck disappearing while commander image loads *)"
     ]
   }
 }

@@ -748,11 +748,26 @@ td { padding: .45rem .75rem; }
 .sf-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .sf-not-owned { font-size: .72rem; color: var(--muted); font-style: italic; }
 
+/* ── Cardmarket price badge ───────────────────────────────────────────── */
+.card-price {
+  font-size: .72rem;
+  font-weight: 700;
+  color: #10b981;
+  white-space: nowrap;
+}
+
 /* ── Scryfall large-card grid ─────────────────────────────────────────── */
 .sf-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   gap: .75rem;
+}
+
+/* XL card grid — bigger columns for larger images */
+.sf-grid-xl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
 }
 .sf-card-lg {
   background: var(--card);
@@ -1292,7 +1307,7 @@ input[type=number].lands-num-input::-webkit-outer-spin-button { opacity: .4; }
 
 .dv-row {
   display: grid;
-  grid-template-columns: 2.2rem 1fr 7rem 1fr auto;
+  grid-template-columns: 2.2rem 1fr 7rem 1fr 4rem auto;
   align-items: center;
   gap: .5rem;
   padding: .28rem .4rem;
@@ -1331,13 +1346,21 @@ input[type=number].lands-num-input::-webkit-outer-spin-button { opacity: .4; }
   text-overflow: ellipsis;
 }
 .dv-own { font-size: .75rem; white-space: nowrap; }
+.dv-price {
+  font-size: .74rem;
+  font-weight: 700;
+  color: #10b981;
+  white-space: nowrap;
+  text-align: right;
+}
 
 @media (max-width: 640px) {
   .dv-row {
     grid-template-columns: 2rem 1fr auto;
     grid-template-rows: auto auto;
   }
-  .dv-mana { display: none; }
-  .dv-type { grid-column: 2; font-size: .72rem; }
-  .dv-own  { grid-column: 3; grid-row: 1; }
+  .dv-mana  { display: none; }
+  .dv-price { display: none; }
+  .dv-type  { grid-column: 2; font-size: .72rem; }
+  .dv-own   { grid-column: 3; grid-row: 1; }
 }
