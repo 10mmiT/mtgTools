@@ -37,6 +37,8 @@ function initTheme() {
   const saved = localStorage.getItem('mtgtools_theme') || 'dark';
   document.documentElement.dataset.theme = saved;
   document.getElementById('themeToggle').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
+  const lbl = document.getElementById('mobNavThemeLabel');
+  if (lbl) lbl.textContent = saved === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
 }
 
 function toggleTheme() {
@@ -44,6 +46,8 @@ function toggleTheme() {
   document.documentElement.dataset.theme = next;
   localStorage.setItem('mtgtools_theme', next);
   document.getElementById('themeToggle').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
+  const lbl = document.getElementById('mobNavThemeLabel');
+  if (lbl) lbl.textContent = next === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
 }
 
 // ── View mode ─────────────────────────────────────────────────────────

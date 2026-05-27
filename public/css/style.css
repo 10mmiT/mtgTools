@@ -391,9 +391,39 @@ td { padding: .45rem .75rem; }
 .page-layout { display: flex; gap: 1rem; align-items: flex-start; }
 .main-col { flex: 1; min-width: 0; }
 
-/* ── Mobile navigation dropdown ──────────────────────────────────────── */
+/* ── Mobile navigation dropdown — base (hidden on desktop) ───────────── */
 .mob-nav { display: none; }
 
+/* ── Tabs ────────────────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid var(--border);
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: .65rem 1.35rem;
+  font-size: .9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* ── Mobile nav — MUST be after .tab-bar so display:none wins ────────── */
 @media (max-width: 860px) {
   .tab-bar { display: none; }
   .mob-nav {
@@ -435,7 +465,8 @@ td { padding: .45rem .75rem; }
     border: 1.5px solid var(--border);
     border-radius: var(--radius);
     box-shadow: 0 10px 30px rgba(0,0,0,.45);
-    overflow: hidden;
+    overflow-y: auto;
+    max-height: calc(100vh - 8rem);
   }
   .mob-nav-menu.open { display: block; }
 
@@ -461,36 +492,24 @@ td { padding: .45rem .75rem; }
   .mob-nav-item svg { flex-shrink: 0; color: var(--muted); }
   .mob-nav-item.active { color: var(--primary); background: var(--primary-lt); }
   .mob-nav-item.active svg { color: var(--primary); }
-}
 
-/* ── Tabs ────────────────────────────────────────────────────────────── */
-.tab-bar {
-  display: flex;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  margin-bottom: 1.25rem;
-  border-bottom: 2px solid var(--border);
+  /* Divider + utility rows at bottom of dropdown */
+  .mob-nav-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+  .mob-nav-meta {
+    padding: .45rem 1.1rem;
+    font-size: .72rem;
+    color: var(--muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .mob-nav-item-danger { color: var(--danger) !important; }
+  .mob-nav-item-danger:hover { background: var(--danger-lt) !important; }
+  .mob-nav-item-danger svg { color: var(--danger) !important; }
+
+  /* Move header buttons into the dropdown — hide them from the header */
+  #changePwBtn, #logoutBtn, #userBadge, #themeToggle { display: none !important; }
 }
-.tab-bar::-webkit-scrollbar { display: none; }
-.tab-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  padding: .65rem 1.35rem;
-  font-size: .9rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: color .15s;
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-}
-.tab-btn:hover { color: var(--text); }
-.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 
 /* ── Players tab ──────────────────────────────────────────────────────── */
 .players-add-bar {
@@ -922,10 +941,21 @@ td { padding: .45rem .75rem; }
   .deck-tiles-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
-  .container { padding: 1rem; }
+  .container { padding: .75rem; }
   .add-form { flex-direction: column; }
   .url-input, .name-input { width: 100%; }
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+
+  /* Compact calendar cells on small screens */
+  .cal-cell {
+    min-height: 46px;
+    padding: .2rem .15rem;
+    border-radius: 4px;
+  }
+  .day-num { font-size: .68rem; margin-bottom: .1rem; }
+  .name-tag { font-size: .58rem; padding: 1px 2px; border-radius: 3px; }
+  .cal-hdr  { font-size: .65rem; padding-bottom: .35rem; }
+  .cal-grid { gap: 2px; }
 }
 
 /* ── Available@ embedded calendar ───────────────────────────────────── */
