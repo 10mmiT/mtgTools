@@ -88,7 +88,7 @@ function addFromUrl() {
   const errEl  = document.getElementById('addError');
 
   const parsed = parseInput(urlEl.value);
-  if (!parsed) { showError(errEl, 'Enter a valid Archidekt URL/ID or Moxfield collection URL.'); return; }
+  if (!parsed) { showError(errEl, 'Enter a valid Archidekt collection URL or numeric ID.'); return; }
 
   const key = `${parsed.source}:${parsed.id}`;
   if (state.collections.find(c => c.key === key)) { showError(errEl, 'That collection is already loaded.'); return; }
