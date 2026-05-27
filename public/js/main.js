@@ -61,6 +61,9 @@ async function refreshState() {
   if (document.visibilityState === 'hidden') return;
   // Skip if a collection is currently loading to avoid clobbering it
   if (state.collections.some(c => c.status === 'loading' || c.status === 'updating')) return;
+  // Skip if any deck is mid-add (nameStatus:'loading') — hydrateState would replace
+  // state.players before saveToStorage runs, permanently losing the new deck
+  if (state.players.some(p => p.decks.some(d => d.nameStatus === 'loading'))) return;
   // Rate-limit to once every 15 seconds
   if (Date.now() - _lastRefresh < 15_000) return;
   _lastRefresh = Date.now();
@@ -142,6 +145,7 @@ document.getElementById('playerNameInput').addEventListener('keydown', e => { if
 initTheme();
 authInit().then(() => {
   loadFromStorage().then(() => {
+    _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load
     initCollapses();
     renderPlayers();
     renderCollections();

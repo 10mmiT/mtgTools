@@ -130,29 +130,33 @@ async function confirmAddDeck(playerId) {
   form.classList.remove('open');
   renderPlayers();
 
-  // If Archidekt URL given, fetch extra metadata (card count, bracket, etc.)
-  if (parsed && USE_LOCAL) {
-    try {
-      const data = await fetchDeckData(parsed.source, parsed.deckId);
-      // Only override commander if the user left it blank
-      if (!commanderVal && data.commander) entry.commander = data.commander;
-      entry.cardCount = data.cardCount;
-      entry.bracket   = data.bracket;
-      entry._cards    = data.cards;
-    } catch (e) {
-      console.warn('Archidekt deck fetch failed:', e.message);
+  try {
+    // If Archidekt URL given, fetch extra metadata (card count, bracket, etc.)
+    if (parsed && USE_LOCAL) {
+      try {
+        const data = await fetchDeckData(parsed.source, parsed.deckId);
+        // Only override commander if the user left it blank
+        if (!commanderVal && data.commander) entry.commander = data.commander;
+        entry.cardCount = data.cardCount;
+        entry.bracket   = data.bracket;
+        entry._cards    = data.cards;
+      } catch (e) {
+        console.warn('Archidekt deck fetch failed:', e.message);
+      }
     }
-  }
 
-  // Fetch commander art crop from Scryfall
-  if (entry.commander) {
-    await ensureScryfallImages([entry.commander]);
-    entry.commanderImg = scryfallArtCache.get(entry.commander) || null;
+    // Fetch commander art crop from Scryfall
+    if (entry.commander) {
+      await ensureScryfallImages([entry.commander]);
+      entry.commanderImg = scryfallArtCache.get(entry.commander) || null;
+    }
+  } finally {
+    // Always mark as loaded — if we leave nameStatus:'loading' the state
+    // polling guard in refreshState() would be blocked indefinitely
+    entry.nameStatus = 'loaded';
+    saveToStorage();
+    renderPlayers();
   }
-
-  entry.nameStatus = 'loaded';
-  saveToStorage();
-  renderPlayers();
 }
 
 function removeDeck(playerId, deckId) {
