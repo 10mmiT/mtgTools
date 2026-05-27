@@ -24,37 +24,43 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Add players by name; each gets a unique colour
 - Add decks to players — enter a deck name and commander name; the commander's card art (fetched from Scryfall) becomes the tile background
 - Optionally link an Archidekt URL to load the full card list for comparison
-- Any URL (Moxfield, TappedOut, etc.) can be saved as a "View ↗" link on the tile
+- Any URL can be saved as a "View ↗" link on the tile
 - Edit any deck in-place (name, commander, link)
 - Click **Load for comparison** to send a deck to the Deck Comparison panel and switch to the Collections tab automatically
 - All deck metadata and commander art URLs persist across restarts
 
 ### Scryfall Search tab
 - Full Scryfall query syntax: `t:legendary t:creature`, `c:g cmc=3`, `"exact name"`, etc.
-- Results show which of your collections own each card and in what quantity
-- Small (list) or large (grid) view toggle
+- Results show which collections own each card and in what quantity, plus Cardmarket price (EUR)
+- Quick **+** button on each card to add it to your personal want list in one click
+- **List**, **Grid**, and **XL** view toggle — XL uses larger card images
+- Mana costs rendered as proper MTG mana icons
 - Search on Enter or button click — no auto-search while typing to stay within Scryfall's rate limits
 
 ### Set Browser tab
 - Browse every non-digital MTG set (expansions, Commander, Masters, etc.)
 - Filter sets by name or code
-- Click a set to load all its cards with collection ownership shown inline
-- "Only show owned cards" / "Only show unowned cards" filters
+- Click a set to load all its cards with collection ownership and Cardmarket price shown inline
+- Filter to only owned or only unowned cards
 - Shows how many cards from the set are owned across all collections
-- List and grid view toggle
+- **List**, **Grid**, and **XL** view toggle
 
 ### Want Lists tab
 - Per-player want lists with Scryfall autocomplete as you type
-- Combined table across all players: see who wants each card and whether anyone in the group already owns it
-- Cards wanted by multiple players sort to the top
-- Remove individual wants with one click
+- Import want lists from CSV (qty,name or name-only format)
+- **List view**: combined table across all players — who wants each card, Cardmarket price, and whether anyone already owns it; cards wanted by multiple players sort to the top
+- **Grid / XL views**: card images with Cardmarket price, coloured player-initial dots (tap your own dot to remove), and ownership badges
+- Remove individual wants from the table view with one click
 - All want lists persist across restarts
 
 ### Deck View tab
 - Load a deck from an Archidekt URL or a CSV file (qty, name format)
 - Cards grouped by type: Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other
 - Clickable summary strip at the top — click a category to jump to that section
-- List view (compact rows with mana cost, type, and ownership) or grid view (card images)
+- **List** view: compact rows with mana icons, type line, Cardmarket price, and ownership
+- **Grid** view: card images with price and ownership badges
+- **XL** view: larger card images with mana, type, price, and ownership
+- Supports double-faced cards (DFCs) in all views
 - **Load for Comparison** button sends the deck to the Collections tab comparison panel
 
 ### Mana Base Calculator tab
@@ -63,12 +69,13 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Enter how many non-basic lands (duals, fetches, other) you're already including
 - Instantly shows: total lands recommended, non-basics you entered, and how many basics to add
 - Distributes basic lands proportionally by pip count using the largest-remainder method so the numbers always add up exactly
-- Colors with no pips are hidden from the results
 
 ### General
 - Dark theme by default, toggleable to light; preference saved in the browser
+- Mana symbols rendered as proper MTG icons throughout (mana-font)
 - Collapsible panels throughout (Add Collection, Collections, each player section)
 - Per-user login system with player-linked accounts and an admin role
+- **Mobile-friendly**: on narrow screens the tab bar becomes a compact dropdown menu
 
 ## Getting Started
 
@@ -162,26 +169,26 @@ Moxfield collection URLs are not supported — their API is behind Cloudflare bo
 ```
 mtgtools/
 ├── server.js          # Express server — API routes, available@ calendar, auth
-├── available-db.js    # SQLite setup for the availability calendar
+├── available-db.js    # SQLite setup (all persistent data)
 ├── public/
 │   ├── index.html     # Single-page app shell
 │   ├── login.html     # Password login page
 │   ├── css/
 │   │   └── style.css
 │   └── js/
-│       ├── state.js       # App state, storage, helpers
+│       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks
 │       ├── search.js      # Scryfall search tab
 │       ├── sets.js        # Set browser tab
-│       ├── wants.js       # Want lists tab
+│       ├── wants.js       # Want lists tab (list/grid/XL views)
 │       ├── available.js   # Available@ calendar tab
 │       ├── lands.js       # Mana base calculator tab
-│       ├── auth.js        # Session auth state, change password
+│       ├── auth.js        # Session auth, quick-add wants, change password
 │       ├── admin.js       # Admin panel (user management, account requests)
 │       ├── deckview.js    # Deck View tab (Archidekt/CSV loader, categorised view)
 │       ├── scryfall.js    # Scryfall image cache helpers
-│       └── main.js        # Init, theme, tabs, tooltips, state polling
+│       └── main.js        # Init, theme, tabs, mobile nav, tooltips, state polling
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -194,13 +201,15 @@ mtgtools/
 | Component | Credit |
 |-----------|--------|
 | **[Express](https://expressjs.com/)** | Server framework — MIT licence |
-| **[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)** | SQLite for the availability calendar — MIT licence |
-| **[Scryfall API](https://scryfall.com/docs/api)** | Card data, images, search, and autocomplete. Free to use; please follow their [rate limit guidelines](https://scryfall.com/docs/api#rate-limits). Scryfall search is triggered manually (Enter / button) rather than on every keystroke. |
+| **[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)** | SQLite for all persistent data — MIT licence |
+| **[Scryfall API](https://scryfall.com/docs/api)** | Card data, images, search, autocomplete, and prices. Free to use; please follow their [rate limit guidelines](https://scryfall.com/docs/api#rate-limits). Scryfall search is triggered manually (Enter / button) rather than on every keystroke. |
+| **[mana-font](https://github.com/andrewgioia/mana)** | MTG mana symbol icons — MIT licence |
 | **[Archidekt](https://archidekt.com)** | Collection and deck data via their public REST API |
 | **[Moxfield](https://moxfield.com)** | Collection data via CSV export |
 | **[Docker](https://www.docker.com/)** | Containerisation |
 
+Cardmarket prices are sourced from Scryfall's `prices.eur` field and reflect Cardmarket marketplace data at the time of the Scryfall API response.
+
 Card images and search data are provided by Scryfall. Scryfall is not produced by or endorsed by Wizards of the Coast.
 
 Magic: The Gathering is © Wizards of the Coast LLC.
-
