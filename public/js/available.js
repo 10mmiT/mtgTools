@@ -212,14 +212,8 @@ async function availLoad() {
 async function initAvailable() {
   if (availInitDone) return;
   availInitDone = true;
-  try {
-    const res = await fetch('/available/api/default');
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    availCalId = data.id;
-    await availLoad();
-  } catch (e) {
-    const el = document.getElementById('availLoading');
-    if (el) el.textContent = 'Failed to connect to calendar API.';
-  }
+  // The default calendar ID is always 'default' — skip the extra round-trip
+  // to /available/api/default and go straight to loading calendar data.
+  availCalId = 'default';
+  await availLoad();
 }

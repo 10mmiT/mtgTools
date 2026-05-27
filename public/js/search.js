@@ -124,7 +124,7 @@ function renderSfCardSmall(card) {
     <div class="sf-body">
       <div class="sf-name-row">
         <a class="sf-card-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}">${esc(card.name)}</a>
-        ${mana ? `<span class="sf-mana">${esc(mana)}</span>` : ''}
+        ${mana ? `<span class="sf-mana">${renderMana(mana)}</span>` : ''}
         ${wantBtnHtml(card.name)}
       </div>
       <div class="sf-type">${esc(card.type_line || '')}</div>

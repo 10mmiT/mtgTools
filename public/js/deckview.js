@@ -207,7 +207,7 @@ function dvListSection(cat, count, cards) {
     return `<div class="dv-row">
       <span class="dv-qty">×${c.qty}</span>
       <a class="dv-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(c.name)}">${esc(c.name)}</a>
-      ${mana ? `<span class="dv-mana">${esc(mana)}</span>` : '<span class="dv-mana"></span>'}
+      ${mana ? `<span class="dv-mana">${renderMana(mana)}</span>` : '<span class="dv-mana"></span>'}
       <span class="dv-type">${esc(type)}</span>
       <span class="dv-own">${owned || ''}</span>
     </div>`;

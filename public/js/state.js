@@ -99,6 +99,18 @@ async function loadFromStorage() {
 // ── Helpers ───────────────────────────────────────────────────────────────
 function showError(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 
+// Render a Scryfall mana cost string like "{2}{W}{B}" as mana-font icons.
+// Falls back to escaped text for any symbol the font doesn't cover.
+function renderMana(cost) {
+  if (!cost) return '';
+  return cost.replace(/\{([^}]+)\}/g, (match, sym) => {
+    let cls = sym.toLowerCase().replace(/\//g, ''); // {W/U} → wu
+    if (cls === 't')  cls = 'tap';
+    if (cls === 'q')  cls = 'untap';
+    return `<i class="ms ms-${cls} ms-cost ms-shadow" title="${esc(match)}"></i>`;
+  });
+}
+
 function esc(s) {
   if (!s) return '';
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

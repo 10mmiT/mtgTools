@@ -135,7 +135,7 @@ function renderSetCardList(card) {
     <div class="sf-body">
       <div class="sf-name-row">
         <a class="sf-card-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}">${esc(card.name)}</a>
-        ${mana ? `<span class="sf-mana">${esc(mana)}</span>` : ''}
+        ${mana ? `<span class="sf-mana">${renderMana(mana)}</span>` : ''}
         <span style="font-size:.68rem;color:var(--border)">#${card.collector_number || '?'}</span>
         ${wantBtnHtml(card.name)}
       </div>

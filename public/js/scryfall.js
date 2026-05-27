@@ -11,10 +11,14 @@ async function ensureScryfallImages(names) {
   for (let i = 0; i < missing.length; i += 75) {
     const batch = missing.slice(i, i + 75);
     try {
+      // For double-faced cards ("A // B"), Scryfall's fuzzy name lookup
+      // chokes on the " // " — use only the front-face name as the identifier.
+      // Scryfall returns the full oracle name ("A // B") in card.name, so the
+      // cache is still keyed by the full name and lookups work correctly.
       const res = await fetch('https://api.scryfall.com/cards/collection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifiers: batch.map(name => ({ name })) }),
+        body: JSON.stringify({ identifiers: batch.map(name => ({ name: name.split(' // ')[0] })) }),
       });
       if (res.ok) {
         const data = await res.json();
