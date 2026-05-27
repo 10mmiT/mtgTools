@@ -1,7 +1,7 @@
 {
-  "name": "mtgsearch",
+  "name": "mtgtools",
   "version": "1.0.0",
-  "description": "Search across multiple MTG collections from Archidekt",
+  "description": "MTG Tools — search collections, track decks, coordinate availability",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

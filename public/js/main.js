@@ -1,9 +1,9 @@
 // ── Collapsible panels ────────────────────────────────────────────────────
-const collapseState = JSON.parse(localStorage.getItem('mtgsearch_collapse') || '{}');
+const collapseState = JSON.parse(localStorage.getItem('mtgtools_collapse') || '{}');
 
 function togglePanel(id) {
   collapseState[id] = !collapseState[id];
-  localStorage.setItem('mtgsearch_collapse', JSON.stringify(collapseState));
+  localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
   applyCollapse(id);
 }
 
@@ -24,7 +24,7 @@ function togglePlayerSection(playerId, event) {
   if (event.target.closest('button')) return;
   const id  = `player-${playerId}`;
   collapseState[id] = !collapseState[id];
-  localStorage.setItem('mtgsearch_collapse', JSON.stringify(collapseState));
+  localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
   const body = document.getElementById(`pb-${id}`);
   const chv  = document.getElementById(`chv-${id}`);
   const closed = !!collapseState[id];
@@ -34,7 +34,7 @@ function togglePlayerSection(playerId, event) {
 
 // ── Theme ─────────────────────────────────────────────────────────────────
 function initTheme() {
-  const saved = localStorage.getItem('mtgsearch_theme') || 'dark';
+  const saved = localStorage.getItem('mtgtools_theme') || 'dark';
   document.documentElement.dataset.theme = saved;
   document.getElementById('themeToggle').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
 }
@@ -42,7 +42,7 @@ function initTheme() {
 function toggleTheme() {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
-  localStorage.setItem('mtgsearch_theme', next);
+  localStorage.setItem('mtgtools_theme', next);
   document.getElementById('themeToggle').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
 }
 

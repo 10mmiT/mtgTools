@@ -1,4 +1,4 @@
-# MTG Collection Search
+# MTG Tools
 
 Search across multiple Magic: The Gathering collections at once, compare deck lists against what you own, browse sets, track want lists, and coordinate group availability — all from a single self-hosted web app.
 
@@ -84,7 +84,7 @@ docker compose up --build
 
 Then open [http://localhost:3000](http://localhost:3000).
 
-Data is stored in a Docker volume (`mtgsearch-data`) and persists across restarts and rebuilds.
+Data is stored in a Docker volume (`mtgtools-data`) and persists across restarts and rebuilds.
 
 ### User accounts
 
@@ -160,7 +160,7 @@ Moxfield collection URLs are not supported — their API is behind Cloudflare bo
 ## Project Structure
 
 ```
-mtgsearch/
+mtgtools/
 ├── server.js          # Express server — API routes, available@ calendar, auth
 ├── available-db.js    # SQLite setup for the availability calendar
 ├── public/

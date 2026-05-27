@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MTG Search — Sign In</title>
+  <title>MTG Tools — Sign In</title>
   <style>
     :root {
       --bg: #111118; --card: #1c1c27; --card-2: #25253a; --border: #32324a;
@@ -85,7 +85,7 @@
 <header>
   <div class="logo">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    MTG Search
+    MTG Tools
   </div>
   <button class="theme-btn" onclick="toggleTheme()">☀ Light</button>
 </header>
@@ -147,11 +147,11 @@
   function toggleTheme() {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
-    localStorage.setItem('mtgsearch_theme', next);
+    localStorage.setItem('mtgtools_theme', next);
     document.querySelector('.theme-btn').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
   }
   (function() {
-    const saved = localStorage.getItem('mtgsearch_theme') || 'dark';
+    const saved = localStorage.getItem('mtgtools_theme') || 'dark';
     document.documentElement.dataset.theme = saved;
     document.querySelector('.theme-btn').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
   })();

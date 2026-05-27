@@ -25,7 +25,12 @@
       "Bash(Get-ChildItem \"C:\\\\Users\\\\Me\\\\Kode\\\\available@\\\\public\" -Name)",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Me\\\\Kode\\\\mtgsearch\\\\public\\\\\" -ErrorAction SilentlyContinue; if \\(-not \\(Test-Path \"C:\\\\Users\\\\Me\\\\Kode\\\\mtgsearch\\\\public\\\\available\"\\)\\) { New-Item -ItemType Directory -Path \"C:\\\\Users\\\\Me\\\\Kode\\\\mtgsearch\\\\public\\\\available\" })",
       "PowerShell(Get-Command node, npm -ErrorAction SilentlyContinue)",
-      "PowerShell($env:PATH; [System.IO.Directory]::Exists\\(\"C:\\\\Program Files\\\\nodejs\"\\))"
+      "PowerShell($env:PATH; [System.IO.Directory]::Exists\\(\"C:\\\\Program Files\\\\nodejs\"\\))",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Warn on startup when /app/data has no volume mount *)",
+      "Bash(git push *)",
+      "Bash(git commit -m 'Move players/decks/want-lists from state.json to SQLite *)",
+      "Bash(git commit -m 'Rename mtgsearch → mtgtools throughout *)"
     ]
   }
 }

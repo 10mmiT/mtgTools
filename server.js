@@ -484,4 +484,4 @@ app.get('/api/archidekt/deck/:id', requireAuth, (req, res) => {
 app.get('/api/collection/:id', requireAuth, (req, res) =>
   res.redirect(`/api/archidekt/collection/${req.params.id}?${new URLSearchParams(req.query)}`));
 
-app.listen(PORT, () => console.log(`MTG Collection Search → http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`MTG Tools → http://localhost:${PORT}`));
