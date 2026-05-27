@@ -5,7 +5,32 @@ const fs = require('fs');
 const dataDir = path.dirname(process.env.DATA_FILE || path.join(__dirname, 'data', 'state.json'));
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-const db = new Database(path.join(dataDir, 'available.db'));
+const dbPath = path.join(dataDir, 'available.db');
+console.log(`[db] Data directory : ${dataDir}`);
+console.log(`[db] SQLite database: ${dbPath}`);
+
+// Warn when running inside a Docker container with no volume mounted at /app/data.
+// The VOLUME declaration in the Dockerfile creates an anonymous volume, which Docker
+// discards whenever the container is recreated (e.g. Unraid image updates / Apply).
+// Map /app/data to a persistent host path to avoid data loss.
+const isDocker = fs.existsSync('/.dockerenv');
+const isMounted = (() => {
+  try {
+    const mounts = fs.readFileSync('/proc/mounts', 'utf8');
+    return mounts.split('\n').some(line => {
+      const mp = line.split(' ')[1];
+      return mp && (dataDir === mp || dataDir.startsWith(mp + '/'));
+    });
+  } catch { return true; } // can't tell — assume OK
+})();
+if (isDocker && !isMounted) {
+  console.warn('[db] WARNING: /app/data does not appear to be on a mounted volume.');
+  console.warn('[db]          Data will be lost when the container is recreated.');
+  console.warn('[db]          Map /app/data to a persistent host path (e.g. on Unraid:');
+  console.warn('[db]          Container Path=/app/data → Host Path=/mnt/user/appdata/mtgtools).');
+}
+
+const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
