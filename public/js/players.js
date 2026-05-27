@@ -129,46 +129,44 @@ async function confirmAddDeck(playerId) {
   urlInput.value  = '';
   form.classList.remove('open');
   renderPlayers();
+  console.log(`[deck] pushed "${entry.name}" (id=${entry.id}) to player "${player.name}" — saving early`);
 
-  // Persist immediately — before any async work — so the deck survives in the
-  // DB even if refreshState() fires and calls hydrateState() while we're waiting
-  // on Archidekt or Scryfall. Without this, the deck only exists in memory and a
-  // background refresh wipes it before saveToStorage() gets to run at the end.
   await saveToStorage();
+  console.log(`[deck] early save complete — deck is now in DB`);
 
   try {
-    // If Archidekt URL given, fetch extra metadata (card count, bracket, commander)
     if (parsed) {
+      console.log(`[deck] fetching Archidekt metadata for deck ${parsed.deckId}`);
       try {
         const data = await fetchDeckData(parsed.source, parsed.deckId);
-        // Only override commander if the user left it blank
         if (!commanderVal && data.commander) entry.commander = data.commander;
         entry.cardCount = data.cardCount;
         entry.bracket   = data.bracket;
         entry._cards    = data.cards;
+        console.log(`[deck] Archidekt fetch done — commander="${entry.commander}"`);
       } catch (e) {
-        console.warn('Archidekt deck fetch failed:', e.message);
+        console.warn('[deck] Archidekt fetch failed:', e.message);
       }
     }
 
-    // Fetch commander art crop from Scryfall
     if (entry.commander) {
+      console.log(`[deck] fetching Scryfall art for "${entry.commander}"`);
       await ensureScryfallImages([entry.commander]);
       entry.commanderImg = scryfallArtCache.get(entry.commander) || null;
+      console.log(`[deck] Scryfall art done — commanderImg=${entry.commanderImg ? 'set' : 'null'}`);
     }
   } finally {
-    // Re-find the deck in state.players by ID — if hydrateState() ran while
-    // we were awaiting above, `entry` is now orphaned (no longer in the live
-    // state array). Re-finding by ID lets us update the live object instead.
     const livePlayer = state.players.find(p => p.id === playerId);
     const liveDeck   = livePlayer?.decks.find(d => d.id === entry.id);
-    const target     = liveDeck || entry; // fall back to entry if not found
+    console.log(`[deck] finally — liveDeck found in state: ${!!liveDeck} (player still in state: ${!!livePlayer})`);
+    const target     = liveDeck || entry;
     target.commander    = entry.commander;
     target.commanderImg = entry.commanderImg;
     target.cardCount    = entry.cardCount;
     target.bracket      = entry.bracket;
     if (entry._cards) target._cards = entry._cards;
     target.nameStatus   = 'loaded';
+    console.log(`[deck] final save — target is ${liveDeck ? 'live object' : 'ORPHANED entry (hydrateState ran!)'}`);
     await saveToStorage();
     renderPlayers();
   }

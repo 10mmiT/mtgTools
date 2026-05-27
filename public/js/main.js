@@ -59,18 +59,27 @@ let _lastRefresh = 0;
 
 async function refreshState() {
   if (document.visibilityState === 'hidden') return;
-  // Skip if a collection is currently loading to avoid clobbering it
-  if (state.collections.some(c => c.status === 'loading' || c.status === 'updating')) return;
-  // Skip if any deck is mid-add (nameStatus:'loading') — hydrateState would replace
-  // state.players before saveToStorage runs, permanently losing the new deck
-  if (state.players.some(p => p.decks.some(d => d.nameStatus === 'loading'))) return;
-  // Rate-limit to once every 15 seconds
-  if (Date.now() - _lastRefresh < 15_000) return;
+  if (state.collections.some(c => c.status === 'loading' || c.status === 'updating')) {
+    console.log('[refresh] skipped — collection loading');
+    return;
+  }
+  if (state.players.some(p => p.decks.some(d => d.nameStatus === 'loading'))) {
+    console.log('[refresh] skipped — deck loading');
+    return;
+  }
+  if (Date.now() - _lastRefresh < 15_000) {
+    console.log(`[refresh] skipped — rate limited (${Math.round((Date.now()-_lastRefresh)/1000)}s since last)`);
+    return;
+  }
+  console.log('[refresh] FIRING — will call hydrateState', new Error().stack.split('\n')[2]?.trim());
   _lastRefresh = Date.now();
   try {
     const res = await fetch('/api/state');
     if (!res.ok) return;
-    hydrateState(await res.json());
+    const json = await res.json();
+    const deckSummary = (json.players||[]).map(p=>`${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
+    console.log(`[refresh] hydrateState — players: ${deckSummary || '(none)'}`);
+    hydrateState(json);
     renderPlayers();
     renderCollections();
     const activeTab = document.querySelector('.tab-btn.active')?.id?.replace('tab-btn-', '');

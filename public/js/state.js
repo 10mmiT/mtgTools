@@ -56,6 +56,8 @@ function hydrateState(raw) {
 
 async function saveToStorage() {
   const data = stateToJSON();
+  const deckSummary = data.players.map(p => `${p.name}:[${p.decks.map(d => d.name).join(',')}]`).join(' ');
+  console.log(`[save] POST /api/state — players: ${deckSummary || '(none)'}`);
   try {
     const res = await fetch('/api/state', {
       method: 'POST',
@@ -66,23 +68,31 @@ async function saveToStorage() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${res.status}`);
     }
+    console.log(`[save] ✓ server accepted`);
     return;
   } catch (e) {
-    console.warn('Server save failed, falling back to localStorage:', e.message);
+    console.warn(`[save] ✗ server rejected (${e.message}), falling back to localStorage`);
   }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
 }
 
 async function loadFromStorage() {
+  console.log('[load] loadFromStorage called');
   try {
     const res = await fetch('/api/state');
-    if (res.ok) { hydrateState(await res.json()); return; }
+    if (res.ok) {
+      const json = await res.json();
+      const deckSummary = (json.players || []).map(p => `${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
+      console.log(`[load] server returned — players: ${deckSummary || '(none)'}`);
+      hydrateState(json);
+      return;
+    }
   } catch (e) {
-    console.warn('Server load failed, falling back to localStorage:', e);
+    console.warn('[load] server failed, falling back to localStorage:', e);
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) hydrateState(JSON.parse(raw));
+    if (raw) { console.log('[load] using localStorage fallback'); hydrateState(JSON.parse(raw)); }
   } catch {}
 }
 
