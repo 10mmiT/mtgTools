@@ -31,8 +31,10 @@ function _authUpdateHeader() {
     badge.style.display = '';
     badge.classList.toggle('user-badge-admin', isAdmin);
   }
+  const mobAdminBtn = document.getElementById('mob-tab-admin');
   if (logoutBtn)   logoutBtn.style.display   = '';
   if (adminBtn)    adminBtn.style.display    = isAdmin ? '' : 'none';
+  if (mobAdminBtn) mobAdminBtn.style.display = isAdmin ? '' : 'none';
   if (changePwBtn) changePwBtn.style.display = isOpenMode ? 'none' : '';
   if (addPlayerBar)  addPlayerBar.style.display  = isAdmin ? '' : 'none';
   if (wantAddPlayer) wantAddPlayer.style.display = isAdmin ? '' : 'none';

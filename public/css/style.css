@@ -391,12 +391,88 @@ td { padding: .45rem .75rem; }
 .page-layout { display: flex; gap: 1rem; align-items: flex-start; }
 .main-col { flex: 1; min-width: 0; }
 
+/* ── Mobile navigation dropdown ──────────────────────────────────────── */
+.mob-nav { display: none; }
+
+@media (max-width: 860px) {
+  .tab-bar { display: none; }
+  .mob-nav {
+    display: block;
+    position: relative;
+    margin-bottom: 1.25rem;
+    z-index: 20;
+  }
+
+  .mob-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: .8rem 1.1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: var(--shadow);
+    transition: background .15s, border-color .15s;
+  }
+  .mob-nav-btn:hover { background: var(--card-2); border-color: var(--primary); }
+
+  .mob-nav-chev { flex-shrink: 0; transition: transform .2s; }
+  .mob-nav-chev.open { transform: rotate(180deg); }
+
+  .mob-nav-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    right: 0;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    overflow: hidden;
+  }
+  .mob-nav-menu.open { display: block; }
+
+  .mob-nav-item {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: .8rem 1.1rem;
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: background .12s, color .12s;
+  }
+  .mob-nav-item:last-child { border-bottom: none; }
+  .mob-nav-item:hover { background: var(--card-2); }
+  .mob-nav-item svg { flex-shrink: 0; color: var(--muted); }
+  .mob-nav-item.active { color: var(--primary); background: var(--primary-lt); }
+  .mob-nav-item.active svg { color: var(--primary); }
+}
+
 /* ── Tabs ────────────────────────────────────────────────────────────── */
 .tab-bar {
   display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   margin-bottom: 1.25rem;
   border-bottom: 2px solid var(--border);
 }
+.tab-bar::-webkit-scrollbar { display: none; }
 .tab-btn {
   background: transparent;
   border: none;

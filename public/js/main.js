@@ -1,4 +1,4 @@
-// ── Collapsible panels ────────────────────────────────────────────────────
+// ── Collapsible panels ────────────────────────────────────────────────
 const collapseState = JSON.parse(localStorage.getItem('mtgtools_collapse') || '{}');
 
 function togglePanel(id) {
@@ -32,7 +32,7 @@ function togglePlayerSection(playerId, event) {
   if (chv)  chv.classList.toggle('closed', closed);
 }
 
-// ── Theme ─────────────────────────────────────────────────────────────────
+// ── Theme ─────────────────────────────────────────────────────────────
 function initTheme() {
   const saved = localStorage.getItem('mtgtools_theme') || 'dark';
   document.documentElement.dataset.theme = saved;
@@ -46,7 +46,7 @@ function toggleTheme() {
   document.getElementById('themeToggle').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
 }
 
-// ── View mode ─────────────────────────────────────────────────────────────
+// ── View mode ─────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
   document.getElementById('btnList').classList.toggle('active', mode === 'list');
@@ -54,7 +54,39 @@ function setViewMode(mode) {
   renderResults();
 }
 
-// ── State refresh ─────────────────────────────────────────────────────────
+// ── Mobile navigation dropdown ────────────────────────────────────────
+const MOB_TAB_LABELS = {
+  available:   'Available@',
+  collections: 'Collections',
+  players:     'Players & Decks',
+  scryfall:    'Scryfall Search',
+  sets:        'Set Browser',
+  wants:       'Want Lists',
+  lands:       'Mana Base',
+  deckview:    'Deck View',
+  admin:       'Admin',
+};
+
+function toggleMobNav() {
+  const menu = document.getElementById('mobNavMenu');
+  const chev = document.getElementById('mobNavChev');
+  if (!menu) return;
+  const opening = !menu.classList.contains('open');
+  menu.classList.toggle('open', opening);
+  if (chev) chev.classList.toggle('open', opening);
+}
+
+function closeMobNav() {
+  document.getElementById('mobNavMenu')?.classList.remove('open');
+  document.getElementById('mobNavChev')?.classList.remove('open');
+}
+
+// Close dropdown when clicking anywhere outside it
+document.addEventListener('click', e => {
+  if (!e.target.closest('#mobNav')) closeMobNav();
+});
+
+// ── State refresh ─────────────────────────────────────────────────────
 let _lastRefresh = 0;
 
 async function refreshState() {
@@ -92,12 +124,21 @@ async function refreshState() {
 // Poll every 30 seconds while the page is open
 setInterval(refreshState, 30_000);
 
-// ── Tab switching ─────────────────────────────────────────────────────────
+// ── Tab switching ─────────────────────────────────────────────────────
 function setTab(tab) {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.getElementById(`tab-${tab}`).style.display = '';
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.getElementById(`tab-btn-${tab}`).classList.add('active');
+
+  // Sync mobile dropdown label + active item
+  const mobLabel = document.getElementById('mobNavLabel');
+  if (mobLabel) mobLabel.textContent = MOB_TAB_LABELS[tab] || tab;
+  document.querySelectorAll('.mob-nav-item').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  closeMobNav();
+
   if (tab === 'sets')      initSetBrowser();
   if (tab === 'wants')     renderWantList();
   if (tab === 'available') initAvailable();
@@ -109,7 +150,7 @@ function setTab(tab) {
 
 // auth functions are in auth.js (logout, authInit)
 
-// ── Card image tooltip (list view) ────────────────────────────────────────
+// ── Card image tooltip (list view) ────────────────────────────────────
 const _tip    = document.getElementById('cardTooltip');
 const _tipImg = document.getElementById('tooltipImg');
 let _tipTimer = null;
@@ -145,12 +186,12 @@ document.addEventListener('mousemove', e => {
 
 _tipImg.addEventListener('error', () => { _tip.style.display = 'none'; });
 
-// ── Event listeners ───────────────────────────────────────────────────────
+// ── Event listeners ───────────────────────────────────────────────────
 document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFromUrl(); });
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFromUrl(); });
 document.getElementById('playerNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmAddPlayer(); });
 
-// ── Init ──────────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────
 initTheme();
 authInit().then(() => {
   loadFromStorage().then(() => {
