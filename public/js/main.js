@@ -159,5 +159,6 @@ authInit().then(() => {
     renderPlayers();
     renderCollections();
     renderResults();
+    initAvailable(); // Available is the default tab — start loading it immediately
   });
 });

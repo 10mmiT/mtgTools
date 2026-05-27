@@ -33,7 +33,10 @@ async function dvFetchScryfall(names) {
       const res  = await fetch('https://api.scryfall.com/cards/collection', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ identifiers: batch.map(n => ({ name: n })) }),
+        // Strip the back-face from DFC names ("A // B" → "A") so Scryfall's
+        // fuzzy lookup succeeds. Scryfall returns card.name as the full oracle
+        // name, so map keys ("A // B") still match what's in the deck list.
+        body:    JSON.stringify({ identifiers: batch.map(n => ({ name: n.split(' // ')[0] })) }),
       });
       const data = await res.json();
       for (const card of (data.data || [])) {
