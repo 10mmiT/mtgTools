@@ -130,9 +130,15 @@ async function confirmAddDeck(playerId) {
   form.classList.remove('open');
   renderPlayers();
 
+  // Persist immediately — before any async work — so the deck survives in the
+  // DB even if refreshState() fires and calls hydrateState() while we're waiting
+  // on Archidekt or Scryfall. Without this, the deck only exists in memory and a
+  // background refresh wipes it before saveToStorage() gets to run at the end.
+  await saveToStorage();
+
   try {
-    // If Archidekt URL given, fetch extra metadata (card count, bracket, etc.)
-    if (parsed && USE_LOCAL) {
+    // If Archidekt URL given, fetch extra metadata (card count, bracket, commander)
+    if (parsed) {
       try {
         const data = await fetchDeckData(parsed.source, parsed.deckId);
         // Only override commander if the user left it blank
@@ -151,10 +157,19 @@ async function confirmAddDeck(playerId) {
       entry.commanderImg = scryfallArtCache.get(entry.commander) || null;
     }
   } finally {
-    // Always mark as loaded — if we leave nameStatus:'loading' the state
-    // polling guard in refreshState() would be blocked indefinitely
-    entry.nameStatus = 'loaded';
-    saveToStorage();
+    // Re-find the deck in state.players by ID — if hydrateState() ran while
+    // we were awaiting above, `entry` is now orphaned (no longer in the live
+    // state array). Re-finding by ID lets us update the live object instead.
+    const livePlayer = state.players.find(p => p.id === playerId);
+    const liveDeck   = livePlayer?.decks.find(d => d.id === entry.id);
+    const target     = liveDeck || entry; // fall back to entry if not found
+    target.commander    = entry.commander;
+    target.commanderImg = entry.commanderImg;
+    target.cardCount    = entry.cardCount;
+    target.bracket      = entry.bracket;
+    if (entry._cards) target._cards = entry._cards;
+    target.nameStatus   = 'loaded';
+    await saveToStorage();
     renderPlayers();
   }
 }
@@ -174,7 +189,7 @@ async function loadPlayerDeck(playerId, deckId) {
   let cards = entry._cards;
   let name  = entry.name;
 
-  if (!cards && entry.source !== 'manual' && entry.deckId && USE_LOCAL) {
+  if (!cards && entry.source !== 'manual' && entry.deckId) {
     entry.nameStatus = 'loading';
     renderPlayers();
     try {
