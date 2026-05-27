@@ -68,18 +68,21 @@ if (ADMIN_PASSWORD) {
   console.log('Admin account configured from ADMIN_PASSWORD');
 }
 
-// ── State file helpers ────────────────────────────────────────────────────────
+// ── State helpers (SQLite-backed) ─────────────────────────────────────────────
 function readState() {
   try {
-    if (!fs.existsSync(DATA_FILE)) return { collections: [], players: [] };
-    const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    return Array.isArray(raw) ? { collections: raw, players: [] } : raw;
-  } catch { return { collections: [], players: [] }; }
+    const row = db.prepare('SELECT value_json FROM app_state WHERE key = ?').get('state');
+    if (!row) return { players: [] };
+    return JSON.parse(row.value_json);
+  } catch { return { players: [] }; }
 }
 
 function writeState(data) {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data));
+  const { players = [] } = data;
+  db.prepare(`
+    INSERT INTO app_state (key, value_json) VALUES ('state', ?)
+    ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json
+  `).run(JSON.stringify({ players }));
 }
 
 // ── Login page — always public ────────────────────────────────────────────────
@@ -357,11 +360,25 @@ app.delete('/available/api/calendars/:id/persons/:name', requireAuth, (req, res)
   } catch (e) { console.warn('Collection migration skipped:', e.message); }
 })();
 
+// ── One-time migration: move players/decks/want-lists from state.json → SQLite ─
+(function migrateStateJson() {
+  const row = db.prepare('SELECT value_json FROM app_state WHERE key = ?').get('state');
+  if (row) return; // already migrated
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    const raw     = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    const players = Array.isArray(raw) ? [] : (raw.players || []);
+    if (!players.length) return;
+    db.prepare(`INSERT OR IGNORE INTO app_state (key, value_json) VALUES ('state', ?)`)
+      .run(JSON.stringify({ players }));
+    console.log(`Migrated ${players.length} player(s) from state.json to SQLite`);
+  } catch (e) { console.warn('State migration skipped:', e.message); }
+})();
+
 // ── MTG Collection state ──────────────────────────────────────────────────────
 app.get('/api/state', requireAuth, (req, res) => {
   try {
-    const raw     = fs.existsSync(DATA_FILE) ? JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')) : {};
-    const players = Array.isArray(raw) ? [] : (raw.players || []);
+    const { players = [] } = readState();
     const collections = db.prepare('SELECT * FROM collections ORDER BY rowid').all().map(r => {
       try {
         return {

@@ -73,6 +73,10 @@ db.exec(`
     total      INTEGER,
     saved_at   TEXT
   );
+  CREATE TABLE IF NOT EXISTS app_state (
+    key        TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL DEFAULT '{}'
+  );
 `);
 
 const DEFAULT_CAL_ID = 'default';
