@@ -380,12 +380,15 @@
       <!-- Calendar -->
       <div class="panel">
         <div class="panel-body" id="pb-avail-cal" style="padding:.875rem 1rem">
-          <div class="cal-header">
-            <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()">&#8249;</button>
-            <span class="month-title" id="availMonthTitle"></span>
-            <button class="nav-btn" onclick="availNextMonth()">&#8250;</button>
+          <div class="avail-month-cal">
+            <div class="cal-header">
+              <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()">&#8249;</button>
+              <span class="month-title" id="availMonthTitle"></span>
+              <button class="nav-btn" onclick="availNextMonth()">&#8250;</button>
+            </div>
+            <div class="cal-grid" id="availCalGrid"></div>
           </div>
-          <div class="cal-grid" id="availCalGrid"></div>
+          <div class="avail-week-cal" id="availWeekCal"></div>
         </div>
       </div>
 
@@ -428,44 +431,32 @@
       <p class="lands-sub">Count each colored symbol across all your non-land cards. Ignore generic mana (numbers).</p>
       <div class="lands-pips-grid">
         <div class="lands-pip-field">
-          <div class="lands-pip-icon" style="background:rgba(200,184,122,.18);border-color:#c8b87a">
-            <span class="lands-color-letter" style="color:#c8b87a">W</span>
-          </div>
+          <i class="ms ms-w ms-cost ms-shadow ms-2x"></i>
           <label class="lands-pip-name" style="color:#c8b87a">White</label>
           <input type="number" id="pip-W" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
-          <div class="lands-pip-icon" style="background:rgba(74,144,217,.18);border-color:#4a90d9">
-            <span class="lands-color-letter" style="color:#4a90d9">U</span>
-          </div>
+          <i class="ms ms-u ms-cost ms-shadow ms-2x"></i>
           <label class="lands-pip-name" style="color:#4a90d9">Blue</label>
           <input type="number" id="pip-U" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
-          <div class="lands-pip-icon" style="background:rgba(122,122,138,.18);border-color:#7a7a8a">
-            <span class="lands-color-letter" style="color:#aaa">B</span>
-          </div>
+          <i class="ms ms-b ms-cost ms-shadow ms-2x"></i>
           <label class="lands-pip-name" style="color:#aaa">Black</label>
           <input type="number" id="pip-B" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
-          <div class="lands-pip-icon" style="background:rgba(217,74,74,.18);border-color:#d94a4a">
-            <span class="lands-color-letter" style="color:#d94a4a">R</span>
-          </div>
+          <i class="ms ms-r ms-cost ms-shadow ms-2x"></i>
           <label class="lands-pip-name" style="color:#d94a4a">Red</label>
           <input type="number" id="pip-R" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
-          <div class="lands-pip-icon" style="background:rgba(58,154,92,.18);border-color:#3a9a5c">
-            <span class="lands-color-letter" style="color:#3a9a5c">G</span>
-          </div>
+          <i class="ms ms-g ms-cost ms-shadow ms-2x"></i>
           <label class="lands-pip-name" style="color:#3a9a5c">Green</label>
           <input type="number" id="pip-G" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
-          <div class="lands-pip-icon" style="background:rgba(160,160,160,.12);border-color:#888">
-            <span class="lands-color-letter" style="color:#aaa">C</span>
-          </div>
+          <i class="ms ms-c ms-cost ms-shadow ms-2x"></i>
           <label class="lands-pip-name" style="color:#aaa">Colorless</label>
           <input type="number" id="pip-C" class="lands-num-input" placeholder="0" min="0">
         </div>

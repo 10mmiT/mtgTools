@@ -127,9 +127,7 @@ function renderLands(deckSize, totalLands, nonBasics, basicSlots, dist, totalPip
     const sharePct = basicSlots > 0 ? Math.round(count / basicSlots * 100) : 0;
     rows += `
       <div class="lands-row">
-        <div class="lands-pip-icon lands-row-icon" style="background:${LAND_BG[c]};border-color:${LAND_COLORS[c]}">
-          <span class="lands-color-letter" style="color:${LAND_COLORS[c]}">${c}</span>
-        </div>
+        <i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow lands-row-mana"></i>
         <div class="lands-name">${LAND_NAMES[c]}</div>
         <div class="lands-bar-wrap">
           <div class="lands-bar-fill" style="width:${barPct}%;background:${LAND_COLORS[c]}"></div>

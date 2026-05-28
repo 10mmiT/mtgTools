@@ -679,6 +679,14 @@ td { padding: .45rem .75rem; }
 }
 .btn-edit-tile:hover { color: #fff; border-color: rgba(255,255,255,.5); }
 
+.btn-dv-tile {
+  background: rgba(99,102,241,.25); color: rgba(255,255,255,.85);
+  border: 1px solid rgba(99,102,241,.5); border-radius: 5px;
+  padding: .25rem .6rem; font-size: .7rem; font-weight: 600;
+  font-family: inherit; cursor: pointer; flex-shrink: 0;
+}
+.btn-dv-tile:hover { background: rgba(99,102,241,.45); color: #fff; }
+
 .deck-tile-edit {
   background: var(--card-2);
   border: 1.5px solid var(--primary);
@@ -946,16 +954,64 @@ td { padding: .45rem .75rem; }
   .url-input, .name-input { width: 100%; }
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 
-  /* Compact calendar cells on small screens */
-  .cal-cell {
-    min-height: 46px;
-    padding: .2rem .15rem;
-    border-radius: 4px;
-  }
-  .day-num { font-size: .68rem; margin-bottom: .1rem; }
-  .name-tag { font-size: .58rem; padding: 1px 2px; border-radius: 3px; }
-  .cal-hdr  { font-size: .65rem; padding-bottom: .35rem; }
-  .cal-grid { gap: 2px; }
+  /* Hide month calendar, show week list */
+  .avail-month-cal { display: none; }
+  .avail-week-cal  { display: block; }
+}
+
+/* ── Available week list (mobile calendar) ─────────────────────────────── */
+.avail-week-cal { display: none; } /* shown only inside ≤640px media query */
+
+.avail-week-list {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.avail-week-row {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .55rem .65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  min-height: 2.4rem;
+}
+.avail-week-row.clickable   { cursor: pointer; }
+.avail-week-row.clickable:hover { border-color: var(--primary); background: var(--primary-lt); }
+.avail-week-row.past        { opacity: .5; background: var(--card-2); }
+.avail-week-row.today       { border-color: var(--primary); border-width: 2px; }
+.avail-week-row.my-day      { background: var(--primary-lt); }
+
+.avail-week-dow {
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  width: 2rem;
+  flex-shrink: 0;
+}
+.avail-week-day {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--text);
+  width: 1.5rem;
+  flex-shrink: 0;
+}
+.avail-week-today { color: var(--primary); }
+.avail-week-row.today .avail-week-dow { color: var(--primary); }
+
+.avail-week-names {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.avail-week-free {
+  font-size: .7rem;
+  color: var(--muted);
+  font-style: italic;
 }
 
 /* ── Available@ embedded calendar ───────────────────────────────────── */
@@ -1309,6 +1365,7 @@ input[type=number].lands-num-input::-webkit-outer-spin-button { opacity: .4; }
   flex-shrink: 0;
 }
 .lands-row-icon .lands-color-letter { font-size: .72rem; }
+.lands-row-mana { font-size: 1.35rem; flex-shrink: 0; line-height: 1; }
 
 .lands-name {
   font-size: .875rem;
@@ -1413,7 +1470,7 @@ input[type=number].lands-num-input::-webkit-outer-spin-button { opacity: .4; }
 
 .dv-row {
   display: grid;
-  grid-template-columns: 2.2rem 1fr 7rem 1fr 4rem auto;
+  grid-template-columns: 2.2rem minmax(0,1.5fr) 6.5rem minmax(0,1fr) 3.5rem 9rem;
   align-items: center;
   gap: .5rem;
   padding: .28rem .4rem;
@@ -1451,7 +1508,7 @@ input[type=number].lands-num-input::-webkit-outer-spin-button { opacity: .4; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.dv-own { font-size: .75rem; white-space: nowrap; }
+.dv-own { font-size: .75rem; min-width: 0; overflow: hidden; }
 .dv-price {
   font-size: .74rem;
   font-weight: 700;

@@ -219,6 +219,15 @@ async function loadPlayerDeck(playerId, deckId) {
   renderResults();
 }
 
+function openInDeckView(playerId, deckId) {
+  const player = state.players.find(p => p.id === playerId);
+  const entry  = player?.decks.find(d => d.id === deckId);
+  if (!entry?.deckId) return;
+  setTab('deckview');
+  document.getElementById('dvUrlInput').value = `https://archidekt.com/decks/${entry.deckId}`;
+  dvLoadUrl();
+}
+
 // ── Edit deck ─────────────────────────────────────────────────────────────
 function startEditDeck(playerId, deckId) {
   const player = state.players.find(p => p.id === playerId);
@@ -332,7 +341,8 @@ function renderPlayers() {
           </div>
           <div class="deck-tile-bottom">
             <span class="deck-tile-count">${countInfo}</span>
-            <button class="btn-load-tile"  onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Load</button>
+            <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
+            ${d.deckId ? `<button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck View">View</button>` : ''}
             ${canEdit ? `<button class="btn-edit-tile"  onclick="startEditDeck('${player.id}','${d.id}')">Edit</button>` : ''}
             ${canEdit ? `<button class="btn-remove-tile" onclick="removeDeck('${player.id}','${d.id}')">✕</button>` : ''}
           </div>

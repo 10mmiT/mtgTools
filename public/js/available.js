@@ -12,6 +12,7 @@ let availName       = localStorage.getItem(AVAIL_NAME_KEY) || '';
 let availViewYear   = 0;
 let availViewMonth  = 0;
 let availInitDone   = false;
+let availWeekOffset = 0; // 0 = this week, 1 = next week, …
 
 const availTodayISO  = new Date().toISOString().slice(0, 10);
 const availTodayDate = new Date(availTodayISO + 'T00:00:00');
@@ -33,6 +34,80 @@ function availBuildLookup() {
     map[date].push(person_name);
   }
   return map;
+}
+
+// ── Week helpers ──────────────────────────────────────────────────────────────
+
+function availWeekDates(offset) {
+  // Monday of the week (offset weeks from now), returns array of 7 Date objects
+  const dow     = (availTodayDate.getDay() + 6) % 7; // 0=Mon … 6=Sun
+  const monday  = new Date(availTodayDate);
+  monday.setDate(availTodayDate.getDate() - dow + offset * 7);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
+function availWeekRangeLabel(days) {
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const a = days[0], b = days[6];
+  return a.getMonth() === b.getMonth()
+    ? `${M[a.getMonth()]} ${a.getDate()}–${b.getDate()}`
+    : `${M[a.getMonth()]} ${a.getDate()} – ${M[b.getMonth()]} ${b.getDate()}`;
+}
+
+function availRenderWeekView() {
+  const el = document.getElementById('availWeekCal');
+  if (!el) return;
+
+  const DOWS   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const days   = availWeekDates(availWeekOffset);
+  const lookup = availBuildLookup();
+
+  let html = `<div class="cal-header" style="margin-bottom:.6rem">
+    <button class="nav-btn" onclick="availWeekPrev()" ${availWeekOffset === 0 ? 'disabled' : ''}>&#8249;</button>
+    <span class="month-title">${availWeekRangeLabel(days)}</span>
+    <button class="nav-btn" onclick="availWeekNext()">&#8250;</button>
+  </div><div class="avail-week-list">`;
+
+  for (let i = 0; i < 7; i++) {
+    const date  = days[i];
+    const iso   = availToISO(date.getFullYear(), date.getMonth(), date.getDate());
+    const past  = iso < availTodayISO;
+    const today = iso === availTodayISO;
+    const names = lookup[iso] || [];
+    const myDay = availName && names.includes(availName);
+
+    const tags  = names.map(n =>
+      `<span class="name-tag p${availColorMap[n] ?? 0}">${esc(n)}</span>`
+    ).join('');
+
+    const cls   = 'avail-week-row'
+      + (past  ? ' past'   : ' clickable')
+      + (today ? ' today'  : '')
+      + (myDay ? ' my-day' : '');
+    const click = !past ? `onclick="availToggleDay('${iso}')"` : '';
+
+    html += `<div class="${cls}" ${click}>
+      <span class="avail-week-dow">${DOWS[i]}</span>
+      <span class="avail-week-day${today ? ' avail-week-today' : ''}">${date.getDate()}</span>
+      <div class="avail-week-names">${tags || (past ? '' : '<span class="avail-week-free">free</span>')}</div>
+    </div>`;
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function availWeekPrev() {
+  if (availWeekOffset > 0) { availWeekOffset--; availRenderWeekView(); }
+}
+
+function availWeekNext() {
+  availWeekOffset++;
+  availRenderWeekView();
 }
 
 function availRenderCalendar() {
@@ -67,6 +142,7 @@ function availRenderCalendar() {
     </div>`;
   }
   document.getElementById('availCalGrid').innerHTML = html;
+  availRenderWeekView();
 }
 
 function availRenderBestDays() {
