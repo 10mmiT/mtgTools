@@ -394,15 +394,19 @@ function buildRows(query) {
 }
 
 // ── Schedule render ───────────────────────────────────────────────────────
+let _mobileShowAll = false;
+
 function scheduleRender() {
+  _mobileShowAll = false; // new search → reset mobile cap
   clearTimeout(state.renderTimer);
   state.renderTimer = setTimeout(renderResults, 80);
 }
 
 // ── Render results ────────────────────────────────────────────────────────
 function renderResults() {
-  const query  = document.getElementById('searchInput').value.trim().toLowerCase();
-  const infoEl = document.getElementById('resultInfo');
+  const query   = document.getElementById('searchInput').value.trim().toLowerCase();
+  const infoEl  = document.getElementById('resultInfo');
+  const moreEl  = document.getElementById('colShowMoreWrap');
 
   document.getElementById('listView').style.display = viewMode === 'list' ? '' : 'none';
   document.getElementById('gridView').style.display = viewMode === 'grid' ? '' : 'none';
@@ -412,11 +416,15 @@ function renderResults() {
       `<tr><td colspan="99" class="empty-state">Add a collection above to get started.</td></tr>`;
     document.getElementById('cardGrid').innerHTML = '';
     infoEl.textContent = '';
+    if (moreEl) moreEl.style.display = 'none';
     return;
   }
 
-  const rows = buildRows(query);
-  const MAX  = viewMode === 'grid' ? 200 : 500;
+  const rows      = buildRows(query);
+  const isMobile  = window.innerWidth <= 640;
+  const MOBILE_CAP = 150;
+  const fullMax   = viewMode === 'grid' ? 200 : 500;
+  const MAX       = (isMobile && !_mobileShowAll) ? MOBILE_CAP : fullMax;
 
   infoEl.textContent = rows.length === 0
     ? 'No results'
@@ -424,6 +432,18 @@ function renderResults() {
 
   if (viewMode === 'list') renderListView(rows, MAX);
   else                     renderGridView(rows, MAX);
+
+  // Show "Show all" button on mobile when results are capped
+  if (moreEl) {
+    const capped = isMobile && !_mobileShowAll && rows.length > MOBILE_CAP;
+    if (capped) {
+      moreEl.style.display = '';
+      moreEl.innerHTML = `<button class="btn-secondary" style="width:100%;padding:.6rem;font-size:.85rem"
+        onclick="_mobileShowAll=true;renderResults()">Show all ${rows.length.toLocaleString()} cards ↓</button>`;
+    } else {
+      moreEl.style.display = 'none';
+    }
+  }
 }
 
 // ── List view ─────────────────────────────────────────────────────────────
