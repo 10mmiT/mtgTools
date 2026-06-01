@@ -1,6 +1,6 @@
 # MTG Tools
 
-Search across multiple Magic: The Gathering collections at once, compare deck lists against what you own, browse sets, track want lists, and coordinate group availability — all from a single self-hosted web app.
+Search across multiple Magic: The Gathering collections at once, compare deck lists against what you own, browse sets, track want lists, coordinate group availability, and randomly pick decks for game night — all from a single self-hosted web app.
 
 ## Features
 
@@ -9,6 +9,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Enter your name once; it's remembered in the browser
 - Click any future day to toggle your availability
 - "Best upcoming days" panel ranks days by how many people are free
+- On mobile, the calendar switches to a compact week-list (Mon–Sun) with prev/next week navigation
 - All availability data persists across restarts
 
 ### Collections tab
@@ -18,6 +19,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Hover over any card name (list view) for a Scryfall image tooltip
 - Click a card name to open it on Scryfall
 - Collapsible "Add Collection" and "Collections" panels to save space
+- On mobile, the results table is capped at 150 rows with a "Show all" button so the Deck Comparison panel is always within reach
 - Right-side **Deck Comparison** panel: load a deck and see which cards you own, with a toggle to filter the table to deck cards only
 
 ### Players & Decks tab
@@ -26,7 +28,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Optionally link an Archidekt URL to load the full card list for comparison
 - Any URL can be saved as a "View ↗" link on the tile
 - Edit any deck in-place (name, commander, link)
-- Click **Load for comparison** to send a deck to the Deck Comparison panel and switch to the Collections tab automatically
+- **Compare** button sends a deck to the Deck Comparison panel and switches to the Collections tab automatically
+- **View** button (Archidekt decks) opens the deck directly in the Deck View tab
 - All deck metadata and commander art URLs persist across restarts
 
 ### Scryfall Search tab
@@ -65,17 +68,26 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Mana Base Calculator tab
 - Choose a deck size preset — 40 (Limited), 60 (Constructed), 100 (Commander) — or enter a custom size
-- Enter the count of each colored mana pip (W/U/B/R/G) and colorless (C/Wastes) across your non-land cards
+- Enter the count of each colored mana pip (W/U/B/R/G) and colorless (C/Wastes) across your non-land cards; colour icons use proper mana-font symbols
 - Enter how many non-basic lands (duals, fetches, other) you're already including
 - Instantly shows: total lands recommended, non-basics you entered, and how many basics to add
 - Distributes basic lands proportionally by pip count using the largest-remainder method so the numbers always add up exactly
+
+### Pick Night tab
+- Select 2–6 players from the Players & Decks list for tonight's game
+- Toggle **Exclude own decks** so players won't be assigned one of their own decks
+- **Deck Pool** panel: view all decks grouped by player and click individual decks to exclude them from the draw
+- Click **Pick Decks** to randomly assign one unique deck per player; up to 200 shuffle attempts ensure the constraints are always satisfied
+- Results shown as player-labelled commander-art tiles
+- **↺ Re-roll** per player (locks everyone else's pick) or **↺ Re-roll all** to start fresh
 
 ### General
 - Dark theme by default, toggleable to light; preference saved in the browser
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - Collapsible panels throughout (Add Collection, Collections, each player section)
 - Per-user login system with player-linked accounts and an admin role
-- **Mobile-friendly**: on narrow screens the tab bar becomes a compact dropdown menu
+- **Desktop navigation**: tabs live in a collapsible left sidebar; click Collapse to shrink to icon-only mode — state persists across reloads
+- **Mobile-friendly**: on narrow screens the sidebar is hidden and replaced by a compact dropdown menu
 
 ## Getting Started
 
@@ -187,8 +199,9 @@ mtgtools/
 │       ├── auth.js        # Session auth, quick-add wants, change password
 │       ├── admin.js       # Admin panel (user management, account requests)
 │       ├── deckview.js    # Deck View tab (Archidekt/CSV loader, categorised view)
+│       ├── pick.js        # Pick Night tab (random deck assignment)
 │       ├── scryfall.js    # Scryfall image cache helpers
-│       └── main.js        # Init, theme, tabs, mobile nav, tooltips, state polling
+│       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, state polling
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
