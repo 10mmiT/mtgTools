@@ -17,6 +17,8 @@ function applyCollapse(id) {
 
 function initCollapses() {
   ['add-col', 'collections'].forEach(applyCollapse);
+  if (collapseState['pick-pool'] === undefined) collapseState['pick-pool'] = true;
+  applyCollapse('pick-pool');
 }
 
 function togglePlayerSection(playerId, event) {
@@ -30,6 +32,22 @@ function togglePlayerSection(playerId, event) {
   const closed = !!collapseState[id];
   if (body) body.style.display = closed ? 'none' : '';
   if (chv)  chv.classList.toggle('closed', closed);
+}
+
+// ── Sidebar nav ───────────────────────────────────────────────────────
+function toggleSideNav() {
+  const nav = document.getElementById('sideNav');
+  if (!nav) return;
+  const collapsed = nav.classList.toggle('collapsed');
+  document.body.classList.toggle('sidenav-collapsed', collapsed);
+  localStorage.setItem('mtgtools_sidenav', collapsed ? '1' : '0');
+}
+
+function initSideNav() {
+  if (localStorage.getItem('mtgtools_sidenav') === '1') {
+    document.getElementById('sideNav')?.classList.add('collapsed');
+    document.body.classList.add('sidenav-collapsed');
+  }
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────
@@ -68,6 +86,7 @@ const MOB_TAB_LABELS = {
   wants:       'Want Lists',
   lands:       'Mana Base',
   deckview:    'Deck View',
+  pick:        'Pick Night',
   admin:       'Admin',
 };
 
@@ -147,6 +166,7 @@ function setTab(tab) {
   if (tab === 'wants')     renderWantList();
   if (tab === 'available') initAvailable();
   if (tab === 'lands')     initLands();
+  if (tab === 'pick')      initPick();
   if (tab === 'admin')   { initAdmin(); adminRenderPlayerOpts(); }
   // Refresh shared data when switching to any tab that shows other users' content
   if (['players', 'wants', 'collections', 'sets', 'deckview'].includes(tab)) refreshState();
@@ -197,6 +217,7 @@ document.getElementById('playerNameInput').addEventListener('keydown', e => { if
 
 // ── Init ──────────────────────────────────────────────────────────────
 initTheme();
+initSideNav();
 authInit().then(() => {
   loadFromStorage().then(() => {
     _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load

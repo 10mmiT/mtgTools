@@ -423,6 +423,94 @@ td { padding: .45rem .75rem; }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 
+/* ── Desktop sidebar nav ─────────────────────────────────────────────── */
+@media (min-width: 861px) {
+  .tab-bar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: 186px;
+    z-index: 9;
+    background: var(--card);
+    border-right: 2px solid var(--border);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    display: flex;
+    flex-direction: column;
+    padding-top: 58px;
+    transition: width .2s;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-bar.collapsed { width: 46px; }
+
+  .site-main {
+    margin-left: 186px;
+    transition: margin-left .2s;
+  }
+  body.sidenav-collapsed .site-main { margin-left: 46px; }
+
+  .tab-btn {
+    width: 100%;
+    border-bottom: none;
+    border-right: 2px solid transparent;
+    margin-bottom: 0;
+    margin-right: -2px;
+    padding: .65rem .85rem;
+    justify-content: flex-start;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .tab-btn.active {
+    border-bottom-color: transparent;
+    border-right-color: var(--primary);
+    background: var(--primary-lt);
+  }
+  .tab-bar.collapsed .tab-btn {
+    padding: .7rem 0;
+    justify-content: center;
+  }
+  .tab-bar.collapsed .tab-btn svg { width: 20px; height: 20px; }
+
+  .tab-btn-label {
+    overflow: hidden;
+    max-width: 150px;
+    opacity: 1;
+    transition: max-width .15s, opacity .15s;
+  }
+  .tab-bar.collapsed .tab-btn-label { max-width: 0; opacity: 0; }
+
+  .side-nav-toggle {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--border);
+    border-right: 2px solid transparent;
+    margin-right: -2px;
+    margin-top: auto;
+    padding: .55rem .85rem;
+    font-size: .82rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    position: sticky;
+    bottom: 0;
+    background: var(--card);
+    transition: background .15s, color .15s;
+  }
+  .side-nav-toggle:hover { background: var(--card-2); color: var(--text); }
+  .side-nav-toggle svg { flex-shrink: 0; transition: transform .2s; }
+  .tab-bar.collapsed .side-nav-toggle { padding: .55rem 0; justify-content: center; }
+  .tab-bar.collapsed .side-nav-toggle svg { transform: rotate(180deg); width: 20px; height: 20px; }
+}
+
 /* ── Mobile nav — MUST be after .tab-bar so display:none wins ────────── */
 @media (max-width: 860px) {
   .tab-bar { display: none; }
@@ -1414,6 +1502,157 @@ input[type=number].lands-num-input::-webkit-outer-spin-button { opacity: .4; }
   padding: 1rem 0 .25rem;
   line-height: 1.5;
 }
+
+/* ── Pick Night ─────────────────────────────────────────────────────────── */
+.pick-players-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+
+.pick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .38rem .75rem;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background: var(--card-2);
+  color: var(--muted);
+  font-size: .85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.pick-chip:hover { border-color: var(--pc, var(--primary)); color: var(--text); }
+.pick-chip-on {
+  border-color: var(--pc, var(--primary));
+  background: color-mix(in srgb, var(--pc, var(--primary)) 15%, var(--card-2));
+  color: var(--text);
+}
+
+.pick-chip-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pick-chip-check { flex-shrink: 0; }
+
+.pick-controls {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.pick-pool-info {
+  font-size: .8rem;
+  color: var(--muted);
+  flex: 1;
+  min-width: 120px;
+}
+
+.pick-empty {
+  font-size: .875rem;
+  color: var(--muted);
+  margin: 0 0 .5rem;
+}
+
+/* Results */
+.pick-results-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .85rem;
+}
+.pick-results-label {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pick-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.pick-result-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+}
+
+.pick-result-player {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .55rem .75rem;
+  background: color-mix(in srgb, var(--pc, var(--primary)) 18%, var(--card-2));
+  border-bottom: 2px solid var(--pc, var(--primary));
+}
+.pick-result-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pick-result-name {
+  font-size: .85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text);
+}
+
+.pick-deck-commander {
+  font-size: .7rem;
+  color: rgba(255,255,255,.6);
+  margin-top: .15rem;
+}
+
+.pick-owner-tag {
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .15rem .4rem;
+  border-radius: 4px;
+  border: 1px solid var(--oc, #888);
+  color: var(--oc, #888);
+  background: rgba(0,0,0,.3);
+  white-space: nowrap;
+}
+
+/* Deck pool selector */
+.pick-pool-group { margin-bottom: .75rem; }
+.pick-pool-player {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: .35rem;
+}
+.pick-pool-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.pick-pool-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: .28rem .6rem;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--card-2);
+  color: var(--text);
+  font-size: .8rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .12s, opacity .12s;
+}
+.pick-pool-chip:hover { border-color: var(--primary); }
+.pick-pool-chip-off { opacity: .35; text-decoration: line-through; }
 
 /* ── Deck Viewer ────────────────────────────────────────────────────────── */
 .dv-summary {
