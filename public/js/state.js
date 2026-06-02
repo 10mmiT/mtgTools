@@ -10,7 +10,7 @@ const state = {
   renderTimer: null,
 };
 
-let viewMode       = 'list';
+let viewMode       = window.innerWidth <= 640 ? 'grid' : 'list';
 let pendingCsvKey  = null;
 let pendingCsvName = null;
 

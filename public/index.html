@@ -67,6 +67,10 @@
     <span class="user-badge" id="userBadge" style="display:none"></span>
     <button class="theme-btn" id="changePwBtn" onclick="openChangePassword()" style="display:none">Change Password</button>
     <button class="theme-btn" id="themeToggle" onclick="toggleTheme()">☀ Light</button>
+    <button class="rss-toggle-btn" id="rssToggleBtn" onclick="toggleRssPanel()" title="RSS Feeds">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1" fill="currentColor"/></svg>
+      RSS
+    </button>
     <button class="theme-btn" id="logoutBtn" onclick="logout()" style="display:none">Sign out</button>
   </div>
 </header>
@@ -523,7 +527,7 @@
   <div class="panel" style="margin-bottom:1rem">
     <div class="panel-title" style="margin-bottom:.75rem">Load Deck</div>
     <div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
-      <div style="flex:1;min-width:240px">
+      <div class="dv-url-field" style="flex:1;min-width:240px">
         <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:.35rem">Archidekt URL</label>
         <div style="display:flex;gap:.5rem">
           <input type="text" id="dvUrlInput" placeholder="archidekt.com/decks/…" style="flex:1"
@@ -721,6 +725,18 @@
 <!-- Card image tooltip (list view only) -->
 <div id="cardTooltip"><img id="tooltipImg" alt=""></div>
 
+<!-- RSS Panel -->
+<div id="rssPanel" class="rss-panel">
+  <div class="rss-panel-hdr">
+    <span class="rss-panel-hdr-title">RSS Feeds</span>
+    <button onclick="loadRss()" title="Refresh">↺</button>
+    <button onclick="toggleRssPanel()" title="Close">✕</button>
+  </div>
+  <div id="rssFeedList" class="rss-feed-list">
+    <div class="rss-status">Loading…</div>
+  </div>
+</div>
+
 <script src="js/state.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/scryfall.js"></script>
@@ -733,6 +749,7 @@
 <script src="js/lands.js"></script>
 <script src="js/deckview.js"></script>
 <script src="js/pick.js"></script>
+<script src="js/rss.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/main.js"></script>
 </body>

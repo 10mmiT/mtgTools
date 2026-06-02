@@ -271,6 +271,11 @@ input[type="text"]:focus {
 
 table { width: 100%; border-collapse: collapse; font-size: .875rem; }
 
+/* Allow collections results table to scroll horizontally with many columns */
+.table-wrap { display: block; width: 100%; overflow-x: auto; }
+#resultsTable { width: max-content; min-width: 100%; }
+#resultsTable thead th { white-space: nowrap; }
+
 thead th {
   background: var(--card-2);
   color: var(--muted);
@@ -445,11 +450,7 @@ td { padding: .45rem .75rem; }
   .tab-bar::-webkit-scrollbar { display: none; }
   .tab-bar.collapsed { width: 46px; }
 
-  .site-main {
-    margin-left: 186px;
-    transition: margin-left .2s;
-  }
-  body.sidenav-collapsed .site-main { margin-left: 46px; }
+  .site-main { /* sidebar is fixed overlay — content stays centered */ }
 
   .tab-btn {
     width: 100%;
@@ -1035,17 +1036,56 @@ td { padding: .45rem .75rem; }
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .page-layout { flex-direction: column; }
+  .main-col { width: 100%; }  /* prevent content from sizing the column instead of the viewport */
   .deck-col { width: 100%; position: static; max-height: none; }
   .deck-list { max-height: 260px; }
   .deck-tiles-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .container { padding: .75rem; }
-  .add-form { flex-direction: column; }
-  .url-input, .name-input { width: 100%; }
-  .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 
-  /* Hide month calendar, show week list */
+  /* Collections — Add Collection form: stack fields + full-width buttons */
+  .add-form { flex-direction: column; align-items: stretch; }
+  .field { width: 100%; }
+  .url-input, .name-input { width: 100%; }
+  .add-form .btn-primary,
+  .add-form .btn-secondary { width: 100%; }
+
+  /* Admin create-user form — override inline width:180px */
+  .admin-create-form { flex-direction: column; align-items: stretch; }
+  .admin-create-form input,
+  .admin-create-form select { width: 100% !important; max-width: 100% !important; box-sizing: border-box; }
+
+  /* All search inputs fill their row */
+  #sfInput, #searchInput, #setSearchInput { width: 100%; flex: none; max-width: 100% !important; }
+
+  /* Players add-player input full width */
+  #playerNameInput { max-width: 100% !important; }
+
+  /* Available@ name input stretches to fill */
+  .avail-name-bar { flex-wrap: wrap; }
+  .avail-name-bar input { width: 100%; }
+
+  /* Deck View URL wrapper: remove min-width so it stacks cleanly */
+  .dv-url-field { min-width: 0 !important; width: 100%; }
+
+  /* View toggles always on the right in search rows */
+  .search-row .view-toggle { margin-left: auto; flex-shrink: 0; }
+
+  /* Wants — row 1: select + input + Add; row 2: Import CSV + view toggle */
+  .want-add-bar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: .45rem;
+  }
+  .want-add-bar > select          { grid-column: 1; grid-row: 1; }
+  .want-add-bar > .autocomplete-wrap { grid-column: 2; grid-row: 1; min-width: 0; }
+  .want-add-bar > .btn-primary    { grid-column: 3; grid-row: 1; }
+  .want-add-bar > .btn-secondary  { grid-column: 1 / span 2; grid-row: 2; }
+  .want-add-bar > .view-toggle    { grid-column: 3; grid-row: 2; justify-self: end; margin-left: 0; }
+  .autocomplete-wrap { min-width: 0; }
+
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
   .avail-month-cal { display: none; }
   .avail-week-cal  { display: block; }
 }
@@ -1653,6 +1693,148 @@ input[type=number].lands-num-input::-webkit-outer-spin-button { opacity: .4; }
 }
 .pick-pool-chip:hover { border-color: var(--primary); }
 .pick-pool-chip-off { opacity: .35; text-decoration: line-through; }
+
+/* ── RSS Panel ───────────────────────────────────────────────────────────── */
+.rss-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 0;
+  height: 100vh;
+  background: var(--card);
+  border-left: 2px solid var(--border);
+  z-index: 25;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: width .2s;
+  box-shadow: -4px 0 20px rgba(0,0,0,.3);
+}
+.rss-panel.open { width: 310px; }
+
+.rss-panel-hdr {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .7rem .9rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  position: sticky;
+  top: 0;
+  padding-top: 60px;
+  flex-shrink: 0;
+}
+.rss-panel-hdr-title {
+  font-size: .82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  flex: 1;
+}
+.rss-panel-hdr button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: .2rem .4rem;
+  border-radius: 5px;
+  font-size: .85rem;
+  font-family: inherit;
+  transition: background .12s, color .12s;
+}
+.rss-panel-hdr button:hover { background: var(--card-2); color: var(--text); }
+
+.rss-feed-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: .75rem .9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.rss-item {
+  padding-bottom: .65rem;
+  border-bottom: 1px solid var(--border);
+}
+.rss-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+.rss-item-meta {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin-bottom: .25rem;
+  flex-wrap: wrap;
+}
+
+.rss-feed-tag {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--primary-tx);
+  background: var(--primary-lt);
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  padding: .05rem .38rem;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rss-item-date {
+  font-size: .72rem;
+  color: var(--muted);
+}
+
+.rss-item-title {
+  display: block;
+  font-size: .83rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.35;
+  margin-bottom: .2rem;
+}
+.rss-item-title:hover { color: var(--primary); }
+
+.rss-item-desc {
+  font-size: .78rem;
+  color: var(--muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rss-status {
+  font-size: .82rem;
+  color: var(--muted);
+  padding: 1rem 0;
+  text-align: center;
+}
+.rss-error { color: var(--danger); }
+
+/* RSS toggle button in header */
+.rss-toggle-btn {
+  border: 1.5px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.1);
+  color: rgba(255,255,255,.9);
+  border-radius: 7px;
+  padding: .3rem .6rem;
+  font-size: .8rem;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  transition: background .15s;
+}
+.rss-toggle-btn:hover { background: rgba(255,255,255,.2); }
+.rss-toggle-btn.active { background: rgba(255,255,255,.25); }
 
 /* ── Deck Viewer ────────────────────────────────────────────────────────── */
 .dv-summary {

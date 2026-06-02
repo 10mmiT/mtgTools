@@ -8,6 +8,10 @@ services:
       - mtgtools-data:/app/data
     env_file:
       - .env
+    environment:
+      # Comma-separated RSS/Atom feed URLs shown in the right-side panel.
+      # Example: RSS_FEEDS=https://www.mtggoldfish.com/news/rss,https://magic.wizards.com/rss.xml
+      - RSS_FEEDS=${RSS_FEEDS:-}
 
 volumes:
   mtgtools-data:

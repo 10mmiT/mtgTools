@@ -224,7 +224,7 @@ authInit().then(() => {
     initCollapses();
     renderPlayers();
     renderCollections();
-    renderResults();
+    setViewMode(viewMode); // syncs list/grid buttons and calls renderResults
     initAvailable(); // Available is the default tab — start loading it immediately
   });
 });

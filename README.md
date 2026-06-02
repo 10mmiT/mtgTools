@@ -14,8 +14,9 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Collections tab
 - Add collections from Archidekt (URL or CSV export) or Moxfield (CSV export only — Moxfield's API blocks automated access)
-- Results table shows card name, a column per collection, and a total; sortable by any column
+- Results table shows card name, a column per collection, and a total; sortable by any column; scrolls horizontally when many collections are loaded
 - Grid view shows full card images with per-collection ownership badges
+- On mobile, defaults to grid view; list view is still available and scrolls horizontally
 - Hover over any card name (list view) for a Scryfall image tooltip
 - Click a card name to open it on Scryfall
 - Collapsible "Add Collection" and "Collections" panels to save space
@@ -81,13 +82,19 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Results shown as player-labelled commander-art tiles
 - **↺ Re-roll** per player (locks everyone else's pick) or **↺ Re-roll all** to start fresh
 
+### RSS Feed panel
+- Click the **RSS** button in the header to open a right-side feed panel
+- Configure feeds by setting `RSS_FEEDS` in `docker-compose.yml` — comma-separated RSS 2.0 or Atom URLs
+- All feeds are merged and sorted newest-first; each item is tagged with its source feed name
+- Feed data is fetched server-side and cached for 10 minutes; supports HTTP redirects
+
 ### General
 - Dark theme by default, toggleable to light; preference saved in the browser
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - Collapsible panels throughout (Add Collection, Collections, each player section)
 - Per-user login system with player-linked accounts and an admin role
-- **Desktop navigation**: tabs live in a collapsible left sidebar; click Collapse to shrink to icon-only mode — state persists across reloads
-- **Mobile-friendly**: on narrow screens the sidebar is hidden and replaced by a compact dropdown menu
+- **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content; click Collapse to shrink to icon-only mode — state persists across reloads
+- **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown; all forms stack to full-width; view toggles are right-aligned across all tabs
 
 ## Getting Started
 
@@ -148,7 +155,8 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 |---------|-------|
 | Container port | `3000` |
 | Data path (inside container) | `/app/data` |
-| Environment variable | `ADMIN_PASSWORD` |
+| `ADMIN_PASSWORD` | Required to enable auth; omit for open mode |
+| `RSS_FEEDS` | Optional comma-separated RSS/Atom feed URLs for the header panel |
 
 Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
 
@@ -200,6 +208,7 @@ mtgtools/
 │       ├── admin.js       # Admin panel (user management, account requests)
 │       ├── deckview.js    # Deck View tab (Archidekt/CSV loader, categorised view)
 │       ├── pick.js        # Pick Night tab (random deck assignment)
+│       ├── rss.js         # RSS feed panel (header toggle, fetch, render)
 │       ├── scryfall.js    # Scryfall image cache helpers
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, state polling
 ├── Dockerfile
