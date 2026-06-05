@@ -31,11 +31,13 @@ function cardOracleHtml(text) {
 }
 
 function openCardByName(name) {
-  setTab('card');
+  setTab('card', false); // switch tab without its own history entry…
+  history.pushState({ view: 'card', cardName: name }, '', '#card=' + encodeURIComponent(name));
   loadCard({ name });
 }
 function openCardById(id) {
-  setTab('card');
+  setTab('card', false);
+  history.pushState({ view: 'card', cardId: id }, '', '#cardid=' + encodeURIComponent(id));
   loadCard({ id });
 }
 

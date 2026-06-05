@@ -158,7 +158,9 @@ async function refreshState() {
 setInterval(refreshState, 30_000);
 
 // ── Tab switching ─────────────────────────────────────────────────────
-function setTab(tab) {
+// push = whether to add a browser-history entry (false when restoring from
+// a back/forward navigation or on initial load).
+function setTab(tab, push = true) {
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.getElementById(`tab-${tab}`).style.display = '';
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -181,6 +183,53 @@ function setTab(tab) {
   if (tab === 'admin')   { initAdmin(); adminRenderPlayerOpts(); }
   // Refresh shared data when switching to any tab that shows other users' content
   if (['players', 'wants', 'collections', 'sets', 'deckview'].includes(tab)) refreshState();
+
+  // Add a history entry unless this came from back/forward, skipping no-op repeats
+  if (push) {
+    const cur = history.state;
+    if (!(cur && cur.view === 'tab' && cur.tab === tab)) {
+      history.pushState({ view: 'tab', tab }, '', '#' + tab);
+    }
+  }
+}
+
+// ── Browser back/forward (History API) ────────────────────────────────
+window.addEventListener('popstate', e => {
+  const s = e.state;
+  if (!s) return;
+  if (s.view === 'card') {
+    setTab('card', false);
+    if (s.cardName)    loadCard({ name: s.cardName });
+    else if (s.cardId) loadCard({ id: s.cardId });
+  } else if (s.view === 'tab') {
+    setTab(s.tab, false);
+  }
+});
+
+// On load, restore a deep-linked view from the URL hash, else record the
+// default view so the first back press leaves the app cleanly.
+function initRouting() {
+  const raw = location.hash.replace(/^#/, '');
+  if (raw.startsWith('card=')) {
+    const name = decodeURIComponent(raw.slice(5));
+    setTab('card', false);
+    history.replaceState({ view: 'card', cardName: name }, '', location.hash);
+    loadCard({ name });
+    return;
+  }
+  if (raw.startsWith('cardid=')) {
+    const id = decodeURIComponent(raw.slice(7));
+    setTab('card', false);
+    history.replaceState({ view: 'card', cardId: id }, '', location.hash);
+    loadCard({ id });
+    return;
+  }
+  if (raw && MOB_TAB_LABELS[raw]) {
+    setTab(raw, false);
+    history.replaceState({ view: 'tab', tab: raw }, '', '#' + raw);
+    return;
+  }
+  history.replaceState({ view: 'tab', tab: 'available' }, ''); // default view, URL unchanged
 }
 
 // ── Card click → open Card Detail tab ─────────────────────────────────
@@ -251,5 +300,6 @@ authInit().then(() => {
     renderCollections();
     setViewMode(viewMode); // syncs list/grid buttons and calls renderResults
     initAvailable(); // Available is the default tab — start loading it immediately
+    initRouting();   // wire up browser back/forward + restore any deep-linked view
   });
 });
