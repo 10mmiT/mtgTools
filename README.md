@@ -1,6 +1,6 @@
 # MTG Tools
 
-Search across multiple Magic: The Gathering collections at once, compare deck lists against what you own, browse sets, track want lists, coordinate group availability, and randomly pick decks for game night — all from a single self-hosted web app.
+Search across multiple Magic: The Gathering collections at once, compare deck lists against what you own, browse sets, inspect full card details, track want lists, coordinate group availability, and randomly pick decks for game night — all from a single self-hosted web app.
 
 ## Features
 
@@ -14,11 +14,13 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Collections tab
 - Add collections from Archidekt (URL or CSV export) or Moxfield (CSV export only — Moxfield's API blocks automated access)
-- Results table shows card name, a column per collection, and a total; sortable by any column; scrolls horizontally when many collections are loaded
+- Results table shows card name, a column per collection, and a total; scrolls horizontally when many collections are loaded
+- **Sort** by name, mana value, color (WUBRG order), power, toughness, rarity, type, price, or quantity owned — via the Sort control or by clicking any column header
+- **Columns menu** to show/hide optional columns: Mana Value, Color (as mana pips), Type, Rarity, Power/Toughness, Price (off by default to keep the table clean)
 - Grid view shows full card images with per-collection ownership badges
 - On mobile, defaults to grid view; list view is still available and scrolls horizontally
 - Hover over any card name (list view) for a Scryfall image tooltip
-- Click a card name to open it on Scryfall
+- Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens it on Scryfall instead)
 - Collapsible "Add Collection" and "Collections" panels to save space
 - On mobile, the results table is capped at 150 rows with a "Show all" button so the Deck Comparison panel is always within reach
 - Right-side **Deck Comparison** panel: load a deck and see which cards you own, with a toggle to filter the table to deck cards only
@@ -37,9 +39,22 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Full Scryfall query syntax: `t:legendary t:creature`, `c:g cmc=3`, `"exact name"`, etc.
 - Results show which collections own each card and in what quantity, plus Cardmarket price (EUR)
 - Quick **+** button on each card to add it to your personal want list in one click
+- **Sort** results by name, mana value, color, power, toughness, rarity, type, or price
 - **List**, **Grid**, and **XL** view toggle — XL uses larger card images
 - Mana costs rendered as proper MTG mana icons
+- Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 - Search on Enter or button click — no auto-search while typing to stay within Scryfall's rate limits
+
+### Card tab
+- Detailed view for a single card — opened by clicking any card name or image anywhere in the app (instead of being sent straight to Scryfall)
+- Shows the full card image (both faces for double-faced cards) with oracle text rendered using proper mana symbols
+- Card info: mana cost, type line, power/toughness/loyalty, set · collector number · rarity · artist
+- Cardmarket (EUR) and USD prices
+- Format legality badges (Standard, Pioneer, Modern, Legacy, Vintage, Commander, Pauper)
+- Official **rulings** for the card, pulled from Scryfall
+- Links to view the card on **Scryfall** or buy it on **Cardmarket**
+- **Other Printings & Alt-Art gallery** at the bottom — every printing of the card; click any one to load that specific version
+- Ctrl/Cmd-clicking a card anywhere still opens it on Scryfall in a new tab
 
 ### Set Browser tab
 - Browse every non-digital MTG set (expansions, Commander, Masters, etc.)
@@ -47,20 +62,27 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Click a set to load all its cards with collection ownership and Cardmarket price shown inline
 - Filter to only owned or only unowned cards
 - Shows how many cards from the set are owned across all collections
+- **Sort** by set collector number (default), name, mana value, color, power, toughness, rarity, type, or price
 - **List**, **Grid**, and **XL** view toggle
+- Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 
 ### Want Lists tab
 - Per-player want lists with Scryfall autocomplete as you type
 - Import want lists from CSV (qty,name or name-only format)
-- **List view**: combined table across all players — who wants each card, Cardmarket price, and whether anyone already owns it; cards wanted by multiple players sort to the top
+- **List view**: combined table across all players — who wants each card, Cardmarket price, and whether anyone already owns it
+- **Sort** by most-wanted (default), name, mana value, color, power, toughness, rarity, type, or price
+- **Columns menu** to show/hide optional columns: Mana Value, Color, Type, Rarity, Power/Toughness, Price, In Collections
 - **Grid / XL views**: card images with Cardmarket price, coloured player-initial dots (tap your own dot to remove), and ownership badges
+- Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 - Remove individual wants from the table view with one click
 - All want lists persist across restarts
 
 ### Deck View tab
 - Load a deck from an Archidekt URL or a CSV file (qty, name format)
 - Cards grouped by type: Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other
+- **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price
 - Clickable summary strip at the top — click a category to jump to that section
+- Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 - **List** view: compact rows with mana icons, type line, Cardmarket price, and ownership
 - **Grid** view: card images with price and ownership badges
 - **XL** view: larger card images with mana, type, price, and ownership
@@ -90,11 +112,14 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### General
 - Dark theme by default, toggleable to light; preference saved in the browser
+- **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
+- **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck View); your sort field/direction and which columns are shown persist per-view in the browser
+- Click any card (name or image) to open it in the Card tab; Ctrl/Cmd-click opens Scryfall instead
 - Collapsible panels throughout (Add Collection, Collections, each player section)
 - Per-user login system with player-linked accounts and an admin role
 - **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content; click Collapse to shrink to icon-only mode — state persists across reloads
-- **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown; all forms stack to full-width; view toggles are right-aligned across all tabs
+- **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown; all forms stack to full-width; inputs use a 16px font to avoid iOS zoom-on-focus; view toggles are right-aligned across all tabs
 
 ## Getting Started
 
@@ -197,6 +222,9 @@ mtgtools/
 │   │   └── style.css
 │   └── js/
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
+│       ├── sortui.js      # Shared sorting + column-visibility controls (used by all card views)
+│       ├── scryfall.js    # Scryfall image + metadata cache helpers (used for sorting)
+│       ├── card.js        # Card Detail tab (oracle text, rulings, prices, alt-art printings)
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks
 │       ├── search.js      # Scryfall search tab
@@ -209,8 +237,7 @@ mtgtools/
 │       ├── deckview.js    # Deck View tab (Archidekt/CSV loader, categorised view)
 │       ├── pick.js        # Pick Night tab (random deck assignment)
 │       ├── rss.js         # RSS feed panel (header toggle, fetch, render)
-│       ├── scryfall.js    # Scryfall image cache helpers
-│       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, state polling
+│       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -224,7 +251,7 @@ mtgtools/
 |-----------|--------|
 | **[Express](https://expressjs.com/)** | Server framework — MIT licence |
 | **[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)** | SQLite for all persistent data — MIT licence |
-| **[Scryfall API](https://scryfall.com/docs/api)** | Card data, images, search, autocomplete, and prices. Free to use; please follow their [rate limit guidelines](https://scryfall.com/docs/api#rate-limits). Scryfall search is triggered manually (Enter / button) rather than on every keystroke. |
+| **[Scryfall API](https://scryfall.com/docs/api)** | Card data, images, search, autocomplete, prices, rulings, and printings (alt-art). Free to use; please follow their [rate limit guidelines](https://scryfall.com/docs/api#rate-limits). Scryfall search is triggered manually (Enter / button) rather than on every keystroke. |
 | **[mana-font](https://github.com/andrewgioia/mana)** | MTG mana symbol icons — MIT licence |
 | **[Archidekt](https://archidekt.com)** | Collection and deck data via their public REST API |
 | **[Moxfield](https://moxfield.com)** | Collection data via CSV export |

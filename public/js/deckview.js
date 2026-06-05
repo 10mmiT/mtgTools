@@ -130,6 +130,13 @@ async function _dvLoad(fetcher) {
 
 // ── View toggle + load for comparison ────────────────────────────────────────
 
+const DV_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
+let _dvControlsMounted = false;
+function initDeckViewSort() {
+  mountSortControl('dvSortMount', 'deckview', DV_SORT_FIELDS, dvRender, { field: 'name', dir: 1 });
+  _dvControlsMounted = true;
+}
+
 function dvSetView(v) {
   dvView = v;
   document.getElementById('dv-list-btn')?.classList.toggle('active', v === 'list');
@@ -169,11 +176,17 @@ function dvRender() {
     (dvDeck.bracket != null ? ` · Bracket ${dvDeck.bracket}` : '');
   infoBar.style.display = '';
 
-  // Group and sort cards
+  if (!_dvControlsMounted) initDeckViewSort();
+
+  // Group and sort cards (within each category) by the chosen sort field
+  const { field, dir } = getSort('deckview', { field: 'name', dir: 1 });
+  const cmp = cardComparator(field, dir);
   const groups = {};
   for (const cat of DV_CATEGORIES) groups[cat] = [];
   for (const card of dvDeck.cards) groups[dvGetCategory(card)].push(card);
-  for (const cat of DV_CATEGORIES) groups[cat].sort((a, b) => a.name.localeCompare(b.name));
+  for (const cat of DV_CATEGORIES) {
+    groups[cat].sort((a, b) => cmp(dvCardData.get(a.name) || { name: a.name }, dvCardData.get(b.name) || { name: b.name }));
+  }
 
   // Summary strip
   const summaryItems = DV_CATEGORIES
@@ -236,7 +249,7 @@ function dvGridSection(cat, count, cards) {
     const owned  = sfCardOwnership(c.name);
     const price  = renderPrice(sf);
     return `<div class="sf-card-lg">
-      <a href="${sf?.scryfall_uri || href}" target="_blank" rel="noopener">
+      <a href="${sf?.scryfall_uri || href}" target="_blank" rel="noopener" class="card-open" data-name="${esc(c.name)}">
         ${imgUrl
           ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(c.name)}">`
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
@@ -272,7 +285,7 @@ function dvGridSectionXL(cat, count, cards) {
     const owned  = sfCardOwnership(c.name);
     const price  = renderPrice(sf);
     return `<div class="sf-card-lg">
-      <a href="${sf?.scryfall_uri || href}" target="_blank" rel="noopener">
+      <a href="${sf?.scryfall_uri || href}" target="_blank" rel="noopener" class="card-open" data-name="${esc(c.name)}">
         ${imgUrl
           ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(c.name)}">`
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}

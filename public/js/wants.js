@@ -4,6 +4,23 @@ let wantView     = 'list'; // 'list' | 'grid' | 'xl'
 let wantCardData = new Map(); // card name → Scryfall card object
 let _wantFetching = false;
 
+const WANT_SORT_FIELDS = ['wanted', 'name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
+const WANT_COLUMNS = [
+  { key: 'mana',   label: 'Mana Value',        default: false },
+  { key: 'color',  label: 'Color',             default: false },
+  { key: 'type',   label: 'Type',              default: false },
+  { key: 'rarity', label: 'Rarity',            default: false },
+  { key: 'pt',     label: 'Power / Toughness', default: false },
+  { key: 'price',  label: 'Price',             default: true },
+  { key: 'owned',  label: 'In Collections',    default: true },
+];
+let _wantControlsMounted = false;
+function initWantControls() {
+  mountSortControl('wantSortMount', 'wants', WANT_SORT_FIELDS, renderWantList, { field: 'wanted', dir: -1 });
+  mountColumnMenu('wantColumnsMount', 'wants', WANT_COLUMNS, renderWantList);
+  _wantControlsMounted = true;
+}
+
 // ── View toggle ───────────────────────────────────────────────────────────
 function setWantView(v) {
   wantView = v;
@@ -178,15 +195,31 @@ async function renderWantList() {
   // Players who have at least one want
   const activePlayers = state.players.filter(p => (p.wantList || []).length > 0);
 
-  // Sort: most-wanted first, then alpha
-  const rows = [...allWants.entries()]
-    .sort((a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]));
+  if (!_wantControlsMounted) initWantControls();
+
+  // Sort by the chosen field ("Most Wanted" = count of players wanting it)
+  const { field, dir } = getSort('wants', { field: 'wanted', dir: -1 });
+  const rows = [...allWants.entries()];
+  if (field === 'wanted') {
+    rows.sort((a, b) => (a[1].size - b[1].size) * dir || a[0].localeCompare(b[0]));
+  } else {
+    const cmp = cardComparator(field, dir);
+    rows.sort((a, b) => cmp(wantCardData.get(a[0]) || { name: a[0] }, wantCardData.get(b[0]) || { name: b[0] }));
+  }
 
   // ── List (table) view ─────────────────────────────────────────────────
   if (wantView === 'list') {
+    const vc = getCols('wants', WANT_COLUMNS);
     const colHeaders = activePlayers.map(p =>
       `<th style="border-bottom:3px solid ${p.color};white-space:nowrap">${esc(p.name)}</th>`
     ).join('');
+
+    let metaHead = '';
+    if (vc.mana)   metaHead += '<th>MV</th>';
+    if (vc.color)  metaHead += '<th>Color</th>';
+    if (vc.type)   metaHead += '<th>Type</th>';
+    if (vc.rarity) metaHead += '<th>Rarity</th>';
+    if (vc.pt)     metaHead += '<th>P/T</th>';
 
     const tableRows = rows.map(([cardName, wanterIds]) => {
       const href  = `https://scryfall.com/search?q=!%22${encodeURIComponent(cardName)}%22`;
@@ -201,14 +234,22 @@ async function renderWantList() {
       }).join('');
       const owned = sfCardOwnership(cardName);
       const card  = wantCardData.get(cardName);
+      const m     = cardMetaOf(card || { name: cardName });
       const price = renderPrice(card);
+      let metaCells = '';
+      if (vc.mana)   metaCells += `<td class="td-meta">${colMV(m)}</td>`;
+      if (vc.color)  metaCells += `<td class="td-meta">${colColor(m)}</td>`;
+      if (vc.type)   metaCells += `<td class="td-meta">${esc(colType(m))}</td>`;
+      if (vc.rarity) metaCells += `<td class="td-meta">${colRarity(m)}</td>`;
+      if (vc.pt)     metaCells += `<td class="td-meta">${colPT(m)}</td>`;
       return `<tr>
         <td class="td-name">
           <a class="card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(cardName)}">${esc(cardName)}</a>
         </td>
         ${cells}
-        <td style="white-space:nowrap">${price}</td>
-        <td><div class="sf-ownership">${owned || '<span class="sf-not-owned">Nobody owns this</span>'}</div></td>
+        ${metaCells}
+        ${vc.price ? `<td style="white-space:nowrap">${price}</td>` : ''}
+        ${vc.owned ? `<td><div class="sf-ownership">${owned || '<span class="sf-not-owned">Nobody owns this</span>'}</div></td>` : ''}
       </tr>`;
     }).join('');
 
@@ -218,8 +259,9 @@ async function renderWantList() {
           <thead><tr>
             <th>Card</th>
             ${colHeaders}
-            <th>Price</th>
-            <th>In Collections</th>
+            ${metaHead}
+            ${vc.price ? '<th>Price</th>' : ''}
+            ${vc.owned ? '<th>In Collections</th>' : ''}
           </tr></thead>
           <tbody>${tableRows}</tbody>
         </table>
@@ -273,7 +315,7 @@ async function renderWantList() {
       }).join('');
 
     return `<div class="sf-card-lg">
-      <a href="${sfUrl}" target="_blank" rel="noopener">
+      <a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(cardName)}">
         ${imgUrl
           ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(cardName)}">`
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}

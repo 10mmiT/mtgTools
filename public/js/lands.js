@@ -14,6 +14,8 @@ function initLands() {
   ['W','U','B','R','G','C'].forEach(c => document.getElementById(`pip-${c}`).addEventListener('input', recalc));
   ['dual','fetch','other'].forEach(k => document.getElementById(`nb-${k}`).addEventListener('input', recalc));
 
+  landsAddSteppers();
+
   document.querySelectorAll('.land-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.land-preset-btn').forEach(b => b.classList.remove('active'));
@@ -24,6 +26,41 @@ function initLands() {
   });
 
   landsRecalc();
+}
+
+// Wrap each number input with custom − / + stepper buttons.
+function landsAddSteppers() {
+  document.querySelectorAll('.lands-num-input').forEach(input => {
+    if (input.parentNode.classList.contains('num-stepper')) return; // already wrapped
+    const wrap = document.createElement('div');
+    wrap.className = 'num-stepper';
+    input.parentNode.insertBefore(wrap, input);
+
+    const makeBtn = (label, delta) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'stepper-btn';
+      b.textContent = label;
+      b.tabIndex = -1;
+      b.setAttribute('aria-label', delta < 0 ? 'Decrease' : 'Increase');
+      b.addEventListener('click', () => landsStep(input, delta));
+      return b;
+    };
+
+    wrap.appendChild(makeBtn('−', -1)); // − (minus sign)
+    wrap.appendChild(input);
+    wrap.appendChild(makeBtn('+', 1));
+  });
+}
+
+function landsStep(input, delta) {
+  const min = input.min !== '' ? parseInt(input.min) : 0;
+  const max = input.max !== '' ? parseInt(input.max) : Infinity;
+  let v = parseInt(input.value);
+  if (isNaN(v)) v = 0;
+  v = Math.max(min, Math.min(max, v + delta));
+  input.value = v;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function landsGetDeckSize() {

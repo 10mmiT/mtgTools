@@ -27,6 +27,10 @@
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <span class="tab-btn-label">Scryfall Search</span>
   </button>
+  <button class="tab-btn" id="tab-btn-card" onclick="setTab('card')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="8" cy="14" r="1.5"/><line x1="12" y1="14" x2="17" y2="14"/></svg>
+    <span class="tab-btn-label">Card</span>
+  </button>
   <button class="tab-btn" id="tab-btn-sets" onclick="setTab('sets')">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
     <span class="tab-btn-label">Set Browser</span>
@@ -99,6 +103,10 @@
     <button class="mob-nav-item" data-tab="scryfall" onclick="setTab('scryfall')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       Scryfall Search
+    </button>
+    <button class="mob-nav-item" data-tab="card" onclick="setTab('card')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="8" cy="14" r="1.5"/><line x1="12" y1="14" x2="17" y2="14"/></svg>
+      Card
     </button>
     <button class="mob-nav-item" data-tab="sets" onclick="setTab('sets')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
@@ -177,7 +185,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Upload CSV file
       </button>
-      <span style="font-size:.78rem;color:var(--muted);align-self:center">
+      <span class="help-text" style="align-self:center">
         Archidekt (<em>Collection → Export → CSV</em>) or Moxfield (<em>Collection → Download</em>)
       </span>
     </div>
@@ -212,6 +220,10 @@
           Grid
         </button>
       </div>
+    </div>
+    <div class="view-toolbar">
+      <div id="colSortMount"></div>
+      <div id="colColumnsMount" style="margin-left:auto"></div>
     </div>
   </div>
 
@@ -273,7 +285,7 @@
 <!-- Players & Decks tab -->
 <div id="tab-players" class="tab-pane" style="display:none">
   <div class="players-add-bar" id="addPlayerBar">
-    <span style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);flex-shrink:0">Add Player</span>
+    <span class="section-label">Add Player</span>
     <input type="text" id="playerNameInput" style="flex:1;min-width:160px;max-width:280px" placeholder="Player name…">
     <button class="btn-primary" style="padding:.5rem 1.1rem;flex-shrink:0" onclick="confirmAddPlayer()">+ Add Player</button>
   </div>
@@ -300,11 +312,24 @@
         <button class="view-btn" id="sf-size-xl" onclick="setSfSize('xl')" style="font-size:.72rem;font-weight:700">XL</button>
       </div>
     </div>
-    <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">
-      Tip: <code style="font-size:.73rem;color:var(--primary-tx)">t:legendary t:creature</code> · <code style="font-size:.73rem;color:var(--primary-tx)">c:g cmc=3</code> · <code style="font-size:.73rem;color:var(--primary-tx)">"exact name"</code> — results show which collections own each card.
+    <div class="view-toolbar">
+      <div id="sfSortMount"></div>
+      <div class="help-text" style="margin:0 0 0 auto">
+        Tip: <code>t:creature c:r</code> · <code>cmc=3</code> · <code>"exact name"</code>
+      </div>
     </div>
   </div>
   <div id="sfResults"></div>
+</div>
+
+<!-- Card Detail tab -->
+<div id="tab-card" class="tab-pane" style="display:none">
+  <div id="cardDetail">
+    <div class="card-detail-empty">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5;margin-bottom:.75rem"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="8" cy="14" r="1.5"/><line x1="12" y1="14" x2="17" y2="14"/></svg>
+      <div>Click any card name or image anywhere in the app to see its full details, rulings, and alternate printings here.</div>
+    </div>
+  </div>
 </div>
 
 <!-- Set Browser tab -->
@@ -331,6 +356,9 @@
       <span style="font-size:.82rem;color:var(--muted)">Loading sets…</span>
     </div>
     <div id="setInfoBar" class="set-info-bar" style="display:none"></div>
+    <div class="view-toolbar" id="setSortBar" style="display:none">
+      <div id="setSortMount"></div>
+    </div>
   </div>
   <div id="setCards"></div>
 </div>
@@ -341,7 +369,7 @@
 
     <!-- Add player inline -->
     <div id="wantAddPlayerBar" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding-bottom:.85rem;margin-bottom:.85rem;border-bottom:1px solid var(--border)">
-      <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);flex-shrink:0">Add Player</span>
+      <span class="section-label">Add Player</span>
       <input type="text" id="wantNewPlayerInput" style="flex:1;min-width:150px;max-width:240px" placeholder="Player name…"
              onkeydown="if(event.key==='Enter')confirmWantAddPlayer()">
       <button class="btn-primary" style="padding:.48rem 1rem;flex-shrink:0" onclick="confirmWantAddPlayer()">+ Add Player</button>
@@ -350,7 +378,7 @@
     <!-- Add card to want list -->
     <div class="panel-title" style="margin-bottom:.65rem">Add to Want List</div>
     <div class="want-add-bar">
-      <select id="wantPlayerSel" style="padding:.5rem .7rem;border-radius:8px;border:1.5px solid var(--border);background:var(--card-2);color:var(--text);font-family:inherit;font-size:.88rem;outline:none;flex-shrink:0">
+      <select id="wantPlayerSel" style="flex-shrink:0">
         <option value="">Select player…</option>
       </select>
       <div class="autocomplete-wrap">
@@ -371,6 +399,10 @@
         </button>
         <button class="view-btn" id="want-view-xl" onclick="setWantView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
       </div>
+    </div>
+    <div class="view-toolbar">
+      <div id="wantSortMount"></div>
+      <div id="wantColumnsMount" style="margin-left:auto"></div>
     </div>
   </div>
   <div id="wantResults"></div>
@@ -451,32 +483,32 @@
       <div class="lands-pips-grid">
         <div class="lands-pip-field">
           <i class="ms ms-w ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name" style="color:#c8b87a">White</label>
+          <label class="lands-pip-name mc-w">White</label>
           <input type="number" id="pip-W" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-u ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name" style="color:#4a90d9">Blue</label>
+          <label class="lands-pip-name mc-u">Blue</label>
           <input type="number" id="pip-U" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-b ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name" style="color:#aaa">Black</label>
+          <label class="lands-pip-name mc-b">Black</label>
           <input type="number" id="pip-B" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-r ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name" style="color:#d94a4a">Red</label>
+          <label class="lands-pip-name mc-r">Red</label>
           <input type="number" id="pip-R" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-g ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name" style="color:#3a9a5c">Green</label>
+          <label class="lands-pip-name mc-g">Green</label>
           <input type="number" id="pip-G" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-c ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name" style="color:#aaa">Colorless</label>
+          <label class="lands-pip-name mc-c">Colorless</label>
           <input type="number" id="pip-C" class="lands-num-input" placeholder="0" min="0">
         </div>
       </div>
@@ -528,7 +560,7 @@
     <div class="panel-title" style="margin-bottom:.75rem">Load Deck</div>
     <div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
       <div class="dv-url-field" style="flex:1;min-width:240px">
-        <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:.35rem">Archidekt URL</label>
+        <label class="section-label" style="display:block;margin-bottom:.35rem">Archidekt URL</label>
         <div style="display:flex;gap:.5rem">
           <input type="text" id="dvUrlInput" placeholder="archidekt.com/decks/…" style="flex:1"
                  onkeydown="if(event.key==='Enter')dvLoadUrl()">
@@ -536,7 +568,7 @@
         </div>
       </div>
       <div>
-        <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:.35rem">CSV File</label>
+        <label class="section-label" style="display:block;margin-bottom:.35rem">CSV File</label>
         <button class="btn-secondary" onclick="document.getElementById('dvCsvInput').click()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Upload CSV
@@ -553,6 +585,7 @@
         <div id="dvDeckName" style="font-size:1.05rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
         <div id="dvDeckStats" style="font-size:.8rem;color:var(--muted);margin-top:.1rem"></div>
       </div>
+      <div id="dvSortMount" style="flex-shrink:0"></div>
       <div style="display:flex;gap:.5rem;align-items:center;flex-shrink:0">
         <div class="view-toggle">
           <button class="view-btn active" id="dv-list-btn" onclick="dvSetView('list')">
@@ -645,14 +678,14 @@
       </div>
       <div class="field">
         <label>Role</label>
-        <select id="newRole" style="padding:.52rem .7rem;border-radius:8px;border:1.5px solid var(--border);background:var(--card-2);color:var(--text);font-family:inherit;font-size:.9rem;outline:none">
+        <select id="newRole">
           <option value="player">Player</option>
           <option value="admin">Admin</option>
         </select>
       </div>
       <div class="field">
         <label>Linked Player</label>
-        <select id="newPlayerId" style="padding:.52rem .7rem;border-radius:8px;border:1.5px solid var(--border);background:var(--card-2);color:var(--text);font-family:inherit;font-size:.9rem;outline:none;max-width:200px">
+        <select id="newPlayerId" style="max-width:200px">
           <option value="">— No linked player —</option>
         </select>
       </div>
@@ -740,6 +773,8 @@
 <script src="js/state.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/scryfall.js"></script>
+<script src="js/sortui.js"></script>
+<script src="js/card.js"></script>
 <script src="js/collections.js"></script>
 <script src="js/players.js"></script>
 <script src="js/search.js"></script>

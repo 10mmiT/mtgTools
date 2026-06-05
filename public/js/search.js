@@ -1,20 +1,19 @@
 // ── Scryfall Search ───────────────────────────────────────────────────────
-const sfState = { query: '', nextPage: null, loading: false, timer: null };
+const sfState = { query: '', nextPage: null, loading: false, timer: null, cards: [] };
 let sfViewSize = 'list'; // 'list' | 'grid' | 'xl'
+
+const SF_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
+
+function initScryfallSort() {
+  mountSortControl('sfSortMount', 'scryfall', SF_SORT_FIELDS, sfRender);
+}
 
 function setSfSize(size) {
   sfViewSize = size;
   document.getElementById('sf-size-sm').classList.toggle('active', size === 'list');
   document.getElementById('sf-size-lg').classList.toggle('active', size === 'grid');
   document.getElementById('sf-size-xl').classList.toggle('active', size === 'xl');
-  // Re-render existing results in the new size
-  const container = document.getElementById('sfResults');
-  if (container.dataset.cards) {
-    const cards = JSON.parse(container.dataset.cards);
-    container.innerHTML = '';
-    container.removeAttribute('data-cards');
-    renderSfPage(cards, false);
-  }
+  sfRender();
 }
 
 function sfDebounce() {
@@ -32,6 +31,7 @@ async function doScryfallSearch() {
   }
   sfState.query    = query;
   sfState.nextPage = null;
+  sfState.cards    = [];
   await fetchScryfallPage(
     `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=cards&order=name`,
     false
@@ -64,7 +64,15 @@ async function fetchScryfallPage(url, append) {
         `${(data.total_cards || data.data?.length || 0).toLocaleString()} cards`;
     }
 
-    renderSfPage(data.data || [], append);
+    if (append) sfState.cards.push(...(data.data || []));
+    else        sfState.cards = data.data || [];
+
+    // Cache metadata so other views can sort by it too
+    if (data.data) for (const c of data.data) {
+      if (!scryfallMetaCache.has(c.name)) scryfallMetaCache.set(c.name, cardMetaOf(c));
+    }
+
+    sfRender();
   } catch (e) {
     if (!append) {
       document.getElementById('sfResults').innerHTML =
@@ -77,38 +85,27 @@ async function fetchScryfallPage(url, append) {
   }
 }
 
-function renderSfPage(cards, append) {
+// Sort all loaded cards by the current sort, then render the whole set
+function sfRender() {
   const container = document.getElementById('sfResults');
-  const oldMore   = document.getElementById('sfLoadMore');
-  if (oldMore) oldMore.remove();
-  if (!append) {
-    container.innerHTML = '';
-    container.removeAttribute('data-cards');
-    // Wrap in correct container element based on size
-    container.insertAdjacentHTML('beforeend',
-      sfViewSize === 'xl'   ? '<div class="sf-grid-xl" id="sfGrid"></div>'
-      : sfViewSize === 'grid' ? '<div class="sf-grid" id="sfGrid"></div>'
-      : '<div class="sf-results" id="sfGrid"></div>'
-    );
-  }
+  if (!container) return;
+  const cards = (sfState.cards || []).slice();
+  if (!cards.length) return; // leave any empty/error state from the fetch
 
-  const grid = document.getElementById('sfGrid');
+  const { field, dir } = getSort('scryfall');
+  cards.sort(cardComparator(field, dir));
 
-  // Store all cards so we can re-render on size toggle
-  const prev = container.dataset.cards ? JSON.parse(container.dataset.cards) : [];
-  container.dataset.cards = JSON.stringify(append ? [...prev, ...cards] : cards);
+  const wrap = sfViewSize === 'xl' ? 'sf-grid-xl' : sfViewSize === 'grid' ? 'sf-grid' : 'sf-results';
+  const html = cards.map(c =>
+    sfViewSize === 'xl'   ? renderSfCardXL(c)
+    : sfViewSize === 'grid' ? renderSfCardLarge(c)
+    : renderSfCardSmall(c)).join('');
 
-  const html = sfViewSize === 'xl'   ? cards.map(card => renderSfCardXL(card)).join('')
-             : sfViewSize === 'grid' ? cards.map(card => renderSfCardLarge(card)).join('')
-             : cards.map(card => renderSfCardSmall(card)).join('');
-
-  grid.insertAdjacentHTML('beforeend', html);
-
-  if (sfState.nextPage) {
-    container.insertAdjacentHTML('beforeend',
-      `<button id="sfLoadMore" class="btn-secondary" style="width:100%;margin-top:.75rem;padding:.6rem"
-         onclick="fetchScryfallPage(sfState.nextPage, true)">Load more results</button>`);
-  }
+  container.innerHTML = `<div class="${wrap}" id="sfGrid">${html}</div>` +
+    (sfState.nextPage
+      ? `<button id="sfLoadMore" class="btn-secondary" style="width:100%;margin-top:.75rem;padding:.6rem"
+           onclick="fetchScryfallPage(sfState.nextPage, true)">Load more results</button>`
+      : '');
 }
 
 function renderSfCardSmall(card) {
@@ -120,7 +117,7 @@ function renderSfCardSmall(card) {
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   return `<div class="sf-card">
-    <a href="${sfUrl}" target="_blank" rel="noopener" class="sf-thumb">
+    <a href="${sfUrl}" target="_blank" rel="noopener" class="sf-thumb card-open" data-name="${esc(card.name)}">
       ${imgUrl ? `<img src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">` : '<div class="sf-thumb-ph"></div>'}
     </a>
     <div class="sf-body">
@@ -144,7 +141,7 @@ function renderSfCardLarge(card) {
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   return `<div class="sf-card-lg">
-    <a href="${sfUrl}" target="_blank" rel="noopener">
+    <a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
       ${imgUrl
         ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
@@ -170,7 +167,7 @@ function renderSfCardXL(card) {
   const mana   = card.mana_cost || face?.mana_cost || '';
   const type   = card.type_line || face?.type_line || '';
   return `<div class="sf-card-lg">
-    <a href="${sfUrl}" target="_blank" rel="noopener">
+    <a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
       ${imgUrl
         ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}

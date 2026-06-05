@@ -82,6 +82,7 @@ const MOB_TAB_LABELS = {
   collections: 'Collections',
   players:     'Players & Decks',
   scryfall:    'Scryfall Search',
+  card:        'Card',
   sets:        'Set Browser',
   wants:       'Want Lists',
   lands:       'Mana Base',
@@ -111,6 +112,7 @@ document.addEventListener('click', e => {
 
 // ── State refresh ─────────────────────────────────────────────────────
 let _lastRefresh = 0;
+let _lastStateSig = null;
 
 async function refreshState() {
   if (document.visibilityState === 'hidden') return;
@@ -132,6 +134,14 @@ async function refreshState() {
     const res = await fetch('/api/state');
     if (!res.ok) return;
     const json = await res.json();
+
+    // Skip the re-render entirely when nothing actually changed on the server.
+    // Re-rendering rebuilds every card/image element, which flashes the grid and
+    // jumps the scroll position — pointless when the data is identical.
+    const sig = JSON.stringify(json);
+    if (sig === _lastStateSig) return;
+    _lastStateSig = sig;
+
     const deckSummary = (json.players||[]).map(p=>`${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
     console.log(`[refresh] hydrateState — players: ${deckSummary || '(none)'}`);
     hydrateState(json);
@@ -162,6 +172,7 @@ function setTab(tab) {
   });
   closeMobNav();
 
+  if (tab === 'scryfall')  initScryfallSort();
   if (tab === 'sets')      initSetBrowser();
   if (tab === 'wants')     renderWantList();
   if (tab === 'available') initAvailable();
@@ -171,6 +182,20 @@ function setTab(tab) {
   // Refresh shared data when switching to any tab that shows other users' content
   if (['players', 'wants', 'collections', 'sets', 'deckview'].includes(tab)) refreshState();
 }
+
+// ── Card click → open Card Detail tab ─────────────────────────────────
+// Delegated: any card name (.card-link) or card image (.card-open) routes to
+// the Card tab instead of jumping straight to Scryfall. Ctrl/Cmd/middle-click
+// still opens the external link in a new tab.
+document.addEventListener('click', e => {
+  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const el = e.target.closest('.card-link, .card-open');
+  if (!el) return;
+  const name = el.dataset.name;
+  if (!name) return;
+  e.preventDefault();
+  openCardByName(name);
+});
 
 // auth functions are in auth.js (logout, authInit)
 

@@ -79,6 +79,10 @@
       text-decoration: underline; text-decoration-style: dotted;
     }
     .link-btn:hover { color: var(--primary-dk); }
+    /* Prevent iOS Safari auto-zoom on focus (inputs under 16px) */
+    @media (max-width: 640px) {
+      input[type="text"], input[type="password"] { font-size: 16px; }
+    }
   </style>
 </head>
 <body>

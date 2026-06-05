@@ -358,7 +358,53 @@ function renderCollections() {
 }
 
 // ── Build merged + filtered rows ──────────────────────────────────────────
-const VALID_SORT_FIELDS = new Set(['name', 'total']);
+const VALID_SORT_FIELDS = new Set(['name', 'total', 'qty',
+  'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price']);
+const COL_META_FIELDS = new Set(['cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price']);
+
+const COL_COLUMNS = [
+  { key: 'mana',   label: 'Mana Value',        default: false },
+  { key: 'color',  label: 'Color',             default: false },
+  { key: 'type',   label: 'Type',              default: false },
+  { key: 'rarity', label: 'Rarity',            default: false },
+  { key: 'pt',     label: 'Power / Toughness', default: false },
+  { key: 'price',  label: 'Price',             default: false },
+];
+const COL_SORT_FIELDS = ['name', 'qty', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
+
+let _colControlsMounted = false;
+function initCollectionsControls() {
+  // Adopt any persisted sort into the collections state
+  const s = getSort('collections', { field: state.sort.field || 'name', dir: state.sort.dir || 1 });
+  state.sort.field = s.field; state.sort.dir = s.dir;
+  mountSortControl('colSortMount', 'collections', COL_SORT_FIELDS, () => {
+    const ns = getSort('collections');
+    state.sort.field = ns.field; state.sort.dir = ns.dir;
+    renderResults();
+  });
+  mountColumnMenu('colColumnsMount', 'collections', COL_COLUMNS, renderResults);
+  _colControlsMounted = true;
+}
+// Keep the Sort dropdown in sync when a column header is clicked
+function syncColSortControl() {
+  const sel = document.querySelector('#colSortMount .sort-select');
+  const btn = document.querySelector('#colSortMount .sort-dir-btn');
+  if (sel && [...sel.options].some(o => o.value === state.sort.field)) sel.value = state.sort.field;
+  if (btn) btn.textContent = state.sort.dir === 1 ? '↑' : '↓';
+}
+
+// Lazily pull card metadata from Scryfall when a meta sort/column needs it
+let _colMetaFetching = false;
+function ensureSortMeta(rows) {
+  const cols = getCols('collections', COL_COLUMNS);
+  const needed = COL_META_FIELDS.has(state.sort.field)
+    || cols.mana || cols.color || cols.type || cols.rarity || cols.pt || cols.price;
+  if (!needed || _colMetaFetching) return;
+  const need = rows.map(r => r.name).filter(n => !scryfallMetaCache.has(n)).slice(0, 800);
+  if (!need.length) return;
+  _colMetaFetching = true;
+  ensureScryfallImages(need).then(() => { _colMetaFetching = false; renderResults(); });
+}
 
 function buildRows(query) {
   const merged = new Map();
@@ -379,16 +425,17 @@ function buildRows(query) {
   if (deckFilter && deck) rows = rows.filter(r => deck.cards.has(r.name));
   if (query) rows = rows.filter(r => r.name.toLowerCase().includes(query));
 
+  rows.forEach(r => { r._sortQty = r.qtys.reduce((s, q) => s + q, 0); });
+
   const { field, dir } = state.sort;
-  rows.sort((a, b) => {
-    let av, bv;
-    if      (field === 'name')  { av = a.name; bv = b.name; }
-    else if (field === 'total') { av = a.qtys.reduce((s,q)=>s+q,0); bv = b.qtys.reduce((s,q)=>s+q,0); }
-    else if (field.startsWith('col_')) { const i=+field.slice(4); av=a.qtys[i]||0; bv=b.qtys[i]||0; }
-    if (av < bv) return -dir;
-    if (av > bv) return  dir;
-    return 0;
-  });
+  if (field === 'total' || field === 'qty') {
+    rows.sort((a, b) => (a._sortQty - b._sortQty) * dir || a.name.localeCompare(b.name));
+  } else if (field.startsWith('col_')) {
+    const i = +field.slice(4);
+    rows.sort((a, b) => ((a.qtys[i] || 0) - (b.qtys[i] || 0)) * dir || a.name.localeCompare(b.name));
+  } else {
+    rows.sort(cardComparator(field, dir)); // name, cmc, color, power, toughness, rarity, type, price
+  }
 
   return rows;
 }
@@ -404,6 +451,7 @@ function scheduleRender() {
 
 // ── Render results ────────────────────────────────────────────────────────
 function renderResults() {
+  if (!_colControlsMounted) initCollectionsControls();
   const query   = document.getElementById('searchInput').value.trim().toLowerCase();
   const infoEl  = document.getElementById('resultInfo');
   const moreEl  = document.getElementById('colShowMoreWrap');
@@ -421,6 +469,7 @@ function renderResults() {
   }
 
   const rows      = buildRows(query);
+  ensureSortMeta(rows);
   const isMobile  = window.innerWidth <= 640;
   const MOBILE_CAP = 150;
   const fullMax   = viewMode === 'grid' ? 200 : 500;
@@ -451,25 +500,33 @@ function renderListView(rows, MAX) {
   const tbody  = document.getElementById('resultsBody');
   const header = document.getElementById('headerRow');
 
-  const FIXED = 1;
-  while (header.children.length > FIXED + 1) header.removeChild(header.children[FIXED]);
-  state.collections.forEach((col, i) => {
-    const th = document.createElement('th');
-    th.dataset.sort = `col_${i}`;
-    th.textContent  = col.name;
-    th.style.borderBottom = `3px solid ${col.color}`;
-    header.insertBefore(th, header.lastElementChild);
-  });
-
   // Reset stale sort field if it referenced a removed column
   if (!VALID_SORT_FIELDS.has(state.sort.field) && !state.sort.field.startsWith('col_'))
     state.sort.field = 'name';
+
+  const cols = getCols('collections', COL_COLUMNS);
+
+  // ── Header ──
+  let h = '<th data-sort="name">Card Name</th>';
+  if (cols.mana)   h += '<th data-sort="cmc">MV</th>';
+  if (cols.color)  h += '<th data-sort="color">Color</th>';
+  if (cols.type)   h += '<th data-sort="type">Type</th>';
+  if (cols.rarity) h += '<th data-sort="rarity">Rarity</th>';
+  if (cols.pt)     h += '<th data-sort="power">P/T</th>';
+  if (cols.price)  h += '<th data-sort="price">Price</th>';
+  state.collections.forEach((col, i) => {
+    h += `<th data-sort="col_${i}" style="border-bottom:3px solid ${col.color}">${esc(col.name)}</th>`;
+  });
+  h += '<th data-sort="total">Total</th>';
+  header.innerHTML = h;
 
   header.querySelectorAll('th').forEach(th => {
     th.onclick = () => {
       const f = th.dataset.sort;
       if (state.sort.field === f) state.sort.dir *= -1;
       else { state.sort.field = f; state.sort.dir = 1; }
+      saveSort('collections', state.sort.field, state.sort.dir);
+      syncColSortControl();
       renderResults();
     };
     const sorted = th.dataset.sort === state.sort.field;
@@ -482,18 +539,49 @@ function renderListView(rows, MAX) {
     return;
   }
 
+  // ── Rows ──
   tbody.innerHTML = rows.slice(0, MAX).map(r => {
-    const total = r.qtys.reduce((s,q)=>s+q,0);
+    const total = r._sortQty ?? r.qtys.reduce((s, q) => s + q, 0);
+    const m = scryfallMetaCache.get(r.name) || {};
+    let metaCells = '';
+    if (cols.mana)   metaCells += `<td class="td-meta">${colMV(m)}</td>`;
+    if (cols.color)  metaCells += `<td class="td-meta">${colColor(m)}</td>`;
+    if (cols.type)   metaCells += `<td class="td-meta">${esc(colType(m))}</td>`;
+    if (cols.rarity) metaCells += `<td class="td-meta">${colRarity(m)}</td>`;
+    if (cols.pt)     metaCells += `<td class="td-meta">${colPT(m)}</td>`;
+    if (cols.price)  metaCells += `<td class="td-meta">${m.eur != null ? '€' + m.eur : '—'}</td>`;
     const qtyCells = r.qtys.map(q =>
       `<td class="td-qty ${q ? 'qty-some' : 'qty-zero'}">${q || '—'}</td>`
     ).join('');
     const href = `https://scryfall.com/search?q=!%22${encodeURIComponent(r.name)}%22`;
     return `<tr>
       <td class="td-name"><a class="card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(r.name)}">${esc(r.name)}</a></td>
+      ${metaCells}
       ${qtyCells}
       <td class="td-total">${total}</td>
     </tr>`;
   }).join('');
+}
+
+// ── Metadata cell renderers ───────────────────────────────────────────────
+function colMV(m)    { return (m.cmc !== undefined && m.cmc !== null) ? Math.trunc(m.cmc) : '—'; }
+function colColor(m) {
+  const cs = (m.ci && m.ci.length ? m.ci : m.colors) || [];
+  if (!cs.length) return '<i class="ms ms-c ms-cost"></i>';
+  return cs.map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost"></i>`).join(' ');
+}
+function colType(m) {
+  if (!m.type) return '—';
+  const main = m.type.split('//')[0].split('—')[0].trim();
+  const words = main.split(' ').filter(Boolean);
+  return words[words.length - 1] || '—';
+}
+function colRarity(m) {
+  if (!m.rarity) return '—';
+  return `<span class="rarity-tag r-${m.rarity}">${m.rarity[0].toUpperCase()}${m.rarity.slice(1)}</span>`;
+}
+function colPT(m) {
+  return (m.power != null && m.toughness != null) ? `${esc(String(m.power))}/${esc(String(m.toughness))}` : '—';
 }
 
 // ── Grid view ─────────────────────────────────────────────────────────────
@@ -526,9 +614,9 @@ async function renderGridView(rows, MAX) {
       }).join('');
 
       return `<div class="grid-card">
-        <a class="grid-img-link" href="${href}" target="_blank" rel="noopener">${imgHtml}</a>
+        <a class="grid-img-link card-open" href="${href}" target="_blank" rel="noopener" data-name="${esc(r.name)}">${imgHtml}</a>
         <div class="grid-footer">
-          <div class="grid-name" title="${esc(r.name)}">${esc(r.name)}</div>
+          <div class="grid-name card-open" title="${esc(r.name)}" data-name="${esc(r.name)}" style="cursor:pointer">${esc(r.name)}</div>
           <div class="grid-qtys">${qtyBadges}</div>
         </div>
       </div>`;

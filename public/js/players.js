@@ -470,7 +470,7 @@ function renderDeck() {
     const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(c.name)}%22`;
     return `<div class="deck-row">
       <span class="deck-dot ${isFound ? 'dot-found' : 'dot-missing'}"></span>
-      <a class="deck-card-link" href="${href}" target="_blank" rel="noopener" title="${esc(c.name)}">${esc(c.name)}</a>
+      <a class="deck-card-link card-open" href="${href}" target="_blank" rel="noopener" data-name="${esc(c.name)}" title="${esc(c.name)}">${esc(c.name)}</a>
       <span class="deck-deck-qty">×${c.qty}</span>
       <span class="deck-col-qty ${isFound ? 'cq-found' : 'cq-missing'}">${total || '—'}</span>
     </div>`;

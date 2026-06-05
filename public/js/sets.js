@@ -44,6 +44,11 @@ function setSetView(v) {
   renderSetCards();
 }
 
+const SET_SORT_FIELDS = ['number', 'name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
+function initSetSort() {
+  mountSortControl('setSortMount', 'sets', SET_SORT_FIELDS, renderSetCards, { field: 'number', dir: 1 });
+}
+
 function renderSetList() {
   const q    = (document.getElementById('setSearchInput')?.value || '').toLowerCase();
   const list = document.getElementById('setList');
@@ -78,6 +83,9 @@ async function selectSet(code) {
       if (!res.ok) { cardsEl.innerHTML = '<div class="empty-state">No cards found for this set.</div>'; return; }
       const data = await res.json();
       setCardsAll.push(...(data.data || []));
+      for (const c of (data.data || [])) {
+        if (!scryfallMetaCache.has(c.name)) scryfallMetaCache.set(c.name, cardMetaOf(c));
+      }
       url = data.has_more ? data.next_page : null;
       cardsEl.innerHTML = `<div class="empty-state">Loading… ${setCardsAll.length} cards</div>`;
     } catch (e) {
@@ -96,9 +104,15 @@ function renderSetCards() {
   const ownedCount = setCardsAll.filter(isOwned).length;
   const unownedCount = setCardsAll.length - ownedCount;
 
-  const displayed = setFilter === 'owned'   ? setCardsAll.filter(isOwned)
-                  : setFilter === 'unowned' ? setCardsAll.filter(c => !isOwned(c))
-                  : setCardsAll;
+  let displayed = setFilter === 'owned'   ? setCardsAll.filter(isOwned)
+                : setFilter === 'unowned' ? setCardsAll.filter(c => !isOwned(c))
+                : setCardsAll.slice();
+
+  const { field, dir } = getSort('sets', { field: 'number', dir: 1 });
+  displayed = displayed.slice().sort(cardComparator(field, dir));
+
+  const sortBar = document.getElementById('setSortBar');
+  if (sortBar) { sortBar.style.display = ''; if (!sortBar.querySelector('.sort-control')) initSetSort(); }
 
   infoBar.style.display = '';
   infoBar.innerHTML = `
@@ -133,7 +147,7 @@ function renderSetCardList(card) {
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   return `<div class="sf-card">
-    <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="sf-thumb">
+    <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="sf-thumb card-open" data-name="${esc(card.name)}">
       ${imgUrl ? `<img src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">` : '<div class="sf-thumb-ph"></div>'}
     </a>
     <div class="sf-body">
@@ -157,7 +171,7 @@ function renderSetCardGrid(card) {
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   return `<div class="sf-card-lg">
-    <a href="${card.scryfall_uri}" target="_blank" rel="noopener">
+    <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
       ${imgUrl
         ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
@@ -183,7 +197,7 @@ function renderSetCardXL(card) {
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   return `<div class="sf-card-lg">
-    <a href="${card.scryfall_uri}" target="_blank" rel="noopener">
+    <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
       ${imgUrl
         ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}

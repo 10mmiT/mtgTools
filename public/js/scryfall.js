@@ -3,6 +3,8 @@
 const scryfallCache    = new Map();
 // name → art_crop URL or null
 const scryfallArtCache = new Map();
+// name → { cmc, colors[], ci[], power, toughness, type, rarity, eur } for sorting
+const scryfallMetaCache = new Map();
 
 async function ensureScryfallImages(names) {
   const missing = names.filter(n => !scryfallCache.has(n));
@@ -28,12 +30,24 @@ async function ensureScryfallImages(names) {
             card.image_uris?.normal    || face?.image_uris?.normal    || null);
           scryfallArtCache.set(card.name,
             card.image_uris?.art_crop  || face?.image_uris?.art_crop  || null);
+          scryfallMetaCache.set(card.name, {
+            cmc:       card.cmc,
+            colors:    card.colors        || face?.colors        || [],
+            ci:        card.color_identity || [],
+            power:     card.power      ?? face?.power,
+            toughness: card.toughness  ?? face?.toughness,
+            type:      card.type_line  || face?.type_line || '',
+            rarity:    card.rarity     || '',
+            eur:       card.prices?.eur ? parseFloat(card.prices.eur) : null,
+          });
         }
       }
     } catch {}
-    // Mark any still-missing names so we don't retry them
+    // Mark any still-missing names so we don't retry them (both caches, so
+    // metadata-driven sorts/columns don't keep re-requesting unresolved cards)
     for (const name of batch) {
-      if (!scryfallCache.has(name)) scryfallCache.set(name, null);
+      if (!scryfallCache.has(name))     scryfallCache.set(name, null);
+      if (!scryfallMetaCache.has(name)) scryfallMetaCache.set(name, {});
     }
     // Brief pause between batches to stay within Scryfall rate limits
     if (i + 75 < missing.length) await new Promise(r => setTimeout(r, 100));
