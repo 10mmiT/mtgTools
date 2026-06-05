@@ -123,6 +123,15 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Escape a value for safe use inside a single-quoted JS string in an inline
+// on* handler, e.g. onclick="fn('${jsAttr(name)}')". esc() alone does not
+// escape the single quote, so apostrophes (Urza's Saga) break the handler and
+// the click silently fails. This also escapes backslashes.
+function jsAttr(s) {
+  if (s == null) return '';
+  return esc(String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+}
+
 // ── Relative time ─────────────────────────────────────────────────────────
 function relTime(iso) {
   if (!iso) return '';

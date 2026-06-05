@@ -35,8 +35,8 @@ function _adminRequestRow(r) {
     <td class="td-name">${esc(r.username)}</td>
     <td style="font-size:.8rem;color:var(--muted)">${date}</td>
     <td class="admin-actions">
-      <button class="btn-update" onclick="adminExpandApprove(${r.id},'${esc(r.username)}')">Approve</button>
-      <button class="btn-remove" onclick="adminDenyRequest(${r.id},'${esc(r.username)}')">Deny</button>
+      <button class="btn-update" onclick="adminExpandApprove(${r.id},'${jsAttr(r.username)}')">Approve</button>
+      <button class="btn-remove" onclick="adminDenyRequest(${r.id},'${jsAttr(r.username)}')">Deny</button>
     </td>
   </tr>`;
 }
@@ -117,8 +117,8 @@ function _adminUserRow(u) {
     <td>${roleBadge}</td>
     <td>${playerLabel}</td>
     <td class="admin-actions">
-      <button class="btn-update" onclick="adminEditUser('${esc(u.username)}')">Edit</button>
-      ${!isAdmin ? `<button class="btn-remove" onclick="adminDeleteUser('${esc(u.username)}')">Delete</button>` : ''}
+      <button class="btn-update" onclick="adminEditUser('${jsAttr(u.username)}')">Edit</button>
+      ${!isAdmin ? `<button class="btn-remove" onclick="adminDeleteUser('${jsAttr(u.username)}')">Delete</button>` : ''}
     </td>
   </tr>`;
 }
@@ -164,7 +164,7 @@ function adminEditUser(username) {
     </td>
     <td class="admin-actions" style="white-space:nowrap;display:flex;gap:.35rem;flex-wrap:wrap">
       <input type="password" id="edit-pw-${esc(username)}" placeholder="New password (optional)" style="font-size:.78rem;padding:.28rem .5rem;width:175px;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit;outline:none">
-      <button class="btn-update" onclick="adminSaveUser('${esc(username)}')">Save</button>
+      <button class="btn-update" onclick="adminSaveUser('${jsAttr(username)}')">Save</button>
       <button class="btn-secondary" style="padding:.25rem .6rem;font-size:.75rem" onclick="adminLoadUsers()">Cancel</button>
     </td>`;
 

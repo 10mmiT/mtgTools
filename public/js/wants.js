@@ -65,7 +65,7 @@ function wantAcInput() {
       const names = (data.data || []).slice(0, 8);
       if (!names.length) { closeAc(); return; }
       drop.innerHTML = names.map(n =>
-        `<div class="ac-item" onclick="pickAc('${esc(n)}')">${esc(n)}</div>`).join('');
+        `<div class="ac-item" onclick="pickAc('${jsAttr(n)}')">${esc(n)}</div>`).join('');
       drop.style.display = 'block';
     } catch { closeAc(); }
   }, 280);
@@ -228,7 +228,7 @@ async function renderWantList() {
         const canEdit = isMyPlayer(p.id);
         return `<td style="text-align:center">
           <span class="want-check" style="color:${p.color}">✓
-            ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${esc(cardName)}')" title="Remove">✕</button>` : ''}
+            ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${jsAttr(cardName)}')" title="Remove">✕</button>` : ''}
           </span>
         </td>`;
       }).join('');
@@ -310,7 +310,7 @@ async function renderWantList() {
         const initial = esc(p.name.charAt(0).toUpperCase());
         const canEdit = isMyPlayer(p.id);
         return `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${p.color};color:#fff;font-size:.65rem;font-weight:800;flex-shrink:0;cursor:${canEdit?'pointer':'default'}" title="${esc(p.name)}"
-          ${canEdit ? `onclick="removeWant('${p.id}','${esc(cardName)}')"` : ''}
+          ${canEdit ? `onclick="removeWant('${p.id}','${jsAttr(cardName)}')"` : ''}
         >${initial}</span>`;
       }).join('');
 

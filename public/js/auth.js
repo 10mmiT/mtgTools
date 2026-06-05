@@ -142,7 +142,7 @@ function wantBtnHtml(cardName) {
   const player  = state.players.find(p => p.id === currentUser.playerId);
   const already = player?.wantList?.includes(cardName) || false;
   return `<button class="want-quick-btn${already ? ' want-quick-added' : ''}"
-    onclick="quickAddToMyWants('${esc(cardName)}', this)"
+    onclick="quickAddToMyWants('${jsAttr(cardName)}', this)"
     title="${already ? 'Already on your want list' : 'Add to my wants'}"
     ${already ? 'disabled' : ''}>
     ${already ? '✓' : '+'}

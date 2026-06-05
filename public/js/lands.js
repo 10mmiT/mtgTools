@@ -13,6 +13,7 @@ function initLands() {
   const recalc = () => landsRecalc();
   ['W','U','B','R','G','C'].forEach(c => document.getElementById(`pip-${c}`).addEventListener('input', recalc));
   ['dual','fetch','other'].forEach(k => document.getElementById(`nb-${k}`).addEventListener('input', recalc));
+  document.getElementById('landsCount').addEventListener('input', recalc);
 
   landsAddSteppers();
 
@@ -84,6 +85,14 @@ function landsDefaultLands(deckSize) {
   return Math.round(deckSize * 0.4);
 }
 
+// Total lands to run: an explicit override if entered, otherwise the
+// recommended amount for the deck size.
+function landsGetTotalLands(deckSize) {
+  const c = parseInt(document.getElementById('landsCount').value);
+  if (c > 0) return c;
+  return landsDefaultLands(deckSize);
+}
+
 function landsDistribute(basicSlots, pips) {
   const colors = ['W','U','B','R','G','C'];
   const totalPips = colors.reduce((s, c) => s + (pips[c] || 0), 0);
@@ -106,7 +115,14 @@ function landsDistribute(basicSlots, pips) {
 
 function landsRecalc() {
   const deckSize  = landsGetDeckSize();
-  const totalLands = landsDefaultLands(deckSize);
+  const totalLands = landsGetTotalLands(deckSize);
+
+  // Show the recommended land count as the placeholder + hint for this deck size
+  const recommended = landsDefaultLands(deckSize);
+  const lc = document.getElementById('landsCount');
+  if (lc) lc.placeholder = String(recommended);
+  const recHint = document.getElementById('landsRecHint');
+  if (recHint) recHint.textContent = `(recommended: ${recommended})`;
 
   const nonBasics = (parseInt(document.getElementById('nb-dual').value)  || 0)
                   + (parseInt(document.getElementById('nb-fetch').value) || 0)
@@ -181,6 +197,7 @@ function landsReset() {
   ['W','U','B','R','G','C'].forEach(c => { document.getElementById(`pip-${c}`).value = ''; });
   ['dual','fetch','other'].forEach(k => { document.getElementById(`nb-${k}`).value = ''; });
   document.getElementById('landsCustomSize').value = '';
+  document.getElementById('landsCount').value = '';
   document.querySelectorAll('.land-preset-btn').forEach((b, i) => b.classList.toggle('active', i === 1));
   landsRecalc();
 }
