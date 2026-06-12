@@ -111,21 +111,34 @@ if (ADMIN_PASSWORD) {
   console.log('Admin account configured from ADMIN_PASSWORD');
 }
 
-// ── State helpers (SQLite-backed) ─────────────────────────────────────────────
+// ── State helpers (SQLite-backed, with optimistic-concurrency version) ──────
 function readState() {
   try {
-    const row = db.prepare('SELECT value_json FROM app_state WHERE key = ?').get('state');
-    if (!row) return { players: [] };
-    return JSON.parse(row.value_json);
-  } catch { return { players: [] }; }
+    const row = db.prepare('SELECT value_json, version FROM app_state WHERE key = ?').get('state');
+    if (!row) return { players: [], version: 0 };
+    const parsed = JSON.parse(row.value_json);
+    parsed.version = row.version || 0;
+    return parsed;
+  } catch { return { players: [], version: 0 }; }
 }
 
-function writeState(data) {
+// Returns the new version number (or throws on conflict when checkVersion is provided)
+function writeState(data, checkVersion) {
   const { players = [] } = data;
+  if (checkVersion !== undefined) {
+    const row = db.prepare('SELECT version FROM app_state WHERE key = ?').get('state');
+    const current = row?.version || 0;
+    if (current !== checkVersion) {
+      const err = new Error('Conflict');
+      err.status = 409;
+      throw err;
+    }
+  }
   db.prepare(`
-    INSERT INTO app_state (key, value_json) VALUES ('state', ?)
-    ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json
+    INSERT INTO app_state (key, value_json, version) VALUES ('state', ?, 1)
+    ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, version = version + 1
   `).run(JSON.stringify({ players }));
+  return (db.prepare('SELECT version FROM app_state WHERE key = ?').get('state')?.version || 1);
 }
 
 // ── Login page — always public ────────────────────────────────────────────────
@@ -327,6 +340,18 @@ app.delete('/api/players/:playerId/wants/:cardName', requirePlayerAccess, (req, 
   res.json({ ok: true });
 });
 
+// ── Granular deck update (3.2) ─────────────────────────────────────────
+app.put('/api/players/:playerId/decks', requirePlayerAccess, express.json({ limit: '1mb' }), (req, res) => {
+  const { decks } = req.body || {};
+  if (!Array.isArray(decks)) return res.status(400).json({ error: 'decks array required' });
+  const appState = readState();
+  const player   = appState.players.find(p => p.id === req.params.playerId);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+  player.decks = decks;
+  writeState(appState);
+  res.json({ ok: true });
+});
+
 // ── Available@ API ────────────────────────────────────────────────────────────
 function today() { return new Date().toISOString().slice(0, 10); }
 db.prepare('DELETE FROM availability WHERE date < ?').run(today());
@@ -420,7 +445,7 @@ app.delete('/available/api/calendars/:id/persons/:name', requireAuth, (req, res)
 // ── MTG Collection state ──────────────────────────────────────────────────────
 app.get('/api/state', requireAuth, (req, res) => {
   try {
-    const { players = [] } = readState();
+    const { players = [], version = 0 } = readState();
     const collections = db.prepare('SELECT * FROM collections ORDER BY rowid').all().map(r => {
       try {
         return {
@@ -433,10 +458,10 @@ app.get('/api/state', requireAuth, (req, res) => {
         return null;
       }
     }).filter(Boolean);
-    res.json({ collections, players });
+    res.json({ collections, players, version });
   } catch (e) {
     console.error('GET /api/state error:', e.message);
-    res.json({ collections: [], players: [] });
+    res.json({ collections: [], players: [], version: 0 });
   }
 });
 
@@ -474,9 +499,13 @@ app.post('/api/state', requireAuth, express.json({ limit: '10mb' }), (req, res) 
     }
   }
   try {
-    writeState({ ...current, players });
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const clientVersion = typeof req.body.version === 'number' ? req.body.version : undefined;
+    const newVersion = writeState({ ...current, players }, clientVersion);
+    res.json({ ok: true, version: newVersion });
+  } catch (e) {
+    if (e.status === 409) return res.status(409).json({ error: 'Conflict: state was modified by another session. Please refresh.' });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Collections (SQLite-backed) ───────────────────────────────────────────────

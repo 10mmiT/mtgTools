@@ -75,7 +75,8 @@ db.exec(`
   );
   CREATE TABLE IF NOT EXISTS app_state (
     key        TEXT PRIMARY KEY,
-    value_json TEXT NOT NULL DEFAULT '{}'
+    value_json TEXT NOT NULL DEFAULT '{}',
+    version    INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -86,6 +87,13 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 `);
+
+// ── Schema migrations ────────────────────────────────────────────────────────
+// Add version column to app_state if it doesn't exist yet (migration from pre-3.1)
+try {
+  db.exec('ALTER TABLE app_state ADD COLUMN version INTEGER NOT NULL DEFAULT 0');
+  console.log('[db] Migrated: added version column to app_state');
+} catch { /* column already exists — ignore */ }
 
 const DEFAULT_CAL_ID = 'default';
 
