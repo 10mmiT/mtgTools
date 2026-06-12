@@ -150,8 +150,8 @@ router.put('/players/:playerId/decks', requirePlayerAccess, express.json({ limit
   const player   = appState.players.find(p => p.id === req.params.playerId);
   if (!player) return res.status(404).json({ error: 'Player not found' });
   player.decks = decks;
-  writeState(appState);
-  res.json({ ok: true });
+  const version = writeState(appState);
+  res.json({ ok: true, version });
 });
 
 // ── Want list endpoints ────────────────────────────────────────────────────────
@@ -163,8 +163,9 @@ router.post('/players/:playerId/wants', requirePlayerAccess, express.json(), (re
   if (!player) return res.status(404).json({ error: 'Player not found' });
   if (!player.wantList) player.wantList = [];
   const name = cardName.trim();
-  if (!player.wantList.includes(name)) { player.wantList.push(name); writeState(appState); }
-  res.json({ ok: true });
+  let version = appState.version || 0;
+  if (!player.wantList.includes(name)) { player.wantList.push(name); version = writeState(appState); }
+  res.json({ ok: true, version });
 });
 
 router.delete('/players/:playerId/wants/:cardName', requirePlayerAccess, (req, res) => {
@@ -173,8 +174,8 @@ router.delete('/players/:playerId/wants/:cardName', requirePlayerAccess, (req, r
   const player   = appState.players.find(p => p.id === req.params.playerId);
   if (!player) return res.status(404).json({ error: 'Player not found' });
   player.wantList = (player.wantList || []).filter(c => c !== name);
-  writeState(appState);
-  res.json({ ok: true });
+  const version = writeState(appState);
+  res.json({ ok: true, version });
 });
 
 // ── Collections ────────────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mtgtest-'));
 process.env.DATA_FILE      = path.join(tmpDir, 'state.json');
 process.env.ADMIN_PASSWORD = 'testpass';
 process.env.PORT           = '0'; // random port
+process.env.AUTH_RATE_LIMIT_MAX = '1000'; // don't trip the login limiter in tests
 
 // Patch available-db to use a temp SQLite file so tests don't touch production data
 const dbPath = path.join(tmpDir, 'test.db');
@@ -222,6 +223,37 @@ describe('Auth middleware: requirePlayerAccess', () => {
       .set('Cookie', cookie)
       .send({ decks: [] });
     assert.equal(res.status, 200);
+  });
+
+  test('granular deck PUT returns the bumped state version', async () => {
+    const r1 = await request
+      .put(`/api/players/${playerId}/decks`)
+      .set('Cookie', playerCookie)
+      .send({ decks: [{ id: 'd1', name: 'Deck', source: 'manual' }] });
+    assert.equal(r1.status, 200);
+    assert.ok(typeof r1.body.version === 'number' && r1.body.version >= 1,
+      'PUT /decks should return the new version so clients stay in sync');
+    // A whole-state POST with that version must NOT 409
+    const r2 = await request
+      .post('/api/state')
+      .set('Cookie', playerCookie)
+      .send({ players: [{ id: playerId, name: 'P1', decks: [{ id: 'd1', name: 'Deck', source: 'manual' }], wantList: [] }], version: r1.body.version });
+    assert.equal(r2.status, 200);
+  });
+
+  test('want add/remove return the state version', async () => {
+    const add = await request
+      .post(`/api/players/${playerId}/wants`)
+      .set('Cookie', playerCookie)
+      .send({ cardName: 'Sol Ring' });
+    assert.equal(add.status, 200);
+    assert.ok(typeof add.body.version === 'number');
+    const del = await request
+      .delete(`/api/players/${playerId}/wants/${encodeURIComponent('Sol Ring')}`)
+      .set('Cookie', playerCookie);
+    assert.equal(del.status, 200);
+    assert.ok(typeof del.body.version === 'number');
+    assert.ok(del.body.version > add.body.version);
   });
 });
 
