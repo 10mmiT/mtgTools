@@ -71,6 +71,10 @@ function confirmWantAddPlayer() {
 }
 
 function removePlayer(playerId) {
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return;
+  const nDecks = (player.decks || []).length;
+  if (!confirm(`Remove player "${player.name}"${nDecks ? ` and their ${nDecks} deck${nDecks !== 1 ? 's' : ''}` : ''}? This cannot be undone.`)) return;
   state.players = state.players.filter(p => p.id !== playerId);
   saveToStorage();
   renderPlayers();
