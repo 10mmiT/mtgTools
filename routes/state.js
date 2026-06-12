@@ -50,6 +50,24 @@ function deepEqual(a, b) {
   return keysA.every(k => deepEqual(a[k], b[k]));
 }
 
+// Normalise a deck/player to the canonical client shape (public/js/state.js
+// stateToJSON) so permission checks compare values, not incidental key noise
+// (missing keys vs null/'' defaults added by the client round-trip).
+function normalizeDeck(d = {}) {
+  return {
+    id: d.id, source: d.source || 'manual', deckId: d.deckId || null, url: d.url || '',
+    name: d.name || '', nameStatus: d.nameStatus === 'loaded' ? 'loaded' : 'pending',
+    commander: d.commander || '', commanderImg: d.commanderImg || null,
+    cardCount: d.cardCount || null, bracket: d.bracket ?? null, deckUrl: d.deckUrl || '',
+  };
+}
+function normalizePlayer(p = {}) {
+  return {
+    id: p.id, name: p.name || '', color: p.color || '',
+    wantList: p.wantList || [], decks: (p.decks || []).map(normalizeDeck),
+  };
+}
+
 function createLinkedPlayer(username) {
   const appState = readState();
   const players  = appState.players || [];
@@ -128,7 +146,10 @@ router.post('/state', requireAuth, express.json({ limit: '10mb' }), (req, res) =
     for (const cp of (current.players || [])) {
       if (cp.id === sess.playerId) continue;
       const ip = players.find(p => p.id === cp.id);
-      if (!ip || !deepEqual(cp.decks, ip.decks))
+      // Non-admins may only change their own player: any other player's name,
+      // color, want list or decks must be untouched (value-equal after
+      // normalisation), not just their decks.
+      if (!ip || !deepEqual(normalizePlayer(cp), normalizePlayer(ip)))
         return res.status(403).json({ error: 'Forbidden' });
     }
   }

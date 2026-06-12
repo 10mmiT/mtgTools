@@ -303,6 +303,46 @@ describe('POST /api/state - non-admin permission rules', () => {
     assert.equal(res.status, 200);
   });
 
+  test('non-admin cannot modify another player\'s want list / name / color', async () => {
+    const { v4: uuidv4 } = require('uuid');
+    const db = dbModule.db;
+    const otherId = uuidv4();
+    // Add a second player to state
+    const cur = JSON.parse(db.prepare("SELECT value_json FROM app_state WHERE key='state'").get().value_json);
+    cur.players.push({ id: otherId, name: 'Other', color: '#fff', decks: [], wantList: ['Sol Ring'] });
+    db.prepare("UPDATE app_state SET value_json = ? WHERE key='state'").run(JSON.stringify(cur));
+
+    // Tampering with the other player's wantList must be rejected
+    const res = await request
+      .post('/api/state')
+      .set('Cookie', playerCookie)
+      .send({ players: [
+        { id: playerId, name: 'P1', decks: [], wantList: [] },
+        { id: otherId, name: 'Other', color: '#fff', decks: [], wantList: [] }, // removed Sol Ring
+      ], version: 0 });
+    assert.equal(res.status, 403);
+
+    // Renaming the other player must also be rejected
+    const res2 = await request
+      .post('/api/state')
+      .set('Cookie', playerCookie)
+      .send({ players: [
+        { id: playerId, name: 'P1', decks: [], wantList: [] },
+        { id: otherId, name: 'Hacked', color: '#fff', decks: [], wantList: ['Sol Ring'] },
+      ], version: 0 });
+    assert.equal(res2.status, 403);
+
+    // Leaving the other player untouched is still allowed
+    const res3 = await request
+      .post('/api/state')
+      .set('Cookie', playerCookie)
+      .send({ players: [
+        { id: playerId, name: 'P1 renamed', decks: [], wantList: ['Lightning Bolt'] },
+        { id: otherId, name: 'Other', color: '#fff', decks: [], wantList: ['Sol Ring'] },
+      ], version: 0 });
+    assert.equal(res3.status, 200);
+  });
+
   test('admin can post anything', async () => {
     const { v4: uuidv4 } = require('uuid');
     const res = await request
