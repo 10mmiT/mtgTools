@@ -305,7 +305,10 @@ document.getElementById('nameInput').addEventListener('keydown', e => { if (e.ke
 document.getElementById('playerNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmAddPlayer(); });
 
 // ── Card modal events (Phase 5.1) ────────────────────────────────────
-(function initCardModal() {
+// The #cardModal markup sits after the <script> tags in index.html, so we
+// must wait for DOMContentLoaded before binding (otherwise getElementById
+// returns null and the close button / backdrop never get listeners).
+function initCardModal() {
   const overlay  = document.getElementById('cardModal');
   const backdrop = document.getElementById('cardModalBackdrop');
   const closeBtn = document.getElementById('cardModalClose');
@@ -316,10 +319,20 @@ document.getElementById('playerNameInput').addEventListener('keydown', e => { if
   backdrop?.addEventListener('click', close);
   closeBtn?.addEventListener('click', close);
 
+  // Click on the overlay's padding area (outside the box) also closes
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) close();
+  });
+
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && overlay.style.display !== 'none') close();
   });
-})();
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCardModal);
+} else {
+  initCardModal();
+}
 
 // ── Init ──────────────────────────────────────────────────────────────
 initTheme();
