@@ -1,11 +1,14 @@
 'use strict';
-const express    = require('express');
-const https      = require('https');
-const path       = require('path');
-const fs         = require('fs');
-const bcrypt     = require('bcryptjs');
+const express       = require('express');
+const https         = require('https');
+const path          = require('path');
+const fs            = require('fs');
+const bcrypt        = require('bcryptjs');
 const { randomBytes, createHash } = require('crypto');
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4 }  = require('uuid');
+const rateLimit     = require('express-rate-limit');
+const helmet        = require('helmet');
+const compression   = require('compression');
 
 const DATA_FILE      = process.env.DATA_FILE || path.join(__dirname, 'data', 'state.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || process.env.APP_PASSWORD || '';
@@ -16,6 +19,23 @@ const { db, DEFAULT_CAL_ID } = require('./available-db');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// ── Security headers (helmet) ─────────────────────────────────────────
+app.use(helmet({
+  // CSP is disabled because the existing frontend uses inline scripts/styles
+  contentSecurityPolicy: false,
+}));
+app.use(compression());
+
+// ── Rate limiting on auth endpoints ────────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,                   // max 30 attempts per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+// Applied below to /api/auth/login and /api/auth/request-account
 
 // ── Sessions (SQLite-backed; 30-day cookie) ───────────────────────────────
 const SESSION_COOKIE = 'mtg_session';
@@ -113,13 +133,13 @@ app.get('/login',      (req, res) => res.sendFile(path.join(__dirname, 'public',
 app.get('/login.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 
 // ── Auth endpoints — no session required ──────────────────────────────────────
-app.post('/api/auth/login', express.json(), (req, res) => {
+app.post('/api/auth/login', authLimiter, express.json(), async (req, res) => {
   if (OPEN_MODE) return res.json({ ok: true, user: { username: 'guest', role: 'admin', playerId: null } });
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim().toLowerCase());
-  if (!user || !bcrypt.compareSync(password.trim(), user.password_hash))
-    return res.status(401).json({ error: 'Invalid username or password' });
+  const valid = user && await bcrypt.compare(password.trim(), user.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Invalid username or password' });
   const token = createSession(user.username, user.role, user.player_id);
   const secure = process.env.COOKIE_SECURE === '1' ? '; Secure' : '';
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${30 * 24 * 3600}${secure}`);
@@ -142,7 +162,7 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ username: sess.username, role: sess.role, playerId: sess.playerId });
 });
 
-app.post('/api/auth/change-password', requireAuth, express.json(), (req, res) => {
+app.post('/api/auth/change-password', requireAuth, express.json(), async (req, res) => {
   if (OPEN_MODE) return res.status(400).json({ error: 'Not applicable in open mode' });
   const sess = getSession(req);
   const { currentPassword, newPassword } = req.body || {};
@@ -151,15 +171,15 @@ app.post('/api/auth/change-password', requireAuth, express.json(), (req, res) =>
   if (newPassword.trim().length < 6)
     return res.status(400).json({ error: 'New password must be at least 6 characters' });
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(sess.username);
-  if (!user || !bcrypt.compareSync(currentPassword, user.password_hash))
-    return res.status(401).json({ error: 'Current password is incorrect' });
-  db.prepare('UPDATE users SET password_hash = ? WHERE username = ?')
-    .run(bcrypt.hashSync(newPassword.trim(), 10), sess.username);
+  const valid = user && await bcrypt.compare(currentPassword, user.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+  const newHash = await bcrypt.hash(newPassword.trim(), 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE username = ?').run(newHash, sess.username);
   res.json({ ok: true });
 });
 
 // ── Account requests (public — no auth needed) ───────────────────────────────
-app.post('/api/auth/request-account', express.json(), (req, res) => {
+app.post('/api/auth/request-account', authLimiter, express.json(), async (req, res) => {
   if (OPEN_MODE) return res.status(400).json({ error: 'Not applicable in open mode' });
   const { username, password } = req.body || {};
   if (!username?.trim() || !password?.trim())
@@ -175,7 +195,7 @@ app.post('/api/auth/request-account', express.json(), (req, res) => {
     return res.status(409).json({ error: 'Username already taken' });
   if (db.prepare('SELECT id FROM account_requests WHERE username = ?').get(uname))
     return res.status(409).json({ error: 'A request for this username is already pending' });
-  const hash = bcrypt.hashSync(password.trim(), 10);
+  const hash = await bcrypt.hash(password.trim(), 10);
   db.prepare('INSERT INTO account_requests (username, password_hash) VALUES (?, ?)').run(uname, hash);
   res.json({ ok: true });
 });
@@ -240,14 +260,14 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
   res.json(db.prepare('SELECT username, role, player_id, created_at FROM users ORDER BY created_at').all());
 });
 
-app.post('/api/admin/users', requireAdmin, express.json(), (req, res) => {
+app.post('/api/admin/users', requireAdmin, express.json(), async (req, res) => {
   const { username, password, role = 'player', playerId = null } = req.body || {};
   if (!username?.trim() || !password?.trim()) return res.status(400).json({ error: 'Username and password required' });
   if (!['player', 'admin'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
   const uname = username.trim().toLowerCase();
   if (db.prepare('SELECT username FROM users WHERE username = ?').get(uname))
     return res.status(409).json({ error: 'Username already taken' });
-  const hash           = bcrypt.hashSync(password.trim(), 10);
+  const hash           = await bcrypt.hash(password.trim(), 10);
   const resolvedPlayer = playerId || createLinkedPlayer(uname);
   db.prepare('INSERT INTO users (username, password_hash, role, player_id) VALUES (?, ?, ?, ?)').run(
     uname, hash, role, resolvedPlayer
@@ -255,13 +275,15 @@ app.post('/api/admin/users', requireAdmin, express.json(), (req, res) => {
   res.json({ ok: true });
 });
 
-app.patch('/api/admin/users/:username', requireAdmin, express.json(), (req, res) => {
+app.patch('/api/admin/users/:username', requireAdmin, express.json(), async (req, res) => {
   const uname = req.params.username.toLowerCase();
   const { password, role, playerId } = req.body || {};
   if (!db.prepare('SELECT username FROM users WHERE username = ?').get(uname))
     return res.status(404).json({ error: 'User not found' });
-  if (password?.trim())
-    db.prepare('UPDATE users SET password_hash = ? WHERE username = ?').run(bcrypt.hashSync(password.trim(), 10), uname);
+  if (password?.trim()) {
+    const ph = await bcrypt.hash(password.trim(), 10);
+    db.prepare('UPDATE users SET password_hash = ? WHERE username = ?').run(ph, uname);
+  }
   if (role && ['player', 'admin'].includes(role))
     db.prepare('UPDATE users SET role = ? WHERE username = ?').run(role, uname);
   if ('playerId' in (req.body || {}))
