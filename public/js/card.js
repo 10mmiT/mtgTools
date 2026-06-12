@@ -57,11 +57,20 @@ function closeCardModal() {
   if (history.state?.view === 'card-modal') history.back();
 }
 
+// When navigating card→card inside the already-open modal (e.g. clicking an
+// alt-art print tile), replace the history entry instead of pushing a new one.
+// Otherwise closeCardModal()'s single history.back() lands on the previous
+// card-modal entry and the popstate handler immediately re-opens the modal.
+function _modalHistoryNav(state, hash) {
+  if (history.state?.view === 'card-modal') history.replaceState(state, '', hash);
+  else history.pushState(state, '', hash);
+}
+
 function openCardByName(name) {
   if (_useModal()) {
     const host = _openModal('cardModalDetail');
     if (host) {
-      history.pushState({ view: 'card-modal', cardName: name }, '', '#card=' + encodeURIComponent(name));
+      _modalHistoryNav({ view: 'card-modal', cardName: name }, '#card=' + encodeURIComponent(name));
       loadCard({ name }, 'cardModalDetail');
       return;
     }
@@ -76,7 +85,7 @@ function openCardById(id) {
   if (_useModal()) {
     const host = _openModal('cardModalDetail');
     if (host) {
-      history.pushState({ view: 'card-modal', cardId: id }, '', '#cardid=' + encodeURIComponent(id));
+      _modalHistoryNav({ view: 'card-modal', cardId: id }, '#cardid=' + encodeURIComponent(id));
       loadCard({ id }, 'cardModalDetail');
       return;
     }

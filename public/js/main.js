@@ -205,6 +205,13 @@ window.addEventListener('popstate', e => {
       document.body.style.overflow = 'hidden';
       if (s.cardName)    loadCard({ name: s.cardName }, 'cardModalDetail');
       else if (s.cardId) loadCard({ id: s.cardId }, 'cardModalDetail');
+    } else {
+      // Window is now below the modal breakpoint (resized/rotated since the
+      // entry was pushed) — fall back to the full-page card tab so back/forward
+      // doesn't silently do nothing.
+      setTab('card', false);
+      if (s.cardName)    loadCard({ name: s.cardName }, 'cardDetail');
+      else if (s.cardId) loadCard({ id: s.cardId }, 'cardDetail');
     }
   } else if (s.view === 'card') {
     // Close modal if open
