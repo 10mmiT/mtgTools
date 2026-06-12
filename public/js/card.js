@@ -30,20 +30,65 @@ function cardOracleHtml(text) {
     .replace(/\n/g, '<br>');
 }
 
-function openCardByName(name) {
-  setTab('card', false); // switch tab without its own history entry…
-  history.pushState({ view: 'card', cardName: name }, '', '#card=' + encodeURIComponent(name));
-  loadCard({ name });
-}
-function openCardById(id) {
-  setTab('card', false);
-  history.pushState({ view: 'card', cardId: id }, '', '#cardid=' + encodeURIComponent(id));
-  loadCard({ id });
+// Desktop breakpoint: >=1024px wide shows modal, smaller uses full-page tab
+const MODAL_BREAKPOINT = 1024;
+
+function _useModal() { return window.innerWidth >= MODAL_BREAKPOINT; }
+
+function _openModal(hostId) {
+  const overlay = document.getElementById('cardModal');
+  if (!overlay) return null;
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  return document.getElementById(hostId);
 }
 
-async function loadCard({ name, id }) {
+function _closeModal() {
+  const overlay = document.getElementById('cardModal');
+  if (!overlay) return;
+  overlay.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+// Called by backdrop click, close button, Esc key
+function closeCardModal() {
+  _closeModal();
+  // Pop the history entry pushed when the modal opened
+  if (history.state?.view === 'card-modal') history.back();
+}
+
+function openCardByName(name) {
+  if (_useModal()) {
+    const host = _openModal('cardModalDetail');
+    if (host) {
+      history.pushState({ view: 'card-modal', cardName: name }, '', '#card=' + encodeURIComponent(name));
+      loadCard({ name }, 'cardModalDetail');
+      return;
+    }
+  }
+  // Fallback: full-page tab
+  setTab('card', false);
+  history.pushState({ view: 'card', cardName: name }, '', '#card=' + encodeURIComponent(name));
+  loadCard({ name }, 'cardDetail');
+}
+
+function openCardById(id) {
+  if (_useModal()) {
+    const host = _openModal('cardModalDetail');
+    if (host) {
+      history.pushState({ view: 'card-modal', cardId: id }, '', '#cardid=' + encodeURIComponent(id));
+      loadCard({ id }, 'cardModalDetail');
+      return;
+    }
+  }
+  setTab('card', false);
+  history.pushState({ view: 'card', cardId: id }, '', '#cardid=' + encodeURIComponent(id));
+  loadCard({ id }, 'cardDetail');
+}
+
+async function loadCard({ name, id }, hostId = 'cardDetail') {
   const seq = ++_cardReqSeq;
-  const host = document.getElementById('cardDetail');
+  const host = document.getElementById(hostId);
   const key = id ? `id:${id}` : `name:${name}`;
 
   if (_cardCache.has(key)) {
@@ -77,12 +122,12 @@ async function loadCard({ name, id }) {
 
   _cardCache.set(key, card);
   _cardCache.set(`id:${card.id}`, card);
-  renderCard(card, seq);
+  renderCard(card, seq, hostId);
 }
 
-async function renderCard(card, seq) {
+async function renderCard(card, seq, hostId = 'cardDetail') {
   if (seq !== _cardReqSeq) return;
-  const host = document.getElementById('cardDetail');
+  const host = document.getElementById(hostId);
 
   const faces = card.card_faces && card.card_faces.length && card.card_faces[0].oracle_text !== undefined
     ? card.card_faces : null;
@@ -110,6 +155,8 @@ async function renderCard(card, seq) {
   const cmUrl = card.purchase_uris?.cardmarket;
   const sfUrl = card.scryfall_uri;
 
+  const rId = `${hostId}-rulings`;
+  const pId = `${hostId}-prints`;
   host.innerHTML = `
     <div class="card-detail-top">
       <div class="card-detail-imgcol">${imgHtml}</div>
@@ -127,13 +174,13 @@ async function renderCard(card, seq) {
         </div>
       </div>
     </div>
-    <div class="card-detail-section" id="cardRulings"><div class="panel-title">Rulings</div><div class="help-text">Loading rulings…</div></div>
-    <div class="card-detail-section" id="cardPrints"><div class="panel-title">Other Printings &amp; Alt-Art</div><div class="help-text">Loading printings…</div></div>
+    <div class="card-detail-section" id="${rId}"><div class="panel-title">Rulings</div><div class="help-text">Loading rulings…</div></div>
+    <div class="card-detail-section" id="${pId}"><div class="panel-title">Other Printings &amp; Alt-Art</div><div class="help-text">Loading printings…</div></div>
   `;
 
   // Rulings + printings load async (independent of each other)
-  loadRulings(card, seq);
-  loadPrints(card, seq);
+  loadRulings(card, seq, rId);
+  loadPrints(card, seq, pId);
 }
 
 function cardFaceBlock(f) {
@@ -163,8 +210,8 @@ function cardLegalitiesHtml(legalities) {
   return `<div class="card-legalities">${pills}</div>`;
 }
 
-async function loadRulings(card, seq) {
-  const el = document.getElementById('cardRulings');
+async function loadRulings(card, seq, sectionId = 'cardDetail-rulings') {
+  const el = document.getElementById(sectionId);
   if (!card.rulings_uri) { if (el) el.style.display = 'none'; return; }
   let rulings = [];
   try {
@@ -183,8 +230,8 @@ async function loadRulings(card, seq) {
     </div>`).join('');
 }
 
-async function loadPrints(card, seq) {
-  const el = document.getElementById('cardPrints');
+async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
+  const el = document.getElementById(sectionId);
   if (!card.prints_search_uri) { if (el) el.style.display = 'none'; return; }
   let prints = [];
   try {

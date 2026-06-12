@@ -553,7 +553,14 @@ td { padding: .45rem .75rem; }
   .tab-bar::-webkit-scrollbar { display: none; }
   .tab-bar.collapsed { width: 46px; }
 
-  .site-main { /* sidebar is fixed overlay — content stays centered */ }
+  /* Push content right to clear the fixed 186-px sidebar */
+  .site-main {
+    padding-left: 186px;
+    transition: padding-left .2s;
+  }
+  body.sidenav-collapsed .site-main {
+    padding-left: 46px;
+  }
 
   .tab-btn {
     width: 100%;
@@ -2341,4 +2348,55 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   .card-detail-top { grid-template-columns: 1fr; }
   .card-detail-imgcol { position: static; max-width: 280px; margin: 0 auto; }
   .card-prints-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
+}
+
+/* ── Card detail modal overlay (Phase 5.1) ────────────────────────────────── */
+.card-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+.card-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.card-modal-box {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  box-shadow: 0 24px 64px rgba(0,0,0,.55);
+  width: 100%;
+  max-width: 900px;
+  padding: 1.5rem;
+  margin: auto;
+}
+.card-modal-close {
+  position: absolute;
+  top: .75rem;
+  right: .9rem;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 .25rem;
+  border-radius: .25rem;
+  transition: color .15s;
+}
+.card-modal-close:hover { color: var(--text); }
+
+/* On small screens, disable modal and use the tab-based card view instead */
+@media (max-width: 1023px) {
+  .card-modal-overlay { display: none !important; }
 }
