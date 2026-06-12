@@ -144,6 +144,7 @@ async function refreshState() {
 
     const deckSummary = (json.players||[]).map(p=>`${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
     console.log(`[refresh] hydrateState — players: ${deckSummary || '(none)'}`);
+    if (typeof json.version === 'number') state.version = json.version;
     hydrateState(json);
     renderPlayers();
     renderCollections();

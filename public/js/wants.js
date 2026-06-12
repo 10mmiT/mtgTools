@@ -139,6 +139,8 @@ async function addWant() {
       body: JSON.stringify({ cardName }),
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    const json = await res.json().catch(() => ({}));
+    if (typeof json.version === 'number') state.version = json.version;
     const player = state.players.find(p => p.id === playerId);
     if (player) { if (!player.wantList) player.wantList = []; if (!player.wantList.includes(cardName)) player.wantList.push(cardName); }
     document.getElementById('wantCardInput').value = '';
@@ -152,6 +154,8 @@ async function removeWant(playerId, cardName) {
   try {
     const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/wants/${encodeURIComponent(cardName)}`, { method: 'DELETE' });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    const json = await res.json().catch(() => ({}));
+    if (typeof json.version === 'number') state.version = json.version;
     const player = state.players.find(p => p.id === playerId);
     if (player) player.wantList = (player.wantList || []).filter(c => c !== cardName);
     renderWantList();

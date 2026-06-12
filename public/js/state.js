@@ -127,7 +127,14 @@ async function savePlayerDecks(playerId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ decks }),
     });
-    if (res.ok) { console.log(`[save] ✓ PUT /api/players/${playerId}/decks`); return; }
+    if (res.ok) {
+      // Server bumps the state version on granular writes — adopt it so the
+      // next whole-state POST doesn't 409 with a stale version.
+      const json = await res.json().catch(() => ({}));
+      if (typeof json.version === 'number') state.version = json.version;
+      console.log(`[save] ✓ PUT /api/players/${playerId}/decks (version ${state.version})`);
+      return;
+    }
     console.warn(`[save] granular deck save returned ${res.status}, falling back`);
   } catch (e) {
     console.warn('[save] granular deck save failed, falling back:', e.message);
