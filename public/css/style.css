@@ -2350,6 +2350,65 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   .card-prints-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
 }
 
+
+/* ── Phase 5.2 Mobile UI pass ────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  /* Touch target minimum 44px for interactive elements */
+  button, .btn-primary, .btn-secondary, .btn-danger,
+  .mob-nav-item, .tab-btn, select {
+    min-height: 44px;
+  }
+
+  /* Overflowing tables/card lists: allow horizontal scroll within the container */
+  .table-wrap, .col-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Deck comparison table: prevent narrow columns from squashing text */
+  .deck-compare table {
+    min-width: 480px;
+  }
+
+  /* Collection card grid on narrow screens: slightly larger min-width per card */
+  .cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+  }
+
+  /* Nav availability arrows: ensure 44px tap target */
+  .avail-nav-btn, .cal-nav button, .cal-nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Modal/popup sizing on narrow: shouldn't appear, but as defensive CSS */
+  .card-modal-box {
+    padding: 1rem .75rem;
+  }
+
+  /* Week calendar availability grid: handle names overflow */
+  .avail-week-names {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Wants list table: allow scroll on narrow */
+  .want-list-table-wrap, .want-table {
+    overflow-x: auto;
+    display: block;
+    max-width: 100%;
+  }
+
+  /* Pick Night table: allow scroll */
+  .pick-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* ── Card detail modal overlay (Phase 5.1) ────────────────────────────────── */
 .card-modal-overlay {
   position: fixed;
