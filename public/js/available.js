@@ -14,12 +14,14 @@ let availViewMonth  = 0;
 let availInitDone   = false;
 let availWeekOffset = 0; // 0 = this week, 1 = next week, …
 
-const availTodayISO  = new Date().toISOString().slice(0, 10);
-const availTodayDate = new Date(availTodayISO + 'T00:00:00');
-
 function availToISO(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
+
+// Use the LOCAL date, not toISOString() (UTC) — otherwise between midnight
+// and the UTC rollover "today" highlights yesterday and blocks toggling it.
+const availTodayISO  = (() => { const n = new Date(); return availToISO(n.getFullYear(), n.getMonth(), n.getDate()); })();
+const availTodayDate = new Date(availTodayISO + 'T00:00:00');
 
 function availBuildColorMap() {
   const names = [...new Set(availCalData.availability.map(a => a.person_name))].sort();
