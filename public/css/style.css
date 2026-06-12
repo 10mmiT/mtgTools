@@ -1199,17 +1199,18 @@ td { padding: .45rem .75rem; }
   /* View toggles always on the right in search rows */
   .search-row .view-toggle { margin-left: auto; flex-shrink: 0; }
 
-  /* Wants — row 1: select + input + Add; row 2: Import CSV + view toggle */
+  /* Wants — row 1: player select; row 2: card input + Add; row 3: Import CSV + view toggle.
+     (A single auto/1fr/auto row squeezed the card input to ~25px at 390px wide.) */
   .want-add-bar {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 1fr auto;
     gap: .45rem;
   }
-  .want-add-bar > select          { grid-column: 1; grid-row: 1; }
-  .want-add-bar > .autocomplete-wrap { grid-column: 2; grid-row: 1; min-width: 0; }
-  .want-add-bar > .btn-primary    { grid-column: 3; grid-row: 1; }
-  .want-add-bar > .btn-secondary  { grid-column: 1 / span 2; grid-row: 2; }
-  .want-add-bar > .view-toggle    { grid-column: 3; grid-row: 2; justify-self: end; margin-left: 0; }
+  .want-add-bar > select          { grid-column: 1 / -1; grid-row: 1; width: 100%; min-width: 0; }
+  .want-add-bar > .autocomplete-wrap { grid-column: 1; grid-row: 2; min-width: 0; }
+  .want-add-bar > .btn-primary    { grid-column: 2; grid-row: 2; }
+  .want-add-bar > .btn-secondary  { grid-column: 1; grid-row: 3; justify-self: start; }
+  .want-add-bar > .view-toggle    { grid-column: 2; grid-row: 3; justify-self: end; margin-left: 0; }
   .autocomplete-wrap { min-width: 0; }
 
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
