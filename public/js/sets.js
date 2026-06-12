@@ -65,7 +65,10 @@ function renderSetList() {
     </button>`).join('');
 }
 
+let _setLoadSeq = 0; // guards against interleaved loads when sets are clicked rapidly
+
 async function selectSet(code) {
+  const seq   = ++_setLoadSeq;
   const name  = sfSets.find(s => s.code === code)?.name || code;
   currentSet  = { code, name };
   setCardsAll = [];
@@ -80,8 +83,10 @@ async function selectSet(code) {
   while (url) {
     try {
       const res  = await fetch(url);
+      if (seq !== _setLoadSeq) return; // a newer set was selected — abandon this load
       if (!res.ok) { cardsEl.innerHTML = '<div class="empty-state">No cards found for this set.</div>'; return; }
       const data = await res.json();
+      if (seq !== _setLoadSeq) return;
       setCardsAll.push(...(data.data || []));
       for (const c of (data.data || [])) {
         if (!scryfallMetaCache.has(c.name)) scryfallMetaCache.set(c.name, cardMetaOf(c));
@@ -89,7 +94,8 @@ async function selectSet(code) {
       url = data.has_more ? data.next_page : null;
       cardsEl.innerHTML = `<div class="empty-state">Loading… ${setCardsAll.length} cards</div>`;
     } catch (e) {
-      cardsEl.innerHTML = `<div class="empty-state">Error: ${esc(e.message)}</div>`; return;
+      if (seq === _setLoadSeq) cardsEl.innerHTML = `<div class="empty-state">Error: ${esc(e.message)}</div>`;
+      return;
     }
   }
   renderSetCards();
