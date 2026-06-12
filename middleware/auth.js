@@ -12,7 +12,7 @@ function hashToken(token) { return createHash('sha256').update(token).digest('he
 // Periodic sweep: delete expired sessions (runs every hour)
 setInterval(() => {
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
-}, 3_600_000);
+}, 3_600_000).unref();
 
 function createSession(username, role, playerId) {
   const token     = generateToken();

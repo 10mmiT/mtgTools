@@ -102,4 +102,4 @@ process.on('SIGINT',  () => shutdown('SIGINT'));
 // ── Start ──────────────────────────────────────────────────────────────────────
 server = app.listen(PORT, () => console.log(`MTG Tools → http://localhost:${PORT}`));
 
-module.exports = { app }; // for tests
+module.exports = { app, server: () => server }; // for tests

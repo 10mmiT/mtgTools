@@ -11,7 +11,7 @@ function today() { return new Date().toISOString().slice(0, 10); }
 // Initial cleanup of stale availability rows
 db.prepare('DELETE FROM availability WHERE date < ?').run(today());
 // Daily sweep
-setInterval(() => db.prepare('DELETE FROM availability WHERE date < ?').run(today()), 86400000);
+setInterval(() => db.prepare('DELETE FROM availability WHERE date < ?').run(today()), 86400000).unref();
 
 router.get('/api/default', requireAuth, (req, res) => res.json({ id: DEFAULT_CAL_ID }));
 
