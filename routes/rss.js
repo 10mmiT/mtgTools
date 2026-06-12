@@ -20,7 +20,13 @@ function fetchRssUrl(url, hops = 0) {
       if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode}`)); }
       let buf = '';
       res.setEncoding('utf8');
-      res.on('data', c => { buf += c; if (buf.length > 2_000_000) req.destroy(); });
+      res.on('data', c => {
+        buf += c;
+        if (buf.length > 2_000_000) {
+          req.destroy();
+          reject(new Error('Feed too large')); // destroy() alone never settles the promise
+        }
+      });
       res.on('end', () => resolve(buf));
     });
     req.on('error', reject);
