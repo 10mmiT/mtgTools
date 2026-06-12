@@ -2459,3 +2459,63 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 @media (max-width: 1023px) {
   .card-modal-overlay { display: none !important; }
 }
+
+/* ── Phase 5.3 UI Polish ─────────────────────────────────────────────────── */
+
+/* Focus states: visible keyboard focus ring for accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+a:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Button active/press feedback */
+.btn-primary:active, .btn-secondary:active, .btn-danger:active {
+  transform: translateY(1px);
+  transition: transform .08s;
+}
+
+/* Loading indicator on slow Scryfall/Archidekt fetches */
+.loading-spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: middle;
+  margin-right: .4em;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Deck tile loading state feedback */
+.deck-tile.loading .deck-tile-name::before {
+  content: '';
+  display: inline-block;
+  width: .8em;
+  height: .8em;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: middle;
+  margin-right: .35em;
+}
+
+/* Card detail modal: small spacing improvements */
+.card-modal-box .card-detail-top {
+  gap: 1.5rem;
+}
+
+/* Spacing fix: buttons in forms could use more breathing room */
+.panel-actions { gap: .6rem; display: flex; flex-wrap: wrap; }
+
+/* Collections table: prevent awkward column cuts at mid-widths */
+.col-header-row {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Subtle hover on collection rows */
+.col-row:hover { background: var(--card-2); }
