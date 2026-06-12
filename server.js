@@ -4,7 +4,8 @@ const https      = require('https');
 const path       = require('path');
 const fs         = require('fs');
 const bcrypt     = require('bcryptjs');
-const { randomBytes } = require('crypto');
+const { randomBytes, createHash } = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 
 const DATA_FILE      = process.env.DATA_FILE || path.join(__dirname, 'data', 'state.json');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || process.env.APP_PASSWORD || '';
@@ -16,12 +17,26 @@ const { db, DEFAULT_CAL_ID } = require('./available-db');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── Sessions (in-memory; 30-day cookie keeps users logged in across restarts) ─
-const sessions      = new Map(); // token -> {username, role, playerId, expiresAt}
+// ── Sessions (SQLite-backed; 30-day cookie) ───────────────────────────────
 const SESSION_COOKIE = 'mtg_session';
 const SESSION_TTL    = 30 * 24 * 60 * 60 * 1000;
 
 function generateToken() { return randomBytes(32).toString('hex'); }
+function hashToken(token) { return createHash('sha256').update(token).digest('hex'); }
+
+// Periodic sweep: delete expired sessions (runs every hour)
+setInterval(() => {
+  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
+}, 3_600_000);
+
+function createSession(username, role, playerId) {
+  const token     = generateToken();
+  const expiresAt = Date.now() + SESSION_TTL;
+  db.prepare(
+    'INSERT OR REPLACE INTO sessions (token_hash, username, role, player_id, expires_at) VALUES (?,?,?,?,?)'
+  ).run(hashToken(token), username, role, playerId || null, expiresAt);
+  return token;
+}
 
 function getSession(req) {
   if (OPEN_MODE) return { username: 'guest', role: 'admin', playerId: null };
@@ -30,13 +45,20 @@ function getSession(req) {
     const [k, ...v] = part.trim().split('=');
     if (k.trim() === SESSION_COOKIE) {
       const token = decodeURIComponent(v.join('='));
-      const sess  = sessions.get(token);
-      if (sess && sess.expiresAt > Date.now()) return sess;
-      if (sess) sessions.delete(token);
-      return null;
+      const row   = db.prepare('SELECT * FROM sessions WHERE token_hash = ?').get(hashToken(token));
+      if (!row) return null;
+      if (row.expires_at <= Date.now()) {
+        db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+        return null;
+      }
+      return { username: row.username, role: row.role, playerId: row.player_id, _token: token };
     }
   }
   return null;
+}
+
+function deleteSession(token) {
+  db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
 }
 
 function requireAuth(req, res, next) {
@@ -96,11 +118,11 @@ app.post('/api/auth/login', express.json(), (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim().toLowerCase());
-  if (!user || !bcrypt.compareSync(password, user.password_hash))
+  if (!user || !bcrypt.compareSync(password.trim(), user.password_hash))
     return res.status(401).json({ error: 'Invalid username or password' });
-  const token = generateToken();
-  sessions.set(token, { username: user.username, role: user.role, playerId: user.player_id, expiresAt: Date.now() + SESSION_TTL });
-  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${30 * 24 * 3600}`);
+  const token = createSession(user.username, user.role, user.player_id);
+  const secure = process.env.COOKIE_SECURE === '1' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${30 * 24 * 3600}${secure}`);
   res.json({ ok: true, user: { username: user.username, role: user.role, playerId: user.player_id } });
 });
 
@@ -108,7 +130,7 @@ app.post('/api/auth/logout', (req, res) => {
   const raw = req.headers.cookie || '';
   for (const part of raw.split(';')) {
     const [k, ...v] = part.trim().split('=');
-    if (k.trim() === SESSION_COOKIE) sessions.delete(decodeURIComponent(v.join('=')));
+    if (k.trim() === SESSION_COOKIE) deleteSession(decodeURIComponent(v.join('=')));
   }
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0`);
   res.json({ ok: true });
@@ -205,7 +227,7 @@ const PLAYER_COLORS = ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d39
 function createLinkedPlayer(username) {
   const appState = readState();
   const players  = appState.players || [];
-  const playerId = `p_${Date.now()}`;
+  const playerId = uuidv4();
   const name     = username.charAt(0).toUpperCase() + username.slice(1);
   players.push({ id: playerId, name, color: PLAYER_COLORS[players.length % PLAYER_COLORS.length], wantList: [], decks: [] });
   appState.players = players;
@@ -244,12 +266,11 @@ app.patch('/api/admin/users/:username', requireAdmin, express.json(), (req, res)
     db.prepare('UPDATE users SET role = ? WHERE username = ?').run(role, uname);
   if ('playerId' in (req.body || {}))
     db.prepare('UPDATE users SET player_id = ? WHERE username = ?').run(playerId || null, uname);
-  // Refresh live sessions
-  for (const sess of sessions.values()) {
-    if (sess.username !== uname) continue;
-    if (role) sess.role = role;
-    if ('playerId' in (req.body || {})) sess.playerId = playerId || null;
-  }
+  // Refresh live sessions in DB
+  if (role && ['player', 'admin'].includes(role))
+    db.prepare('UPDATE sessions SET role = ? WHERE username = ?').run(role, uname);
+  if ('playerId' in (req.body || {}))
+    db.prepare('UPDATE sessions SET player_id = ? WHERE username = ?').run(playerId || null, uname);
   res.json({ ok: true });
 });
 
@@ -257,9 +278,7 @@ app.delete('/api/admin/users/:username', requireAdmin, (req, res) => {
   const uname = req.params.username.toLowerCase();
   if (uname === 'admin') return res.status(400).json({ error: 'Cannot delete the admin account' });
   db.prepare('DELETE FROM users WHERE username = ?').run(uname);
-  for (const [token, sess] of sessions) {
-    if (sess.username === uname) sessions.delete(token);
-  }
+  db.prepare('DELETE FROM sessions WHERE username = ?').run(uname);
   res.json({ ok: true });
 });
 
@@ -399,6 +418,21 @@ app.get('/api/state', requireAuth, (req, res) => {
   }
 });
 
+// Deep-equal for plain JSON-compatible values (no circular refs, no functions)
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  const keysA = Object.keys(a).sort();
+  const keysB = Object.keys(b).sort();
+  if (keysA.length !== keysB.length || keysA.some((k, i) => k !== keysB[i])) return false;
+  return keysA.every(k => deepEqual(a[k], b[k]));
+}
+
 app.post('/api/state', requireAuth, express.json({ limit: '10mb' }), (req, res) => {
   const sess    = getSession(req);
   const current = readState();
@@ -413,7 +447,7 @@ app.post('/api/state', requireAuth, express.json({ limit: '10mb' }), (req, res) 
     for (const cp of (current.players || [])) {
       if (cp.id === sess.playerId) continue;
       const ip = players.find(p => p.id === cp.id);
-      if (!ip || JSON.stringify(cp.decks) !== JSON.stringify(ip.decks))
+      if (!ip || !deepEqual(cp.decks, ip.decks))
         return res.status(403).json({ error: 'Forbidden' });
     }
   }
