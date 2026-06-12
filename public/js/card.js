@@ -92,7 +92,7 @@ async function loadCard({ name, id }, hostId = 'cardDetail') {
   const key = id ? `id:${id}` : `name:${name}`;
 
   if (_cardCache.has(key)) {
-    renderCard(_cardCache.get(key), seq);
+    renderCard(_cardCache.get(key), seq, hostId);
     return;
   }
 
