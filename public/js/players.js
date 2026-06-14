@@ -48,7 +48,7 @@ async function fetchDeckData(source, deckId) {
 function addPlayerByName(name) {
   if (!name) return false;
   state.players.push({
-    id:       `p_${Date.now()}`,
+    id:       (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `p_${Date.now()}`,
     name,
     color:    PLAYER_COLORS[state.players.length % PLAYER_COLORS.length],
     decks:    [],
@@ -71,6 +71,10 @@ function confirmWantAddPlayer() {
 }
 
 function removePlayer(playerId) {
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return;
+  const nDecks = (player.decks || []).length;
+  if (!confirm(`Remove player "${player.name}"${nDecks ? ` and their ${nDecks} deck${nDecks !== 1 ? 's' : ''}` : ''}? This cannot be undone.`)) return;
   state.players = state.players.filter(p => p.id !== playerId);
   saveToStorage();
   renderPlayers();
@@ -131,7 +135,7 @@ async function confirmAddDeck(playerId) {
   renderPlayers();
   console.log(`[deck] pushed "${entry.name}" (id=${entry.id}) to player "${player.name}" — saving early`);
 
-  await saveToStorage();
+  await savePlayerDecks(playerId);
   console.log(`[deck] early save complete — deck is now in DB`);
 
   try {
@@ -167,7 +171,7 @@ async function confirmAddDeck(playerId) {
     if (entry._cards) target._cards = entry._cards;
     target.nameStatus   = 'loaded';
     console.log(`[deck] final save — target is ${liveDeck ? 'live object' : 'ORPHANED entry (hydrateState ran!)'}`);
-    await saveToStorage();
+    await savePlayerDecks(playerId);
     renderPlayers();
   }
 }
@@ -175,7 +179,7 @@ async function confirmAddDeck(playerId) {
 function removeDeck(playerId, deckId) {
   const player = state.players.find(p => p.id === playerId);
   if (player) player.decks = player.decks.filter(d => d.id !== deckId);
-  saveToStorage();
+  savePlayerDecks(playerId);
   renderPlayers();
 }
 
@@ -281,7 +285,7 @@ async function saveEditDeck(playerId, deckId) {
     renderPlayers();
   }
 
-  saveToStorage();
+  savePlayerDecks(playerId);
 }
 
 // ── Render players ────────────────────────────────────────────────────────

@@ -4,12 +4,17 @@
   "description": "MTG Tools — search collections, track decks, coordinate availability",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test --test-force-exit test/server.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.10.0",
+    "compression": "^1.8.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "supertest": "^7.2.2",
     "uuid": "^11.1.0"
   }
 }

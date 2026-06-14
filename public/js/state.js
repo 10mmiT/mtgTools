@@ -8,6 +8,7 @@ const state = {
   players:     [],
   sort: { field: 'name', dir: 1 },
   renderTimer: null,
+  version: 0,  // optimistic-concurrency version from server
 };
 
 let viewMode       = window.innerWidth <= 640 ? 'grid' : 'list';
@@ -56,6 +57,8 @@ function hydrateState(raw) {
 
 async function saveToStorage() {
   const data = stateToJSON();
+  // Include the current version for optimistic concurrency check
+  if (typeof state.version === 'number') data.version = state.version;
   const deckSummary = data.players.map(p => `${p.name}:[${p.decks.map(d => d.name).join(',')}]`).join(' ');
   console.log(`[save] POST /api/state — players: ${deckSummary || '(none)'}`);
   try {
@@ -64,11 +67,22 @@ async function saveToStorage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    if (res.status === 409) {
+      // Conflict: another session wrote state while we were editing.
+      // Re-fetch the latest state and notify the user.
+      console.warn('[save] 409 Conflict — re-fetching latest state');
+      await loadFromStorage();
+      if (typeof window !== 'undefined' && typeof renderAll === 'function') renderAll();
+      alert('Your changes could not be saved because another session updated the state at the same time. The page has been refreshed with the latest data — please redo your change.');
+      return;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${res.status}`);
     }
-    console.log(`[save] ✓ server accepted`);
+    const json = await res.json().catch(() => ({}));
+    if (typeof json.version === 'number') state.version = json.version;
+    console.log(`[save] ✓ server accepted (version ${state.version})`);
     return;
   } catch (e) {
     console.warn(`[save] ✗ server rejected (${e.message}), falling back to localStorage`);
@@ -83,7 +97,8 @@ async function loadFromStorage() {
     if (res.ok) {
       const json = await res.json();
       const deckSummary = (json.players || []).map(p => `${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
-      console.log(`[load] server returned — players: ${deckSummary || '(none)'}`);
+      console.log(`[load] server returned — players: ${deckSummary || '(none)'}, version: ${json.version}`);
+      if (typeof json.version === 'number') state.version = json.version;
       hydrateState(json);
       return;
     }
@@ -94,6 +109,37 @@ async function loadFromStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) { console.log('[load] using localStorage fallback'); hydrateState(JSON.parse(raw)); }
   } catch {}
+}
+
+// ── Granular deck save (3.2) ──────────────────────────────────────────
+async function savePlayerDecks(playerId) {
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return saveToStorage();
+  const decks = player.decks.map(d => ({
+    id: d.id, source: d.source, deckId: d.deckId || null, url: d.url || '',
+    name: d.name, nameStatus: d.nameStatus === 'loaded' ? 'loaded' : 'pending',
+    commander: d.commander || '', commanderImg: d.commanderImg || null,
+    cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',
+  }));
+  try {
+    const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/decks`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decks }),
+    });
+    if (res.ok) {
+      // Server bumps the state version on granular writes — adopt it so the
+      // next whole-state POST doesn't 409 with a stale version.
+      const json = await res.json().catch(() => ({}));
+      if (typeof json.version === 'number') state.version = json.version;
+      console.log(`[save] ✓ PUT /api/players/${playerId}/decks (version ${state.version})`);
+      return;
+    }
+    console.warn(`[save] granular deck save returned ${res.status}, falling back`);
+  } catch (e) {
+    console.warn('[save] granular deck save failed, falling back:', e.message);
+  }
+  return saveToStorage();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────

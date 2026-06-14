@@ -121,6 +121,8 @@ async function quickAddToMyWants(cardName, btn) {
       body: JSON.stringify({ cardName }),
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    const json = await res.json().catch(() => ({}));
+    if (typeof json.version === 'number') state.version = json.version;
     // Update local state so re-renders show correct state
     const player = state.players.find(p => p.id === currentUser.playerId);
     if (player) {

@@ -144,6 +144,7 @@ async function refreshState() {
 
     const deckSummary = (json.players||[]).map(p=>`${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
     console.log(`[refresh] hydrateState — players: ${deckSummary || '(none)'}`);
+    if (typeof json.version === 'number') state.version = json.version;
     hydrateState(json);
     renderPlayers();
     renderCollections();
@@ -197,11 +198,33 @@ function setTab(tab, push = true) {
 window.addEventListener('popstate', e => {
   const s = e.state;
   if (!s) return;
-  if (s.view === 'card') {
+  if (s.view === 'card-modal') {
+    // Navigating back into a modal state — re-open it
+    const host = document.getElementById('cardModalDetail');
+    if (host && window.innerWidth >= 1024) {
+      document.getElementById('cardModal').style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      if (s.cardName)    loadCard({ name: s.cardName }, 'cardModalDetail');
+      else if (s.cardId) loadCard({ id: s.cardId }, 'cardModalDetail');
+    } else {
+      // Window is now below the modal breakpoint (resized/rotated since the
+      // entry was pushed) — fall back to the full-page card tab so back/forward
+      // doesn't silently do nothing.
+      setTab('card', false);
+      if (s.cardName)    loadCard({ name: s.cardName }, 'cardDetail');
+      else if (s.cardId) loadCard({ id: s.cardId }, 'cardDetail');
+    }
+  } else if (s.view === 'card') {
+    // Close modal if open
+    const overlay = document.getElementById('cardModal');
+    if (overlay) { overlay.style.display = 'none'; document.body.style.overflow = ''; }
     setTab('card', false);
-    if (s.cardName)    loadCard({ name: s.cardName });
-    else if (s.cardId) loadCard({ id: s.cardId });
+    if (s.cardName)    loadCard({ name: s.cardName }, 'cardDetail');
+    else if (s.cardId) loadCard({ id: s.cardId }, 'cardDetail');
   } else if (s.view === 'tab') {
+    // Close modal if open when navigating to a different tab
+    const overlay = document.getElementById('cardModal');
+    if (overlay) { overlay.style.display = 'none'; document.body.style.overflow = ''; }
     setTab(s.tab, false);
   }
 });
@@ -288,6 +311,36 @@ _tipImg.addEventListener('error', () => { _tip.style.display = 'none'; });
 document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFromUrl(); });
 document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFromUrl(); });
 document.getElementById('playerNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmAddPlayer(); });
+
+// ── Card modal events (Phase 5.1) ────────────────────────────────────
+// The #cardModal markup sits after the <script> tags in index.html, so we
+// must wait for DOMContentLoaded before binding (otherwise getElementById
+// returns null and the close button / backdrop never get listeners).
+function initCardModal() {
+  const overlay  = document.getElementById('cardModal');
+  const backdrop = document.getElementById('cardModalBackdrop');
+  const closeBtn = document.getElementById('cardModalClose');
+  if (!overlay) return;
+
+  function close() { if (typeof closeCardModal === 'function') closeCardModal(); }
+
+  backdrop?.addEventListener('click', close);
+  closeBtn?.addEventListener('click', close);
+
+  // Click on the overlay's padding area (outside the box) also closes
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) close();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && overlay.style.display !== 'none') close();
+  });
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCardModal);
+} else {
+  initCardModal();
+}
 
 // ── Init ──────────────────────────────────────────────────────────────
 initTheme();

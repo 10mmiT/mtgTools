@@ -553,7 +553,14 @@ td { padding: .45rem .75rem; }
   .tab-bar::-webkit-scrollbar { display: none; }
   .tab-bar.collapsed { width: 46px; }
 
-  .site-main { /* sidebar is fixed overlay — content stays centered */ }
+  /* Push content right to clear the fixed 186-px sidebar */
+  .site-main {
+    padding-left: 186px;
+    transition: padding-left .2s;
+  }
+  body.sidenav-collapsed .site-main {
+    padding-left: 46px;
+  }
 
   .tab-btn {
     width: 100%;
@@ -1192,17 +1199,18 @@ td { padding: .45rem .75rem; }
   /* View toggles always on the right in search rows */
   .search-row .view-toggle { margin-left: auto; flex-shrink: 0; }
 
-  /* Wants — row 1: select + input + Add; row 2: Import CSV + view toggle */
+  /* Wants — row 1: player select; row 2: card input + Add; row 3: Import CSV + view toggle.
+     (A single auto/1fr/auto row squeezed the card input to ~25px at 390px wide.) */
   .want-add-bar {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 1fr auto;
     gap: .45rem;
   }
-  .want-add-bar > select          { grid-column: 1; grid-row: 1; }
-  .want-add-bar > .autocomplete-wrap { grid-column: 2; grid-row: 1; min-width: 0; }
-  .want-add-bar > .btn-primary    { grid-column: 3; grid-row: 1; }
-  .want-add-bar > .btn-secondary  { grid-column: 1 / span 2; grid-row: 2; }
-  .want-add-bar > .view-toggle    { grid-column: 3; grid-row: 2; justify-self: end; margin-left: 0; }
+  .want-add-bar > select          { grid-column: 1 / -1; grid-row: 1; width: 100%; min-width: 0; }
+  .want-add-bar > .autocomplete-wrap { grid-column: 1; grid-row: 2; min-width: 0; }
+  .want-add-bar > .btn-primary    { grid-column: 2; grid-row: 2; }
+  .want-add-bar > .btn-secondary  { grid-column: 1; grid-row: 3; justify-self: start; }
+  .want-add-bar > .view-toggle    { grid-column: 2; grid-row: 3; justify-self: end; margin-left: 0; }
   .autocomplete-wrap { min-width: 0; }
 
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
@@ -2342,3 +2350,173 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   .card-detail-imgcol { position: static; max-width: 280px; margin: 0 auto; }
   .card-prints-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
 }
+
+
+/* ── Phase 5.2 Mobile UI pass ────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  /* Touch target minimum 44px for interactive elements */
+  button, .btn-primary, .btn-secondary, .btn-danger,
+  .mob-nav-item, .tab-btn, select {
+    min-height: 44px;
+  }
+
+  /* Overflowing tables/card lists: allow horizontal scroll within the container */
+  .table-wrap, .col-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Deck comparison table: prevent narrow columns from squashing text */
+  .deck-compare table {
+    min-width: 480px;
+  }
+
+  /* Collection card grid on narrow screens: slightly larger min-width per card */
+  .cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+  }
+
+  /* Nav availability arrows: ensure 44px tap target */
+  .avail-nav-btn, .cal-nav button, .cal-nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Modal/popup sizing on narrow: shouldn't appear, but as defensive CSS */
+  .card-modal-box {
+    padding: 1rem .75rem;
+  }
+
+  /* Week calendar availability grid: handle names overflow */
+  .avail-week-names {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Wants list table: allow scroll on narrow */
+  .want-list-table-wrap, .want-table {
+    overflow-x: auto;
+    display: block;
+    max-width: 100%;
+  }
+
+  /* Pick Night table: allow scroll */
+  .pick-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── Card detail modal overlay (Phase 5.1) ────────────────────────────────── */
+.card-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+.card-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.card-modal-box {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  box-shadow: 0 24px 64px rgba(0,0,0,.55);
+  width: 100%;
+  max-width: 900px;
+  padding: 1.5rem;
+  margin: auto;
+}
+.card-modal-close {
+  position: absolute;
+  top: .75rem;
+  right: .9rem;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 .25rem;
+  border-radius: .25rem;
+  transition: color .15s;
+}
+.card-modal-close:hover { color: var(--text); }
+
+/* On small screens, disable modal and use the tab-based card view instead */
+@media (max-width: 1023px) {
+  .card-modal-overlay { display: none !important; }
+}
+
+/* ── Phase 5.3 UI Polish ─────────────────────────────────────────────────── */
+
+/* Focus states: visible keyboard focus ring for accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+a:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Button active/press feedback */
+.btn-primary:active, .btn-secondary:active, .btn-danger:active {
+  transform: translateY(1px);
+  transition: transform .08s;
+}
+
+/* Loading indicator on slow Scryfall/Archidekt fetches */
+.loading-spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: middle;
+  margin-right: .4em;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Deck tile loading state feedback */
+.deck-tile.loading .deck-tile-name::before {
+  content: '';
+  display: inline-block;
+  width: .8em;
+  height: .8em;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: middle;
+  margin-right: .35em;
+}
+
+/* Card detail modal: small spacing improvements */
+.card-modal-box .card-detail-top {
+  gap: 1.5rem;
+}
+
+/* Spacing fix: buttons in forms could use more breathing room */
+.panel-actions { gap: .6rem; display: flex; flex-wrap: wrap; }
+
+/* Collections table: prevent awkward column cuts at mid-widths */
+.col-header-row {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Subtle hover on collection rows */
+.col-row:hover { background: var(--card-2); }

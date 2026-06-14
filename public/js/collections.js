@@ -460,9 +460,12 @@ function renderResults() {
   document.getElementById('gridView').style.display = viewMode === 'grid' ? '' : 'none';
 
   if (!state.collections.length) {
+    // Both views need the empty state — mobile defaults to grid view, which
+    // otherwise showed a blank panel instead of the getting-started hint.
     document.getElementById('resultsBody').innerHTML =
       `<tr><td colspan="99" class="empty-state">Add a collection above to get started.</td></tr>`;
-    document.getElementById('cardGrid').innerHTML = '';
+    document.getElementById('cardGrid').innerHTML =
+      `<div class="empty-state" style="grid-column:1/-1">Add a collection above to get started.</div>`;
     infoEl.textContent = '';
     if (moreEl) moreEl.style.display = 'none';
     return;
