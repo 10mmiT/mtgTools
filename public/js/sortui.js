@@ -13,6 +13,7 @@ const SORT_FIELDS = [
   { key: 'qty',       label: 'Quantity' },
   { key: 'number',    label: 'Set Number' },
   { key: 'wanted',    label: 'Most Wanted' },
+  { key: 'player',   label: 'Player' },
 ];
 const SORT_LABELS = Object.fromEntries(SORT_FIELDS.map(f => [f.key, f.label]));
 

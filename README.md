@@ -47,6 +47,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Card tab
 - Detailed view for a single card — opened by clicking any card name or image anywhere in the app (instead of being sent straight to Scryfall)
+- On desktop (≥1024px) card details open in a modal overlay; the Card tab itself is only shown on narrower screens where the modal is unavailable
 - Shows the full card image (both faces for double-faced cards) with oracle text rendered using proper mana symbols
 - Card info: mana cost, type line, power/toughness/loyalty, set · collector number · rarity · artist
 - Cardmarket (EUR) and USD prices
@@ -70,7 +71,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Per-player want lists with Scryfall autocomplete as you type
 - Import want lists from CSV (qty,name or name-only format)
 - **List view**: combined table across all players — who wants each card, Cardmarket price, and whether anyone already owns it
-- **Sort** by most-wanted (default), name, mana value, color, power, toughness, rarity, type, or price
+- **Player filter**: chip row (All / per-player) above the results to narrow down to a single player's list; defaults to showing everyone
+- **Sort** by most-wanted (default), player (groups cards by which player(s) want them), name, mana value, color, power, toughness, rarity, type, or price
 - **Columns menu** to show/hide optional columns: Mana Value, Color, Type, Rarity, Power/Toughness, Price, In Collections
 - **Grid / XL views**: card images with Cardmarket price, coloured player-initial dots (tap your own dot to remove), and ownership badges
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)

@@ -4,7 +4,8 @@ let wantView     = 'list'; // 'list' | 'grid' | 'xl'
 let wantCardData = new Map(); // card name → Scryfall card object
 let _wantFetching = false;
 
-const WANT_SORT_FIELDS = ['wanted', 'name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
+const WANT_SORT_FIELDS = ['wanted', 'player', 'name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
+let wantFilterPlayer = '';
 const WANT_COLUMNS = [
   { key: 'mana',   label: 'Mana Value',        default: false },
   { key: 'color',  label: 'Color',             default: false },
@@ -19,6 +20,12 @@ function initWantControls() {
   mountSortControl('wantSortMount', 'wants', WANT_SORT_FIELDS, renderWantList, { field: 'wanted', dir: -1 });
   mountColumnMenu('wantColumnsMount', 'wants', WANT_COLUMNS, renderWantList);
   _wantControlsMounted = true;
+}
+
+// ── Player filter ─────────────────────────────────────────────────────────
+function setWantFilterPlayer(id) {
+  wantFilterPlayer = id;
+  renderWantList();
 }
 
 // ── View toggle ───────────────────────────────────────────────────────────
@@ -201,15 +208,44 @@ async function renderWantList() {
 
   if (!_wantControlsMounted) initWantControls();
 
+  // ── Player filter chips ───────────────────────────────────────────────
+  const filterMount = document.getElementById('wantFilterMount');
+  if (filterMount && activePlayers.length > 1) {
+    filterMount.innerHTML = `<div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;padding:.5rem 0 .1rem">
+      <span class="section-label" style="flex-shrink:0">Filter:</span>
+      <button class="pick-chip ${!wantFilterPlayer ? 'pick-chip-on' : ''}"
+        onclick="setWantFilterPlayer('')" style="--pc:var(--primary)">All</button>
+      ${activePlayers.map(p =>
+        `<button class="pick-chip ${wantFilterPlayer === p.id ? 'pick-chip-on' : ''}"
+          style="--pc:${p.color}" onclick="setWantFilterPlayer('${jsAttr(p.id)}')">
+          <span class="pick-chip-dot" style="background:${p.color}"></span>${esc(p.name)}
+        </button>`
+      ).join('')}
+    </div>`;
+  } else if (filterMount) {
+    filterMount.innerHTML = '';
+  }
+
   // Sort by the chosen field ("Most Wanted" = count of players wanting it)
   const { field, dir } = getSort('wants', { field: 'wanted', dir: -1 });
   const rows = [...allWants.entries()];
   if (field === 'wanted') {
     rows.sort((a, b) => (a[1].size - b[1].size) * dir || a[0].localeCompare(b[0]));
+  } else if (field === 'player') {
+    rows.sort((a, b) => {
+      const aN = activePlayers.filter(p => a[1].has(p.id)).map(p => p.name).join('\0');
+      const bN = activePlayers.filter(p => b[1].has(p.id)).map(p => p.name).join('\0');
+      return aN.localeCompare(bN) * dir;
+    });
   } else {
     const cmp = cardComparator(field, dir);
     rows.sort((a, b) => cmp(wantCardData.get(a[0]) || { name: a[0] }, wantCardData.get(b[0]) || { name: b[0] }));
   }
+
+  // Apply player filter (default '' = show all)
+  const visibleRows = wantFilterPlayer
+    ? rows.filter(([, wanterIds]) => wanterIds.has(wantFilterPlayer))
+    : rows;
 
   // ── List (table) view ─────────────────────────────────────────────────
   if (wantView === 'list') {
@@ -225,7 +261,7 @@ async function renderWantList() {
     if (vc.rarity) metaHead += '<th>Rarity</th>';
     if (vc.pt)     metaHead += '<th>P/T</th>';
 
-    const tableRows = rows.map(([cardName, wanterIds]) => {
+    const tableRows = visibleRows.map(([cardName, wanterIds]) => {
       const href  = `https://scryfall.com/search?q=!%22${encodeURIComponent(cardName)}%22`;
       const cells = activePlayers.map(p => {
         if (!wanterIds.has(p.id)) return `<td style="text-align:center;color:var(--border)">—</td>`;
@@ -273,7 +309,7 @@ async function renderWantList() {
     </div>`;
 
     // Async-fetch any missing prices, then re-render once
-    const missing = [...allWants.keys()].filter(n => !wantCardData.has(n));
+    const missing = [...visibleRows.map(([n]) => n)].filter(n => !wantCardData.has(n));
     if (missing.length && !_wantFetching) {
       _wantFetching = true;
       fetchWantCardData(missing).then(() => {
@@ -286,15 +322,14 @@ async function renderWantList() {
 
   // ── Grid / XL views ───────────────────────────────────────────────────
   // Need Scryfall data — show loading state then fetch if missing
-  const allNames = [...allWants.keys()];
-  const missing  = allNames.filter(n => !wantCardData.has(n));
-  if (missing.length) {
+  const missingGrid = visibleRows.map(([n]) => n).filter(n => !wantCardData.has(n));
+  if (missingGrid.length) {
     container.innerHTML = `<div class="empty-state" style="padding:3rem 1rem">Loading card images…</div>`;
-    await fetchWantCardData(missing);
+    await fetchWantCardData(missingGrid);
   }
 
   const gridClass = wantView === 'xl' ? 'sf-grid-xl' : 'sf-grid';
-  const tiles = rows.map(([cardName, wanterIds]) => {
+  const tiles = visibleRows.map(([cardName, wanterIds]) => {
     const card   = wantCardData.get(cardName);
     const face   = card?.card_faces?.[0];
     const imgUrl = wantView === 'xl'
