@@ -2741,8 +2741,8 @@ a:focus-visible, [tabindex]:focus-visible {
 }
 .db-sr-row:last-child { border-bottom: none; }
 .db-sr-thumb {
-  width: 42px;
-  border-radius: 3px;
+  width: 100px;
+  border-radius: 6px;
   flex-shrink: 0;
 }
 .db-sr-info { flex: 1; min-width: 0; }
@@ -2885,7 +2885,7 @@ a:focus-visible, [tabindex]:focus-visible {
   top: 0;
   right: 0;
   height: 100%;
-  width: min(420px, 95vw);
+  width: min(50vw, 95vw);
   background: var(--card);
   border-left: 1px solid var(--border);
   display: flex;
@@ -2934,4 +2934,118 @@ a:focus-visible, [tabindex]:focus-visible {
   outline: 2px dashed var(--primary);
   outline-offset: -2px;
   border-radius: 4px;
+}
+
+/* ── Card Scale Slider ───────────────────────────────────────────────────────── */
+.db-scale-wrap {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-shrink: 0;
+  font-size: .78rem;
+  color: var(--muted);
+}
+.db-scale-slider {
+  width: 90px;
+  accent-color: var(--primary);
+}
+
+#dbDeckContent .sf-grid {
+  grid-template-columns: repeat(auto-fill, minmax(var(--db-card-width, 148px), 1fr));
+}
+#dbDeckContent .sf-grid-xl {
+  grid-template-columns: repeat(auto-fill, minmax(var(--db-card-width, 220px), 1fr));
+}
+
+/* ── Pile View ───────────────────────────────────────────────────────────────── */
+.db-pile-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.db-pile-layout > .dv-section {
+  width: calc(var(--db-card-width, 150px) + 24px);
+  min-width: 0;
+}
+.db-pile-layout .dv-section-hdr {
+  flex-wrap: wrap;
+}
+.db-pile-layout .dv-section-title { font-size: .75rem; }
+.db-pile-layout .dv-section-count { font-size: .7rem; }
+.db-pile {
+  display: flex;
+  flex-direction: column;
+  padding: .25rem 0;
+}
+.db-pile-card {
+  position: relative;
+  margin-top: calc(-1 * var(--db-card-width, 150px) * 1.16);
+  transition: transform .15s;
+}
+.db-pile-card:first-child { margin-top: 0; }
+.db-pile-card:hover { transform: translateY(-10px); z-index: 10; }
+.db-pile-card img {
+  display: block;
+  width: var(--db-card-width, 150px);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+}
+.db-pile-card .db-tile-btns {
+  position: absolute; top: 4px; right: 4px;
+  display: flex; gap: .2rem; opacity: 0;
+  transition: opacity .15s; z-index: 11;
+}
+.db-pile-card:hover .db-tile-btns { opacity: 1; }
+.db-pile-qty {
+  position: absolute; top: 4px; left: 4px;
+  background: rgba(0,0,0,.7); color: #fff;
+  font-size: .65rem; font-weight: 700;
+  padding: .1rem .35rem; border-radius: 4px; z-index: 5;
+}
+
+/* ── Color Identity Toggle ───────────────────────────────────────────────────── */
+.db-ci-toggle {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .2rem .75rem .4rem;
+  font-size: .78rem;
+  color: var(--muted);
+}
+.db-ci-toggle input[type="checkbox"] {
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.db-ci-toggle label { cursor: pointer; }
+
+/* ── Category Collapse ───────────────────────────────────────────────────────── */
+.db-collapsible {
+  cursor: pointer;
+  user-select: none;
+}
+.db-collapsible::before {
+  content: '▾ ';
+  font-size: .7em;
+  display: inline-block;
+  transition: transform .15s;
+}
+.dv-section.collapsed .db-collapsible::before {
+  transform: rotate(-90deg);
+}
+.dv-section.collapsed .dv-list,
+.dv-section.collapsed .sf-grid,
+.dv-section.collapsed .sf-grid-xl,
+.dv-section.collapsed .db-pile {
+  display: none;
+}
+
+/* ── Hover Card Preview ──────────────────────────────────────────────────────── */
+.db-hover-preview {
+  position: fixed;
+  width: 220px;
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.6);
+  pointer-events: none;
+  z-index: 9999;
 }

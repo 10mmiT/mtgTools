@@ -600,6 +600,13 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       </button>
       <button class="view-btn" id="db-view-xl" onclick="dbSetView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
+      <button class="view-btn" id="db-view-pile" onclick="dbSetView('pile')" title="Pile view">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="4" y="2" width="16" height="6" rx="1"/><rect x="4" y="9" width="16" height="6" rx="1"/><rect x="4" y="16" width="16" height="6" rx="1"/></svg>
+      </button>
+    </div>
+    <div class="db-scale-wrap" id="dbScaleWrap" style="display:none">
+      <label>Size</label>
+      <input type="range" class="db-scale-slider" id="dbScaleSlider" min="80" max="300" step="10" value="150" oninput="dbSetScale(this.value)">
     </div>
     <span id="dbSaveStatus" class="db-save-status"></span>
   </div>
@@ -657,6 +664,10 @@
           <div id="dbAcDrop" class="ac-dropdown" style="display:none"></div>
         </div>
         <button class="btn-primary" style="flex-shrink:0" onclick="dbSearch()">Search</button>
+      </div>
+      <div class="db-ci-toggle">
+        <input type="checkbox" id="dbCiToggle" checked>
+        <label for="dbCiToggle">Color identity filter</label>
       </div>
       <div id="dbSearchResults" class="db-results">
         <div class="empty-state" style="padding:2rem 1rem">Type a Scryfall query above</div>

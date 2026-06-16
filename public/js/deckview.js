@@ -20,6 +20,7 @@ let _dbInitDone  = false;
 let _dbMovingCard = null;    // card name being moved between categories
 let _dbRenamingCat = null;   // category name being renamed
 let _dbEdhrecLoaded = false; // whether EDHREC has been fetched for the current deck
+const dbCollapsedCats = new Set(); // categories collapsed by user
 
 const DB_DEFAULT_CATS = [
   'Commander', 'Creatures', 'Planeswalkers', 'Instants', 'Sorceries',
@@ -35,8 +36,60 @@ function initDeckBuilder() {
       if (!e.target.closest('#dbExportMenu') && !e.target.closest('.db-export-wrap'))
         document.getElementById('dbExportMenu').style.display = 'none';
     });
+
+    // Restore persisted view and scale
+    const savedView = localStorage.getItem('dbView');
+    if (savedView && ['list','grid','xl','pile'].includes(savedView)) dbView = savedView;
+    const savedScale = localStorage.getItem('dbScale');
+    if (savedScale) {
+      const slider = document.getElementById('dbScaleSlider');
+      if (slider) slider.value = savedScale;
+      document.getElementById('dbDeckContent')?.style.setProperty('--db-card-width', savedScale + 'px');
+    }
+
+    // Keyboard "/" shortcut to open search panel (only when deck builder tab is active)
+    document.addEventListener('keydown', e => {
+      if (e.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)
+          && document.getElementById('tab-deckview')?.style.display !== 'none') {
+        e.preventDefault();
+        dbOpenSearchPanel();
+        setTimeout(() => document.getElementById('dbSearchInput')?.focus(), 50);
+      }
+    });
+
+    // Hover card preview (list view only)
+    const preview = document.createElement('img');
+    preview.id = 'dbHoverPreview';
+    preview.className = 'db-hover-preview';
+    preview.style.display = 'none';
+    document.body.appendChild(preview);
+
+    document.getElementById('dbDeckContent')?.addEventListener('mousemove', e => {
+      if (dbView !== 'list') { preview.style.display = 'none'; return; }
+      const link = e.target.closest('.card-link');
+      if (!link) { preview.style.display = 'none'; return; }
+      const name = link.dataset.name;
+      const sf = dbCardData.get(name);
+      const face = sf?.card_faces?.[0];
+      const imgUrl = sf?.image_uris?.normal || face?.image_uris?.normal || '';
+      if (!imgUrl) { preview.style.display = 'none'; return; }
+      if (preview.dataset.name !== name) { preview.src = imgUrl; preview.dataset.name = name; }
+      preview.style.display = 'block';
+      preview.style.left = (e.clientX + 16) + 'px';
+      preview.style.top  = Math.min(e.clientY - 40, window.innerHeight - 320) + 'px';
+    });
+
+    document.getElementById('dbDeckContent')?.addEventListener('mouseleave', () => {
+      preview.style.display = 'none';
+    });
+
     _dbInitDone = true;
   }
+  // Sync view button active states + scale wrap visibility from restored view
+  ['list','grid','xl','pile'].forEach(x =>
+    document.getElementById(`db-view-${x}`)?.classList.toggle('active', x === dbView));
+  const scaleWrap = document.getElementById('dbScaleWrap');
+  if (scaleWrap) scaleWrap.style.display = (dbView !== 'list') ? '' : 'none';
   dbPopulateDeckSel();
 }
 
@@ -270,13 +323,16 @@ function dbRender() {
     sections.push(_dbRenderSection(cat.name, cards, canEdit));
   }
 
-  document.getElementById('dbDeckContent').innerHTML =
+  const _dbContent = document.getElementById('dbDeckContent');
+  _dbContent.innerHTML =
     sections.length ? sections.join('') : '<div class="empty-state" style="padding:2rem 1rem">No cards yet</div>';
+  _dbContent.classList.toggle('db-pile-layout', dbView === 'pile');
 }
 
 function _dbRenderSection(catName, cards, canEdit) {
   const count    = cards.reduce((s, c) => s + (c.qty || 1), 0);
   const isLocked = catName === 'Commander';
+  const collapsed = dbCollapsedCats.has(catName);
   const catActions = canEdit ? `
     <button class="db-cat-btn" title="Rename" onclick="dbShowRenameCat('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>✎</button>
     <button class="db-cat-btn db-cat-del" title="Delete" onclick="dbDeleteCategory('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>×</button>` : '';
@@ -289,13 +345,15 @@ function _dbRenderSection(catName, cards, canEdit) {
     cardsHtml = `<div class="dv-list">${cards.map(c => _dbListRow(c, canEdit)).join('')}</div>`;
   } else if (dbView === 'grid') {
     cardsHtml = `<div class="sf-grid">${cards.map(c => _dbGridTile(c, canEdit)).join('')}</div>`;
+  } else if (dbView === 'pile') {
+    cardsHtml = `<div class="db-pile">${cards.map(c => _dbPileTile(c, canEdit)).join('')}</div>`;
   } else {
     cardsHtml = `<div class="sf-grid-xl">${cards.map(c => _dbGridTileXL(c, canEdit)).join('')}</div>`;
   }
 
-  return `<div class="dv-section">
+  return `<div class="dv-section${collapsed ? ' collapsed' : ''}">
     <div class="dv-section-hdr db-cat-drop" ${dropAttrs}>
-      <span class="dv-section-title">${esc(catName)}</span>
+      <span class="dv-section-title db-collapsible" onclick="dbToggleCat('${jsAttr(catName)}')">${esc(catName)}</span>
       <span class="dv-section-count">${count}</span>
       <span class="db-cat-actions">${catActions}</span>
     </div>
@@ -403,6 +461,28 @@ function _dbGridTileXL(card, canEdit) {
   </div>`;
 }
 
+// ── Pile tile ─────────────────────────────────────────────────────────────────
+function _dbPileTile(card, canEdit) {
+  const sf   = dbCardData.get(card.card_name);
+  const face = sf?.card_faces?.[0];
+  const img  = sf?.image_uris?.normal || face?.image_uris?.normal || '';
+  const btns = canEdit ? `
+    <div class="db-tile-btns">
+      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
+      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
+    </div>` : '';
+  const dragAttrs = canEdit
+    ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
+  return `<div class="db-pile-card${canEdit ? ' db-draggable' : ''}" ${dragAttrs}>
+    ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
+    ${btns}
+    <a href="#" class="card-open" data-name="${esc(card.card_name)}">
+      ${img ? `<img src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
+              `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--card-2);border-radius:8px"></div>`}
+    </a>
+  </div>`;
+}
+
 // ── Stats bar ─────────────────────────────────────────────────────────────────
 function dbRenderStats() {
   if (!dbDeck) return;
@@ -463,8 +543,23 @@ function dbRenderStats() {
 // ── View toggle ───────────────────────────────────────────────────────────────
 function dbSetView(v) {
   dbView = v;
-  ['list','grid','xl'].forEach(x =>
+  localStorage.setItem('dbView', v);
+  ['list','grid','xl','pile'].forEach(x =>
     document.getElementById(`db-view-${x}`)?.classList.toggle('active', x === v));
+  const scaleWrap = document.getElementById('dbScaleWrap');
+  if (scaleWrap) scaleWrap.style.display = (v !== 'list') ? '' : 'none';
+  dbRender();
+}
+
+function dbSetScale(value) {
+  const n = parseInt(value, 10);
+  document.getElementById('dbDeckContent')?.style.setProperty('--db-card-width', n + 'px');
+  localStorage.setItem('dbScale', n);
+}
+
+function dbToggleCat(name) {
+  if (dbCollapsedCats.has(name)) dbCollapsedCats.delete(name);
+  else dbCollapsedCats.add(name);
   dbRender();
 }
 
@@ -738,8 +833,9 @@ async function dbSearch() {
   let   q     = (input?.value || '').trim();
   if (!q) return;
 
-  // Auto-inject colour identity filter for commander decks
-  if (dbDeck?.commander && dbCardData.has(dbDeck.commander)) {
+  // Auto-inject colour identity filter for commander decks (if toggle enabled)
+  const ciChecked = document.getElementById('dbCiToggle')?.checked;
+  if (ciChecked && dbDeck?.commander && dbCardData.has(dbDeck.commander)) {
     const ci = dbCardData.get(dbDeck.commander).color_identity || [];
     if (ci.length && !/\b(ci:|id:)/.test(q)) {
       q = `${q} ci<=${ci.join('')}`;
@@ -903,13 +999,14 @@ function _dbRenderEdhrec() {
   const sections = dbEdhrecData
     .filter(s => SHOW.includes(s.tag))
     .map(section => {
-      const cards = (section.cardviews || []).slice(0, 20).map(c => {
-        const inDeck   = dbCards.some(d => d.card_name === c.name);
+      const cards = (section.cardviews || [])
+          .filter(c => !dbCards.some(d => d.card_name === c.name))
+          .slice(0, 20).map(c => {
         const synPct   = c.synergy != null ? `${Math.round(c.synergy * 100)}%` : '';
         const incCount = c.num_decks != null ? `${c.num_decks.toLocaleString()} decks` : '';
         const addBtn   = canAdd
-          ? `<button class="db-add-btn${inDeck ? ' db-add-btn-in' : ''}"
-               onclick="dbAddCard('${jsAttr(c.name)}')">${inDeck ? '✓' : '+'}</button>` : '';
+          ? `<button class="db-add-btn"
+               onclick="dbAddCard('${jsAttr(c.name)}')">+</button>` : '';
         return `<div class="db-edh-row">
           <span class="db-edh-name">
             <a class="card-link" href="#" data-name="${esc(c.name)}">${esc(c.name)}</a>
