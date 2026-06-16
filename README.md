@@ -46,8 +46,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Search on Enter or button click — no auto-search while typing to stay within Scryfall's rate limits
 
 ### Card tab
-- Detailed view for a single card — opened by clicking any card name or image anywhere in the app (instead of being sent straight to Scryfall)
-- On desktop (≥1024px) card details open in a modal overlay; the Card tab itself is only shown on narrower screens where the modal is unavailable
+- Detailed view for a single card — on **desktop (≥1024px)** clicking any card name or image opens a dimmed **modal overlay** on the current tab (close with **✕**, **Esc**, or click outside); on **mobile** it switches to the full-page Card tab (the Card tab entry is hidden in the desktop sidebar since it's only reachable via mobile)
 - Shows the full card image (both faces for double-faced cards) with oracle text rendered using proper mana symbols
 - Card info: mana cost, type line, power/toughness/loyalty, set · collector number · rarity · artist
 - Cardmarket (EUR) and USD prices
@@ -117,7 +116,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck View); your sort field/direction and which columns are shown persist per-view in the browser
-- Click any card (name or image) to open it in the Card tab; Ctrl/Cmd-click opens Scryfall instead
+- Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥1024px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
+- **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
 - Collapsible panels throughout (Add Collection, Collections, each player section)
 - Per-user login system with player-linked accounts and an admin role
 - **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content; click Collapse to shrink to icon-only mode — state persists across reloads
@@ -181,9 +181,12 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | Setting | Value |
 |---------|-------|
 | Container port | `3000` |
+| Health check | `GET /healthz` → `{ ok: true, uptime: … }` (also wired into the Dockerfile `HEALTHCHECK`) |
 | Data path (inside container) | `/app/data` |
 | `ADMIN_PASSWORD` | Required to enable auth; omit for open mode |
 | `RSS_FEEDS` | Optional comma-separated RSS/Atom feed URLs for the header panel |
+| `COOKIE_SECURE` | Set to `1` to add the `Secure` flag to session cookies — recommended when running behind HTTPS |
+| `AUTH_RATE_LIMIT_MAX` | Override the login rate-limit window max (default: 30 requests per 15 min per IP) |
 
 Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
 
@@ -215,8 +218,19 @@ Moxfield collection URLs are not supported — their API is behind Cloudflare bo
 
 ```
 mtgtools/
-├── server.js          # Express server — API routes, available@ calendar, auth
+├── server.js          # Express entry point — wires up middleware, routes, and /healthz
 ├── available-db.js    # SQLite setup (all persistent data)
+├── middleware/
+│   └── auth.js        # Session auth helpers (requireAuth, requireAdmin)
+├── routes/
+│   ├── admin.js       # Admin panel API — user management, account requests
+│   ├── auth.js        # Auth API — login, logout, account request, change password
+│   ├── available.js   # Availability calendar API
+│   ├── proxy.js       # Scryfall card-image proxy
+│   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
+│   └── state.js       # App state API — collections, players, decks, want lists
+├── test/
+│   └── server.test.js # Integration tests (node:test + supertest)
 ├── public/
 │   ├── index.html     # Single-page app shell
 │   ├── login.html     # Password login page
@@ -246,6 +260,16 @@ mtgtools/
     └── available.db   # All persistent data: collections, players, decks,
                        # want lists, availability calendar, user accounts (SQLite)
 ```
+
+## Testing
+
+The project ships an integration test suite using Node's built-in `node:test` runner and `supertest`.
+
+```bash
+npm test
+```
+
+Tests spin up an isolated in-memory SQLite database and a temporary state file so they never touch production data. The suite covers auth, state, and admin API routes.
 
 ## Tech Stack & Credits
 
