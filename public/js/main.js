@@ -86,7 +86,7 @@ const MOB_TAB_LABELS = {
   sets:        'Set Browser',
   wants:       'Want Lists',
   lands:       'Mana Base',
-  deckview:    'Deck View',
+  deckview:    'Deck Builder',
   pick:        'Pick Night',
   admin:       'Admin',
 };
@@ -152,6 +152,7 @@ async function refreshState() {
     if (activeTab === 'collections') renderResults();
     if (activeTab === 'wants')       renderWantList();
     if (activeTab === 'sets' && currentSet) renderSetCards();
+    if (activeTab === 'deckview')    dbPopulateDeckSel();
   } catch {}
 }
 
@@ -181,6 +182,7 @@ function setTab(tab, push = true) {
   if (tab === 'available') initAvailable();
   if (tab === 'lands')     initLands();
   if (tab === 'pick')      initPick();
+  if (tab === 'deckview')  initDeckBuilder();
   if (tab === 'admin')   { initAdmin(); adminRenderPlayerOpts(); }
   // Refresh shared data when switching to any tab that shows other users' content
   if (['players', 'wants', 'collections', 'sets', 'deckview'].includes(tab)) refreshState();
