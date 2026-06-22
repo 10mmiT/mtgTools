@@ -45,8 +45,9 @@ function hydrateState(raw) {
   state.players = (data.players || []).map(p => ({
     id: p.id, name: p.name, color: p.color || PLAYER_COLORS[0],
     wantList: p.wantList || [],
-    decks: (p.decks || []).map(d => ({
-      id: d.id, source: d.source || 'manual', deckId: d.deckId || null, url: d.url || '',
+    decks: (p.decks || []).map((d, i) => ({
+      id: d.id || (d.deckId ? `arch_${d.deckId}` : `legacy_${p.id}_${i}`),
+      source: d.source || 'manual', deckId: d.deckId || null, url: d.url || '',
       name: d.name || '', nameStatus: d.nameStatus || 'loaded',
       commander: d.commander || '', commanderImg: d.commanderImg || null,
       cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',

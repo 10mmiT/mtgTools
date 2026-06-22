@@ -70,6 +70,7 @@ app.use('/api', stateRouter);
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api', require('./routes/proxy'));
 app.use('/api', require('./routes/rss'));
+app.use('/api', require('./routes/decks'));
 
 // ── Available@ calendar routes ─────────────────────────────────────────────────
 app.use('/available', require('./routes/available'));

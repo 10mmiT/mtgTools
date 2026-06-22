@@ -36,6 +36,8 @@ function resetDb() {
     DELETE FROM app_state;
     DELETE FROM collections;
     DELETE FROM availability;
+    DELETE FROM deck_cards;
+    DELETE FROM deck_categories;
   `);
   // Re-seed admin from env
   const bcrypt = require('bcryptjs');

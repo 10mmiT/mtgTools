@@ -45,7 +45,7 @@
   </button>
   <button class="tab-btn" id="tab-btn-deckview" onclick="setTab('deckview')">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="6" y1="12" x2="10" y2="12"/></svg>
-    <span class="tab-btn-label">Deck View</span>
+    <span class="tab-btn-label">Deck Builder</span>
   </button>
   <button class="tab-btn" id="tab-btn-pick" onclick="setTab('pick')">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M18 2v6M21 5l-3 3"/></svg>
@@ -122,7 +122,7 @@
     </button>
     <button class="mob-nav-item" data-tab="deckview" onclick="setTab('deckview')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="6" y1="12" x2="10" y2="12"/></svg>
-      Deck View
+      Deck Builder
     </button>
     <button class="mob-nav-item" data-tab="pick" onclick="setTab('pick')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M18 2v6M21 5l-3 3"/></svg>
@@ -560,60 +560,6 @@
 </div>
 </div><!-- /tab-lands -->
 
-<!-- Deck View tab -->
-<div id="tab-deckview" class="tab-pane" style="display:none">
-
-  <!-- Load panel -->
-  <div class="panel" style="margin-bottom:1rem">
-    <div class="panel-title" style="margin-bottom:.75rem">Load Deck</div>
-    <div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap">
-      <div class="dv-url-field" style="flex:1;min-width:240px">
-        <label class="section-label" style="display:block;margin-bottom:.35rem">Archidekt URL</label>
-        <div style="display:flex;gap:.5rem">
-          <input type="text" id="dvUrlInput" placeholder="archidekt.com/decks/…" style="flex:1"
-                 onkeydown="if(event.key==='Enter')dvLoadUrl()">
-          <button class="btn-primary" style="padding:.52rem 1.1rem;flex-shrink:0" onclick="dvLoadUrl()">Load</button>
-        </div>
-      </div>
-      <div>
-        <label class="section-label" style="display:block;margin-bottom:.35rem">CSV File</label>
-        <button class="btn-secondary" onclick="document.getElementById('dvCsvInput').click()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Upload CSV
-        </button>
-      </div>
-    </div>
-    <div class="error-msg" id="dvError" style="margin-top:.6rem"></div>
-  </div>
-
-  <!-- Info bar (shown when a deck is loaded) -->
-  <div id="dvInfoBar" class="panel" style="display:none;margin-bottom:1rem">
-    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-      <div style="flex:1;min-width:0">
-        <div id="dvDeckName" style="font-size:1.05rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-        <div id="dvDeckStats" style="font-size:.8rem;color:var(--muted);margin-top:.1rem"></div>
-      </div>
-      <div id="dvSortMount" style="flex-shrink:0"></div>
-      <div style="display:flex;gap:.5rem;align-items:center;flex-shrink:0">
-        <div class="view-toggle">
-          <button class="view-btn active" id="dv-list-btn" onclick="dvSetView('list')">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          </button>
-          <button class="view-btn" id="dv-grid-btn" onclick="dvSetView('grid')">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-          </button>
-          <button class="view-btn" id="dv-xl-btn" onclick="dvSetView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
-        </div>
-        <button class="btn-primary" style="padding:.45rem 1rem" onclick="dvLoadForComparison()">Load for Comparison</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Deck content -->
-  <div id="dvContent"></div>
-
-</div><!-- /tab-deckview -->
-
 <!-- Pick Night tab -->
 <div id="tab-pick" class="tab-pane" style="display:none">
 
@@ -730,6 +676,202 @@
 </div><!-- /tab-admin -->
 
 </div><!-- /container -->
+
+<!-- Deck Builder tab (full width, outside .container) -->
+<div id="tab-deckview" class="tab-pane db-full-width" style="display:none">
+
+  <!-- Top bar -->
+  <div class="db-topbar">
+    <select id="dbDeckSel" class="db-deck-sel" onchange="dbSelectDeck(this.value)">
+      <option value="">— Select a deck —</option>
+    </select>
+    <button class="btn-secondary" style="flex-shrink:0" onclick="dbShowNewDeck()">+ New Deck</button>
+    <button class="btn-outline" id="dbDeleteDeckBtn" style="display:none;flex-shrink:0;color:var(--danger)" onclick="dbDeleteDeck()">Delete Deck</button>
+    <div class="db-topbar-right">
+      <button class="btn-outline" onclick="dbOpenSearchPanel()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search / EDHREC
+      </button>
+      <button class="btn-outline" onclick="document.getElementById('dbCsvInput').click()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import CSV
+      </button>
+      <button class="btn-outline" onclick="dbShowImportText()">Paste List</button>
+      <div class="db-export-wrap" style="position:relative">
+        <button class="btn-outline" onclick="dbToggleExport(event)">Export ▾</button>
+        <div id="dbExportMenu" class="db-export-menu" style="display:none">
+          <button onclick="dbExportClipboard()">Copy to clipboard</button>
+          <button onclick="dbExportCsv()">Download CSV</button>
+          <button onclick="dbExportTxt()">Download .txt</button>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="dbLoadForComparison()">Compare</button>
+    </div>
+  </div>
+
+  <!-- Toolbar (shown when a deck is loaded) -->
+  <div class="db-deck-toolbar" id="dbDeckToolbar" style="display:none">
+    <div id="dbSortMount"></div>
+    <div class="view-toggle" style="margin-left:auto">
+      <button class="view-btn active" id="db-view-list" onclick="dbSetView('list')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </button>
+      <button class="view-btn" id="db-view-grid" onclick="dbSetView('grid')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      </button>
+      <button class="view-btn" id="db-view-xl" onclick="dbSetView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
+      <button class="view-btn" id="db-view-pile" onclick="dbSetView('pile')" title="Pile view">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="4" y="2" width="16" height="6" rx="1"/><rect x="4" y="9" width="16" height="6" rx="1"/><rect x="4" y="16" width="16" height="6" rx="1"/></svg>
+      </button>
+    </div>
+    <div class="db-scale-wrap" id="dbScaleWrap" style="display:none">
+      <label>Size</label>
+      <input type="range" class="db-scale-slider" id="dbScaleSlider" min="80" max="300" step="10" value="150" oninput="dbSetScale(this.value)">
+    </div>
+    <span id="dbSaveStatus" class="db-save-status"></span>
+  </div>
+
+  <!-- Add-card quick input (shown when a deck is loaded) -->
+  <div class="db-add-card-row" id="dbAddCardRow" style="display:none">
+    <div class="autocomplete-wrap" style="position:relative;flex:1">
+      <input type="text" id="dbAddCardInput" placeholder="Add a card…"
+             oninput="dbAddAcInput()" onkeydown="if(event.key==='Enter'){closeDbAddAc();dbAddCard()}">
+      <div id="dbAddAcDrop" class="ac-dropdown" style="display:none"></div>
+    </div>
+    <button class="btn-primary" style="flex-shrink:0" onclick="dbAddCard()">Add</button>
+  </div>
+
+  <!-- Deck content (full width, categories + cards) -->
+  <div id="dbDeckContent">
+    <div class="empty-state" style="padding:3rem 1rem">Select a deck or create a new one</div>
+  </div>
+
+  <!-- Add category row -->
+  <div class="db-add-cat-row" id="dbAddCatRow" style="display:none">
+    <input type="text" id="dbNewCatInput" placeholder="New category name…"
+           onkeydown="if(event.key==='Enter')dbAddCategory()" style="flex:1">
+    <button class="btn-secondary" onclick="dbAddCategory()">+ Category</button>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="db-stats-bar" id="dbStatsBar" style="display:none">
+    <span id="dbStatCards" class="db-stat-item"></span>
+    <span class="db-stat-sep">·</span>
+    <span id="dbStatLands" class="db-stat-item"></span>
+    <span class="db-stat-sep">·</span>
+    <span id="dbStatCmc" class="db-stat-item"></span>
+    <span class="db-stat-sep db-stat-sep-colors">·</span>
+    <span id="dbStatColors" class="db-stat-item"></span>
+    <span class="db-stat-sep db-stat-sep-curve">·</span>
+    <span class="db-stat-item db-stat-curve-label">Curve:</span>
+    <div id="dbCurve" class="db-curve"></div>
+  </div>
+
+  <!-- Search / EDHREC drawer panel -->
+  <div id="dbSearchPanel" class="db-search-panel">
+    <div class="db-search-panel-hdr">
+      <div class="db-left-tabs">
+        <button class="db-ltab active" id="db-ltab-search" onclick="dbSetLeftTab('search')">Search</button>
+        <button class="db-ltab" id="db-ltab-edhrec" onclick="dbSetLeftTab('edhrec')">EDHREC</button>
+      </div>
+      <button class="db-search-close" onclick="dbCloseSearchPanel()" title="Close">✕</button>
+    </div>
+    <div id="db-left-search" class="db-search-content">
+      <div style="display:flex;gap:.4rem;padding:.5rem .75rem .3rem">
+        <div class="autocomplete-wrap" style="position:relative;flex:1">
+          <input type="text" id="dbSearchInput" placeholder="Scryfall query (Enter to search)…" style="width:100%;box-sizing:border-box"
+                 oninput="dbAcInput()" onkeydown="if(event.key==='Enter'){closeDbAc();dbSearch()}">
+          <div id="dbAcDrop" class="ac-dropdown" style="display:none"></div>
+        </div>
+        <button class="btn-primary" style="flex-shrink:0" onclick="dbSearch()">Search</button>
+      </div>
+      <div class="db-ci-toggle">
+        <input type="checkbox" id="dbCiToggle" checked>
+        <label for="dbCiToggle">Color identity filter</label>
+      </div>
+      <div id="dbSearchResults" class="db-results">
+        <div class="empty-state" style="padding:2rem 1rem">Type a Scryfall query above</div>
+      </div>
+    </div>
+    <div id="db-left-edhrec" class="db-search-content" style="display:none">
+      <div id="dbEdhrecContent" style="padding:.25rem .75rem">
+        <div class="empty-state" style="padding:2rem 0">Load a deck with a commander to see recommendations</div>
+      </div>
+    </div>
+  </div>
+  <!-- Backdrop -->
+  <div id="dbSearchBackdrop" onclick="dbCloseSearchPanel()"></div>
+
+  <!-- New Deck modal -->
+  <div id="dbNewDeckOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideNewDeck()">
+    <div class="card-modal-box" style="max-width:420px;padding:1.5rem">
+      <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem">New Deck</div>
+      <div style="margin-bottom:.75rem">
+        <label class="section-label" style="display:block;margin-bottom:.3rem">Player</label>
+        <select id="dbNewDeckPlayer" style="width:100%"></select>
+      </div>
+      <div style="margin-bottom:.75rem">
+        <label class="section-label" style="display:block;margin-bottom:.3rem">Deck Name</label>
+        <input type="text" id="dbNewDeckName" placeholder="My Commander Deck" style="width:100%;box-sizing:border-box"
+               onkeydown="if(event.key==='Enter')dbCreateDeck()">
+      </div>
+      <div style="margin-bottom:1rem">
+        <label class="section-label" style="display:block;margin-bottom:.3rem">Commander (optional)</label>
+        <div class="autocomplete-wrap" style="position:relative">
+          <input type="text" id="dbNewDeckCommander" placeholder="Commander name…" style="width:100%;box-sizing:border-box"
+                 oninput="dbCmdAcInput()" onkeydown="if(event.key==='Enter')dbCreateDeck()">
+          <div id="dbCmdAcDrop" class="ac-dropdown" style="display:none"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn-primary" onclick="dbCreateDeck()">Create</button>
+        <button class="btn-secondary" onclick="dbHideNewDeck()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import text modal -->
+  <div id="dbImportTextOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideImportText()">
+    <div class="card-modal-box" style="max-width:500px;padding:1.5rem">
+      <div style="font-size:1.05rem;font-weight:800;margin-bottom:.5rem">Paste Deck List</div>
+      <div class="section-label" style="margin-bottom:.75rem">
+        One card per line. <code>1 Sol Ring</code> or <code>1x Sol Ring</code> or <code>Sol Ring</code>.
+        Lines starting with <code>//</code> or <code>#</code> set the category.
+      </div>
+      <textarea id="dbImportTextArea" rows="12" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:.85rem"
+                placeholder="1 Sol Ring&#10;1x Birds of Paradise&#10;// Creatures&#10;1 Avacyn, Angel of Hope"></textarea>
+      <div style="display:flex;gap:.5rem;margin-top:.75rem">
+        <button class="btn-primary" onclick="dbImportText()">Import</button>
+        <button class="btn-secondary" onclick="dbHideImportText()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Move card modal -->
+  <div id="dbMoveCardOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
+    <div class="card-modal-box" style="max-width:360px;padding:1.5rem">
+      <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem" id="dbMoveCardTitle">Move Card</div>
+      <div id="dbMoveCatList" style="display:flex;flex-direction:column;gap:.35rem"></div>
+      <button class="btn-secondary" style="margin-top:1rem;width:100%" onclick="dbHideMoveCard()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Rename category modal -->
+  <div id="dbRenameCatOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideRenameCat()">
+    <div class="card-modal-box" style="max-width:360px;padding:1.5rem">
+      <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem">Rename Category</div>
+      <input type="text" id="dbRenameCatInput" style="width:100%;box-sizing:border-box;margin-bottom:1rem"
+             onkeydown="if(event.key==='Enter')dbConfirmRenameCat()">
+      <div style="display:flex;gap:.5rem">
+        <button class="btn-primary" onclick="dbConfirmRenameCat()">Rename</button>
+        <button class="btn-secondary" onclick="dbHideRenameCat()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for CSV import -->
+  <input type="file" id="dbCsvInput" accept=".csv,.txt" style="display:none">
+
+</div><!-- /tab-deckview -->
+
 </div><!-- /site-main -->
 
 <!-- Change Password modal -->
@@ -761,7 +903,6 @@
 <input type="file" id="csvInput"     accept=".csv"          style="display:none">
 <input type="file" id="deckInput"    accept=".csv"          style="display:none">
 <input type="file" id="wantCsvInput" accept=".csv,.txt"     style="display:none">
-<input type="file" id="dvCsvInput"   accept=".csv,.txt"     style="display:none">
 
 <!-- Card image tooltip (list view only) -->
 <div id="cardTooltip"><img id="tooltipImg" alt=""></div>
