@@ -202,6 +202,8 @@ function _dbShowDeckUI() {
   document.getElementById('dbAddCardRow').style.display  = '';
   document.getElementById('dbAddCatRow').style.display   = '';
   document.getElementById('dbStatsBar').style.display    = '';
+  document.getElementById('dbDeleteDeckBtn').style.display =
+    isMyPlayer(dbDeck?.playerId) ? '' : 'none';
 }
 
 function _dbHideDeckUI() {
@@ -209,8 +211,36 @@ function _dbHideDeckUI() {
   document.getElementById('dbAddCardRow').style.display  = 'none';
   document.getElementById('dbAddCatRow').style.display   = 'none';
   document.getElementById('dbStatsBar').style.display    = 'none';
+  document.getElementById('dbDeleteDeckBtn').style.display = 'none';
   document.getElementById('dbDeckContent').innerHTML =
     '<div class="empty-state" style="padding:3rem 1rem">Select a deck or create a new one</div>';
+}
+
+// ── Delete deck ───────────────────────────────────────────────────────────────
+async function dbDeleteDeck() {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  if (!confirm(`Delete "${dbDeck.name}"? This removes the deck and all its cards. You can re-add it (e.g. from Archidekt) afterwards.`)) return;
+
+  const { id: deckId, playerId } = dbDeck;
+
+  // Wipe server-side cards/categories for this deck (no dedicated delete-deck
+  // endpoint — reuse the full-replace endpoint with empty arrays).
+  try {
+    await fetch(`/api/players/${encodeURIComponent(playerId)}/decks/${encodeURIComponent(deckId)}/cards`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cards: [], categories: [] }),
+    });
+  } catch {}
+
+  const player = state.players.find(p => p.id === playerId);
+  if (player) player.decks = (player.decks || []).filter(d => d.id !== deckId);
+  await saveToStorage();
+
+  dbDeck = null; dbCards = []; dbCats = []; dbEdhrecData = null; _dbEdhrecLoaded = false;
+  _dbHideDeckUI();
+  dbPopulateDeckSel();
+  const sel = document.getElementById('dbDeckSel');
+  if (sel) sel.value = '';
 }
 
 // ── Archidekt import ──────────────────────────────────────────────────────────
@@ -351,8 +381,8 @@ function _dbRenderSection(catName, cards, canEdit) {
     cardsHtml = `<div class="sf-grid-xl">${cards.map(c => _dbGridTileXL(c, canEdit)).join('')}</div>`;
   }
 
-  return `<div class="dv-section${collapsed ? ' collapsed' : ''}">
-    <div class="dv-section-hdr db-cat-drop" ${dropAttrs}>
+  return `<div class="dv-section${collapsed ? ' collapsed' : ''} db-cat-drop" ${dropAttrs}>
+    <div class="dv-section-hdr">
       <span class="dv-section-title db-collapsible" onclick="dbToggleCat('${jsAttr(catName)}')">${esc(catName)}</span>
       <span class="dv-section-count">${count}</span>
       <span class="db-cat-actions">${catActions}</span>
@@ -981,11 +1011,33 @@ async function dbLoadEdhrec() {
     if (data.error) throw new Error(data.error);
     const cardlists = data?.container?.json_dict?.cardlists || [];
     dbEdhrecData = cardlists;
+
+    // Fetch Scryfall data for every recommended card so thumbnails can render
+    const allNames = [...new Set(cardlists.flatMap(s => (s.cardviews || []).map(c => c.name)))];
+    await dbFetchCardData(allNames);
+
     _dbRenderEdhrec();
   } catch (e) {
     el.innerHTML = `<div class="error-msg" style="margin:.5rem 0">${esc(e.message)}</div>`;
   }
 }
+
+// EDHREC card-type tags merged the same way Archidekt buckets categories;
+// order here drives display order (top picks first, then type sections).
+const DB_EDHREC_SECTIONS = [
+  { tags: ['highsynergycards'], header: 'High Synergy Cards' },
+  { tags: ['topcards'],         header: 'Top Cards' },
+  { tags: ['gamechangers'],     header: 'Game Changers' },
+  { tags: ['newcards'],         header: 'New Cards' },
+  { tags: ['creatures'],        header: 'Creatures' },
+  { tags: ['planeswalkers'],    header: 'Planeswalkers' },
+  { tags: ['instants'],         header: 'Instants' },
+  { tags: ['sorceries'],        header: 'Sorceries' },
+  { tags: ['enchantments'],     header: 'Enchantments' },
+  { tags: ['manaartifacts', 'utilityartifacts'], header: 'Artifacts' },
+  { tags: ['lands', 'utilitylands'], header: 'Lands' },
+];
+const DB_EDHREC_PER_SECTION = 36;
 
 function _dbRenderEdhrec() {
   const el = document.getElementById('dbEdhrecContent');
@@ -995,28 +1047,38 @@ function _dbRenderEdhrec() {
   }
 
   const canAdd  = !!(dbDeck && isMyPlayer(dbDeck.playerId));
-  const SHOW    = ['highsynergycards', 'topcards', 'newcards'];
-  const sections = dbEdhrecData
-    .filter(s => SHOW.includes(s.tag))
-    .map(section => {
-      const cards = (section.cardviews || [])
+  const byTag   = new Map(dbEdhrecData.map(s => [s.tag, s]));
+  const sections = DB_EDHREC_SECTIONS
+    .map(({ tags, header }) => {
+      const seen  = new Set();
+      const views = tags.flatMap(t => byTag.get(t)?.cardviews || [])
+        .filter(c => !seen.has(c.name) && seen.add(c.name));
+      const cards = views
           .filter(c => !dbCards.some(d => d.card_name === c.name))
-          .slice(0, 20).map(c => {
+          .slice(0, DB_EDHREC_PER_SECTION).map(c => {
+        const sf     = dbCardData.get(c.name);
+        const face   = sf?.card_faces?.[0];
+        const img    = sf?.image_uris?.small || face?.image_uris?.small || '';
+        const type   = sf?.type_line || face?.type_line || '';
         const synPct   = c.synergy != null ? `${Math.round(c.synergy * 100)}%` : '';
         const incCount = c.num_decks != null ? `${c.num_decks.toLocaleString()} decks` : '';
         const addBtn   = canAdd
           ? `<button class="db-add-btn"
                onclick="dbAddCard('${jsAttr(c.name)}')">+</button>` : '';
         return `<div class="db-edh-row">
-          <span class="db-edh-name">
-            <a class="card-link" href="#" data-name="${esc(c.name)}">${esc(c.name)}</a>
-          </span>
-          <span class="db-edh-meta">${synPct ? `<span class="db-edh-syn">${synPct}</span>` : ''}${incCount ? `<span class="db-edh-inc">${incCount}</span>` : ''}</span>
+          ${img ? `<a href="#" class="card-open" data-name="${esc(c.name)}">
+            <img class="db-edh-thumb" src="${img}" alt="${esc(c.name)}"></a>` : ''}
+          <div class="db-edh-info">
+            <a class="card-link db-edh-name" href="#" data-name="${esc(c.name)}">${esc(c.name)}</a>
+            ${type ? `<div class="db-edh-type">${esc(type)}</div>` : ''}
+            <span class="db-edh-meta">${synPct ? `<span class="db-edh-syn">${synPct}</span>` : ''}${incCount ? `<span class="db-edh-inc">${incCount}</span>` : ''}</span>
+          </div>
           ${addBtn}
         </div>`;
       }).join('');
+      if (!cards) return '';
       return `<div class="db-edh-section">
-        <div class="db-edh-header">${esc(section.header)}</div>
+        <div class="db-edh-header">${esc(header)}</div>
         ${cards}
       </div>`;
     }).join('');

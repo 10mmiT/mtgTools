@@ -32,7 +32,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Any URL can be saved as a "View ↗" link on the tile
 - Edit any deck in-place (name, commander, link)
 - **Compare** button sends a deck to the Deck Comparison panel and switches to the Collections tab automatically
-- **View** button (Archidekt decks) opens the deck directly in the Deck View tab
+- **View** button (Archidekt decks) opens the deck directly in the Deck Builder tab
 - All deck metadata and commander art URLs persist across restarts
 
 ### Scryfall Search tab
@@ -78,17 +78,20 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Remove individual wants from the table view with one click
 - All want lists persist across restarts
 
-### Deck View tab
-- Load a deck from an Archidekt URL or a CSV file (qty, name format)
-- Cards grouped by type: Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other
+### Deck Builder tab
+- Full-width editing workspace for a single deck — select an existing deck or **+ New Deck** (player, name, optional commander)
+- **Delete Deck** removes the deck and its saved cards/categories entirely, so you can re-add it (e.g. re-import the same Archidekt URL from the Players & Decks tab) with a clean slate
+- Cards grouped into categories — Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other by default — with custom categories, rename, and delete
+- **Drag and drop** a card anywhere onto a category's column (not just its header) to move it there; auto-saves
 - **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price
-- Clickable summary strip at the top — click a category to jump to that section
-- Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
-- **List** view: compact rows with mana icons, type line, Cardmarket price, and ownership
-- **Grid** view: card images with price and ownership badges
-- **XL** view: larger card images with mana, type, price, and ownership
-- Supports double-faced cards (DFCs) in all views
-- **Load for Comparison** button sends the deck to the Collections tab comparison panel
+- **List**, **Grid**, **XL**, and **Pile** view, with a size slider for Grid/XL/Pile
+- Quick **Add a card** box with Scryfall autocomplete; **Import CSV** or **Paste List** (`1 Sol Ring` / `1x Sol Ring` / `// Category` lines) for bulk add
+- **Export** to clipboard, CSV, or `.txt`
+- **Search / EDHREC** drawer panel:
+  - **Search** tab — Scryfall query search (with an optional commander color-identity filter) to find and add cards, each shown with a thumbnail
+  - **EDHREC** tab — recommendations for the deck's commander, split into the same type-based categories as Archidekt (Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Lands) plus High Synergy, Top Cards, Game Changers, and New Cards, each card shown with a thumbnail, type line, synergy %, and deck-inclusion count
+- Stats bar: card/land counts vs. format target (60 or 99 for Commander), average CMC, color pip counts, and a mana curve
+- **Compare** button sends the deck to the Collections tab comparison panel
 
 ### Mana Base Calculator tab
 - Choose a deck size preset — 40 (Limited), 60 (Constructed), 100 (Commander) — or enter a custom size
@@ -115,7 +118,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Dark theme by default, toggleable to light; preference saved in the browser
 - **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
-- **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck View); your sort field/direction and which columns are shown persist per-view in the browser
+- **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck Builder); your sort field/direction and which columns are shown persist per-view in the browser
 - Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥1024px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
 - Collapsible panels throughout (Add Collection, Collections, each player section)
@@ -250,7 +253,7 @@ mtgtools/
 │       ├── lands.js       # Mana base calculator tab
 │       ├── auth.js        # Session auth, quick-add wants, change password
 │       ├── admin.js       # Admin panel (user management, account requests)
-│       ├── deckview.js    # Deck View tab (Archidekt/CSV loader, categorised view)
+│       ├── deckview.js    # Deck Builder tab (editing, categories, drag/drop, Search/EDHREC drawer)
 │       ├── pick.js        # Pick Night tab (random deck assignment)
 │       ├── rss.js         # RSS feed panel (header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
