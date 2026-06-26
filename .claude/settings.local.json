@@ -59,7 +59,14 @@
       "Bash(taskkill //F //PID 13520)",
       "Bash(curl -s -X POST http://localhost:3000/api/state -H \"Content-Type: application/json\" -d '{\"players\":[{\"id\":\"p_test\",\"name\":\"TestPlayer\",\"color\":\"#f97316\",\"wantList\":[],\"decks\":[{\"id\":\"d_card_test\",\"source\":\"manual\",\"deckId\":null,\"url\":\"\",\"name\":\"Card Test Deck\",\"nameStatus\":\"loaded\",\"commander\":\"\",\"commanderImg\":null,\"cardCount\":null,\"bracket\":null,\"deckUrl\":\"\"}]}]}')",
       "Bash(curl -s -X PUT \"http://localhost:3000/api/players/p_test/decks/d_card_test/cards\" -H \"Content-Type: application/json\" -d '{\"cards\":[{\"card_name\":\"Sol Ring\",\"qty\":1,\"category\":\"Artifacts\",\"position\":0}],\"categories\":[{\"name\":\"Artifacts\",\"position\":0}]}')",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(PORT=3001 node server.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3001/)",
+      "Bash(curl -s http://localhost:3001/api/state)",
+      "Bash(curl -s -X POST http://localhost:3001/api/state -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s -X PUT http://localhost:3001/api/players/p_test/decks/d_search_test/cards -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s http://localhost:3000/healthz)",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "\\tmp\\pwrun"

@@ -710,6 +710,10 @@
   <!-- Toolbar (shown when a deck is loaded) -->
   <div class="db-deck-toolbar" id="dbDeckToolbar" style="display:none">
     <div id="dbSortMount"></div>
+    <div class="autocomplete-wrap" style="position:relative;flex:1;min-width:160px;max-width:320px">
+      <input type="text" id="dbOracleSearchInput" placeholder="Search name or oracle text…"
+             oninput="dbSetOracleFilter(this.value)">
+    </div>
     <div class="view-toggle" style="margin-left:auto">
       <button class="view-btn active" id="db-view-list" onclick="dbSetView('list')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -737,6 +741,13 @@
       <div id="dbAddAcDrop" class="ac-dropdown" style="display:none"></div>
     </div>
     <button class="btn-primary" style="flex-shrink:0" onclick="dbAddCard()">Add</button>
+  </div>
+
+  <!-- Bulk actions (shown when one or more cards are selected) -->
+  <div class="db-bulk-bar" id="dbBulkBar" style="display:none">
+    <span id="dbBulkCount"></span>
+    <button class="btn-secondary" onclick="dbBulkMove()">Move to…</button>
+    <button class="btn-secondary" onclick="dbClearSelection()">Clear selection</button>
   </div>
 
   <!-- Deck content (full width, categories + cards) -->
