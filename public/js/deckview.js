@@ -50,13 +50,19 @@ function initDeckBuilder() {
       document.getElementById('dbDeckContent')?.style.setProperty('--db-card-width', savedScale + 'px');
     }
 
-    // Keyboard "/" shortcut to open search panel (only when deck builder tab is active)
+    // Keyboard shortcuts (only when deck builder tab is active and not typing in a field)
     document.addEventListener('keydown', e => {
-      if (e.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)
-          && document.getElementById('tab-deckview')?.style.display !== 'none') {
+      const dbTabActive = document.getElementById('tab-deckview')?.style.display !== 'none';
+      const inField     = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+      if (!dbTabActive || inField) return;
+
+      if (e.key === '/') {
         e.preventDefault();
         dbOpenSearchPanel();
         setTimeout(() => document.getElementById('dbSearchInput')?.focus(), 50);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        dbSelectAllVisible();
       }
     });
 
@@ -405,6 +411,15 @@ function dbClearSelection() {
   dbRender();
 }
 
+// Ctrl/Cmd-A — select every card currently visible (respects the search filter)
+function dbSelectAllVisible() {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  for (const card of dbCards) {
+    if (_dbMatchesFilter(card.card_name)) dbSelectedCards.add(card.card_name);
+  }
+  dbRender();
+}
+
 function _dbRenderBulkBar() {
   const bar = document.getElementById('dbBulkBar');
   if (!bar) return;
@@ -414,6 +429,30 @@ function _dbRenderBulkBar() {
   document.getElementById('dbBulkCount').textContent = `${n} card${n === 1 ? '' : 's'} selected`;
 }
 
+// Shared "Auto-categorize" entry shown atop the move modal — sorts the
+// card(s) into their type-based category (same buckets Archidekt uses:
+// Creatures, Instants, Sorceries, etc.), creating any missing category.
+function _dbAutoCatButtonHtml() {
+  return `<button class="btn-primary" style="text-align:left" onclick="dbAutoCategorizeMove()">✨ Auto-categorize (by card type)</button>
+    <div style="border-top:1px solid var(--border);margin:.15rem 0"></div>`;
+}
+
+function dbAutoCategorizeMove() {
+  const names = _dbBulkMoveMode ? [...dbSelectedCards] : (_dbMovingCard ? [_dbMovingCard] : []);
+  if (!names.length) return dbHideMoveCard();
+  for (const name of names) {
+    const card = dbCards.find(c => c.card_name === name);
+    if (!card) continue;
+    const cat = dbAutoCategory(name);
+    dbEnsureCat(cat);
+    card.category = cat;
+  }
+  if (_dbBulkMoveMode) dbSelectedCards.clear();
+  dbHideMoveCard();
+  dbRender();
+  _dbScheduleSave();
+}
+
 function dbBulkMove() {
   if (!dbSelectedCards.size) return;
   _dbMovingCard   = null;
@@ -421,7 +460,7 @@ function dbBulkMove() {
   const n = dbSelectedCards.size;
   document.getElementById('dbMoveCardTitle').textContent = `Move ${n} card${n === 1 ? '' : 's'} to…`;
   const list = document.getElementById('dbMoveCatList');
-  list.innerHTML = dbCats.map(c =>
+  list.innerHTML = _dbAutoCatButtonHtml() + dbCats.map(c =>
     `<button class="btn-secondary" style="text-align:left" onclick="dbConfirmMoveCard('${jsAttr(c.name)}')">${esc(c.name)}</button>`
   ).join('');
   document.getElementById('dbMoveCardOverlay').style.display = 'flex';
@@ -796,7 +835,7 @@ function dbShowMoveCard(name) {
   const card    = dbCards.find(c => c.card_name === name);
   const current = card?.category || '';
   const list    = document.getElementById('dbMoveCatList');
-  list.innerHTML = dbCats.map(c =>
+  list.innerHTML = _dbAutoCatButtonHtml() + dbCats.map(c =>
     `<button class="btn-${c.name === current ? 'primary' : 'secondary'}" style="text-align:left"
        onclick="dbConfirmMoveCard('${jsAttr(c.name)}')">${esc(c.name)}</button>`
   ).join('');
