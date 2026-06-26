@@ -68,7 +68,14 @@
       "Bash(curl -s http://localhost:3000/healthz)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(curl -s -X PUT http://localhost:3001/api/players/p_test/decks/d_auto_test/cards -H 'Content-Type: application/json' -d '{ *)"
+      "Bash(curl -s -X PUT http://localhost:3001/api/players/p_test/decks/d_auto_test/cards -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s \"https://archidekt.com/api/decks/8175831/\" -H \"User-Agent: MTGTools/1.0\" -o /tmp/arch_deck.json)",
+      "Bash(curl -s \"https://archidekt.com/api/decks/cards/?orderBy=-viewCount&size=3&formats=3\" -H \"User-Agent: MTGTools/1.0\")",
+      "Bash(curl -s \"https://archidekt.com/api/decks/search/?formats=3&orderBy=-createdAt&pageSize=3\" -H \"User-Agent: MTGTools/1.0\")",
+      "Bash(curl -s \"https://archidekt.com/api/decks/newDecks/?formats=3&pageSize=3\" -H \"User-Agent: MTGTools/1.0\")",
+      "WebSearch",
+      "WebFetch(domain:archidekt.com)",
+      "Bash(curl -s -X PUT http://localhost:3001/api/players/p_test/decks/d_ramp_test/cards -H 'Content-Type: application/json' -d '{ *)"
     ],
     "additionalDirectories": [
       "\\tmp\\pwrun"

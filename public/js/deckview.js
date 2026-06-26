@@ -281,12 +281,16 @@ async function _dbImportArchidekt(archidektId) {
     // Skip sideboard / maybeboard
     const rawCats = (item.categories || []).map(c => c.trim());
     if (rawCats.some(c => /sideboard|maybeboard/i.test(c))) continue;
-    // Map to our categories; '' means let dbAutoCategory fill it from Scryfall type
+    // Map to our standard categories where the name matches one of ours;
+    // otherwise keep Archidekt's own category name as-is (e.g. "Ramp",
+    // "Removal" from their community auto-categorize feature) rather than
+    // discarding it — '' means let dbAutoCategory fill it in from type.
     let category = '';
     for (const c of rawCats) {
       const mapped = _ARCH_CAT[c.toLowerCase()];
       if (mapped) { category = mapped; break; }
     }
+    if (!category && rawCats.length) category = rawCats[0];
     cards.push({ card_name: name, qty, category, position: cards.length });
   }
   return cards;
@@ -315,10 +319,46 @@ async function dbFetchCardData(names) {
 }
 
 // ── Auto-categorise ───────────────────────────────────────────────────────────
+// Archidekt's "auto categories" assign staples like Sol Ring to community-voted
+// functional categories (e.g. "Ramp") rather than just their card type — but
+// that data is generated from crowd voting inside Archidekt itself and isn't
+// exposed by any public API, so it can't be queried live for an arbitrary card.
+// This is a best-effort local stand-in covering well-known staples in the same
+// spirit; anything not listed here falls back to the normal type-based bucket
+// below (and a real Archidekt import already preserves its own categories —
+// see _dbImportArchidekt — so decks built there keep their real "Ramp" etc.).
+const DB_FUNCTION_CATEGORY = {
+  'sol ring': 'Ramp', 'arcane signet': 'Ramp', 'mana crypt': 'Ramp', 'mana vault': 'Ramp',
+  'fellwar stone': 'Ramp', 'mind stone': 'Ramp', "wayfarer's bauble": 'Ramp',
+  'birds of paradise': 'Ramp', 'llanowar elves': 'Ramp', 'elvish mystic': 'Ramp',
+  'sakura-tribe elder': 'Ramp', 'rampant growth': 'Ramp', 'cultivate': 'Ramp',
+  "kodama's reach": 'Ramp', 'farseek': 'Ramp', 'three visits': 'Ramp', "nature's lore": 'Ramp',
+  'swords to plowshares': 'Removal', 'path to exile': 'Removal', 'beast within': 'Removal',
+  'chaos warp': 'Removal', 'generous gift': 'Removal', 'anguished unmaking': 'Removal',
+  'vindicate': 'Removal', 'utter end': 'Removal', 'despark': 'Removal', 'pongify': 'Removal',
+  'rapid hybridization': 'Removal',
+  'cyclonic rift': 'Board Wipe', 'wrath of god': 'Board Wipe', 'damnation': 'Board Wipe',
+  'toxic deluge': 'Board Wipe', 'blasphemous act': 'Board Wipe', 'farewell': 'Board Wipe',
+  "in garruk's wake": 'Board Wipe', 'austere command': 'Board Wipe',
+  'rhystic study': 'Card Draw', 'mystic remora': 'Card Draw', 'phyrexian arena': 'Card Draw',
+  'sylvan library': 'Card Draw', 'fact or fiction': 'Card Draw', "night's whisper": 'Card Draw',
+  'sign in blood': 'Card Draw', 'guardian project': 'Card Draw',
+  'counterspell': 'Counterspell', 'mana drain': 'Counterspell', 'swan song': 'Counterspell',
+  'negate': 'Counterspell', 'arcane denial': 'Counterspell', 'force of will': 'Counterspell',
+  'demonic tutor': 'Tutor', 'vampiric tutor': 'Tutor', 'mystical tutor': 'Tutor',
+  'worldly tutor': 'Tutor', 'enlightened tutor': 'Tutor',
+  'eternal witness': 'Recursion', 'regrowth': 'Recursion', 'reveillark': 'Recursion',
+  'sun titan': 'Recursion', 'archaeomancer': 'Recursion',
+  'heroic intervention': 'Protection', "teferi's protection": 'Protection',
+  'swiftfoot boots': 'Protection', 'lightning greaves': 'Protection',
+};
+
 function dbAutoCategory(cardName) {
+  if (cardName === dbDeck?.commander) return 'Commander';
+  const fnCat = DB_FUNCTION_CATEGORY[cardName.toLowerCase()];
+  if (fnCat) return fnCat;
   const sf = dbCardData.get(cardName);
   const t  = (sf?.type_line || '').toLowerCase();
-  if (cardName === dbDeck?.commander)     return 'Commander';
   if (t.includes('creature'))             return 'Creatures';
   if (t.includes('planeswalker'))         return 'Planeswalkers';
   if (t.includes('instant'))             return 'Instants';
@@ -420,6 +460,16 @@ function dbSelectAllVisible() {
   dbRender();
 }
 
+// Select every (visible) card in one category, via the category header button
+function dbSelectCategory(catName) {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  for (const card of dbCards) {
+    const cat = card.category || dbAutoCategory(card.card_name);
+    if (cat === catName && _dbMatchesFilter(card.card_name)) dbSelectedCards.add(card.card_name);
+  }
+  dbRender();
+}
+
 function _dbRenderBulkBar() {
   const bar = document.getElementById('dbBulkBar');
   if (!bar) return;
@@ -430,10 +480,13 @@ function _dbRenderBulkBar() {
 }
 
 // Shared "Auto-categorize" entry shown atop the move modal — sorts the
-// card(s) into their type-based category (same buckets Archidekt uses:
-// Creatures, Instants, Sorceries, etc.), creating any missing category.
+// card(s) into a category via dbAutoCategory — known staples go to their
+// functional category (e.g. Sol Ring → Ramp), everything else by card type
+// (Creatures, Instants, Sorceries, etc.), creating any missing category.
 function _dbAutoCatButtonHtml() {
-  return `<button class="btn-primary" style="text-align:left" onclick="dbAutoCategorizeMove()">✨ Auto-categorize (by card type)</button>
+  return `<button class="btn-primary" style="text-align:left" onclick="dbAutoCategorizeMove()"
+       title="Known staples go to a functional category like Ramp or Removal; everything else by card type">
+       ✨ Auto-categorize</button>
     <div style="border-top:1px solid var(--border);margin:.15rem 0"></div>`;
 }
 
@@ -471,6 +524,7 @@ function _dbRenderSection(catName, cards, canEdit) {
   const isLocked = catName === 'Commander';
   const collapsed = dbCollapsedCats.has(catName);
   const catActions = canEdit ? `
+    <button class="db-cat-btn" title="Select all in this category" onclick="dbSelectCategory('${jsAttr(catName)}')">☑</button>
     <button class="db-cat-btn" title="Rename" onclick="dbShowRenameCat('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>✎</button>
     <button class="db-cat-btn db-cat-del" title="Delete" onclick="dbDeleteCategory('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>×</button>` : '';
 
