@@ -7,6 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="mtgtools.svg">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -403,6 +404,13 @@
     <div class="view-toolbar">
       <div id="wantSortMount"></div>
       <div id="wantColumnsMount" style="margin-left:auto"></div>
+      <div class="col-menu-wrap">
+        <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Export want list">Export ▾</button>
+        <div class="col-menu" id="wantExportMenu">
+          <button class="col-menu-item" style="width:100%;background:none;border:none;font:inherit;color:var(--text);text-align:left;cursor:pointer" onclick="wantExportCsv()">⬇ Download CSV</button>
+          <button class="col-menu-item" style="width:100%;background:none;border:none;font:inherit;color:var(--text);text-align:left;cursor:pointer" onclick="wantExportPdf()">⬇ Download PDF (checklist)</button>
+        </div>
+      </div>
     </div>
     <div id="wantFilterMount"></div>
   </div>

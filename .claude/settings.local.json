@@ -31,7 +31,20 @@
       "Bash(git push *)",
       "Bash(git commit -m 'Move players/decks/want-lists from state.json to SQLite *)",
       "Bash(git commit -m 'Rename mtgsearch → mtgtools throughout *)",
-      "Bash(git commit -m 'Fix deck disappearing while commander image loads *)"
+      "Bash(git commit -m 'Fix deck disappearing while commander image loads *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js\")",
+      "Bash(node server.js)",
+      "Read(//tmp/**)",
+      "Bash(curl -s http://localhost:3000/api/state)",
+      "Bash(curl -s -X POST http://localhost:3000/api/state -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(rm -f wants_all.png alice_want_list.pdf)",
+      "Bash(curl -s -X POST http://localhost:3000/api/state -H \"Content-Type: application/json\" -d '{\"players\":[]}')",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(git checkout *)",
+      "Bash(git commit -m ' *)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }
