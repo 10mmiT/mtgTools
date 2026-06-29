@@ -51,22 +51,56 @@ function initSideNav() {
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────
-function initTheme() {
-  const saved = localStorage.getItem('mtgtools_theme') || 'dark';
-  document.documentElement.dataset.theme = saved;
-  document.getElementById('themeToggle').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
+const THEMES = [
+  { id: 'dark',     label: 'Dark' },
+  { id: 'light',    label: 'Light' },
+  { id: 'contrast', label: 'High Contrast' },
+  { id: 'sepia',    label: 'Sepia' },
+  { id: 'forest',   label: 'Forest' },
+];
+
+function _themeLabel(id) { return THEMES.find(t => t.id === id)?.label || id; }
+
+function applyTheme(id) {
+  document.documentElement.dataset.theme = id;
+  localStorage.setItem('mtgtools_theme', id);
+  const label = _themeLabel(id);
+  const hdrBtn = document.getElementById('themeToggle');
+  if (hdrBtn) hdrBtn.textContent = '🎨 ' + label;
   const lbl = document.getElementById('mobNavThemeLabel');
-  if (lbl) lbl.textContent = saved === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
+  if (lbl) lbl.textContent = label;
+  const sideLbl = document.getElementById('sidenavThemeLabel');
+  if (sideLbl) sideLbl.textContent = label;
+  document.querySelectorAll('.theme-pick-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.theme === id));
 }
 
-function toggleTheme() {
-  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem('mtgtools_theme', next);
-  document.getElementById('themeToggle').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
-  const lbl = document.getElementById('mobNavThemeLabel');
-  if (lbl) lbl.textContent = next === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
+function initTheme() {
+  applyTheme(localStorage.getItem('mtgtools_theme') || 'dark');
 }
+
+// Direct pick (desktop sidebar dropdown)
+function setTheme(id) {
+  applyTheme(id);
+  document.getElementById('themePickMenu')?.classList.remove('open');
+}
+
+// Cycle to the next theme (mobile dropdown + mobile header button, where a
+// full picker dropdown doesn't fit as naturally as it does in the sidebar)
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme;
+  const idx = THEMES.findIndex(t => t.id === cur);
+  applyTheme(THEMES[(idx + 1) % THEMES.length].id);
+}
+
+function toggleThemeMenu(e) {
+  e?.stopPropagation();
+  document.getElementById('themePickMenu')?.classList.toggle('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.sidenav-theme-wrap')) document.getElementById('themePickMenu')?.classList.remove('open');
+});
 
 // ── View mode ─────────────────────────────────────────────────────────
 function setViewMode(mode) {
@@ -274,19 +308,35 @@ document.addEventListener('click', e => {
 // auth functions are in auth.js (logout, authInit)
 
 // ── Card image tooltip (list view) ────────────────────────────────────
+// Relies on mouseover/mouseout on the hovered .card-link to show/hide. This
+// app re-renders lists by replacing innerHTML wholesale, so if that happens
+// while the cursor sits over a link (e.g. clicking +/- qty, a checkbox, or
+// the 30s background refresh), the element is destroyed without ever firing
+// mouseout — the tooltip would otherwise be stuck on screen indefinitely.
+// _tipLink + the isConnected check below catch that on the next mousemove;
+// the click/scroll/visibility listeners catch it immediately even if the
+// cursor never moves again.
 const _tip    = document.getElementById('cardTooltip');
 const _tipImg = document.getElementById('tooltipImg');
 let _tipTimer = null;
+let _tipLink  = null;
+
+function _hideCardTooltip() {
+  clearTimeout(_tipTimer);
+  _tipLink = null;
+  _tip.style.display = 'none';
+}
 
 document.addEventListener('mouseover', e => {
   const link = e.target.closest('.card-link');
   if (!link) return;
   clearTimeout(_tipTimer);
+  _tipLink = link;
   _tipTimer = setTimeout(async () => {
     const name = link.dataset.name;
     if (!scryfallCache.has(name)) await ensureScryfallImages([name]);
     const uri = scryfallCache.get(name);
-    if (!uri) return;
+    if (!uri || !link.isConnected) return;
     _tipImg.src = uri;
     _tip.style.display = 'block';
   }, 120);
@@ -294,12 +344,12 @@ document.addEventListener('mouseover', e => {
 
 document.addEventListener('mouseout', e => {
   if (!e.target.closest('.card-link')) return;
-  clearTimeout(_tipTimer);
-  _tip.style.display = 'none';
+  _hideCardTooltip();
 });
 
 document.addEventListener('mousemove', e => {
   if (_tip.style.display === 'none') return;
+  if (_tipLink && !_tipLink.isConnected) { _hideCardTooltip(); return; }
   const W = 216, H = 300, pad = 14;
   const left = (e.clientX + pad + W > window.innerWidth)  ? e.clientX - pad - W : e.clientX + pad;
   const top  = (e.clientY - 20 + H > window.innerHeight)  ? window.innerHeight - H - 8 : e.clientY - 20;
@@ -307,7 +357,21 @@ document.addEventListener('mousemove', e => {
   _tip.style.top  = top  + 'px';
 });
 
-_tipImg.addEventListener('error', () => { _tip.style.display = 'none'; });
+_tipImg.addEventListener('error', _hideCardTooltip);
+
+// Belt-and-suspenders: hide any open card tooltip/preview on click, scroll,
+// or tab-hide, since those are the moments a stuck tooltip is most likely
+// (and most jarring) — covers cases the per-element mouseout/isConnected
+// checks above can't (no element to check against, or cursor never moves
+// again after the click that triggered a re-render).
+function _hideAllCardPreviews() {
+  _hideCardTooltip();
+  const dbPreview = document.getElementById('dbHoverPreview');
+  if (dbPreview) dbPreview.style.display = 'none';
+}
+document.addEventListener('click', _hideAllCardPreviews, { capture: true });
+document.addEventListener('scroll', _hideAllCardPreviews, { capture: true, passive: true });
+document.addEventListener('visibilitychange', _hideAllCardPreviews);
 
 // ── Event listeners ───────────────────────────────────────────────────
 document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFromUrl(); });

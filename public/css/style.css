@@ -29,7 +29,7 @@
   --accent: var(--primary);
 }
 
-[data-theme="light"] {
+html[data-theme="light"] {
   --bg:         #f3eeff;
   --card:       #ffffff;
   --card-2:     #f5f0ff;
@@ -53,6 +53,94 @@
   --mc-g: #2f8050;
   --mc-c: #6b7187;
   --mc-gold: #b8941f;
+
+  --accent: var(--primary);
+}
+
+/* High-contrast dark — pure black background, brighter borders/text for
+   maximum readability (e.g. low-vision or glare-prone setups). */
+html[data-theme="contrast"] {
+  --bg:         #000000;
+  --card:       #0a0a0a;
+  --card-2:     #161616;
+  --border:     #4a4a4a;
+  --text:       #ffffff;
+  --muted:      #c2c2c2;
+  --primary:    #c084fc;
+  --primary-dk: #a855f7;
+  --primary-lt: #3b0764;
+  --primary-tx: #f3e8ff;
+  --danger:     #f87171;
+  --danger-lt:  #450a0a;
+  --shadow:     0 2px 12px rgba(0,0,0,.7);
+  --hdr-bg:     #000000;
+
+  --mc-w: #f0e0a0;
+  --mc-u: #7cc0f0;
+  --mc-b: #c4b5e0;
+  --mc-r: #ff8a7a;
+  --mc-g: #6fd190;
+  --mc-c: #c8ccd8;
+  --mc-gold: #f0cc55;
+
+  --accent: var(--primary);
+}
+
+/* Sepia — warm paper tones, for a softer light theme alternative. */
+html[data-theme="sepia"] {
+  --bg:         #ece0c4;
+  --card:       #faf3e2;
+  --card-2:     #f0e5c8;
+  --border:     #d8c69e;
+  --text:       #3b2f1e;
+  --muted:      #8a7350;
+  --primary:    #a0522d;
+  --primary-dk: #84431f;
+  --primary-lt: #f1e0c8;
+  --primary-tx: #5c3a1e;
+  --danger:     #b91c1c;
+  --danger-lt:  #f3d8d2;
+  --shadow:     0 1px 4px rgba(80,50,0,.12);
+  --hdr-bg:     #84431f;
+
+  --mc-w: #a8841f;
+  --mc-u: #336699;
+  --mc-b: #6b5b45;
+  --mc-r: #b3402e;
+  --mc-g: #3f7a4a;
+  --mc-c: #71695a;
+  --mc-gold: #9c7a1f;
+
+  --accent: var(--primary);
+}
+
+/* Forest — dark theme with green hues. */
+html[data-theme="forest"] {
+  --bg:         #0a120d;
+  --card:       #101a14;
+  --card-2:     #16241c;
+  --border:     #2a3d30;
+  --text:       #e8f5ec;
+  --muted:      #8aa893;
+  --primary:    #22c55e;
+  --primary-dk: #16a34a;
+  --primary-lt: #052e16;
+  --primary-tx: #bbf7d0;
+  --danger:     #ef4444;
+  --danger-lt:  #3b0a0a;
+  --shadow:     0 2px 12px rgba(0,0,0,.5);
+  --hdr-bg:     #07120c;
+
+  /* Mana colours stay close to the base dark theme — they represent the
+     game's WUBRG identity, not the UI accent, so they shouldn't shift
+     just because the chrome around them turns green. */
+  --mc-w: #d9c879;
+  --mc-u: #5a9fd4;
+  --mc-b: #9b8bb0;
+  --mc-r: #e05a4d;
+  --mc-g: #4aa86a;
+  --mc-c: #9aa0b5;
+  --mc-gold: #d4af37;
 
   --accent: var(--primary);
 }
@@ -82,7 +170,10 @@ body {
   transition: background .2s, color .2s;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────── */
+/* ── Header ─────────────────────────────────────────────────────────────
+   Desktop folds the header's contents into the left sidebar (see
+   .sidenav-brand / .sidenav-user-row / #sidenav* buttons below), so the
+   header itself is only shown on mobile, where there's no sidebar. ───── */
 header {
   background: var(--hdr-bg);
   padding: .875rem 1.5rem;
@@ -95,6 +186,7 @@ header {
   z-index: 10;
   box-shadow: 0 2px 10px rgba(0,0,0,.5);
 }
+@media (min-width: 861px) { header { display: none; } }
 
 .logo { color: #fff; font-size: 1.2rem; font-weight: 800; letter-spacing: -.3px; display: flex; align-items: center; gap: .5rem; }
 
@@ -346,8 +438,8 @@ select {
 .badge-error   { background: var(--danger-lt); color: var(--danger); }
 .badge-source  { background: var(--primary-lt); color: var(--primary-tx); }
 
-[data-theme="light"] .badge-loading { background: #fef3c7; color: #92400e; }
-[data-theme="light"] .badge-loaded  { background: #d1fae5; color: #065f46; }
+html[data-theme="light"] .badge-loading { background: #fef3c7; color: #92400e; }
+html[data-theme="light"] .badge-loaded  { background: #d1fae5; color: #065f46; }
 
 .col-actions { display: flex; gap: .4rem; flex-shrink: 0; }
 
@@ -560,11 +652,62 @@ td { padding: .45rem .75rem; }
     scrollbar-width: none;
     display: flex;
     flex-direction: column;
-    padding-top: 58px;
     transition: width .2s;
   }
   .tab-bar::-webkit-scrollbar { display: none; }
   .tab-bar.collapsed { width: 46px; }
+
+  /* Brand block (replaces the old top header on desktop) */
+  .sidenav-brand {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .9rem .85rem .75rem;
+    flex-shrink: 0;
+  }
+  .sidenav-brand-icon { border-radius: 5px; flex-shrink: 0; }
+  .sidenav-brand-text {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -.3px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .tab-bar.collapsed .sidenav-brand { justify-content: center; padding: .9rem 0 .75rem; }
+  .tab-bar.collapsed .sidenav-brand-text { max-width: 0; opacity: 0; }
+
+  /* Account section at the bottom (theme / RSS / change password / sign out) */
+  .sidenav-divider { border: none; border-top: 1px solid var(--border); margin: auto .85rem .4rem; flex-shrink: 0; }
+  .sidenav-user-row {
+    padding: .3rem .85rem .5rem;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .sidenav-user-row::before { content: '●'; font-size: .55rem; color: var(--muted); margin-right: .35rem; vertical-align: middle; }
+  .sidenav-user-row.user-badge-admin::before { color: #d97706; }
+  .tab-bar.collapsed .sidenav-user-row { display: none; }
+  .sidenav-danger { color: var(--danger) !important; }
+  .sidenav-danger:hover { background: var(--danger-lt) !important; }
+  .sidenav-danger svg { color: var(--danger) !important; }
+  #sidenavRssBtn.rss-open {
+    color: var(--accent, var(--primary));
+    background: color-mix(in srgb, var(--accent, var(--primary)) 16%, transparent);
+  }
+
+  /* Theme picker — opens upward since its button sits near the bottom of the
+     sidebar, with little room below it for a menu to drop down into. */
+  .sidenav-theme-wrap { position: relative; width: 100%; }
+  #themePickMenu.theme-pick-menu { left: .5rem; right: auto; bottom: calc(100% + 5px); top: auto; min-width: 170px; }
+  .theme-pick-item.active { color: var(--accent, var(--primary)); font-weight: 700; }
+  .theme-pick-item.active::after { content: '✓'; margin-left: auto; }
+  .tab-bar.collapsed #themePickMenu.theme-pick-menu { left: 0; }
 
   /* Push content right to clear the fixed 186-px sidebar */
   .site-main {
@@ -616,7 +759,6 @@ td { padding: .45rem .75rem; }
     border-top: 1px solid var(--border);
     border-right: 2px solid transparent;
     margin-right: -2px;
-    margin-top: auto;
     padding: .55rem .85rem;
     font-size: .82rem;
     font-weight: 600;
@@ -825,7 +967,7 @@ td { padding: .45rem .75rem; }
   gap: .35rem;
   background: linear-gradient(to right, rgba(12,9,22,.97) 0%, rgba(12,9,22,.87) 52%, rgba(12,9,22,.2) 100%);
 }
-[data-theme="light"] .deck-tile-overlay {
+html[data-theme="light"] .deck-tile-overlay {
   background: linear-gradient(to right, rgba(20,8,40,.96) 0%, rgba(20,8,40,.84) 52%, rgba(20,8,40,.18) 100%);
 }
 
@@ -1887,9 +2029,10 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   background: var(--card);
   position: sticky;
   top: 0;
-  padding-top: 60px;
   flex-shrink: 0;
 }
+/* Clear the mobile-only header (hidden on desktop, see header { display:none } above) */
+@media (max-width: 860px) { .rss-panel-hdr { padding-top: 60px; } }
 .rss-panel-hdr-title {
   font-size: .82rem;
   font-weight: 700;
@@ -2069,7 +2212,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 .dv-row:hover { background: var(--card-2); }
 .db-row-selected { background: color-mix(in srgb, var(--primary) 14%, transparent); }
-.db-select-cb { width: auto; cursor: pointer; accent-color: var(--primary); }
 
 .dv-qty {
   font-size: .78rem;
@@ -2202,6 +2344,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 .col-menu-item:hover { background: var(--card-2); }
 .col-menu-item input { width: auto; cursor: pointer; accent-color: var(--accent, var(--primary)); }
+/* .col-menu-item is normally a <label>; reset button-specific UA styles when
+   used as a plain action row (e.g. the deck builder's "More" menu). */
+button.col-menu-item { width: 100%; background: none; border: none; font: inherit; color: var(--text); text-align: left; }
 
 .td-meta { font-size: .82rem; color: var(--muted); white-space: nowrap; }
 .td-meta .ms { vertical-align: -1px; }
@@ -2448,7 +2593,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .card-modal-box {
   position: relative;
   z-index: 1;
-  background: var(--surface);
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: .75rem;
   box-shadow: 0 24px 64px rgba(0,0,0,.55);
@@ -2728,20 +2873,19 @@ a:focus-visible, [tabindex]:focus-visible {
 .db-tile-move:hover { background: var(--primary); }
 .db-tile-del:hover  { background: var(--danger); }
 
-/* Tile multiselect checkbox — always visible (unlike the hover-only action buttons) */
-.db-tile-select {
+/* Card-info button, top-left — hover-reveal like the move/delete buttons.
+   Clicking the card itself (image, name, or anywhere else on the tile)
+   selects it instead; this is the dedicated way to open the info popup. */
+.db-tile-info-wrap {
   position: absolute;
   top: .3rem;
   left: .3rem;
-  z-index: 3;
-  background: rgba(0,0,0,.65);
-  border-radius: 5px;
-  padding: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity .15s;
 }
-.db-tile-select input { width: auto; cursor: pointer; accent-color: var(--primary); }
+.db-tile:hover .db-tile-info-wrap,
+.db-pile-card:hover .db-tile-info-wrap { opacity: 1; }
 .db-tile-selected { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 8px; }
 
 /* Bulk actions bar (multiselect → move to category) */
@@ -2799,7 +2943,7 @@ a:focus-visible, [tabindex]:focus-visible {
   justify-content: center;
   transition: background .15s;
 }
-.db-add-btn:hover { background: var(--primary-dark, #6d28d9); }
+.db-add-btn:hover { background: var(--primary-dk); }
 .db-add-btn-in { background: var(--success, #22c55e); cursor: default; }
 
 /* Search results list */
@@ -2864,32 +3008,23 @@ a:focus-visible, [tabindex]:focus-visible {
 }
 .db-edh-inc { font-size: .72rem; color: var(--muted); }
 
-/* Export dropdown */
-.db-export-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.25);
-  z-index: 200;
-  min-width: 160px;
-  overflow: hidden;
+/* Topbar "More" menu (sectioned dropdown — Archidekt-style consolidation
+   of what used to be 5+ separate always-visible buttons) */
+.db-more-menu { min-width: 210px; }
+.db-more-section-label {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  padding: .4rem .55rem .15rem;
 }
-.db-export-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: .55rem .85rem;
-  font-size: .83rem;
-  color: var(--text);
-  cursor: pointer;
-}
-.db-export-menu button:hover { background: var(--card-2); }
-.db-export-wrap { position: relative; }
+.db-more-divider { border-top: 1px solid var(--border); margin: .3rem 0; }
+.db-menu-danger { color: var(--danger); }
+.db-menu-danger:hover { background: var(--danger-lt); }
+
+/* Category header kebab menu (☑ select / ✎ rename / × delete consolidated) */
+.db-cat-kebab-wrap { position: relative; display: inline-block; }
 
 /* Stats bar */
 .db-stats-bar {
