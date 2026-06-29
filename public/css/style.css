@@ -590,7 +590,7 @@ td { padding: .45rem .75rem; }
   .tab-bar.collapsed .sidenav-brand-text { max-width: 0; opacity: 0; }
 
   /* Account section at the bottom (theme / RSS / change password / sign out) */
-  .sidenav-divider { border: none; border-top: 1px solid var(--border); margin: .4rem .85rem; flex-shrink: 0; }
+  .sidenav-divider { border: none; border-top: 1px solid var(--border); margin: auto .85rem .4rem; flex-shrink: 0; }
   .sidenav-user-row {
     padding: .3rem .85rem .5rem;
     font-size: .72rem;
