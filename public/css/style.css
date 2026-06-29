@@ -2763,6 +2763,25 @@ a:focus-visible, [tabindex]:focus-visible {
    fight that and reintroduce the jump it's meant to prevent. */
 .db-bulk-bar, #dbDeckContent { overflow-anchor: none; }
 
+/* Manage Categories modal */
+.db-catmodal-list {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.db-catmodal-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .45rem .6rem;
+  border-radius: 6px;
+  background: var(--card-2);
+}
+.db-catmodal-name { flex: 1; font-weight: 600; font-size: .88rem; }
+.db-catmodal-count { font-size: .78rem; color: var(--muted); }
+
 /* Add button in search results */
 .db-add-btn {
   background: var(--primary);

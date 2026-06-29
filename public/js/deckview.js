@@ -20,6 +20,7 @@ let _dbInitDone  = false;
 let _dbMovingCard = null;    // card name being moved between categories
 let _dbBulkMoveMode = false; // true when the move modal is acting on dbSelectedCards instead of _dbMovingCard
 let _dbRenamingCat = null;   // category name being renamed
+let _dbCatModalReturnTo = null; // 'categories' when rename was opened from the Manage Categories modal
 let _dbEdhrecLoaded = false; // whether EDHREC has been fetched for the current deck
 let dbOracleFilter = '';     // lowercased search filter — matches card name or oracle text
 const dbCollapsedCats = new Set(); // categories collapsed by user
@@ -216,6 +217,7 @@ function _dbShowDeckUI() {
   document.getElementById('dbAddCardRow').style.display  = '';
   document.getElementById('dbAddCatRow').style.display   = '';
   document.getElementById('dbStatsBar').style.display    = '';
+  document.getElementById('dbCategoriesBtn').style.display = '';
   document.getElementById('dbDeleteDeckBtn').style.display =
     isMyPlayer(dbDeck?.playerId) ? '' : 'none';
 }
@@ -225,6 +227,7 @@ function _dbHideDeckUI() {
   document.getElementById('dbAddCardRow').style.display  = 'none';
   document.getElementById('dbAddCatRow').style.display   = 'none';
   document.getElementById('dbStatsBar').style.display    = 'none';
+  document.getElementById('dbCategoriesBtn').style.display = 'none';
   document.getElementById('dbDeleteDeckBtn').style.display = 'none';
   document.getElementById('dbDeckContent').innerHTML =
     '<div class="empty-state" style="padding:3rem 1rem">Select a deck or create a new one</div>';
@@ -840,25 +843,32 @@ async function dbChangeQty(name, delta) {
 }
 
 // ── Category operations ───────────────────────────────────────────────────────
-function dbAddCategory() {
-  const input = document.getElementById('dbNewCatInput');
-  const name  = (input?.value || '').trim();
-  if (!name || dbCats.find(c => c.name === name)) { input?.focus(); return; }
+function _dbAddCategoryByName(name) {
+  name = (name || '').trim();
+  if (!name || dbCats.find(c => c.name === name)) return false;
   dbCats.push({ name, position: dbCats.length });
-  if (input) input.value = '';
   dbRender();
   _dbScheduleSave();
+  return true;
+}
+
+function dbAddCategory() {
+  const input = document.getElementById('dbNewCatInput');
+  if (_dbAddCategoryByName(input?.value)) { if (input) input.value = ''; }
+  else input?.focus();
 }
 
 function dbDeleteCategory(name) {
   if (name === 'Commander') return;
-  if (!confirm(`Delete category "${name}"? Cards will move to Other.`)) return;
-  for (const c of dbCards) if (c.category === name) c.category = 'Other';
+  if (!confirm(`Delete category "${name}"? Cards will move to Uncategorised.`)) return;
+  let moved = false;
+  for (const c of dbCards) if (c.category === name) { c.category = 'Uncategorised'; moved = true; }
   dbCats = dbCats.filter(c => c.name !== name);
-  dbEnsureCat('Other');
+  if (moved) dbEnsureCat('Uncategorised');
   dbRender();
   dbRenderStats();
   _dbScheduleSave();
+  _dbRenderCategoriesModalList();
 }
 
 function dbShowRenameCat(name) {
@@ -873,6 +883,10 @@ function dbShowRenameCat(name) {
 function dbHideRenameCat() {
   _dbRenamingCat = null;
   document.getElementById('dbRenameCatOverlay').style.display = 'none';
+  if (_dbCatModalReturnTo === 'categories') {
+    _dbCatModalReturnTo = null;
+    dbShowCategoriesModal();
+  }
 }
 
 function dbConfirmRenameCat() {
@@ -887,6 +901,52 @@ function dbConfirmRenameCat() {
   dbHideRenameCat();
   dbRender();
   _dbScheduleSave();
+}
+
+// ── Manage Categories modal ───────────────────────────────────────────────────
+function dbShowCategoriesModal() {
+  if (!dbDeck) return;
+  _dbRenderCategoriesModalList();
+  document.getElementById('dbCategoriesOverlay').style.display = 'flex';
+}
+
+function dbHideCategoriesModal() {
+  document.getElementById('dbCategoriesOverlay').style.display = 'none';
+}
+
+function _dbRenderCategoriesModalList() {
+  const list = document.getElementById('dbCategoriesModalList');
+  if (!list || !dbDeck) return;
+  const canEdit = isMyPlayer(dbDeck.playerId);
+  document.getElementById('dbCategoriesModalAddRow').style.display = canEdit ? '' : 'none';
+  list.innerHTML = dbCats.map(cat => {
+    const isLocked = cat.name === 'Commander';
+    const count = dbCards
+      .filter(c => (c.category || dbAutoCategory(c.card_name)) === cat.name)
+      .reduce((s, c) => s + (c.qty || 1), 0);
+    const actions = canEdit ? `
+      <button class="db-cat-btn" title="Rename" onclick="dbRenameCatFromModal('${jsAttr(cat.name)}')"${isLocked ? ' style="display:none"' : ''}>✎</button>
+      <button class="db-cat-btn db-cat-del" title="Delete" onclick="dbDeleteCategory('${jsAttr(cat.name)}')"${isLocked ? ' style="display:none"' : ''}>×</button>` : '';
+    return `<div class="db-catmodal-row">
+      <span class="db-catmodal-name">${esc(cat.name)}</span>
+      <span class="db-catmodal-count">${count}</span>
+      ${actions}
+    </div>`;
+  }).join('') || '<div class="empty-state" style="padding:1rem">No categories yet</div>';
+}
+
+function dbAddCategoryFromModal() {
+  const input = document.getElementById('dbModalNewCatInput');
+  if (_dbAddCategoryByName(input?.value)) {
+    if (input) input.value = '';
+    _dbRenderCategoriesModalList();
+  } else input?.focus();
+}
+
+function dbRenameCatFromModal(name) {
+  dbHideCategoriesModal();
+  _dbCatModalReturnTo = 'categories';
+  dbShowRenameCat(name);
 }
 
 // ── Move card modal ───────────────────────────────────────────────────────────
