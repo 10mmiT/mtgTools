@@ -29,7 +29,7 @@
   --accent: var(--primary);
 }
 
-[data-theme="light"] {
+html[data-theme="light"] {
   --bg:         #f3eeff;
   --card:       #ffffff;
   --card-2:     #f5f0ff;
@@ -59,7 +59,7 @@
 
 /* High-contrast dark — pure black background, brighter borders/text for
    maximum readability (e.g. low-vision or glare-prone setups). */
-[data-theme="contrast"] {
+html[data-theme="contrast"] {
   --bg:         #000000;
   --card:       #0a0a0a;
   --card-2:     #161616;
@@ -87,7 +87,7 @@
 }
 
 /* Sepia — warm paper tones, for a softer light theme alternative. */
-[data-theme="sepia"] {
+html[data-theme="sepia"] {
   --bg:         #ece0c4;
   --card:       #faf3e2;
   --card-2:     #f0e5c8;
@@ -115,7 +115,7 @@
 }
 
 /* Forest — dark theme with green hues. */
-[data-theme="forest"] {
+html[data-theme="forest"] {
   --bg:         #0a120d;
   --card:       #101a14;
   --card-2:     #16241c;
@@ -438,8 +438,8 @@ select {
 .badge-error   { background: var(--danger-lt); color: var(--danger); }
 .badge-source  { background: var(--primary-lt); color: var(--primary-tx); }
 
-[data-theme="light"] .badge-loading { background: #fef3c7; color: #92400e; }
-[data-theme="light"] .badge-loaded  { background: #d1fae5; color: #065f46; }
+html[data-theme="light"] .badge-loading { background: #fef3c7; color: #92400e; }
+html[data-theme="light"] .badge-loaded  { background: #d1fae5; color: #065f46; }
 
 .col-actions { display: flex; gap: .4rem; flex-shrink: 0; }
 
@@ -967,7 +967,7 @@ td { padding: .45rem .75rem; }
   gap: .35rem;
   background: linear-gradient(to right, rgba(12,9,22,.97) 0%, rgba(12,9,22,.87) 52%, rgba(12,9,22,.2) 100%);
 }
-[data-theme="light"] .deck-tile-overlay {
+html[data-theme="light"] .deck-tile-overlay {
   background: linear-gradient(to right, rgba(20,8,40,.96) 0%, rgba(20,8,40,.84) 52%, rgba(20,8,40,.18) 100%);
 }
 
