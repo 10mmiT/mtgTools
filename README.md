@@ -80,18 +80,21 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Deck Builder tab
 - Full-width editing workspace for a single deck — select an existing deck or **+ New Deck** (player, name, optional commander)
+- **More ▾** menu (Deck / Import / Export sections) consolidates Categories, Compare, Import CSV, Paste List, Export (clipboard/CSV/.txt), and Delete Deck, keeping the toolbar itself to just "+ New Deck" and "Search / EDHREC"
 - **Delete Deck** removes the deck and its saved cards/categories entirely, so you can re-add it (e.g. re-import the same Archidekt URL from the Players & Decks tab) with a clean slate
-- Cards grouped into categories — Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other by default — with custom categories, rename, and delete
+- Cards grouped into categories — Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other by default — with custom categories, rename, and delete via each category's "⋯" menu, or all at once from the **Manage Categories** modal; deleting a category with cards in it moves them to "Uncategorised" instead of losing the grouping
+- **Search name or oracle text** box filters the visible cards across every category live as you type
+- **Multiselect**: a checkbox on every card (List/Grid/XL/Pile), Ctrl/Cmd-A to select all visible, or "Select all" from a category's "⋯" menu — selected cards get a **Move to…** bulk action
+- **Move to…** (single card or bulk) can also **✨ Auto-categorize** — sorts staples into functional categories the way Archidekt's community auto-categories do (Sol Ring → Ramp, Swords to Plowshares → Removal, etc.), falling back to card type — or create a brand-new category and move into it in one step
 - **Drag and drop** a card anywhere onto a category's column (not just its header) to move it there; auto-saves
 - **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price
 - **List**, **Grid**, **XL**, and **Pile** view, with a size slider for Grid/XL/Pile
 - Quick **Add a card** box with Scryfall autocomplete; **Import CSV** or **Paste List** (`1 Sol Ring` / `1x Sol Ring` / `// Category` lines) for bulk add
-- **Export** to clipboard, CSV, or `.txt`
 - **Search / EDHREC** drawer panel:
   - **Search** tab — Scryfall query search (with an optional commander color-identity filter) to find and add cards, each shown with a thumbnail
   - **EDHREC** tab — recommendations for the deck's commander, split into the same type-based categories as Archidekt (Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Lands) plus High Synergy, Top Cards, Game Changers, and New Cards, each card shown with a thumbnail, type line, synergy %, and deck-inclusion count
 - Stats bar: card/land counts vs. format target (60 or 99 for Commander), average CMC, color pip counts, and a mana curve
-- **Compare** button sends the deck to the Collections tab comparison panel
+- **Compare** button (in the More menu) sends the deck to the Collections tab comparison panel
 
 ### Mana Base Calculator tab
 - Choose a deck size preset — 40 (Limited), 60 (Constructed), 100 (Commander) — or enter a custom size
@@ -109,22 +112,22 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **↺ Re-roll** per player (locks everyone else's pick) or **↺ Re-roll all** to start fresh
 
 ### RSS Feed panel
-- Click the **RSS** button in the header to open a right-side feed panel
+- On desktop, click **RSS Feeds** at the bottom of the left sidebar; on mobile it's in the header/nav dropdown — both open the same right-side feed panel
 - Configure feeds by setting `RSS_FEEDS` in `docker-compose.yml` — comma-separated RSS 2.0 or Atom URLs
 - All feeds are merged and sorted newest-first; each item is tagged with its source feed name
 - Feed data is fetched server-side and cached for 10 minutes; supports HTTP redirects
 
 ### General
-- Dark theme by default, toggleable to light; preference saved in the browser
-- **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows
+- **5 themes** — Dark, Light, High Contrast, Sepia, and Forest. Desktop picks via a dropdown in the sidebar (with a checkmark on the active theme); mobile cycles through them with a single tap. Preference saved in the browser
+- **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows — independent of the 5 UI themes above, since mana symbol colours represent the game, not the chrome
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck Builder); your sort field/direction and which columns are shown persist per-view in the browser
 - Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥1024px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
 - Collapsible panels throughout (Add Collection, Collections, each player section)
 - Per-user login system with player-linked accounts and an admin role
-- **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content; click Collapse to shrink to icon-only mode — state persists across reloads
-- **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown; all forms stack to full-width; inputs use a 16px font to avoid iOS zoom-on-focus; view toggles are right-aligned across all tabs
+- **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content, with account actions (user badge, theme picker, RSS, change password, sign out) anchored to the bottom; click Collapse to shrink to icon-only mode — state persists across reloads. There's no top header on desktop — it's mobile-only
+- **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown plus a slim header (logo + RSS); all forms stack to full-width; inputs use a 16px font to avoid iOS zoom-on-focus; view toggles are right-aligned across all tabs
 
 ## Getting Started
 
@@ -187,7 +190,7 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | Health check | `GET /healthz` → `{ ok: true, uptime: … }` (also wired into the Dockerfile `HEALTHCHECK`) |
 | Data path (inside container) | `/app/data` |
 | `ADMIN_PASSWORD` | Required to enable auth; omit for open mode |
-| `RSS_FEEDS` | Optional comma-separated RSS/Atom feed URLs for the header panel |
+| `RSS_FEEDS` | Optional comma-separated RSS/Atom feed URLs for the RSS panel |
 | `COOKIE_SECURE` | Set to `1` to add the `Secure` flag to session cookies — recommended when running behind HTTPS |
 | `AUTH_RATE_LIMIT_MAX` | Override the login rate-limit window max (default: 30 requests per 15 min per IP) |
 
@@ -255,7 +258,7 @@ mtgtools/
 │       ├── admin.js       # Admin panel (user management, account requests)
 │       ├── deckview.js    # Deck Builder tab (editing, categories, drag/drop, Search/EDHREC drawer)
 │       ├── pick.js        # Pick Night tab (random deck assignment)
-│       ├── rss.js         # RSS feed panel (header toggle, fetch, render)
+│       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── Dockerfile
 ├── docker-compose.yml
