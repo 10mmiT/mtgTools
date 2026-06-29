@@ -51,26 +51,55 @@ function initSideNav() {
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────
-function initTheme() {
-  const saved = localStorage.getItem('mtgtools_theme') || 'dark';
-  document.documentElement.dataset.theme = saved;
-  document.getElementById('themeToggle').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
+const THEMES = [
+  { id: 'dark',     label: 'Dark' },
+  { id: 'light',    label: 'Light' },
+  { id: 'contrast', label: 'High Contrast' },
+  { id: 'sepia',    label: 'Sepia' },
+];
+
+function _themeLabel(id) { return THEMES.find(t => t.id === id)?.label || id; }
+
+function applyTheme(id) {
+  document.documentElement.dataset.theme = id;
+  localStorage.setItem('mtgtools_theme', id);
+  const label = _themeLabel(id);
+  const hdrBtn = document.getElementById('themeToggle');
+  if (hdrBtn) hdrBtn.textContent = '🎨 ' + label;
   const lbl = document.getElementById('mobNavThemeLabel');
-  if (lbl) lbl.textContent = saved === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
+  if (lbl) lbl.textContent = label;
   const sideLbl = document.getElementById('sidenavThemeLabel');
-  if (sideLbl) sideLbl.textContent = saved === 'dark' ? 'Light mode' : 'Dark mode';
+  if (sideLbl) sideLbl.textContent = label;
+  document.querySelectorAll('.theme-pick-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.theme === id));
 }
 
-function toggleTheme() {
-  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem('mtgtools_theme', next);
-  document.getElementById('themeToggle').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
-  const lbl = document.getElementById('mobNavThemeLabel');
-  if (lbl) lbl.textContent = next === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
-  const sideLbl = document.getElementById('sidenavThemeLabel');
-  if (sideLbl) sideLbl.textContent = next === 'dark' ? 'Light mode' : 'Dark mode';
+function initTheme() {
+  applyTheme(localStorage.getItem('mtgtools_theme') || 'dark');
 }
+
+// Direct pick (desktop sidebar dropdown)
+function setTheme(id) {
+  applyTheme(id);
+  document.getElementById('themePickMenu')?.classList.remove('open');
+}
+
+// Cycle to the next theme (mobile dropdown + mobile header button, where a
+// full picker dropdown doesn't fit as naturally as it does in the sidebar)
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme;
+  const idx = THEMES.findIndex(t => t.id === cur);
+  applyTheme(THEMES[(idx + 1) % THEMES.length].id);
+}
+
+function toggleThemeMenu(e) {
+  e?.stopPropagation();
+  document.getElementById('themePickMenu')?.classList.toggle('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.sidenav-theme-wrap')) document.getElementById('themePickMenu')?.classList.remove('open');
+});
 
 // ── View mode ─────────────────────────────────────────────────────────
 function setViewMode(mode) {

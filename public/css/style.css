@@ -57,6 +57,63 @@
   --accent: var(--primary);
 }
 
+/* High-contrast dark — pure black background, brighter borders/text for
+   maximum readability (e.g. low-vision or glare-prone setups). */
+[data-theme="contrast"] {
+  --bg:         #000000;
+  --card:       #0a0a0a;
+  --card-2:     #161616;
+  --border:     #4a4a4a;
+  --text:       #ffffff;
+  --muted:      #c2c2c2;
+  --primary:    #c084fc;
+  --primary-dk: #a855f7;
+  --primary-lt: #3b0764;
+  --primary-tx: #f3e8ff;
+  --danger:     #f87171;
+  --danger-lt:  #450a0a;
+  --shadow:     0 2px 12px rgba(0,0,0,.7);
+  --hdr-bg:     #000000;
+
+  --mc-w: #f0e0a0;
+  --mc-u: #7cc0f0;
+  --mc-b: #c4b5e0;
+  --mc-r: #ff8a7a;
+  --mc-g: #6fd190;
+  --mc-c: #c8ccd8;
+  --mc-gold: #f0cc55;
+
+  --accent: var(--primary);
+}
+
+/* Sepia — warm paper tones, for a softer light theme alternative. */
+[data-theme="sepia"] {
+  --bg:         #ece0c4;
+  --card:       #faf3e2;
+  --card-2:     #f0e5c8;
+  --border:     #d8c69e;
+  --text:       #3b2f1e;
+  --muted:      #8a7350;
+  --primary:    #a0522d;
+  --primary-dk: #84431f;
+  --primary-lt: #f1e0c8;
+  --primary-tx: #5c3a1e;
+  --danger:     #b91c1c;
+  --danger-lt:  #f3d8d2;
+  --shadow:     0 1px 4px rgba(80,50,0,.12);
+  --hdr-bg:     #84431f;
+
+  --mc-w: #a8841f;
+  --mc-u: #336699;
+  --mc-b: #6b5b45;
+  --mc-r: #b3402e;
+  --mc-g: #3f7a4a;
+  --mc-c: #71695a;
+  --mc-gold: #9c7a1f;
+
+  --accent: var(--primary);
+}
+
 /* ── Per-tab accent colours (the "WUBRG here and there" theming) ─────────
    Each tab pane + its nav buttons inherit a mana-coloured --accent that
    tints the active nav item and panel-title bars within that tab. */
@@ -612,6 +669,14 @@ td { padding: .45rem .75rem; }
     color: var(--accent, var(--primary));
     background: color-mix(in srgb, var(--accent, var(--primary)) 16%, transparent);
   }
+
+  /* Theme picker — opens upward since its button sits near the bottom of the
+     sidebar, with little room below it for a menu to drop down into. */
+  .sidenav-theme-wrap { position: relative; width: 100%; }
+  #themePickMenu.theme-pick-menu { left: .5rem; right: auto; bottom: calc(100% + 5px); top: auto; min-width: 170px; }
+  .theme-pick-item.active { color: var(--accent, var(--primary)); font-weight: 700; }
+  .theme-pick-item.active::after { content: '✓'; margin-left: auto; }
+  .tab-bar.collapsed #themePickMenu.theme-pick-menu { left: 0; }
 
   /* Push content right to clear the fixed 186-px sidebar */
   .site-main {
