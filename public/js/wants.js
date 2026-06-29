@@ -6,6 +6,8 @@ let _wantFetching = false;
 
 const WANT_SORT_FIELDS = ['wanted', 'player', 'name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 let wantFilterPlayer = '';
+let _wantExportRows    = []; // [cardName, Set<playerId>][] — last rendered, filtered + sorted
+let _wantExportPlayers = []; // players with at least one want, last rendered
 const WANT_COLUMNS = [
   { key: 'mana',   label: 'Mana Value',        default: false },
   { key: 'color',  label: 'Color',             default: false },
@@ -247,6 +249,11 @@ async function renderWantList() {
     ? rows.filter(([, wanterIds]) => wanterIds.has(wantFilterPlayer))
     : rows;
 
+  // Keep the currently filtered/sorted rows around for Export, so CSV/PDF
+  // exports always match what's on screen (including the player filter).
+  _wantExportRows    = visibleRows;
+  _wantExportPlayers = activePlayers;
+
   // ── List (table) view ─────────────────────────────────────────────────
   if (wantView === 'list') {
     const vc = getCols('wants', WANT_COLUMNS);
@@ -374,4 +381,102 @@ async function renderWantList() {
   }).join('');
 
   container.innerHTML = `<div class="${gridClass}">${tiles}</div>`;
+}
+
+// ── Export (CSV / PDF) ───────────────────────────────────────────────────
+// Exports always reflect the currently selected player filter, so picking
+// a player chip and exporting gives just that player's want list.
+function toggleWantExportMenu(e) {
+  e?.stopPropagation();
+  document.getElementById('wantExportMenu')?.classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#wantExportMenu') && !e.target.closest('.col-menu-btn'))
+    document.getElementById('wantExportMenu')?.classList.remove('open');
+});
+
+function _wantExportLabel() {
+  if (!wantFilterPlayer) return 'All Players';
+  return state.players.find(p => p.id === wantFilterPlayer)?.name || 'Want List';
+}
+
+function _wantExportFilenameBase() {
+  return `want-list-${_wantExportLabel().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`;
+}
+
+function _wantDownload(filename, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function _csvField(v) {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function wantExportCsv() {
+  document.getElementById('wantExportMenu')?.classList.remove('open');
+  if (!_wantExportRows.length) { alert('No cards to export.'); return; }
+
+  const header = wantFilterPlayer ? ['Card'] : ['Card', ..._wantExportPlayers.map(p => p.name)];
+  const lines  = [header.map(_csvField).join(',')];
+  for (const [cardName, wanterIds] of _wantExportRows) {
+    const row = [cardName];
+    if (!wantFilterPlayer) for (const p of _wantExportPlayers) row.push(wanterIds.has(p.id) ? 'x' : '');
+    lines.push(row.map(_csvField).join(','));
+  }
+  _wantDownload(`${_wantExportFilenameBase()}.csv`, lines.join('\n'), 'text/csv');
+}
+
+function wantExportPdf() {
+  document.getElementById('wantExportMenu')?.classList.remove('open');
+  if (!_wantExportRows.length) { alert('No cards to export.'); return; }
+  if (!window.jspdf?.jsPDF) { alert('PDF library failed to load — check your connection and try again.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc      = new jsPDF({ unit: 'pt', format: 'letter' });
+  const pageW    = doc.internal.pageSize.getWidth();
+  const pageH    = doc.internal.pageSize.getHeight();
+  const marginX  = 40;
+  let   y        = 50;
+
+  const label = _wantExportLabel();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(`Want List — ${label}`, marginX, y);
+  y += 20;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  const count = _wantExportRows.length;
+  doc.text(`${count} card${count === 1 ? '' : 's'} · generated ${new Date().toLocaleDateString()}`, marginX, y);
+  doc.setTextColor(0);
+  y += 24;
+
+  const boxSize = 11;
+  const lineH   = 20;
+  doc.setFontSize(11);
+  for (const [cardName, wanterIds] of _wantExportRows) {
+    if (y > pageH - 50) { doc.addPage(); y = 50; }
+
+    doc.rect(marginX, y - boxSize + 1, boxSize, boxSize); // checkbox to tick off
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(0);
+    doc.text(cardName, marginX + boxSize + 10, y);
+
+    if (!wantFilterPlayer) {
+      const names = _wantExportPlayers.filter(p => wanterIds.has(p.id)).map(p => p.name).join(', ');
+      doc.setFontSize(8);
+      doc.setTextColor(140);
+      doc.text(names, pageW - marginX, y, { align: 'right' });
+    }
+    y += lineH;
+  }
+
+  doc.save(`${_wantExportFilenameBase()}.pdf`);
 }
