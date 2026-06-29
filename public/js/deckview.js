@@ -67,7 +67,12 @@ function initDeckBuilder() {
       }
     });
 
-    // Hover card preview (list view only)
+    // Hover card preview (list view only). Re-checks the element under the
+    // cursor on every mousemove (rather than relying on mouseover/mouseout),
+    // so it self-heals once the mouse moves again after a re-render destroys
+    // the hovered row. The remaining gap — re-render happens while the mouse
+    // is perfectly stationary (e.g. right after a click) — is covered by the
+    // global click/scroll/visibility handlers in main.js.
     const preview = document.createElement('img');
     preview.id = 'dbHoverPreview';
     preview.className = 'db-hover-preview';

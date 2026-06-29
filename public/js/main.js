@@ -308,19 +308,35 @@ document.addEventListener('click', e => {
 // auth functions are in auth.js (logout, authInit)
 
 // ── Card image tooltip (list view) ────────────────────────────────────
+// Relies on mouseover/mouseout on the hovered .card-link to show/hide. This
+// app re-renders lists by replacing innerHTML wholesale, so if that happens
+// while the cursor sits over a link (e.g. clicking +/- qty, a checkbox, or
+// the 30s background refresh), the element is destroyed without ever firing
+// mouseout — the tooltip would otherwise be stuck on screen indefinitely.
+// _tipLink + the isConnected check below catch that on the next mousemove;
+// the click/scroll/visibility listeners catch it immediately even if the
+// cursor never moves again.
 const _tip    = document.getElementById('cardTooltip');
 const _tipImg = document.getElementById('tooltipImg');
 let _tipTimer = null;
+let _tipLink  = null;
+
+function _hideCardTooltip() {
+  clearTimeout(_tipTimer);
+  _tipLink = null;
+  _tip.style.display = 'none';
+}
 
 document.addEventListener('mouseover', e => {
   const link = e.target.closest('.card-link');
   if (!link) return;
   clearTimeout(_tipTimer);
+  _tipLink = link;
   _tipTimer = setTimeout(async () => {
     const name = link.dataset.name;
     if (!scryfallCache.has(name)) await ensureScryfallImages([name]);
     const uri = scryfallCache.get(name);
-    if (!uri) return;
+    if (!uri || !link.isConnected) return;
     _tipImg.src = uri;
     _tip.style.display = 'block';
   }, 120);
@@ -328,12 +344,12 @@ document.addEventListener('mouseover', e => {
 
 document.addEventListener('mouseout', e => {
   if (!e.target.closest('.card-link')) return;
-  clearTimeout(_tipTimer);
-  _tip.style.display = 'none';
+  _hideCardTooltip();
 });
 
 document.addEventListener('mousemove', e => {
   if (_tip.style.display === 'none') return;
+  if (_tipLink && !_tipLink.isConnected) { _hideCardTooltip(); return; }
   const W = 216, H = 300, pad = 14;
   const left = (e.clientX + pad + W > window.innerWidth)  ? e.clientX - pad - W : e.clientX + pad;
   const top  = (e.clientY - 20 + H > window.innerHeight)  ? window.innerHeight - H - 8 : e.clientY - 20;
@@ -341,7 +357,21 @@ document.addEventListener('mousemove', e => {
   _tip.style.top  = top  + 'px';
 });
 
-_tipImg.addEventListener('error', () => { _tip.style.display = 'none'; });
+_tipImg.addEventListener('error', _hideCardTooltip);
+
+// Belt-and-suspenders: hide any open card tooltip/preview on click, scroll,
+// or tab-hide, since those are the moments a stuck tooltip is most likely
+// (and most jarring) — covers cases the per-element mouseout/isConnected
+// checks above can't (no element to check against, or cursor never moves
+// again after the click that triggered a re-render).
+function _hideAllCardPreviews() {
+  _hideCardTooltip();
+  const dbPreview = document.getElementById('dbHoverPreview');
+  if (dbPreview) dbPreview.style.display = 'none';
+}
+document.addEventListener('click', _hideAllCardPreviews, { capture: true });
+document.addEventListener('scroll', _hideAllCardPreviews, { capture: true, passive: true });
+document.addEventListener('visibilitychange', _hideAllCardPreviews);
 
 // ── Event listeners ───────────────────────────────────────────────────
 document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFromUrl(); });
