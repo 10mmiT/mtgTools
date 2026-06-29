@@ -18,9 +18,13 @@ let dbSaving     = false;
 let dbSortMounted = false;
 let _dbInitDone  = false;
 let _dbMovingCard = null;    // card name being moved between categories
+let _dbBulkMoveMode = false; // true when the move modal is acting on dbSelectedCards instead of _dbMovingCard
 let _dbRenamingCat = null;   // category name being renamed
+let _dbCatModalReturnTo = null; // 'categories' when rename was opened from the Manage Categories modal
 let _dbEdhrecLoaded = false; // whether EDHREC has been fetched for the current deck
+let dbOracleFilter = '';     // lowercased search filter — matches card name or oracle text
 const dbCollapsedCats = new Set(); // categories collapsed by user
+const dbSelectedCards = new Set(); // card names currently selected for bulk move
 
 const DB_DEFAULT_CATS = [
   'Commander', 'Creatures', 'Planeswalkers', 'Instants', 'Sorceries',
@@ -47,13 +51,19 @@ function initDeckBuilder() {
       document.getElementById('dbDeckContent')?.style.setProperty('--db-card-width', savedScale + 'px');
     }
 
-    // Keyboard "/" shortcut to open search panel (only when deck builder tab is active)
+    // Keyboard shortcuts (only when deck builder tab is active and not typing in a field)
     document.addEventListener('keydown', e => {
-      if (e.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)
-          && document.getElementById('tab-deckview')?.style.display !== 'none') {
+      const dbTabActive = document.getElementById('tab-deckview')?.style.display !== 'none';
+      const inField     = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+      if (!dbTabActive || inField) return;
+
+      if (e.key === '/') {
         e.preventDefault();
         dbOpenSearchPanel();
         setTimeout(() => document.getElementById('dbSearchInput')?.focus(), 50);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        dbSelectAllVisible();
       }
     });
 
@@ -126,6 +136,11 @@ function _dbPopulateNewDeckPlayers() {
 
 // ── Deck selection ────────────────────────────────────────────────────────────
 async function dbSelectDeck(value) {
+  dbSelectedCards.clear();
+  dbOracleFilter = '';
+  const oracleInput = document.getElementById('dbOracleSearchInput');
+  if (oracleInput) oracleInput.value = '';
+
   if (!value) {
     dbDeck = null; dbCards = []; dbCats = []; dbCardData = new Map();
     dbSortMounted = false; dbEdhrecData = null; _dbEdhrecLoaded = false;
@@ -202,6 +217,7 @@ function _dbShowDeckUI() {
   document.getElementById('dbAddCardRow').style.display  = '';
   document.getElementById('dbAddCatRow').style.display   = '';
   document.getElementById('dbStatsBar').style.display    = '';
+  document.getElementById('dbCategoriesBtn').style.display = '';
   document.getElementById('dbDeleteDeckBtn').style.display =
     isMyPlayer(dbDeck?.playerId) ? '' : 'none';
 }
@@ -211,6 +227,7 @@ function _dbHideDeckUI() {
   document.getElementById('dbAddCardRow').style.display  = 'none';
   document.getElementById('dbAddCatRow').style.display   = 'none';
   document.getElementById('dbStatsBar').style.display    = 'none';
+  document.getElementById('dbCategoriesBtn').style.display = 'none';
   document.getElementById('dbDeleteDeckBtn').style.display = 'none';
   document.getElementById('dbDeckContent').innerHTML =
     '<div class="empty-state" style="padding:3rem 1rem">Select a deck or create a new one</div>';
@@ -267,12 +284,16 @@ async function _dbImportArchidekt(archidektId) {
     // Skip sideboard / maybeboard
     const rawCats = (item.categories || []).map(c => c.trim());
     if (rawCats.some(c => /sideboard|maybeboard/i.test(c))) continue;
-    // Map to our categories; '' means let dbAutoCategory fill it from Scryfall type
+    // Map to our standard categories where the name matches one of ours;
+    // otherwise keep Archidekt's own category name as-is (e.g. "Ramp",
+    // "Removal" from their community auto-categorize feature) rather than
+    // discarding it — '' means let dbAutoCategory fill it in from type.
     let category = '';
     for (const c of rawCats) {
       const mapped = _ARCH_CAT[c.toLowerCase()];
       if (mapped) { category = mapped; break; }
     }
+    if (!category && rawCats.length) category = rawCats[0];
     cards.push({ card_name: name, qty, category, position: cards.length });
   }
   return cards;
@@ -301,10 +322,46 @@ async function dbFetchCardData(names) {
 }
 
 // ── Auto-categorise ───────────────────────────────────────────────────────────
+// Archidekt's "auto categories" assign staples like Sol Ring to community-voted
+// functional categories (e.g. "Ramp") rather than just their card type — but
+// that data is generated from crowd voting inside Archidekt itself and isn't
+// exposed by any public API, so it can't be queried live for an arbitrary card.
+// This is a best-effort local stand-in covering well-known staples in the same
+// spirit; anything not listed here falls back to the normal type-based bucket
+// below (and a real Archidekt import already preserves its own categories —
+// see _dbImportArchidekt — so decks built there keep their real "Ramp" etc.).
+const DB_FUNCTION_CATEGORY = {
+  'sol ring': 'Ramp', 'arcane signet': 'Ramp', 'mana crypt': 'Ramp', 'mana vault': 'Ramp',
+  'fellwar stone': 'Ramp', 'mind stone': 'Ramp', "wayfarer's bauble": 'Ramp',
+  'birds of paradise': 'Ramp', 'llanowar elves': 'Ramp', 'elvish mystic': 'Ramp',
+  'sakura-tribe elder': 'Ramp', 'rampant growth': 'Ramp', 'cultivate': 'Ramp',
+  "kodama's reach": 'Ramp', 'farseek': 'Ramp', 'three visits': 'Ramp', "nature's lore": 'Ramp',
+  'swords to plowshares': 'Removal', 'path to exile': 'Removal', 'beast within': 'Removal',
+  'chaos warp': 'Removal', 'generous gift': 'Removal', 'anguished unmaking': 'Removal',
+  'vindicate': 'Removal', 'utter end': 'Removal', 'despark': 'Removal', 'pongify': 'Removal',
+  'rapid hybridization': 'Removal',
+  'cyclonic rift': 'Board Wipe', 'wrath of god': 'Board Wipe', 'damnation': 'Board Wipe',
+  'toxic deluge': 'Board Wipe', 'blasphemous act': 'Board Wipe', 'farewell': 'Board Wipe',
+  "in garruk's wake": 'Board Wipe', 'austere command': 'Board Wipe',
+  'rhystic study': 'Card Draw', 'mystic remora': 'Card Draw', 'phyrexian arena': 'Card Draw',
+  'sylvan library': 'Card Draw', 'fact or fiction': 'Card Draw', "night's whisper": 'Card Draw',
+  'sign in blood': 'Card Draw', 'guardian project': 'Card Draw',
+  'counterspell': 'Counterspell', 'mana drain': 'Counterspell', 'swan song': 'Counterspell',
+  'negate': 'Counterspell', 'arcane denial': 'Counterspell', 'force of will': 'Counterspell',
+  'demonic tutor': 'Tutor', 'vampiric tutor': 'Tutor', 'mystical tutor': 'Tutor',
+  'worldly tutor': 'Tutor', 'enlightened tutor': 'Tutor',
+  'eternal witness': 'Recursion', 'regrowth': 'Recursion', 'reveillark': 'Recursion',
+  'sun titan': 'Recursion', 'archaeomancer': 'Recursion',
+  'heroic intervention': 'Protection', "teferi's protection": 'Protection',
+  'swiftfoot boots': 'Protection', 'lightning greaves': 'Protection',
+};
+
 function dbAutoCategory(cardName) {
+  if (cardName === dbDeck?.commander) return 'Commander';
+  const fnCat = DB_FUNCTION_CATEGORY[cardName.toLowerCase()];
+  if (fnCat) return fnCat;
   const sf = dbCardData.get(cardName);
   const t  = (sf?.type_line || '').toLowerCase();
-  if (cardName === dbDeck?.commander)     return 'Commander';
   if (t.includes('creature'))             return 'Creatures';
   if (t.includes('planeswalker'))         return 'Planeswalkers';
   if (t.includes('instant'))             return 'Instants';
@@ -323,15 +380,41 @@ function dbEnsureCat(name) {
   }
 }
 
+// ── Oracle/name text filter ────────────────────────────────────────────────────
+function dbSetOracleFilter(value) {
+  dbOracleFilter = (value || '').trim().toLowerCase();
+  dbRender();
+}
+
+function _dbMatchesFilter(cardName) {
+  if (!dbOracleFilter) return true;
+  if (cardName.toLowerCase().includes(dbOracleFilter)) return true;
+  const sf = dbCardData.get(cardName);
+  const text = sf?.oracle_text || (sf?.card_faces || []).map(f => f.oracle_text || '').join(' ');
+  return (text || '').toLowerCase().includes(dbOracleFilter);
+}
+
 // ── Render ────────────────────────────────────────────────────────────────────
 function dbRender() {
   if (!dbDeck) return;
+  // Rebuilding the deck list (and the bulk-action bar above it) can shift
+  // page height enough to scroll the cards you're looking at out from under
+  // the cursor. Freeze the scroll position across the rebuild so it doesn't.
+  const _scroller  = document.scrollingElement || document.documentElement;
+  const _scrollTop = _scroller.scrollTop;
+
   const { field, dir } = getSort('deckbuild', { field: 'name', dir: 1 });
   const cmp = cardComparator(field, dir);
 
-  // Group cards by category, preserving cat order
+  // Drop selections for cards no longer in the deck (removed/deleted elsewhere)
+  for (const name of [...dbSelectedCards]) {
+    if (!dbCards.some(c => c.card_name === name)) dbSelectedCards.delete(name);
+  }
+
+  // Group cards by category, preserving cat order; apply the search filter
   const groups = new Map(dbCats.map(c => [c.name, []]));
   for (const card of dbCards) {
+    if (!_dbMatchesFilter(card.card_name)) continue;
     const cat = card.category || dbAutoCategory(card.card_name);
     if (!groups.has(cat)) { dbEnsureCat(cat); groups.set(cat, []); }
     groups.get(cat).push(card);
@@ -354,9 +437,99 @@ function dbRender() {
   }
 
   const _dbContent = document.getElementById('dbDeckContent');
+  const emptyMsg = dbOracleFilter
+    ? 'No cards match your search'
+    : 'No cards yet';
   _dbContent.innerHTML =
-    sections.length ? sections.join('') : '<div class="empty-state" style="padding:2rem 1rem">No cards yet</div>';
+    sections.length ? sections.join('') : `<div class="empty-state" style="padding:2rem 1rem">${esc(emptyMsg)}</div>`;
   _dbContent.classList.toggle('db-pile-layout', dbView === 'pile');
+
+  _dbRenderBulkBar();
+
+  _scroller.scrollTop = _scrollTop;
+}
+
+// ── Multiselect → bulk move ─────────────────────────────────────────────────
+function dbToggleSelectCard(event, name) {
+  event.stopPropagation();
+  if (dbSelectedCards.has(name)) dbSelectedCards.delete(name);
+  else dbSelectedCards.add(name);
+  dbRender();
+}
+
+function dbClearSelection() {
+  dbSelectedCards.clear();
+  dbRender();
+}
+
+// Ctrl/Cmd-A — select every card currently visible (respects the search filter)
+function dbSelectAllVisible() {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  for (const card of dbCards) {
+    if (_dbMatchesFilter(card.card_name)) dbSelectedCards.add(card.card_name);
+  }
+  dbRender();
+}
+
+// Select every (visible) card in one category, via the category header button
+function dbSelectCategory(catName) {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  for (const card of dbCards) {
+    const cat = card.category || dbAutoCategory(card.card_name);
+    if (cat === catName && _dbMatchesFilter(card.card_name)) dbSelectedCards.add(card.card_name);
+  }
+  dbRender();
+}
+
+function _dbRenderBulkBar() {
+  const bar = document.getElementById('dbBulkBar');
+  if (!bar) return;
+  if (!dbSelectedCards.size) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  const n = dbSelectedCards.size;
+  document.getElementById('dbBulkCount').textContent = `${n} card${n === 1 ? '' : 's'} selected`;
+}
+
+// Shared "Auto-categorize" entry shown atop the move modal — sorts the
+// card(s) into a category via dbAutoCategory — known staples go to their
+// functional category (e.g. Sol Ring → Ramp), everything else by card type
+// (Creatures, Instants, Sorceries, etc.), creating any missing category.
+function _dbAutoCatButtonHtml() {
+  return `<button class="btn-primary" style="text-align:left" onclick="dbAutoCategorizeMove()"
+       title="Known staples go to a functional category like Ramp or Removal; everything else by card type">
+       ✨ Auto-categorize</button>
+    <div style="border-top:1px solid var(--border);margin:.15rem 0"></div>`;
+}
+
+function dbAutoCategorizeMove() {
+  const names = _dbBulkMoveMode ? [...dbSelectedCards] : (_dbMovingCard ? [_dbMovingCard] : []);
+  if (!names.length) return dbHideMoveCard();
+  for (const name of names) {
+    const card = dbCards.find(c => c.card_name === name);
+    if (!card) continue;
+    const cat = dbAutoCategory(name);
+    dbEnsureCat(cat);
+    card.category = cat;
+  }
+  if (_dbBulkMoveMode) dbSelectedCards.clear();
+  dbHideMoveCard();
+  dbRender();
+  _dbScheduleSave();
+}
+
+function dbBulkMove() {
+  if (!dbSelectedCards.size) return;
+  _dbMovingCard   = null;
+  _dbBulkMoveMode = true;
+  const n = dbSelectedCards.size;
+  document.getElementById('dbMoveCardTitle').textContent = `Move ${n} card${n === 1 ? '' : 's'} to…`;
+  const list = document.getElementById('dbMoveCatList');
+  list.innerHTML = _dbAutoCatButtonHtml() + dbCats.map(c =>
+    `<button class="btn-secondary" style="text-align:left" onclick="dbConfirmMoveCard('${jsAttr(c.name)}')">${esc(c.name)}</button>`
+  ).join('');
+  const newCatInput = document.getElementById('dbMoveNewCatInput');
+  if (newCatInput) newCatInput.value = '';
+  document.getElementById('dbMoveCardOverlay').style.display = 'flex';
 }
 
 function _dbRenderSection(catName, cards, canEdit) {
@@ -364,6 +537,7 @@ function _dbRenderSection(catName, cards, canEdit) {
   const isLocked = catName === 'Commander';
   const collapsed = dbCollapsedCats.has(catName);
   const catActions = canEdit ? `
+    <button class="db-cat-btn" title="Select all in this category" onclick="dbSelectCategory('${jsAttr(catName)}')">☑</button>
     <button class="db-cat-btn" title="Rename" onclick="dbShowRenameCat('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>✎</button>
     <button class="db-cat-btn db-cat-del" title="Delete" onclick="dbDeleteCategory('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>×</button>` : '';
 
@@ -398,6 +572,7 @@ function _dbListRow(card, canEdit) {
   const type  = sf?.type_line || face?.type_line || '';
   const owned = sfCardOwnership(card.card_name);
   const price = renderPrice(sf);
+  const selected = dbSelectedCards.has(card.card_name);
   const moveBtn = canEdit
     ? `<button class="db-row-btn" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>` : '';
   const delBtn = canEdit
@@ -409,11 +584,16 @@ function _dbListRow(card, canEdit) {
         <button class="db-qty-btn" onclick="dbChangeQty('${jsAttr(card.card_name)}',1)">+</button>
        </span>`
     : `<span class="dv-qty">×${card.qty || 1}</span>`;
+  const selectEl = canEdit
+    ? `<input type="checkbox" class="db-select-cb" draggable="false" ${selected ? 'checked' : ''}
+         onmousedown="event.stopPropagation()" onclick="dbToggleSelectCard(event,'${jsAttr(card.card_name)}')">`
+    : '<span></span>';
 
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
 
-  return `<div class="dv-row${canEdit ? ' db-draggable' : ''}" ${dragAttrs}>
+  return `<div class="dv-row${canEdit ? ' db-draggable' : ''}${selected ? ' db-row-selected' : ''}" ${dragAttrs}>
+    ${selectEl}
     ${qtyEl}
     <a class="dv-name card-link" href="#" data-name="${esc(card.card_name)}"
       >${esc(card.card_name)}</a>
@@ -431,14 +611,20 @@ function _dbGridTile(card, canEdit) {
   const img   = sf?.image_uris?.normal || face?.image_uris?.normal || '';
   const owned = sfCardOwnership(card.card_name);
   const price = renderPrice(sf);
+  const selected = dbSelectedCards.has(card.card_name);
   const btns  = canEdit ? `
     <div class="db-tile-btns">
       <button class="db-tile-btn db-tile-move" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
       <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
     </div>` : '';
+  const selectEl = canEdit
+    ? `<label class="db-tile-select" draggable="false" onmousedown="event.stopPropagation()">
+        <input type="checkbox" draggable="false" ${selected ? 'checked' : ''} onclick="dbToggleSelectCard(event,'${jsAttr(card.card_name)}')">
+       </label>` : '';
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
-  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}" ${dragAttrs}>
+  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs}>
+    ${selectEl}
     ${btns}
     <a href="#" class="card-open" data-name="${esc(card.card_name)}">
       ${img ? `<img class="sf-card-lg-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
@@ -464,14 +650,20 @@ function _dbGridTileXL(card, canEdit) {
   const type  = sf?.type_line || face?.type_line || '';
   const owned = sfCardOwnership(card.card_name);
   const price = renderPrice(sf);
+  const selected = dbSelectedCards.has(card.card_name);
   const btns  = canEdit ? `
     <div class="db-tile-btns">
       <button class="db-tile-btn db-tile-move" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
       <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
     </div>` : '';
+  const selectEl = canEdit
+    ? `<label class="db-tile-select" draggable="false" onmousedown="event.stopPropagation()">
+        <input type="checkbox" draggable="false" ${selected ? 'checked' : ''} onclick="dbToggleSelectCard(event,'${jsAttr(card.card_name)}')">
+       </label>` : '';
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
-  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}" ${dragAttrs}>
+  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs}>
+    ${selectEl}
     ${btns}
     <a href="#" class="card-open" data-name="${esc(card.card_name)}">
       ${img ? `<img class="sf-card-lg-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
@@ -496,15 +688,21 @@ function _dbPileTile(card, canEdit) {
   const sf   = dbCardData.get(card.card_name);
   const face = sf?.card_faces?.[0];
   const img  = sf?.image_uris?.normal || face?.image_uris?.normal || '';
+  const selected = dbSelectedCards.has(card.card_name);
   const btns = canEdit ? `
     <div class="db-tile-btns">
       <button class="db-tile-btn db-tile-move" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
       <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
     </div>` : '';
+  const selectEl = canEdit
+    ? `<label class="db-tile-select" draggable="false" onmousedown="event.stopPropagation()">
+        <input type="checkbox" draggable="false" ${selected ? 'checked' : ''} onclick="dbToggleSelectCard(event,'${jsAttr(card.card_name)}')">
+       </label>` : '';
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
-  return `<div class="db-pile-card${canEdit ? ' db-draggable' : ''}" ${dragAttrs}>
+  return `<div class="db-pile-card${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs}>
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
+    ${selectEl}
     ${btns}
     <a href="#" class="card-open" data-name="${esc(card.card_name)}">
       ${img ? `<img src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
@@ -647,25 +845,32 @@ async function dbChangeQty(name, delta) {
 }
 
 // ── Category operations ───────────────────────────────────────────────────────
-function dbAddCategory() {
-  const input = document.getElementById('dbNewCatInput');
-  const name  = (input?.value || '').trim();
-  if (!name || dbCats.find(c => c.name === name)) { input?.focus(); return; }
+function _dbAddCategoryByName(name) {
+  name = (name || '').trim();
+  if (!name || dbCats.find(c => c.name === name)) return false;
   dbCats.push({ name, position: dbCats.length });
-  if (input) input.value = '';
   dbRender();
   _dbScheduleSave();
+  return true;
+}
+
+function dbAddCategory() {
+  const input = document.getElementById('dbNewCatInput');
+  if (_dbAddCategoryByName(input?.value)) { if (input) input.value = ''; }
+  else input?.focus();
 }
 
 function dbDeleteCategory(name) {
   if (name === 'Commander') return;
-  if (!confirm(`Delete category "${name}"? Cards will move to Other.`)) return;
-  for (const c of dbCards) if (c.category === name) c.category = 'Other';
+  if (!confirm(`Delete category "${name}"? Cards will move to Uncategorised.`)) return;
+  let moved = false;
+  for (const c of dbCards) if (c.category === name) { c.category = 'Uncategorised'; moved = true; }
   dbCats = dbCats.filter(c => c.name !== name);
-  dbEnsureCat('Other');
+  if (moved) dbEnsureCat('Uncategorised');
   dbRender();
   dbRenderStats();
   _dbScheduleSave();
+  _dbRenderCategoriesModalList();
 }
 
 function dbShowRenameCat(name) {
@@ -680,6 +885,10 @@ function dbShowRenameCat(name) {
 function dbHideRenameCat() {
   _dbRenamingCat = null;
   document.getElementById('dbRenameCatOverlay').style.display = 'none';
+  if (_dbCatModalReturnTo === 'categories') {
+    _dbCatModalReturnTo = null;
+    dbShowCategoriesModal();
+  }
 }
 
 function dbConfirmRenameCat() {
@@ -696,26 +905,97 @@ function dbConfirmRenameCat() {
   _dbScheduleSave();
 }
 
+// ── Manage Categories modal ───────────────────────────────────────────────────
+function dbShowCategoriesModal() {
+  if (!dbDeck) return;
+  _dbRenderCategoriesModalList();
+  document.getElementById('dbCategoriesOverlay').style.display = 'flex';
+}
+
+function dbHideCategoriesModal() {
+  document.getElementById('dbCategoriesOverlay').style.display = 'none';
+}
+
+function _dbRenderCategoriesModalList() {
+  const list = document.getElementById('dbCategoriesModalList');
+  if (!list || !dbDeck) return;
+  const canEdit = isMyPlayer(dbDeck.playerId);
+  document.getElementById('dbCategoriesModalAddRow').style.display = canEdit ? '' : 'none';
+  list.innerHTML = dbCats.map(cat => {
+    const isLocked = cat.name === 'Commander';
+    const count = dbCards
+      .filter(c => (c.category || dbAutoCategory(c.card_name)) === cat.name)
+      .reduce((s, c) => s + (c.qty || 1), 0);
+    const actions = canEdit ? `
+      <button class="db-cat-btn" title="Rename" onclick="dbRenameCatFromModal('${jsAttr(cat.name)}')"${isLocked ? ' style="display:none"' : ''}>✎</button>
+      <button class="db-cat-btn db-cat-del" title="Delete" onclick="dbDeleteCategory('${jsAttr(cat.name)}')"${isLocked ? ' style="display:none"' : ''}>×</button>` : '';
+    return `<div class="db-catmodal-row">
+      <span class="db-catmodal-name">${esc(cat.name)}</span>
+      <span class="db-catmodal-count">${count}</span>
+      ${actions}
+    </div>`;
+  }).join('') || '<div class="empty-state" style="padding:1rem">No categories yet</div>';
+}
+
+function dbAddCategoryFromModal() {
+  const input = document.getElementById('dbModalNewCatInput');
+  if (_dbAddCategoryByName(input?.value)) {
+    if (input) input.value = '';
+    _dbRenderCategoriesModalList();
+  } else input?.focus();
+}
+
+function dbRenameCatFromModal(name) {
+  dbHideCategoriesModal();
+  _dbCatModalReturnTo = 'categories';
+  dbShowRenameCat(name);
+}
+
 // ── Move card modal ───────────────────────────────────────────────────────────
 function dbShowMoveCard(name) {
-  _dbMovingCard = name;
+  _dbMovingCard   = name;
+  _dbBulkMoveMode = false;
   document.getElementById('dbMoveCardTitle').textContent = `Move: ${name}`;
   const card    = dbCards.find(c => c.card_name === name);
   const current = card?.category || '';
   const list    = document.getElementById('dbMoveCatList');
-  list.innerHTML = dbCats.map(c =>
+  list.innerHTML = _dbAutoCatButtonHtml() + dbCats.map(c =>
     `<button class="btn-${c.name === current ? 'primary' : 'secondary'}" style="text-align:left"
        onclick="dbConfirmMoveCard('${jsAttr(c.name)}')">${esc(c.name)}</button>`
   ).join('');
+  const newCatInput = document.getElementById('dbMoveNewCatInput');
+  if (newCatInput) newCatInput.value = '';
   document.getElementById('dbMoveCardOverlay').style.display = 'flex';
 }
 
 function dbHideMoveCard() {
-  _dbMovingCard = null;
+  _dbMovingCard   = null;
+  _dbBulkMoveMode = false;
   document.getElementById('dbMoveCardOverlay').style.display = 'none';
 }
 
+// Create a brand-new category right from the move modal and move the
+// card(s) into it in one step, instead of needing Manage Categories first.
+function dbMoveToNewCategory() {
+  const input = document.getElementById('dbMoveNewCatInput');
+  const name  = (input?.value || '').trim();
+  if (!name) { input?.focus(); return; }
+  if (!dbCats.find(c => c.name === name)) dbEnsureCat(name);
+  dbConfirmMoveCard(name);
+}
+
 function dbConfirmMoveCard(catName) {
+  if (_dbBulkMoveMode) {
+    for (const name of dbSelectedCards) {
+      const card = dbCards.find(c => c.card_name === name);
+      if (card) card.category = catName;
+    }
+    dbSelectedCards.clear();
+    dbHideMoveCard();
+    dbRender();
+    _dbScheduleSave();
+    return;
+  }
   if (!_dbMovingCard) return dbHideMoveCard();
   const card = dbCards.find(c => c.card_name === _dbMovingCard);
   if (card) { card.category = catName; }
