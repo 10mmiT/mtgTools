@@ -455,6 +455,41 @@ function dbRender() {
 }
 
 // ── Multiselect → bulk move ─────────────────────────────────────────────────
+// Clicking a card row/tile selects it (desktop click or mobile tap); a
+// dedicated "ⓘ" button (top-left on tiles, first column in list view) opens
+// the card info popup instead. On touch devices, a long-press also opens the
+// info popup in place of needing to find/tap that small button.
+let _dbLongPressTimer = null;
+let _dbLongPressFired = false;
+const DB_LONG_PRESS_MS = 500;
+
+function dbTouchStart(e, name) {
+  _dbLongPressFired = false;
+  clearTimeout(_dbLongPressTimer);
+  _dbLongPressTimer = setTimeout(() => {
+    _dbLongPressFired = true;
+    openCardByName(name);
+  }, DB_LONG_PRESS_MS);
+}
+
+function dbTouchMove() { clearTimeout(_dbLongPressTimer); }
+function dbTouchEnd()  { clearTimeout(_dbLongPressTimer); }
+
+// preventDefault here also suppresses the global .card-link → openCardByName
+// click routing (it checks e.defaultPrevented), so the name text inside the
+// row/tile can keep the .card-link class (for the hover-preview tooltip)
+// without also opening the info popup on a plain click.
+function dbCardClick(e, name) {
+  e.preventDefault();
+  if (_dbLongPressFired) { _dbLongPressFired = false; return; }
+  dbToggleSelectCard(e, name);
+}
+
+function _dbCardClickAttrs(name) {
+  const n = jsAttr(name);
+  return `onclick="dbCardClick(event,'${n}')" ontouchstart="dbTouchStart(event,'${n}')" ontouchmove="dbTouchMove()" ontouchend="dbTouchEnd()"`;
+}
+
 function dbToggleSelectCard(event, name) {
   event.stopPropagation();
   if (dbSelectedCards.has(name)) dbSelectedCards.delete(name);
@@ -597,27 +632,25 @@ function _dbListRow(card, canEdit) {
   const owned = sfCardOwnership(card.card_name);
   const price = renderPrice(sf);
   const selected = dbSelectedCards.has(card.card_name);
+  const infoEl  = `<button class="db-row-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
   const moveBtn = canEdit
-    ? `<button class="db-row-btn" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>` : '';
+    ? `<button class="db-row-btn" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>` : '';
   const delBtn = canEdit
-    ? `<button class="db-row-btn db-row-del" title="Remove" onclick="dbRemoveCard('${jsAttr(card.card_name)}')">×</button>` : '';
+    ? `<button class="db-row-btn db-row-del" title="Remove" onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>` : '';
   const qtyEl = canEdit
     ? `<span class="db-qty-wrap">
-        <button class="db-qty-btn" onclick="dbChangeQty('${jsAttr(card.card_name)}',-1)">−</button>
+        <button class="db-qty-btn" onclick="event.stopPropagation();dbChangeQty('${jsAttr(card.card_name)}',-1)">−</button>
         <span class="dv-qty">×${card.qty || 1}</span>
-        <button class="db-qty-btn" onclick="dbChangeQty('${jsAttr(card.card_name)}',1)">+</button>
+        <button class="db-qty-btn" onclick="event.stopPropagation();dbChangeQty('${jsAttr(card.card_name)}',1)">+</button>
        </span>`
     : `<span class="dv-qty">×${card.qty || 1}</span>`;
-  const selectEl = canEdit
-    ? `<input type="checkbox" class="db-select-cb" draggable="false" ${selected ? 'checked' : ''}
-         onmousedown="event.stopPropagation()" onclick="dbToggleSelectCard(event,'${jsAttr(card.card_name)}')">`
-    : '<span></span>';
 
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
+  const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
 
-  return `<div class="dv-row${canEdit ? ' db-draggable' : ''}${selected ? ' db-row-selected' : ''}" ${dragAttrs}>
-    ${selectEl}
+  return `<div class="dv-row${canEdit ? ' db-draggable' : ''}${selected ? ' db-row-selected' : ''}" ${dragAttrs} ${clickAttrs}>
+    ${infoEl}
     ${qtyEl}
     <a class="dv-name card-link" href="#" data-name="${esc(card.card_name)}"
       >${esc(card.card_name)}</a>
@@ -636,24 +669,22 @@ function _dbGridTile(card, canEdit) {
   const owned = sfCardOwnership(card.card_name);
   const price = renderPrice(sf);
   const selected = dbSelectedCards.has(card.card_name);
+  const infoBtn = `<button class="db-tile-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
   const btns  = canEdit ? `
     <div class="db-tile-btns">
-      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
-      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
+      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
+      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
     </div>` : '';
-  const selectEl = canEdit
-    ? `<label class="db-tile-select" draggable="false" onmousedown="event.stopPropagation()">
-        <input type="checkbox" draggable="false" ${selected ? 'checked' : ''} onclick="dbToggleSelectCard(event,'${jsAttr(card.card_name)}')">
-       </label>` : '';
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
-  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs}>
-    ${selectEl}
+  const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
+  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs} ${clickAttrs}>
+    <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
-    <a href="#" class="card-open" data-name="${esc(card.card_name)}">
+    <div data-name="${esc(card.card_name)}">
       ${img ? `<img class="sf-card-lg-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </a>
+    </div>
     <div class="sf-card-lg-footer">
       <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
@@ -675,24 +706,22 @@ function _dbGridTileXL(card, canEdit) {
   const owned = sfCardOwnership(card.card_name);
   const price = renderPrice(sf);
   const selected = dbSelectedCards.has(card.card_name);
+  const infoBtn = `<button class="db-tile-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
   const btns  = canEdit ? `
     <div class="db-tile-btns">
-      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
-      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
+      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
+      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
     </div>` : '';
-  const selectEl = canEdit
-    ? `<label class="db-tile-select" draggable="false" onmousedown="event.stopPropagation()">
-        <input type="checkbox" draggable="false" ${selected ? 'checked' : ''} onclick="dbToggleSelectCard(event,'${jsAttr(card.card_name)}')">
-       </label>` : '';
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
-  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs}>
-    ${selectEl}
+  const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
+  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs} ${clickAttrs}>
+    <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
-    <a href="#" class="card-open" data-name="${esc(card.card_name)}">
+    <div data-name="${esc(card.card_name)}">
       ${img ? `<img class="sf-card-lg-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </a>
+    </div>
     <div class="sf-card-lg-footer">
       <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
@@ -713,25 +742,23 @@ function _dbPileTile(card, canEdit) {
   const face = sf?.card_faces?.[0];
   const img  = sf?.image_uris?.normal || face?.image_uris?.normal || '';
   const selected = dbSelectedCards.has(card.card_name);
+  const infoBtn = `<button class="db-tile-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
   const btns = canEdit ? `
     <div class="db-tile-btns">
-      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
-      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
+      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
+      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
     </div>` : '';
-  const selectEl = canEdit
-    ? `<label class="db-tile-select" draggable="false" onmousedown="event.stopPropagation()">
-        <input type="checkbox" draggable="false" ${selected ? 'checked' : ''} onclick="dbToggleSelectCard(event,'${jsAttr(card.card_name)}')">
-       </label>` : '';
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
-  return `<div class="db-pile-card${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs}>
+  const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
+  return `<div class="db-pile-card${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs} ${clickAttrs}>
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
-    ${selectEl}
+    <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
-    <a href="#" class="card-open" data-name="${esc(card.card_name)}">
+    <div data-name="${esc(card.card_name)}">
       ${img ? `<img src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--card-2);border-radius:8px"></div>`}
-    </a>
+    </div>
   </div>`;
 }
 

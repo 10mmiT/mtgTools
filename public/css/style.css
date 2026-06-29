@@ -2212,7 +2212,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 .dv-row:hover { background: var(--card-2); }
 .db-row-selected { background: color-mix(in srgb, var(--primary) 14%, transparent); }
-.db-select-cb { width: auto; cursor: pointer; accent-color: var(--primary); }
 
 .dv-qty {
   font-size: .78rem;
@@ -2874,20 +2873,19 @@ a:focus-visible, [tabindex]:focus-visible {
 .db-tile-move:hover { background: var(--primary); }
 .db-tile-del:hover  { background: var(--danger); }
 
-/* Tile multiselect checkbox — always visible (unlike the hover-only action buttons) */
-.db-tile-select {
+/* Card-info button, top-left — hover-reveal like the move/delete buttons.
+   Clicking the card itself (image, name, or anywhere else on the tile)
+   selects it instead; this is the dedicated way to open the info popup. */
+.db-tile-info-wrap {
   position: absolute;
   top: .3rem;
   left: .3rem;
-  z-index: 3;
-  background: rgba(0,0,0,.65);
-  border-radius: 5px;
-  padding: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity .15s;
 }
-.db-tile-select input { width: auto; cursor: pointer; accent-color: var(--primary); }
+.db-tile:hover .db-tile-info-wrap,
+.db-pile-card:hover .db-tile-info-wrap { opacity: 1; }
 .db-tile-selected { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 8px; }
 
 /* Bulk actions bar (multiselect → move to category) */
