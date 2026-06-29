@@ -5,6 +5,54 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// ── EDHREC cache ──────────────────────────────────────────────────────────────
+const edhrecCache = new Map(); // slug → { data, fetchedAt }
+const EDHREC_TTL  = 30 * 60 * 1000;
+
+function makeEdhrecSlug(name) {
+  return name.toLowerCase()
+    .replace(/[',]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function fetchJson(url, headers) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers }, apiRes => {
+      if (apiRes.statusCode !== 200) {
+        apiRes.resume();
+        return reject(new Error(`HTTP ${apiRes.statusCode}`));
+      }
+      let buf = '';
+      apiRes.on('data', c => {
+        buf += c;
+        if (buf.length > 5_000_000) { apiRes.destroy(); reject(new Error('Response too large')); }
+      });
+      apiRes.on('end', () => {
+        try { resolve(JSON.parse(buf)); } catch { reject(new Error('Invalid JSON')); }
+      });
+    }).on('error', reject);
+  });
+}
+
+router.get('/edhrec/commander/:name', requireAuth, async (req, res) => {
+  const name = decodeURIComponent(req.params.name);
+  const slug = makeEdhrecSlug(name);
+  const cached = edhrecCache.get(slug);
+  if (cached && Date.now() - cached.fetchedAt < EDHREC_TTL) return res.json(cached.data);
+  try {
+    const data = await fetchJson(
+      `https://json.edhrec.com/pages/commanders/${slug}.json`,
+      { 'User-Agent': 'MTGTools/1.0', 'Accept': 'application/json' }
+    );
+    edhrecCache.set(slug, { data, fetchedAt: Date.now() });
+    res.json(data);
+  } catch (e) {
+    console.error(`[edhrec] ${slug}: ${e.message}`);
+    res.status(502).json({ error: e.message });
+  }
+});
+
 function proxyGet(url, headers, res) {
   https.get(url, { headers }, apiRes => {
     console.log(`${apiRes.statusCode} ${url}`);

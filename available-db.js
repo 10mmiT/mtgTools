@@ -86,6 +86,22 @@ db.exec(`
     expires_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+  CREATE TABLE IF NOT EXISTS deck_cards (
+    deck_id   TEXT NOT NULL,
+    card_name TEXT NOT NULL,
+    qty       INTEGER NOT NULL DEFAULT 1,
+    category  TEXT NOT NULL DEFAULT '',
+    position  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (deck_id, card_name)
+  );
+  CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id);
+  CREATE TABLE IF NOT EXISTS deck_categories (
+    deck_id  TEXT NOT NULL,
+    name     TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (deck_id, name)
+  );
+  CREATE INDEX IF NOT EXISTS idx_deck_categories_deck ON deck_categories(deck_id);
 `);
 
 // ── Schema migrations ────────────────────────────────────────────────────────
