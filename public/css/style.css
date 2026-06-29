@@ -2758,6 +2758,11 @@ a:focus-visible, [tabindex]:focus-visible {
   font-weight: 600;
 }
 
+/* Disable native scroll anchoring here — dbRender() restores scroll position
+   itself on every re-render, and the browser's own anchoring would otherwise
+   fight that and reintroduce the jump it's meant to prevent. */
+.db-bulk-bar, #dbDeckContent { overflow-anchor: none; }
+
 /* Add button in search results */
 .db-add-btn {
   background: var(--primary);

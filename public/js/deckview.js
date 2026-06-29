@@ -394,6 +394,12 @@ function _dbMatchesFilter(cardName) {
 // ── Render ────────────────────────────────────────────────────────────────────
 function dbRender() {
   if (!dbDeck) return;
+  // Rebuilding the deck list (and the bulk-action bar above it) can shift
+  // page height enough to scroll the cards you're looking at out from under
+  // the cursor. Freeze the scroll position across the rebuild so it doesn't.
+  const _scroller  = document.scrollingElement || document.documentElement;
+  const _scrollTop = _scroller.scrollTop;
+
   const { field, dir } = getSort('deckbuild', { field: 'name', dir: 1 });
   const cmp = cardComparator(field, dir);
 
@@ -436,6 +442,8 @@ function dbRender() {
   _dbContent.classList.toggle('db-pile-layout', dbView === 'pile');
 
   _dbRenderBulkBar();
+
+  _scroller.scrollTop = _scrollTop;
 }
 
 // ── Multiselect → bulk move ─────────────────────────────────────────────────

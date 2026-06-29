@@ -75,7 +75,12 @@
       "Bash(curl -s \"https://archidekt.com/api/decks/newDecks/?formats=3&pageSize=3\" -H \"User-Agent: MTGTools/1.0\")",
       "WebSearch",
       "WebFetch(domain:archidekt.com)",
-      "Bash(curl -s -X PUT http://localhost:3001/api/players/p_test/decks/d_ramp_test/cards -H 'Content-Type: application/json' -d '{ *)"
+      "Bash(curl -s -X PUT http://localhost:3001/api/players/p_test/decks/d_ramp_test/cards -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s -X PUT \"http://localhost:3001/api/players/p_test/decks/d_scroll_test/cards\" -H \"Content-Type: application/json\" --data-binary @/tmp/payload.json)",
+      "Bash(node verify_scroll3.js)",
+      "Bash(node verify_scroll2.js)",
+      "Bash(node verify_scroll.js)",
+      "Bash(docker start *)"
     ],
     "additionalDirectories": [
       "\\tmp\\pwrun"
