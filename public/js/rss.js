@@ -5,6 +5,7 @@ function toggleRssPanel() {
   rssPanelOpen = !rssPanelOpen;
   document.getElementById('rssPanel').classList.toggle('open', rssPanelOpen);
   document.getElementById('rssToggleBtn').classList.toggle('active', rssPanelOpen);
+  document.getElementById('sidenavRssBtn')?.classList.toggle('rss-open', rssPanelOpen);
   if (rssPanelOpen) loadRss();
 }
 

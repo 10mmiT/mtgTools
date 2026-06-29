@@ -80,7 +80,8 @@
       "Bash(node verify_scroll3.js)",
       "Bash(node verify_scroll2.js)",
       "Bash(node verify_scroll.js)",
-      "Bash(docker start *)"
+      "Bash(docker start *)",
+      "Bash(git pull *)"
     ],
     "additionalDirectories": [
       "\\tmp\\pwrun"

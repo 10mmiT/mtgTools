@@ -35,6 +35,9 @@ function _authUpdateHeader() {
   const mobNavUser    = document.getElementById('mobNavUser');
   const mobChangePw   = document.getElementById('mob-changepw-btn');
   const mobLogout     = document.getElementById('mob-logout-btn');
+  const sidenavBadge  = document.getElementById('sidenavUserBadge');
+  const sidenavCpw    = document.getElementById('sidenavChangePwBtn');
+  const sidenavLogout = document.getElementById('sidenavLogoutBtn');
   if (logoutBtn)    logoutBtn.style.display    = '';
   if (adminBtn)     adminBtn.style.display     = isAdmin ? '' : 'none';
   if (mobAdminBtn)  mobAdminBtn.style.display  = isAdmin ? '' : 'none';
@@ -44,6 +47,13 @@ function _authUpdateHeader() {
   if (mobLogout)    mobLogout.style.display      = '';
   if (addPlayerBar)  addPlayerBar.style.display  = isAdmin ? '' : 'none';
   if (wantAddPlayer) wantAddPlayer.style.display = isAdmin ? '' : 'none';
+  if (sidenavBadge) {
+    sidenavBadge.textContent = currentUser.username;
+    sidenavBadge.style.display = '';
+    sidenavBadge.classList.toggle('user-badge-admin', isAdmin);
+  }
+  if (sidenavCpw)    sidenavCpw.style.display    = isOpenMode ? 'none' : '';
+  if (sidenavLogout) sidenavLogout.style.display = '';
 }
 
 function openChangePassword() {

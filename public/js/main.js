@@ -57,6 +57,8 @@ function initTheme() {
   document.getElementById('themeToggle').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
   const lbl = document.getElementById('mobNavThemeLabel');
   if (lbl) lbl.textContent = saved === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
+  const sideLbl = document.getElementById('sidenavThemeLabel');
+  if (sideLbl) sideLbl.textContent = saved === 'dark' ? 'Light mode' : 'Dark mode';
 }
 
 function toggleTheme() {
@@ -66,6 +68,8 @@ function toggleTheme() {
   document.getElementById('themeToggle').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
   const lbl = document.getElementById('mobNavThemeLabel');
   if (lbl) lbl.textContent = next === 'dark' ? '☀ Light mode' : '🌙 Dark mode';
+  const sideLbl = document.getElementById('sidenavThemeLabel');
+  if (sideLbl) sideLbl.textContent = next === 'dark' ? 'Light mode' : 'Dark mode';
 }
 
 // ── View mode ─────────────────────────────────────────────────────────
