@@ -862,7 +862,12 @@
     <div class="card-modal-box" style="max-width:360px;padding:1.5rem">
       <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem" id="dbMoveCardTitle">Move Card</div>
       <div id="dbMoveCatList" style="display:flex;flex-direction:column;gap:.35rem"></div>
-      <button class="btn-secondary" style="margin-top:1rem;width:100%" onclick="dbHideMoveCard()">Cancel</button>
+      <div style="display:flex;gap:.4rem;margin-top:.75rem">
+        <input type="text" id="dbMoveNewCatInput" placeholder="New category…" style="flex:1;box-sizing:border-box"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();dbMoveToNewCategory()}">
+        <button class="btn-secondary" style="flex-shrink:0" onclick="dbMoveToNewCategory()">+ Create &amp; move</button>
+      </div>
+      <button class="btn-secondary" style="margin-top:.75rem;width:100%" onclick="dbHideMoveCard()">Cancel</button>
     </div>
   </div>
 

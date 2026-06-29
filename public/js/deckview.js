@@ -527,6 +527,8 @@ function dbBulkMove() {
   list.innerHTML = _dbAutoCatButtonHtml() + dbCats.map(c =>
     `<button class="btn-secondary" style="text-align:left" onclick="dbConfirmMoveCard('${jsAttr(c.name)}')">${esc(c.name)}</button>`
   ).join('');
+  const newCatInput = document.getElementById('dbMoveNewCatInput');
+  if (newCatInput) newCatInput.value = '';
   document.getElementById('dbMoveCardOverlay').style.display = 'flex';
 }
 
@@ -961,6 +963,8 @@ function dbShowMoveCard(name) {
     `<button class="btn-${c.name === current ? 'primary' : 'secondary'}" style="text-align:left"
        onclick="dbConfirmMoveCard('${jsAttr(c.name)}')">${esc(c.name)}</button>`
   ).join('');
+  const newCatInput = document.getElementById('dbMoveNewCatInput');
+  if (newCatInput) newCatInput.value = '';
   document.getElementById('dbMoveCardOverlay').style.display = 'flex';
 }
 
@@ -968,6 +972,16 @@ function dbHideMoveCard() {
   _dbMovingCard   = null;
   _dbBulkMoveMode = false;
   document.getElementById('dbMoveCardOverlay').style.display = 'none';
+}
+
+// Create a brand-new category right from the move modal and move the
+// card(s) into it in one step, instead of needing Manage Categories first.
+function dbMoveToNewCategory() {
+  const input = document.getElementById('dbMoveNewCatInput');
+  const name  = (input?.value || '').trim();
+  if (!name) { input?.focus(); return; }
+  if (!dbCats.find(c => c.name === name)) dbEnsureCat(name);
+  dbConfirmMoveCard(name);
 }
 
 function dbConfirmMoveCard(catName) {
