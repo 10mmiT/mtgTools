@@ -663,7 +663,6 @@ td { padding: .45rem .75rem; }
     border-top: 1px solid var(--border);
     border-right: 2px solid transparent;
     margin-right: -2px;
-    margin-top: auto;
     padding: .55rem .85rem;
     font-size: .82rem;
     font-weight: 600;
