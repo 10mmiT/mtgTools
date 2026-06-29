@@ -114,6 +114,37 @@
   --accent: var(--primary);
 }
 
+/* Forest — dark theme with green hues. */
+[data-theme="forest"] {
+  --bg:         #0a120d;
+  --card:       #101a14;
+  --card-2:     #16241c;
+  --border:     #2a3d30;
+  --text:       #e8f5ec;
+  --muted:      #8aa893;
+  --primary:    #22c55e;
+  --primary-dk: #16a34a;
+  --primary-lt: #052e16;
+  --primary-tx: #bbf7d0;
+  --danger:     #ef4444;
+  --danger-lt:  #3b0a0a;
+  --shadow:     0 2px 12px rgba(0,0,0,.5);
+  --hdr-bg:     #07120c;
+
+  /* Mana colours stay close to the base dark theme — they represent the
+     game's WUBRG identity, not the UI accent, so they shouldn't shift
+     just because the chrome around them turns green. */
+  --mc-w: #d9c879;
+  --mc-u: #5a9fd4;
+  --mc-b: #9b8bb0;
+  --mc-r: #e05a4d;
+  --mc-g: #4aa86a;
+  --mc-c: #9aa0b5;
+  --mc-gold: #d4af37;
+
+  --accent: var(--primary);
+}
+
 /* ── Per-tab accent colours (the "WUBRG here and there" theming) ─────────
    Each tab pane + its nav buttons inherit a mana-coloured --accent that
    tints the active nav item and panel-title bars within that tab. */
@@ -2563,7 +2594,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 .card-modal-box {
   position: relative;
   z-index: 1;
-  background: var(--surface);
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: .75rem;
   box-shadow: 0 24px 64px rgba(0,0,0,.55);
@@ -2914,7 +2945,7 @@ a:focus-visible, [tabindex]:focus-visible {
   justify-content: center;
   transition: background .15s;
 }
-.db-add-btn:hover { background: var(--primary-dark, #6d28d9); }
+.db-add-btn:hover { background: var(--primary-dk); }
 .db-add-btn-in { background: var(--success, #22c55e); cursor: default; }
 
 /* Search results list */

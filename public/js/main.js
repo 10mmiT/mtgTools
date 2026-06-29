@@ -56,6 +56,7 @@ const THEMES = [
   { id: 'light',    label: 'Light' },
   { id: 'contrast', label: 'High Contrast' },
   { id: 'sepia',    label: 'Sepia' },
+  { id: 'forest',   label: 'Forest' },
 ];
 
 function _themeLabel(id) { return THEMES.find(t => t.id === id)?.label || id; }

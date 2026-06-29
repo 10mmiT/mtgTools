@@ -73,6 +73,7 @@
       <button class="col-menu-item theme-pick-item" data-theme="light" onclick="setTheme('light')">Light</button>
       <button class="col-menu-item theme-pick-item" data-theme="contrast" onclick="setTheme('contrast')">High Contrast</button>
       <button class="col-menu-item theme-pick-item" data-theme="sepia" onclick="setTheme('sepia')">Sepia</button>
+      <button class="col-menu-item theme-pick-item" data-theme="forest" onclick="setTheme('forest')">Forest</button>
     </div>
   </div>
   <button class="tab-btn" id="sidenavRssBtn" onclick="toggleRssPanel()">
@@ -903,13 +904,13 @@
 
   <!-- Move card modal -->
   <div id="dbMoveCardOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
-    <div class="card-modal-box" style="max-width:360px;padding:1.5rem">
+    <div class="card-modal-box" style="max-width:460px;padding:1.5rem">
       <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem" id="dbMoveCardTitle">Move Card</div>
       <div id="dbMoveCatList" style="display:flex;flex-direction:column;gap:.35rem"></div>
       <div style="display:flex;gap:.4rem;margin-top:.75rem">
-        <input type="text" id="dbMoveNewCatInput" placeholder="New category…" style="flex:1;box-sizing:border-box"
+        <input type="text" id="dbMoveNewCatInput" placeholder="New category…" style="flex:1;min-width:0;box-sizing:border-box"
                onkeydown="if(event.key==='Enter'){event.preventDefault();dbMoveToNewCategory()}">
-        <button class="btn-secondary" style="flex-shrink:0" onclick="dbMoveToNewCategory()">+ Create &amp; move</button>
+        <button class="btn-secondary" style="flex-shrink:0" onclick="dbMoveToNewCategory()">+ Create</button>
       </div>
       <button class="btn-secondary" style="margin-top:.75rem;width:100%" onclick="dbHideMoveCard()">Cancel</button>
     </div>
