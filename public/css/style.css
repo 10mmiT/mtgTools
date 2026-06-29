@@ -2249,6 +2249,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 .col-menu-item:hover { background: var(--card-2); }
 .col-menu-item input { width: auto; cursor: pointer; accent-color: var(--accent, var(--primary)); }
+/* .col-menu-item is normally a <label>; reset button-specific UA styles when
+   used as a plain action row (e.g. the deck builder's "More" menu). */
+button.col-menu-item { width: 100%; background: none; border: none; font: inherit; color: var(--text); text-align: left; }
 
 .td-meta { font-size: .82rem; color: var(--muted); white-space: nowrap; }
 .td-meta .ms { vertical-align: -1px; }
@@ -2911,32 +2914,23 @@ a:focus-visible, [tabindex]:focus-visible {
 }
 .db-edh-inc { font-size: .72rem; color: var(--muted); }
 
-/* Export dropdown */
-.db-export-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.25);
-  z-index: 200;
-  min-width: 160px;
-  overflow: hidden;
+/* Topbar "More" menu (sectioned dropdown — Archidekt-style consolidation
+   of what used to be 5+ separate always-visible buttons) */
+.db-more-menu { min-width: 210px; }
+.db-more-section-label {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  padding: .4rem .55rem .15rem;
 }
-.db-export-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: .55rem .85rem;
-  font-size: .83rem;
-  color: var(--text);
-  cursor: pointer;
-}
-.db-export-menu button:hover { background: var(--card-2); }
-.db-export-wrap { position: relative; }
+.db-more-divider { border-top: 1px solid var(--border); margin: .3rem 0; }
+.db-menu-danger { color: var(--danger); }
+.db-menu-danger:hover { background: var(--danger-lt); }
+
+/* Category header kebab menu (☑ select / ✎ rename / × delete consolidated) */
+.db-cat-kebab-wrap { position: relative; display: inline-block; }
 
 /* Stats bar */
 .db-stats-bar {

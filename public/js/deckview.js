@@ -37,8 +37,8 @@ function initDeckBuilder() {
   if (!_dbInitDone) {
     document.getElementById('dbCsvInput').addEventListener('change', _dbHandleCsvImport);
     document.addEventListener('click', e => {
-      if (!e.target.closest('#dbExportMenu') && !e.target.closest('.db-export-wrap'))
-        document.getElementById('dbExportMenu').style.display = 'none';
+      if (!e.target.closest('#dbMoreMenu') && !e.target.closest('.col-menu-wrap')) dbCloseMoreMenu();
+      if (!e.target.closest('.db-cat-kebab-wrap')) dbCloseCatMenus();
     });
 
     // Restore persisted view and scale
@@ -471,7 +471,7 @@ function dbSelectAllVisible() {
   dbRender();
 }
 
-// Select every (visible) card in one category, via the category header button
+// Select every (visible) card in one category, via the category header menu
 function dbSelectCategory(catName) {
   if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
   for (const card of dbCards) {
@@ -479,6 +479,20 @@ function dbSelectCategory(catName) {
     if (cat === catName && _dbMatchesFilter(card.card_name)) dbSelectedCards.add(card.card_name);
   }
   dbRender();
+}
+
+// ── Category header "⋯" menu ─────────────────────────────────────────────────
+function dbToggleCatMenu(e) {
+  e.stopPropagation();
+  const wrap = e.currentTarget.closest('.db-cat-kebab-wrap');
+  const menu = wrap?.querySelector('.db-cat-menu');
+  const wasOpen = menu?.classList.contains('open');
+  dbCloseCatMenus();
+  if (menu && !wasOpen) menu.classList.add('open');
+}
+
+function dbCloseCatMenus() {
+  document.querySelectorAll('.db-cat-menu.open').forEach(m => m.classList.remove('open'));
 }
 
 function _dbRenderBulkBar() {
@@ -537,9 +551,14 @@ function _dbRenderSection(catName, cards, canEdit) {
   const isLocked = catName === 'Commander';
   const collapsed = dbCollapsedCats.has(catName);
   const catActions = canEdit ? `
-    <button class="db-cat-btn" title="Select all in this category" onclick="dbSelectCategory('${jsAttr(catName)}')">☑</button>
-    <button class="db-cat-btn" title="Rename" onclick="dbShowRenameCat('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>✎</button>
-    <button class="db-cat-btn db-cat-del" title="Delete" onclick="dbDeleteCategory('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>×</button>` : '';
+    <div class="db-cat-kebab-wrap">
+      <button class="db-cat-btn" title="Category actions" onclick="dbToggleCatMenu(event)">⋯</button>
+      <div class="col-menu db-cat-menu">
+        <button class="col-menu-item" onclick="dbCloseCatMenus();dbSelectCategory('${jsAttr(catName)}')">Select all</button>
+        <button class="col-menu-item" onclick="dbCloseCatMenus();dbShowRenameCat('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>Rename</button>
+        <button class="col-menu-item db-menu-danger" onclick="dbCloseCatMenus();dbDeleteCategory('${jsAttr(catName)}')"${isLocked ? ' style="display:none"' : ''}>Delete</button>
+      </div>
+    </div>` : '';
 
   const dropAttrs = canEdit
     ? `ondragover="dbDragOver(event)" ondragleave="dbDragLeave(event)" ondrop="dbDrop(event,'${jsAttr(catName)}')"` : '';
@@ -1503,13 +1522,17 @@ async function _dbImportCards(cards) {
   _dbScheduleSave();
 }
 
-// ── Export ────────────────────────────────────────────────────────────────────
-function dbToggleExport(e) {
+// ── Topbar "More" menu ──────────────────────────────────────────────────────
+function dbToggleMoreMenu(e) {
   e?.stopPropagation();
-  const menu = document.getElementById('dbExportMenu');
-  if (menu) menu.style.display = menu.style.display === 'none' ? '' : 'none';
+  document.getElementById('dbMoreMenu')?.classList.toggle('open');
 }
 
+function dbCloseMoreMenu() {
+  document.getElementById('dbMoreMenu')?.classList.remove('open');
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
 function _dbExportText() {
   const lines = [];
   for (const cat of dbCats) {
@@ -1528,20 +1551,17 @@ function dbExportClipboard() {
     _dbSetSaveStatus('Copied ✓');
     setTimeout(() => _dbSetSaveStatus(''), 2000);
   });
-  document.getElementById('dbExportMenu').style.display = 'none';
 }
 
 function dbExportCsv() {
   if (!dbDeck) return;
   const rows = ['qty,name', ...dbCards.map(c => `${c.qty || 1},"${c.card_name.replace(/"/g,'""')}"`)];
   _dbDownload(`${dbDeck.name}.csv`, rows.join('\n'), 'text/csv');
-  document.getElementById('dbExportMenu').style.display = 'none';
 }
 
 function dbExportTxt() {
   if (!dbDeck) return;
   _dbDownload(`${dbDeck.name}.txt`, _dbExportText(), 'text/plain');
-  document.getElementById('dbExportMenu').style.display = 'none';
 }
 
 function _dbDownload(filename, content, type) {
