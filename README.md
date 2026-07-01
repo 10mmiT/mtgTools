@@ -256,7 +256,10 @@ mtgtools/
 │       ├── lands.js       # Mana base calculator tab
 │       ├── auth.js        # Session auth, quick-add wants, change password
 │       ├── admin.js       # Admin panel (user management, account requests)
-│       ├── deckview.js    # Deck Builder tab (editing, categories, drag/drop, Search/EDHREC drawer)
+│       ├── deckview-core.js    # Deck Builder: state, init, deck selection, Archidekt import, auto-categorize
+│       ├── deckview-render.js   # Deck Builder: rendering, tiles/rows, multiselect, stats, view toggle
+│       ├── deckview-edit.js     # Deck Builder: card/category edits, move modal, autosave
+│       ├── deckview-panels.js   # Deck Builder: search/autocomplete, drag/drop, EDHREC, import/export
 │       ├── pick.js        # Pick Night tab (random deck assignment)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
