@@ -246,31 +246,43 @@ function availInitUI() {
   document.getElementById('availLoading').style.display = 'none';
   document.getElementById('availApp').style.display     = '';
 
-  // For logged-in non-admin users, pin the name to their linked player
+  // Logged-in non-admin users are identified by their linked player, so the
+  // "Who are you?" bar is pointless for them — hide the whole panel. It stays
+  // visible for admins (who may manage other people's availability) and in
+  // open/guest mode (where the name input is the only way to identify anyone).
   const openMode = currentUser?.username === 'guest';
-  if (currentUser && currentUser.role !== 'admin' && !openMode) {
+  const isPinned = currentUser && currentUser.role !== 'admin' && !openMode;
+  let   unlinked = false;
+  if (isPinned) {
     const linked = currentUser.playerId
       ? state.players.find(p => p.id === currentUser.playerId)
       : null;
-    if (linked) {
-      availName = linked.name;
-    } else {
-      // No linked player — show notice and disable calendar interaction
-      const hint = document.getElementById('availNameHint');
-      if (hint) hint.textContent = 'Your account is not linked to a player. Ask an admin to link it.';
-    }
+    if (linked) availName = linked.name;
+    else { unlinked = true; availName = ''; } // no linked player — can't mark days
   }
+
+  const namePanel = document.getElementById('availNamePanel');
+  if (namePanel) namePanel.style.display = (isPinned && !unlinked) ? 'none' : '';
 
   const nameInp = document.getElementById('availNameInput');
   if (nameInp) {
     nameInp.value    = availName;
-    const openMode   = currentUser?.username === 'guest';
-    const isLocked   = currentUser && currentUser.role !== 'admin' && !openMode;
-    nameInp.readOnly = isLocked;
-    nameInp.style.opacity = isLocked ? '.65' : '';
-    nameInp.style.cursor  = isLocked ? 'default' : '';
+    nameInp.readOnly = isPinned;
+    nameInp.style.opacity = isPinned ? '.65' : '';
+    nameInp.style.cursor  = isPinned ? 'default' : '';
     availOnNameChange(availName);
   }
+
+  // Unlinked account: keep the panel visible as a notice, minus the input
+  // (set after availOnNameChange, which would otherwise overwrite the hint)
+  if (unlinked) {
+    const hint = document.getElementById('availNameHint');
+    if (hint) hint.textContent = 'Your account is not linked to a player. Ask an admin to link it.';
+    if (nameInp) nameInp.style.display = 'none';
+    const lbl = document.querySelector('#availNamePanel .avail-name-bar label');
+    if (lbl) lbl.style.display = 'none';
+  }
+
   availRenderCalendar();
   availRenderBestDays();
 }

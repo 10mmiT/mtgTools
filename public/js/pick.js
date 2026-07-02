@@ -3,7 +3,7 @@ let pickInitDone      = false;
 let pickSelected      = new Set(); // player IDs chosen to play tonight
 let pickExcludeOwn    = false;     // don't assign players their own decks
 let pickResults       = null;      // [{player, deckEntry}] or null
-let pickExcludedDeckIds = new Set(); // deck IDs removed from pool
+let pickIncludedDeckIds = new Set(); // deck IDs opted into the pool (empty by default)
 
 function initPick() {
   if (pickInitDone) { renderPickSetup(); renderPickPool(); return; }
@@ -52,15 +52,16 @@ function renderPickSetup() {
 
   if (n < 2)              status = 'Select 2–6 players';
   else if (n > 6)         status = 'Maximum 6 players';
-  else if (allDecks.length < n) status = `Not enough decks — need ${n}, only ${allDecks.length} available`;
+  else if (!allDecks.length)    status = 'No decks in pool — select decks in the Deck Pool above';
+  else if (allDecks.length < n) status = `Not enough decks — need ${n}, only ${allDecks.length} in pool`;
   else { status = `${allDecks.length} deck${allDecks.length !== 1 ? 's' : ''} in pool · ${n} player${n !== 1 ? 's' : ''} selected`; canRoll = true; }
 
   if (infoEl) infoEl.textContent = status;
   if (btn)    btn.disabled = !canRoll;
 
-  // Sync exclude-own toggle
-  const exBtn = document.getElementById('pickExcludeOwnBtn');
-  if (exBtn) exBtn.classList.toggle('active', pickExcludeOwn);
+  // Sync exclude-own toggle (checkbox item inside the options "⋯" menu)
+  const exCheck = document.getElementById('pickExcludeOwnCheck');
+  if (exCheck) exCheck.textContent = pickExcludeOwn ? '☑' : '☐';
 }
 
 function pickTogglePlayer(playerId) {
@@ -84,7 +85,7 @@ function _allPickDecks() {
   const list = [];
   for (const p of state.players) {
     for (const d of (p.decks || [])) {
-      if (!pickExcludedDeckIds.has(d.id)) list.push({ player: p, deck: d });
+      if (pickIncludedDeckIds.has(d.id)) list.push({ player: p, deck: d });
     }
   }
   return list;
@@ -102,18 +103,19 @@ function renderPickPool() {
 
   const allDecks = [];
   for (const p of players) for (const d of (p.decks || [])) allDecks.push({ p, d });
-  const inPool = allDecks.filter(({ d }) => !pickExcludedDeckIds.has(d.id)).length;
+  const inPool = allDecks.filter(({ d }) => pickIncludedDeckIds.has(d.id)).length;
 
   const titleEl = document.getElementById('pickPoolTitle');
-  if (titleEl) titleEl.textContent = `Deck Pool — ${inPool} of ${allDecks.length} decks`;
+  if (titleEl) titleEl.textContent = `Deck Pool — ${inPool} of ${allDecks.length} decks selected`;
 
   el.innerHTML = players.map(p => {
     const decks = p.decks || [];
     if (!decks.length) return '';
     return `<div class="pick-pool-group">
-      <div class="pick-pool-player" style="color:${p.color}">${esc(p.name)}</div>
+      <div class="pick-pool-player" style="color:${p.color};cursor:pointer" title="Toggle all of ${esc(p.name)}'s decks"
+           onclick="pickTogglePlayerDecks('${p.id}')">${esc(p.name)}</div>
       <div class="pick-pool-chips">${decks.map(d => {
-        const off = pickExcludedDeckIds.has(d.id);
+        const off = !pickIncludedDeckIds.has(d.id);
         return `<button class="pick-pool-chip${off ? ' pick-pool-chip-off' : ''}"
             onclick="pickToggleDeck('${d.id}')">${esc(d.name)}</button>`;
       }).join('')}</div>
@@ -122,8 +124,20 @@ function renderPickPool() {
 }
 
 function pickToggleDeck(deckId) {
-  if (pickExcludedDeckIds.has(deckId)) pickExcludedDeckIds.delete(deckId);
-  else pickExcludedDeckIds.add(deckId);
+  if (pickIncludedDeckIds.has(deckId)) pickIncludedDeckIds.delete(deckId);
+  else pickIncludedDeckIds.add(deckId);
+  renderPickPool();
+  renderPickSetup();
+}
+
+// Click a player's name in the pool to toggle all of their decks at once
+function pickTogglePlayerDecks(playerId) {
+  const decks = state.players.find(p => p.id === playerId)?.decks || [];
+  const allIn = decks.length && decks.every(d => pickIncludedDeckIds.has(d.id));
+  for (const d of decks) {
+    if (allIn) pickIncludedDeckIds.delete(d.id);
+    else       pickIncludedDeckIds.add(d.id);
+  }
   renderPickPool();
   renderPickSetup();
 }

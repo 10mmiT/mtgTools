@@ -4,7 +4,11 @@ let _adminInited = false;
 async function initAdmin() {
   if (!_adminInited) {
     _adminInited = true;
+    // Approving requests is the common path; manual creation is rare —
+    // collapse the create-user panel by default (user's toggle persists).
+    if (collapseState['admin-create'] === undefined) collapseState['admin-create'] = true;
   }
+  applyCollapse('admin-create');
   await Promise.all([adminLoadUsers(), adminLoadRequests()]);
 }
 

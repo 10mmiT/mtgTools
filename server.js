@@ -71,6 +71,12 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api', require('./routes/proxy'));
 app.use('/api', require('./routes/rss'));
 app.use('/api', require('./routes/decks'));
+app.use('/api', require('./routes/cards'));
+app.use('/api', require('./routes/scryfall-proxy'));
+
+// ── Scryfall bulk-data cache (background download + daily refresh) ────────────
+const scrydb = require('./scryfall-db');
+scrydb.init();
 
 // ── Available@ calendar routes ─────────────────────────────────────────────────
 app.use('/available', require('./routes/available'));
@@ -86,6 +92,7 @@ function shutdown(signal) {
     server.close(() => {
       console.log('[server] HTTP server closed');
       db.close();
+      scrydb.db.close();
       console.log('[server] Database closed');
       process.exit(0);
     });
@@ -93,6 +100,7 @@ function shutdown(signal) {
     setTimeout(() => { console.error('[server] Forced exit'); process.exit(1); }, 10_000).unref();
   } else {
     db.close();
+    scrydb.db.close();
     process.exit(0);
   }
 }

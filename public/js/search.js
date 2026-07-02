@@ -6,13 +6,11 @@ const SF_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 
 
 function initScryfallSort() {
   mountSortControl('sfSortMount', 'scryfall', SF_SORT_FIELDS, sfRender);
+  mountViewToggle('sfViewMount', ['list', 'grid', 'xl'], () => sfViewSize, setSfSize);
 }
 
 function setSfSize(size) {
   sfViewSize = size;
-  document.getElementById('sf-size-sm').classList.toggle('active', size === 'list');
-  document.getElementById('sf-size-lg').classList.toggle('active', size === 'grid');
-  document.getElementById('sf-size-xl').classList.toggle('active', size === 'xl');
   sfRender();
 }
 
@@ -44,7 +42,7 @@ async function fetchScryfallPage(url, append) {
   if (lmBtn) lmBtn.disabled = true;
 
   try {
-    const res = await fetch(url);
+    const res = await scryfallFetch(url);
     const data = await res.json();
 
     if (!res.ok) {

@@ -115,10 +115,10 @@ async function loadCard({ name, id }, hostId = 'cardDetail') {
     } else {
       url = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`;
     }
-    let res = await fetch(url);
+    let res = await scryfallFetch(url);
     // Fall back to fuzzy front-face lookup for tricky/DFC names
     if (!res.ok && name) {
-      res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name.split(' // ')[0])}`);
+      res = await scryfallFetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name.split(' // ')[0])}`);
     }
     if (!res.ok) throw new Error('not found');
     card = await res.json();
@@ -224,7 +224,7 @@ async function loadRulings(card, seq, sectionId = 'cardDetail-rulings') {
   if (!card.rulings_uri) { if (el) el.style.display = 'none'; return; }
   let rulings = [];
   try {
-    const res = await fetch(card.rulings_uri);
+    const res = await scryfallFetch(card.rulings_uri);
     if (res.ok) rulings = (await res.json()).data || [];
   } catch {}
   if (seq !== _cardReqSeq || !el) return;
@@ -244,7 +244,7 @@ async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
   if (!card.prints_search_uri) { if (el) el.style.display = 'none'; return; }
   let prints = [];
   try {
-    const res = await fetch(card.prints_search_uri);
+    const res = await scryfallFetch(card.prints_search_uri);
     if (res.ok) prints = (await res.json()).data || [];
   } catch {}
   if (seq !== _cardReqSeq || !el) return;

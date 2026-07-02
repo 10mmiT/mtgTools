@@ -10,9 +10,12 @@ let setFilter   = 'all';  // 'all' | 'owned' | 'unowned'
 let setView     = 'list'; // 'list' | 'grid' | 'xl'
 
 async function initSetBrowser() {
+  mountViewToggle('setViewMount', ['list', 'grid', 'xl'], () => setView, setSetView);
+  const filterSel = document.getElementById('setFilterSel');
+  if (filterSel) filterSel.value = setFilter;
   if (sfSets) { renderSetList(); return; }
   try {
-    const res  = await fetch('https://api.scryfall.com/sets');
+    const res  = await scryfallFetch('https://api.scryfall.com/sets');
     const data = await res.json();
     sfSets = (data.data || [])
       .filter(s => SET_TYPES.has(s.set_type) && !s.digital)
@@ -29,18 +32,11 @@ function filterSets() { renderSetList(); }
 
 function setSetFilter(f) {
   setFilter = f;
-  ['all','owned','unowned'].forEach(v => {
-    document.getElementById(`setFilter${v.charAt(0).toUpperCase()+v.slice(1)}`)
-      ?.classList.toggle('active', v === f);
-  });
   renderSetCards();
 }
 
 function setSetView(v) {
   setView = v;
-  document.getElementById('setViewList')?.classList.toggle('active', v === 'list');
-  document.getElementById('setViewGrid')?.classList.toggle('active', v === 'grid');
-  document.getElementById('setViewXl')?.classList.toggle('active', v === 'xl');
   renderSetCards();
 }
 
@@ -82,7 +78,7 @@ async function selectSet(code) {
   let url = `https://api.scryfall.com/cards/search?q=set:${code}&order=collector_number&unique=cards`;
   while (url) {
     try {
-      const res  = await fetch(url);
+      const res  = await scryfallFetch(url);
       if (seq !== _setLoadSeq) return; // a newer set was selected — abandon this load
       if (!res.ok) { cardsEl.innerHTML = '<div class="empty-state">No cards found for this set.</div>'; return; }
       const data = await res.json();

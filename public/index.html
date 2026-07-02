@@ -102,14 +102,10 @@
     MTG Tools
   </div>
   <div class="hdr-right">
-    <span class="user-badge" id="userBadge" style="display:none"></span>
-    <button class="theme-btn" id="changePwBtn" onclick="openChangePassword()" style="display:none">Change Password</button>
-    <button class="theme-btn" id="themeToggle" onclick="toggleTheme()">☀ Light</button>
     <button class="rss-toggle-btn" id="rssToggleBtn" onclick="toggleRssPanel()" title="RSS Feeds">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1" fill="currentColor"/></svg>
       RSS
     </button>
-    <button class="theme-btn" id="logoutBtn" onclick="logout()" style="display:none">Sign out</button>
   </div>
 </header>
 
@@ -244,16 +240,7 @@
     <div class="search-row">
       <input id="searchInput" type="text" class="search-input" placeholder="Search by card name…" oninput="scheduleRender()">
       <span id="resultInfo" class="result-info"></span>
-      <div class="view-toggle">
-        <button class="view-btn active" id="btnList" onclick="setViewMode('list')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          List
-        </button>
-        <button class="view-btn" id="btnGrid" onclick="setViewMode('grid')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-          Grid
-        </button>
-      </div>
+      <div id="colViewMount" style="flex-shrink:0"></div>
     </div>
     <div class="view-toolbar">
       <div id="colSortMount"></div>
@@ -319,9 +306,13 @@
 <!-- Players & Decks tab -->
 <div id="tab-players" class="tab-pane" style="display:none">
   <div class="players-add-bar" id="addPlayerBar">
-    <span class="section-label">Add Player</span>
-    <input type="text" id="playerNameInput" style="flex:1;min-width:160px;max-width:280px" placeholder="Player name…">
-    <button class="btn-primary" style="padding:.5rem 1.1rem;flex-shrink:0" onclick="confirmAddPlayer()">+ Add Player</button>
+    <button class="btn-secondary" id="addPlayerRevealBtn" style="padding:.5rem 1.1rem;flex-shrink:0" onclick="openAddPlayer()">+ Add Player</button>
+    <div class="players-add-form" id="addPlayerForm" style="display:none">
+      <span class="section-label">Add Player</span>
+      <input type="text" id="playerNameInput" style="flex:1;min-width:160px;max-width:280px" placeholder="Player name…">
+      <button class="btn-primary" style="padding:.5rem 1.1rem;flex-shrink:0" onclick="confirmAddPlayer()">Add</button>
+      <button class="btn-secondary" style="padding:.5rem .9rem;flex-shrink:0" onclick="closeAddPlayer()">Cancel</button>
+    </div>
   </div>
   <div id="playersList"></div>
 </div><!-- /tab-players -->
@@ -336,15 +327,7 @@
              style="max-width:none;flex:1">
       <button class="btn-primary" style="flex-shrink:0;padding:.55rem 1.1rem" onclick="doScryfallSearch()">Search</button>
       <span id="sfInfo" class="result-info" style="flex-shrink:0"></span>
-      <div class="view-toggle" style="flex-shrink:0">
-        <button class="view-btn active" id="sf-size-sm" onclick="setSfSize('list')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-        </button>
-        <button class="view-btn" id="sf-size-lg" onclick="setSfSize('grid')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        </button>
-        <button class="view-btn" id="sf-size-xl" onclick="setSfSize('xl')" style="font-size:.72rem;font-weight:700">XL</button>
-      </div>
+      <div id="sfViewMount" style="flex-shrink:0"></div>
     </div>
     <div class="view-toolbar">
       <div id="sfSortMount"></div>
@@ -371,20 +354,12 @@
   <div class="panel" style="margin-bottom:1rem">
     <div class="search-row" style="flex-wrap:wrap;gap:.6rem">
       <input id="setSearchInput" type="text" class="search-input" placeholder="Filter sets…" oninput="filterSets()" style="max-width:280px">
-      <div class="view-toggle" style="flex-shrink:0">
-        <button class="view-btn active" id="setFilterAll"     onclick="setSetFilter('all')">All</button>
-        <button class="view-btn"        id="setFilterOwned"   onclick="setSetFilter('owned')">Owned</button>
-        <button class="view-btn"        id="setFilterUnowned" onclick="setSetFilter('unowned')">Unowned</button>
-      </div>
-      <div class="view-toggle" style="flex-shrink:0;margin-left:auto">
-        <button class="view-btn active" id="setViewList" onclick="setSetView('list')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-        </button>
-        <button class="view-btn"        id="setViewGrid" onclick="setSetView('grid')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        </button>
-        <button class="view-btn"        id="setViewXl"   onclick="setSetView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
-      </div>
+      <select id="setFilterSel" style="flex-shrink:0" title="Filter by ownership" onchange="setSetFilter(this.value)">
+        <option value="all">Owned: All</option>
+        <option value="owned">Owned only</option>
+        <option value="unowned">Unowned only</option>
+      </select>
+      <div id="setViewMount" style="flex-shrink:0;margin-left:auto"></div>
     </div>
     <div id="setList" class="set-list">
       <span style="font-size:.82rem;color:var(--muted)">Loading sets…</span>
@@ -401,18 +376,10 @@
 <div id="tab-wants" class="tab-pane" style="display:none">
   <div class="panel" style="margin-bottom:1rem">
 
-    <!-- Add player inline -->
-    <div id="wantAddPlayerBar" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding-bottom:.85rem;margin-bottom:.85rem;border-bottom:1px solid var(--border)">
-      <span class="section-label">Add Player</span>
-      <input type="text" id="wantNewPlayerInput" style="flex:1;min-width:150px;max-width:240px" placeholder="Player name…"
-             onkeydown="if(event.key==='Enter')confirmWantAddPlayer()">
-      <button class="btn-primary" style="padding:.48rem 1rem;flex-shrink:0" onclick="confirmWantAddPlayer()">+ Add Player</button>
-    </div>
-
     <!-- Add card to want list -->
     <div class="panel-title" style="margin-bottom:.65rem">Add to Want List</div>
     <div class="want-add-bar">
-      <select id="wantPlayerSel" style="flex-shrink:0">
+      <select id="wantPlayerSel" style="flex-shrink:0" onchange="wantPlayerSelChange(this)">
         <option value="">Select player…</option>
       </select>
       <div class="autocomplete-wrap">
@@ -420,26 +387,19 @@
                oninput="wantAcInput()" onkeydown="if(event.key==='Enter')addWant()">
         <div id="wantAcDrop" class="ac-dropdown"></div>
       </div>
-      <button class="btn-primary"   style="padding:.5rem 1rem;flex-shrink:0" onclick="addWant()">+ Add</button>
-      <button class="btn-secondary" style="padding:.5rem 1rem;flex-shrink:0" onclick="document.getElementById('wantCsvInput').click()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import CSV
-      </button>
-      <div class="view-toggle" style="margin-left:auto;flex-shrink:0">
-        <button class="view-btn active" id="want-view-list" onclick="setWantView('list')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-        </button>
-        <button class="view-btn" id="want-view-grid" onclick="setWantView('grid')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        </button>
-        <button class="view-btn" id="want-view-xl" onclick="setWantView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
-      </div>
+      <button class="btn-primary" style="padding:.5rem 1rem;flex-shrink:0" onclick="addWant()">+ Add</button>
+      <div id="wantViewMount" style="margin-left:auto;flex-shrink:0"></div>
     </div>
     <div class="view-toolbar">
       <div id="wantSortMount"></div>
       <div id="wantColumnsMount" style="margin-left:auto"></div>
       <div class="col-menu-wrap">
-        <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Export want list">Export ▾</button>
+        <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Import / export want list">⋯</button>
         <div class="col-menu" id="wantExportMenu">
+          <div class="db-more-section-label">Import</div>
+          <button class="col-menu-item" style="width:100%;background:none;border:none;font:inherit;color:var(--text);text-align:left;cursor:pointer" onclick="document.getElementById('wantExportMenu').classList.remove('open');document.getElementById('wantCsvInput').click()">⬆ Import CSV</button>
+          <div class="db-more-divider"></div>
+          <div class="db-more-section-label">Export</div>
           <button class="col-menu-item" style="width:100%;background:none;border:none;font:inherit;color:var(--text);text-align:left;cursor:pointer" onclick="wantExportCsv()">⬇ Download CSV</button>
           <button class="col-menu-item" style="width:100%;background:none;border:none;font:inherit;color:var(--text);text-align:left;cursor:pointer" onclick="wantExportPdf()">⬇ Download PDF (checklist)</button>
         </div>
@@ -455,8 +415,8 @@
   <div id="availLoading" style="text-align:center;padding:3rem 1rem;color:var(--muted)">Loading calendar…</div>
   <div id="availApp" style="display:none">
 
-    <!-- Name bar -->
-    <div class="panel" style="margin-bottom:1rem">
+    <!-- Name bar (admin / open-mode only — players are identified by their linked player) -->
+    <div class="panel" id="availNamePanel" style="margin-bottom:1rem">
       <div class="panel-body" id="pb-avail-name" style="padding:.875rem 1rem">
         <div class="avail-name-bar">
           <label for="availNameInput">Who are you?</label>
@@ -620,10 +580,15 @@
     <div class="panel-title" style="margin-bottom:.75rem">Who's playing tonight?</div>
     <div id="pickPlayersList" class="pick-players-list"></div>
     <div class="pick-controls">
-      <button class="view-btn" id="pickExcludeOwnBtn" onclick="pickToggleExcludeOwn()" title="Players won't be assigned their own decks">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:-1px;margin-right:4px"><circle cx="12" cy="12" r="9"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-        Exclude own decks
-      </button>
+      <div class="col-menu-wrap kebab-wrap">
+        <button class="kebab-btn" title="Options" onclick="toggleKebab(event)">⋯</button>
+        <div class="col-menu">
+          <button class="col-menu-item" id="pickExcludeOwnBtn" onclick="event.stopPropagation();pickToggleExcludeOwn()"
+                  title="Players won't be assigned their own decks">
+            <span id="pickExcludeOwnCheck">☐</span> Exclude own decks
+          </button>
+        </div>
+      </div>
       <span id="pickPoolInfo" class="pick-pool-info">Select 2–6 players</span>
       <button class="btn-primary" id="pickRollBtn" onclick="pickRoll()" disabled style="padding:.52rem 1.4rem">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="2" width="20" height="20" rx="4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="16" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="16" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
@@ -645,7 +610,6 @@
     <div class="panel-title" style="margin-bottom:.75rem">
       Pending Account Requests
       <span id="adminReqBadge" style="display:none;background:var(--primary);color:#fff;font-size:.7rem;padding:.15rem .5rem;border-radius:999px;margin-left:.5rem;font-weight:700;vertical-align:middle"></span>
-      <button class="btn-update" style="float:right;font-size:.72rem" onclick="adminLoadRequests()">Refresh</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -661,7 +625,11 @@
 
   <!-- Create user -->
   <div class="panel" style="margin-bottom:1rem">
-    <div class="panel-title">Create User Account</div>
+    <div class="panel-title collapsible" onclick="togglePanel('admin-create')">
+      Create User Account
+      <svg class="chevron" id="chv-admin-create" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="panel-body" id="pb-admin-create">
     <form onsubmit="adminCreateUser(event)" class="admin-create-form">
       <div class="field">
         <label>Username</label>
@@ -689,14 +657,12 @@
       </div>
     </form>
     <div class="error-msg" id="adminCreateError" style="margin-top:.6rem"></div>
+    </div><!-- /pb-admin-create -->
   </div>
 
   <!-- Users table -->
   <div class="panel">
-    <div class="panel-title" style="margin-bottom:.75rem">
-      All Users
-      <button class="btn-update" style="float:right;font-size:.72rem" onclick="adminLoadUsers()">Refresh</button>
-    </div>
+    <div class="panel-title" style="margin-bottom:.75rem">All Users</div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -760,18 +726,7 @@
       <input type="text" id="dbOracleSearchInput" placeholder="Search name or oracle text…"
              oninput="dbSetOracleFilter(this.value)">
     </div>
-    <div class="view-toggle" style="margin-left:auto">
-      <button class="view-btn active" id="db-view-list" onclick="dbSetView('list')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-      </button>
-      <button class="view-btn" id="db-view-grid" onclick="dbSetView('grid')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      </button>
-      <button class="view-btn" id="db-view-xl" onclick="dbSetView('xl')" style="font-size:.72rem;font-weight:700">XL</button>
-      <button class="view-btn" id="db-view-pile" onclick="dbSetView('pile')" title="Pile view">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="4" y="2" width="16" height="6" rx="1"/><rect x="4" y="9" width="16" height="6" rx="1"/><rect x="4" y="16" width="16" height="6" rx="1"/></svg>
-      </button>
-    </div>
+    <div id="dbViewMount" style="margin-left:auto"></div>
     <div class="db-scale-wrap" id="dbScaleWrap" style="display:none">
       <label>Size</label>
       <input type="range" class="db-scale-slider" id="dbScaleSlider" min="80" max="300" step="10" value="150" oninput="dbSetScale(this.value)">
@@ -1007,7 +962,10 @@
 <script src="js/wants.js"></script>
 <script src="js/available.js"></script>
 <script src="js/lands.js"></script>
-<script src="js/deckview.js"></script>
+<script src="js/deckview-core.js"></script>
+<script src="js/deckview-render.js"></script>
+<script src="js/deckview-edit.js"></script>
+<script src="js/deckview-panels.js"></script>
 <script src="js/pick.js"></script>
 <script src="js/rss.js"></script>
 <script src="js/admin.js"></script>

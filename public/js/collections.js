@@ -319,6 +319,13 @@ function renderCollections() {
   if (!state.collections.length) { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
 
+  // Progressive disclosure: once at least one collection exists, the add-form
+  // is the rare path — collapse it by default (user's explicit toggle wins).
+  if (collapseState['add-col'] === undefined) {
+    collapseState['add-col'] = true;
+    applyCollapse('add-col');
+  }
+
   list.innerHTML = state.collections.map(col => {
     const pct      = col.total ? Math.min(100, Math.round(col.entries / col.total * 100)) : 0;
     const isCSV    = col.source.startsWith('csv-');
@@ -350,8 +357,13 @@ function renderCollections() {
             </div>` : ''}
         </div>
         <div class="col-actions">
-          <button class="btn-update" onclick="updateCollection('${col.key}')" ${isBusy ? 'disabled' : ''}>${updateLabel}</button>
-          <button class="btn-remove" onclick="removeCollection('${col.key}')" ${isBusy ? 'disabled' : ''}>Remove</button>
+          ${isBusy
+            ? `<span class="col-meta" style="align-self:center">${col.updating ? 'Updating…' : ''}</span>`
+            : kebabMenuHtml([
+                { label: updateLabel, onclick: `updateCollection('${col.key}')` },
+                { divider: true },
+                { label: 'Remove',    onclick: `removeCollection('${col.key}')`, danger: true },
+              ], { title: 'Collection actions' })}
         </div>
       </div>`;
   }).join('');
