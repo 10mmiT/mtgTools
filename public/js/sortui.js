@@ -167,3 +167,79 @@ function mountColumnMenu(containerId, view, colDefs, apply) {
   });
   document.addEventListener('click', () => menu.classList.remove('open'));
 }
+
+// ── Shared view toggle (List / Grid / XL / Pile) ────────────────────────────
+// One component for every tab's view switcher, so the same icons appear in the
+// same order everywhere. `getCur` returns the current mode; `pick` sets it
+// (and triggers the tab's own re-render).
+const _VT_ICONS = {
+  list: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+  grid: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+  xl:   'XL',
+  pile: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="4" y="2" width="16" height="6" rx="1"/><rect x="4" y="9" width="16" height="6" rx="1"/><rect x="4" y="16" width="16" height="6" rx="1"/></svg>',
+};
+const _VT_TITLES = { list: 'List view', grid: 'Grid view', xl: 'Extra-large grid', pile: 'Pile view' };
+
+function mountViewToggle(containerId, modes, getCur, pick) {
+  const host = document.getElementById(containerId);
+  if (!host) return;
+  host.innerHTML = `<div class="view-toggle">${modes.map(m =>
+    `<button class="view-btn${getCur() === m ? ' active' : ''}" data-mode="${m}" title="${_VT_TITLES[m]}"${m === 'xl' ? ' style="font-size:.72rem;font-weight:700"' : ''}>${_VT_ICONS[m]}</button>`
+  ).join('')}</div>`;
+  const sync = () => host.querySelectorAll('.view-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === getCur()));
+  host.querySelectorAll('.view-btn').forEach(b =>
+    b.addEventListener('click', () => { pick(b.dataset.mode); sync(); }));
+  return sync;
+}
+
+// ── Shared "⋯" overflow / kebab menu ────────────────────────────────────────
+// Returns an HTML snippet (safe inside template-literal renders). Items:
+//   { label, onclick, danger }  — action row; onclick is an inline-JS string
+//   { section }                 — small section label
+//   { divider: true }           — horizontal rule
+// Menus escape overflow:hidden containers (deck tiles) by being positioned
+// fixed relative to the button when opened.
+function kebabMenuHtml(items, opts = {}) {
+  const inner = items.map(it => {
+    if (it.divider) return '<div class="db-more-divider"></div>';
+    if (it.section) return `<div class="db-more-section-label">${it.section}</div>`;
+    return `<button class="col-menu-item${it.danger ? ' db-menu-danger' : ''}"
+      onclick="event.stopPropagation();closeAllKebabs();${it.onclick}">${it.label}</button>`;
+  }).join('');
+  return `<div class="col-menu-wrap kebab-wrap">
+    <button class="kebab-btn${opts.btnClass ? ' ' + opts.btnClass : ''}" title="${opts.title || 'More actions'}"
+      onclick="toggleKebab(event)">⋯</button>
+    <div class="col-menu">${inner}</div>
+  </div>`;
+}
+
+function toggleKebab(e) {
+  e.stopPropagation();
+  const btn  = e.currentTarget;
+  const menu = btn.nextElementSibling;
+  if (!menu) return;
+  const wasOpen = menu.classList.contains('open');
+  closeAllKebabs();
+  if (wasOpen) return;
+  menu.classList.add('open');
+  // Fixed positioning so the menu isn't clipped by overflow:hidden ancestors
+  const r = btn.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.left  = 'auto';
+  menu.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  menu.style.top   = (r.bottom + 5) + 'px';
+  const mh = menu.offsetHeight;
+  if (r.bottom + 5 + mh > window.innerHeight) {
+    menu.style.top = Math.max(8, r.top - mh - 5) + 'px';
+  }
+}
+
+function closeAllKebabs() {
+  document.querySelectorAll('.kebab-wrap .col-menu.open').forEach(m => {
+    m.classList.remove('open');
+    m.style.position = m.style.top = m.style.left = m.style.right = '';
+  });
+}
+document.addEventListener('click', closeAllKebabs);
+document.addEventListener('scroll', closeAllKebabs, { capture: true, passive: true });

@@ -16,9 +16,15 @@ function applyCollapse(id) {
 }
 
 function initCollapses() {
-  ['add-col', 'collections'].forEach(applyCollapse);
-  if (collapseState['pick-pool'] === undefined) collapseState['pick-pool'] = true;
-  applyCollapse('pick-pool');
+  // Deck Pool starts open: the pool is opt-in (no decks selected by default),
+  // so it needs to be visible for the user to pick decks into it. The old code
+  // force-stored pick-pool as collapsed for everyone — undo that once.
+  if (!collapseState['_pickPoolMigrated']) {
+    collapseState['pick-pool'] = false;
+    collapseState['_pickPoolMigrated'] = true;
+    localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
+  }
+  ['add-col', 'collections', 'pick-pool'].forEach(applyCollapse);
 }
 
 function togglePlayerSection(playerId, event) {
@@ -38,6 +44,7 @@ function togglePlayerSection(playerId, event) {
 function toggleSideNav() {
   const nav = document.getElementById('sideNav');
   if (!nav) return;
+  _closeThemeMenu(); // its position depends on the sidebar width
   const collapsed = nav.classList.toggle('collapsed');
   document.body.classList.toggle('sidenav-collapsed', collapsed);
   localStorage.setItem('mtgtools_sidenav', collapsed ? '1' : '0');
@@ -65,8 +72,6 @@ function applyTheme(id) {
   document.documentElement.dataset.theme = id;
   localStorage.setItem('mtgtools_theme', id);
   const label = _themeLabel(id);
-  const hdrBtn = document.getElementById('themeToggle');
-  if (hdrBtn) hdrBtn.textContent = '🎨 ' + label;
   const lbl = document.getElementById('mobNavThemeLabel');
   if (lbl) lbl.textContent = label;
   const sideLbl = document.getElementById('sidenavThemeLabel');
@@ -82,7 +87,7 @@ function initTheme() {
 // Direct pick (desktop sidebar dropdown)
 function setTheme(id) {
   applyTheme(id);
-  document.getElementById('themePickMenu')?.classList.remove('open');
+  _closeThemeMenu();
 }
 
 // Cycle to the next theme (mobile dropdown + mobile header button, where a
@@ -95,18 +100,41 @@ function toggleTheme() {
 
 function toggleThemeMenu(e) {
   e?.stopPropagation();
-  document.getElementById('themePickMenu')?.classList.toggle('open');
+  const menu = document.getElementById('themePickMenu');
+  if (!menu) return;
+  const opening = !menu.classList.contains('open');
+  if (!opening) { _closeThemeMenu(); return; }
+  menu.classList.add('open');
+
+  // When the sidebar is collapsed it's a 46px-wide scroll container with
+  // overflow hidden — an absolutely-positioned menu gets clipped inside it.
+  // Escape by fixing the menu to the viewport, to the right of the button.
+  const nav = document.getElementById('sideNav');
+  const btn = document.getElementById('sidenavThemeBtn');
+  if (nav?.classList.contains('collapsed') && btn) {
+    const r = btn.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.left     = (r.right + 8) + 'px';
+    menu.style.right    = 'auto';
+    menu.style.top      = 'auto';
+    menu.style.bottom   = Math.max(8, window.innerHeight - r.bottom) + 'px';
+  }
+}
+
+function _closeThemeMenu() {
+  const menu = document.getElementById('themePickMenu');
+  if (!menu) return;
+  menu.classList.remove('open');
+  menu.style.position = menu.style.left = menu.style.right = menu.style.top = menu.style.bottom = '';
 }
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('.sidenav-theme-wrap')) document.getElementById('themePickMenu')?.classList.remove('open');
+  if (!e.target.closest('.sidenav-theme-wrap')) _closeThemeMenu();
 });
 
 // ── View mode ─────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
-  document.getElementById('btnList').classList.toggle('active', mode === 'list');
-  document.getElementById('btnGrid').classList.toggle('active', mode === 'grid');
   renderResults();
 }
 
@@ -417,7 +445,8 @@ authInit().then(() => {
     initCollapses();
     renderPlayers();
     renderCollections();
-    setViewMode(viewMode); // syncs list/grid buttons and calls renderResults
+    mountViewToggle('colViewMount', ['list', 'grid'], () => viewMode, setViewMode);
+    setViewMode(viewMode); // renders results with the restored view mode
     initAvailable(); // Available is the default tab — start loading it immediately
     initRouting();   // wire up browser back/forward + restore any deep-linked view
   });

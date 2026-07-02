@@ -10,9 +10,7 @@ function dbAddAcInput() {
   if (q.length < 2) { closeDbAddAc(); return; }
   dbAddAcTimer = setTimeout(async () => {
     try {
-      const res  = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      const names = (data.data || []).slice(0, 8);
+      const names = (await cardAutocomplete(q)).slice(0, 8);
       const drop  = document.getElementById('dbAddAcDrop');
       if (!names.length || !drop) { closeDbAddAc(); return; }
       drop.innerHTML = names.map(n =>
@@ -41,9 +39,7 @@ function dbAcInput() {
   if (q.length < 2) { closeDbAc(); return; }
   dbAcTimer = setTimeout(async () => {
     try {
-      const res  = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      const names = (data.data || []).slice(0, 8);
+      const names = (await cardAutocomplete(q)).slice(0, 8);
       const drop  = document.getElementById('dbAcDrop');
       if (!names.length || !drop) { closeDbAc(); return; }
       drop.innerHTML = names.map(n =>
@@ -72,9 +68,7 @@ function dbCmdAcInput() {
   if (q.length < 2) { _closeDbCmdAc(); return; }
   dbCmdAcTimer = setTimeout(async () => {
     try {
-      const res  = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(q)}+t:legendary+t:creature`);
-      const data = await res.json();
-      const names = (data.data || []).slice(0, 8);
+      const names = (await cardAutocomplete(q, { commander: true })).slice(0, 8);
       const drop  = document.getElementById('dbCmdAcDrop');
       if (!names.length || !drop) { _closeDbCmdAc(); return; }
       drop.innerHTML = names.map(n =>
@@ -121,7 +115,7 @@ async function dbSearch() {
   resultsEl.innerHTML = '<div class="empty-state" style="padding:1rem">Searching…</div>';
 
   try {
-    const res  = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=name&page=1`);
+    const res  = await scryfallFetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=name&page=1`);
     const data = await res.json();
     if (data.object === 'error') {
       resultsEl.innerHTML = `<div class="error-msg" style="margin:.5rem 0">${esc(data.details || data.warnings?.join(' ') || 'No results')}</div>`;
@@ -362,7 +356,7 @@ async function dbCreateDeck() {
   let commanderImg = null;
   if (commander) {
     try {
-      const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(commander)}`);
+      const r = await scryfallFetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(commander)}`);
       if (r.ok) {
         const d = await r.json();
         commanderImg = d.image_uris?.art_crop || d.card_faces?.[0]?.image_uris?.art_crop || null;

@@ -21,7 +21,21 @@ let _wantControlsMounted = false;
 function initWantControls() {
   mountSortControl('wantSortMount', 'wants', WANT_SORT_FIELDS, renderWantList, { field: 'wanted', dir: -1 });
   mountColumnMenu('wantColumnsMount', 'wants', WANT_COLUMNS, renderWantList);
+  mountViewToggle('wantViewMount', ['list', 'grid', 'xl'], () => wantView, setWantView);
   _wantControlsMounted = true;
+}
+
+// "+ New player…" option in the player select (replaces the old add-player bar)
+function wantPlayerSelChange(sel) {
+  if (sel.value !== '__new') return;
+  sel.value = '';
+  const name = prompt('New player name:');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  if (addPlayerByName(trimmed)) {
+    const p = state.players.find(pl => pl.name === trimmed);
+    if (p) sel.value = p.id;
+  }
 }
 
 // ── Player filter ─────────────────────────────────────────────────────────
@@ -33,31 +47,22 @@ function setWantFilterPlayer(id) {
 // ── View toggle ───────────────────────────────────────────────────────────
 function setWantView(v) {
   wantView = v;
-  document.getElementById('want-view-list')?.classList.toggle('active', v === 'list');
-  document.getElementById('want-view-grid')?.classList.toggle('active', v === 'grid');
-  document.getElementById('want-view-xl')?.classList.toggle('active',   v === 'xl');
   renderWantList();
 }
 
 // ── Scryfall batch-fetch for want list cards ──────────────────────────────
 async function fetchWantCardData(names) {
   if (!names.length) return;
-  const BATCH = 75;
-  for (let i = 0; i < names.length; i += BATCH) {
-    const batch = names.slice(i, i + BATCH);
-    try {
-      const res  = await fetch('https://api.scryfall.com/cards/collection', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ identifiers: batch.map(n => ({ name: n.split(' // ')[0] })) }),
-      });
-      const data = await res.json();
-      for (const card of (data.data || [])) {
-        wantCardData.set(card.name, card);
-        if (card.card_faces?.[0]?.name) wantCardData.set(card.card_faces[0].name, card);
-      }
-      if (i + BATCH < names.length) await new Promise(r => setTimeout(r, 100));
-    } catch {}
+  const cards = await fetchCardCollection(names);
+  for (const card of cards) {
+    wantCardData.set(card.name, card);
+    if (card.card_faces?.[0]?.name) wantCardData.set(card.card_faces[0].name, card);
+  }
+  // Negative-cache names that couldn't be resolved (typos, custom cards).
+  // Without this, every render sees them as "missing" and re-fetches —
+  // an endless request loop that eventually trips Scryfall's rate limit.
+  for (const n of names) {
+    if (!wantCardData.has(n)) wantCardData.set(n, null);
   }
 }
 
@@ -68,10 +73,8 @@ function wantAcInput() {
   if (q.length < 2) { closeAc(); return; }
   wantAcTimer = setTimeout(async () => {
     try {
-      const res  = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
       const drop = document.getElementById('wantAcDrop');
-      const names = (data.data || []).slice(0, 8);
+      const names = (await cardAutocomplete(q)).slice(0, 8);
       if (!names.length) { closeAc(); return; }
       drop.innerHTML = names.map(n =>
         `<div class="ac-item" onclick="pickAc('${jsAttr(n)}')">${esc(n)}</div>`).join('');
@@ -183,7 +186,8 @@ async function renderWantList() {
     sel.innerHTML = '<option value="">Select player…</option>' +
       visible.map(p =>
         `<option value="${p.id}" ${p.id === prev ? 'selected' : ''}>${esc(p.name)}</option>`
-      ).join('');
+      ).join('') +
+      (currentUser?.role === 'admin' ? '<option value="__new">+ New player…</option>' : '');
   }
 
   const container = document.getElementById('wantResults');
@@ -200,7 +204,7 @@ async function renderWantList() {
 
   if (!allWants.size) {
     container.innerHTML = `<div class="empty-state" style="padding:2.5rem">
-      No want lists yet — add a player above then start adding cards.
+      No want lists yet — select a player above and start adding cards.
     </div>`;
     return;
   }

@@ -62,12 +62,19 @@ function addPlayerByName(name) {
 
 function confirmAddPlayer() {
   const inp = document.getElementById('playerNameInput');
-  if (addPlayerByName(inp.value.trim())) inp.value = '';
+  if (addPlayerByName(inp.value.trim())) { inp.value = ''; closeAddPlayer(); }
 }
 
-function confirmWantAddPlayer() {
-  const inp = document.getElementById('wantNewPlayerInput');
-  if (addPlayerByName(inp.value.trim())) inp.value = '';
+// Progressive disclosure: the add-player bar shows a single button until clicked
+function openAddPlayer() {
+  document.getElementById('addPlayerRevealBtn').style.display = 'none';
+  document.getElementById('addPlayerForm').style.display = 'flex';
+  document.getElementById('playerNameInput').focus();
+}
+
+function closeAddPlayer() {
+  document.getElementById('addPlayerForm').style.display = 'none';
+  document.getElementById('addPlayerRevealBtn').style.display = '';
 }
 
 function removePlayer(playerId) {
@@ -178,7 +185,10 @@ async function confirmAddDeck(playerId) {
 
 function removeDeck(playerId, deckId) {
   const player = state.players.find(p => p.id === playerId);
-  if (player) player.decks = player.decks.filter(d => d.id !== deckId);
+  const entry  = player?.decks.find(d => d.id === deckId);
+  if (!entry) return;
+  if (!confirm(`Remove deck "${entry.name}"? This cannot be undone.`)) return;
+  player.decks = player.decks.filter(d => d.id !== deckId);
   savePlayerDecks(playerId);
   renderPlayers();
 }
@@ -348,8 +358,11 @@ function renderPlayers() {
             <span class="deck-tile-count">${countInfo}</span>
             <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
             <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
-            ${canEdit ? `<button class="btn-edit-tile"  onclick="startEditDeck('${player.id}','${d.id}')">Edit</button>` : ''}
-            ${canEdit ? `<button class="btn-remove-tile" onclick="removeDeck('${player.id}','${d.id}')">✕</button>` : ''}
+            ${canEdit ? kebabMenuHtml([
+              { label: 'Edit',   onclick: `startEditDeck('${player.id}','${d.id}')` },
+              { divider: true },
+              { label: 'Remove', onclick: `removeDeck('${player.id}','${d.id}')`, danger: true },
+            ], { title: 'Deck actions', btnClass: 'kebab-btn-tile' }) : ''}
           </div>
         </div>
       </div>`;
@@ -360,7 +373,9 @@ function renderPlayers() {
       <div class="player-header" style="--pc:${player.color}" onclick="togglePlayerSection('${player.id}', event)">
         <span class="player-name-lbl">${esc(player.name)}</span>
         ${canEdit ? `<button class="btn-player-add-deck" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
-        ${isAdmin ? `<button class="btn-player-remove" onclick="removePlayer('${player.id}')">✕</button>` : ''}
+        ${isAdmin ? kebabMenuHtml([
+          { label: 'Remove player', onclick: `removePlayer('${player.id}')`, danger: true },
+        ], { title: 'Player actions' }) : ''}
         <svg class="chevron ${pCollapsed ? 'closed' : ''}" id="chv-player-${player.id}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       ${canEdit ? `<div class="add-deck-form" id="adf_${player.id}" data-player="${player.id}">

@@ -100,9 +100,8 @@ function initDeckBuilder() {
 
     _dbInitDone = true;
   }
-  // Sync view button active states + scale wrap visibility from restored view
-  ['list','grid','xl','pile'].forEach(x =>
-    document.getElementById(`db-view-${x}`)?.classList.toggle('active', x === dbView));
+  // Mount the shared view toggle (re-mounts with the restored view active)
+  mountViewToggle('dbViewMount', ['list', 'grid', 'xl', 'pile'], () => dbView, dbSetView);
   const scaleWrap = document.getElementById('dbScaleWrap');
   if (scaleWrap) scaleWrap.style.display = (dbView !== 'list') ? '' : 'none';
   dbPopulateDeckSel();
@@ -308,21 +307,10 @@ async function _dbImportArchidekt(archidektId) {
 async function dbFetchCardData(names) {
   const missing = names.filter(n => !dbCardData.has(n));
   if (!missing.length) return;
-  const BATCH = 75;
-  for (let i = 0; i < missing.length; i += BATCH) {
-    const batch = missing.slice(i, i + BATCH);
-    try {
-      const res  = await fetch('https://api.scryfall.com/cards/collection', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifiers: batch.map(n => ({ name: n.split(' // ')[0] })) }),
-      });
-      const data = await res.json();
-      for (const card of (data.data || [])) {
-        dbCardData.set(card.name, card);
-        if (card.card_faces?.[0]?.name) dbCardData.set(card.card_faces[0].name, card);
-      }
-      if (i + BATCH < missing.length) await new Promise(r => setTimeout(r, 100));
-    } catch {}
+  const cards = await fetchCardCollection(missing);
+  for (const card of cards) {
+    dbCardData.set(card.name, card);
+    if (card.card_faces?.[0]?.name) dbCardData.set(card.card_faces[0].name, card);
   }
 }
 

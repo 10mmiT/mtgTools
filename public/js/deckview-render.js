@@ -427,8 +427,6 @@ function dbRenderStats() {
 function dbSetView(v) {
   dbView = v;
   localStorage.setItem('dbView', v);
-  ['list','grid','xl','pile'].forEach(x =>
-    document.getElementById(`db-view-${x}`)?.classList.toggle('active', x === v));
   const scaleWrap = document.getElementById('dbScaleWrap');
   if (scaleWrap) scaleWrap.style.display = (v !== 'list') ? '' : 'none';
   dbRender();

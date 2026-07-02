@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --loglevel=error
 COPY server.js .
 COPY available-db.js .
+COPY scryfall-db.js .
 COPY middleware/ middleware/
 COPY routes/ routes/
 COPY public/ public/

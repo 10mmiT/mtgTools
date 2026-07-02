@@ -17,20 +17,11 @@ async function authInit() {
 
 function _authUpdateHeader() {
   if (!currentUser) return;
-  const badge          = document.getElementById('userBadge');
-  const logoutBtn      = document.getElementById('logoutBtn');
   const adminBtn       = document.getElementById('tab-btn-admin');
-  const changePwBtn    = document.getElementById('changePwBtn');
   const addPlayerBar   = document.getElementById('addPlayerBar');
-  const wantAddPlayer  = document.getElementById('wantAddPlayerBar');
   const isAdmin        = currentUser.role === 'admin';
   const isOpenMode     = currentUser.username === 'guest';
 
-  if (badge) {
-    badge.textContent = currentUser.username;
-    badge.style.display = '';
-    badge.classList.toggle('user-badge-admin', isAdmin);
-  }
   const mobAdminBtn   = document.getElementById('mob-tab-admin');
   const mobNavUser    = document.getElementById('mobNavUser');
   const mobChangePw   = document.getElementById('mob-changepw-btn');
@@ -38,15 +29,12 @@ function _authUpdateHeader() {
   const sidenavBadge  = document.getElementById('sidenavUserBadge');
   const sidenavCpw    = document.getElementById('sidenavChangePwBtn');
   const sidenavLogout = document.getElementById('sidenavLogoutBtn');
-  if (logoutBtn)    logoutBtn.style.display    = '';
   if (adminBtn)     adminBtn.style.display     = isAdmin ? '' : 'none';
   if (mobAdminBtn)  mobAdminBtn.style.display  = isAdmin ? '' : 'none';
-  if (changePwBtn)  changePwBtn.style.display  = isOpenMode ? 'none' : '';
   if (mobNavUser)   mobNavUser.textContent      = currentUser.username;
   if (mobChangePw)  mobChangePw.style.display   = isOpenMode ? 'none' : '';
   if (mobLogout)    mobLogout.style.display      = '';
   if (addPlayerBar)  addPlayerBar.style.display  = isAdmin ? '' : 'none';
-  if (wantAddPlayer) wantAddPlayer.style.display = isAdmin ? '' : 'none';
   if (sidenavBadge) {
     sidenavBadge.textContent = currentUser.username;
     sidenavBadge.style.display = '';

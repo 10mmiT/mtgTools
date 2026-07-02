@@ -6,7 +6,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Available@ tab
 - Shared group availability calendar — mark which days you're free
-- Enter your name once; it's remembered in the browser
+- Logged-in players are identified automatically via their linked player — no name entry needed. The "Who are you?" bar only appears for admins and in open (no-login) mode, where it's remembered in the browser
 - Click any future day to toggle your availability
 - "Best upcoming days" panel ranks days by how many people are free
 - On mobile, the calendar switches to a compact week-list (Mon–Sun) with prev/next week navigation
@@ -21,18 +21,19 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - On mobile, defaults to grid view; list view is still available and scrolls horizontally
 - Hover over any card name (list view) for a Scryfall image tooltip
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens it on Scryfall instead)
-- Collapsible "Add Collection" and "Collections" panels to save space
+- Collapsible "Add Collection" and "Collections" panels to save space; once you have at least one collection, the add panel auto-collapses (your manual toggle is remembered)
+- Per-collection actions (Refresh / Re-import CSV / Remove) live in a "⋯" menu on each collection row
 - On mobile, the results table is capped at 150 rows with a "Show all" button so the Deck Comparison panel is always within reach
 - Right-side **Deck Comparison** panel: load a deck and see which cards you own, with a toggle to filter the table to deck cards only
 
 ### Players & Decks tab
-- Add players by name; each gets a unique colour
+- Add players via the **+ Add Player** button (admin only); each gets a unique colour
 - Add decks to players — enter a deck name and commander name; the commander's card art (fetched from Scryfall) becomes the tile background
 - Optionally link an Archidekt URL to load the full card list for comparison
 - Any URL can be saved as a "View ↗" link on the tile
+- Each deck tile shows two primary actions — **Compare** (sends the deck to the Collections tab comparison panel) and **Build** (opens it in the Deck Builder) — with Edit and Remove tucked into a per-tile "⋯" menu; removing a deck asks for confirmation
+- Removing a player lives in a "⋯" menu on the player header (admin only)
 - Edit any deck in-place (name, commander, link)
-- **Compare** button sends a deck to the Deck Comparison panel and switches to the Collections tab automatically
-- **View** button (Archidekt decks) opens the deck directly in the Deck Builder tab
 - All deck metadata and commander art URLs persist across restarts
 
 ### Scryfall Search tab
@@ -60,15 +61,16 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Browse every non-digital MTG set (expansions, Commander, Masters, etc.)
 - Filter sets by name or code
 - Click a set to load all its cards with collection ownership and Cardmarket price shown inline
-- Filter to only owned or only unowned cards
+- Ownership dropdown to show all cards, only owned, or only unowned
 - Shows how many cards from the set are owned across all collections
 - **Sort** by set collector number (default), name, mana value, color, power, toughness, rarity, type, or price
 - **List**, **Grid**, and **XL** view toggle
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 
 ### Want Lists tab
-- Per-player want lists with Scryfall autocomplete as you type
-- Import want lists from CSV (qty,name or name-only format)
+- Per-player want lists with card-name autocomplete as you type (served from the local card database)
+- Admins can create a new player straight from the player dropdown ("+ New player…")
+- Import (CSV: qty,name or name-only) and Export (CSV / printable PDF checklist) share one "⋯" menu in the toolbar
 - **List view**: combined table across all players — who wants each card, Cardmarket price, and whether anyone already owns it
 - **Player filter**: chip row (All / per-player) above the results to narrow down to a single player's list; defaults to showing everyone
 - **Sort** by most-wanted (default), player (groups cards by which player(s) want them), name, mana value, color, power, toughness, rarity, type, or price
@@ -89,7 +91,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Drag and drop** a card anywhere onto a category's column (not just its header) to move it there; auto-saves
 - **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price
 - **List**, **Grid**, **XL**, and **Pile** view, with a size slider for Grid/XL/Pile
-- Quick **Add a card** box with Scryfall autocomplete; **Import CSV** or **Paste List** (`1 Sol Ring` / `1x Sol Ring` / `// Category` lines) for bulk add
+- Quick **Add a card** box with card-name autocomplete (served from the local card database); **Import CSV** or **Paste List** (`1 Sol Ring` / `1x Sol Ring` / `// Category` lines) for bulk add
 - **Search / EDHREC** drawer panel:
   - **Search** tab — Scryfall query search (with an optional commander color-identity filter) to find and add cards, each shown with a thumbnail
   - **EDHREC** tab — recommendations for the deck's commander, split into the same type-based categories as Archidekt (Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Lands) plus High Synergy, Top Cards, Game Changers, and New Cards, each card shown with a thumbnail, type line, synergy %, and deck-inclusion count
@@ -105,8 +107,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Pick Night tab
 - Select 2–6 players from the Players & Decks list for tonight's game
-- Toggle **Exclude own decks** so players won't be assigned one of their own decks
-- **Deck Pool** panel: view all decks grouped by player and click individual decks to exclude them from the draw
+- **Deck Pool** panel: the pool is opt-in — no decks are selected by default. Click individual decks to add them to the draw, or click a player's name to toggle all of their decks at once
+- **Exclude own decks** (in the options "⋯" menu) so players won't be assigned one of their own decks
 - Click **Pick Decks** to randomly assign one unique deck per player; up to 200 shuffle attempts ensure the constraints are always satisfied
 - Results shown as player-labelled commander-art tiles
 - **↺ Re-roll** per player (locks everyone else's pick) or **↺ Re-roll all** to start fresh
@@ -121,10 +123,12 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **5 themes** — Dark, Light, High Contrast, Sepia, and Forest. Desktop picks via a dropdown in the sidebar (with a checkmark on the active theme); mobile cycles through them with a single tap. Preference saved in the browser
 - **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows — independent of the 5 UI themes above, since mana symbol colours represent the game, not the chrome
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
+- **Minimal-UI conventions across all tabs**: one shared List/Grid/XL(/Pile) view toggle component, shared Sort and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
 - **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck Builder); your sort field/direction and which columns are shown persist per-view in the browser
+- **Scryfall traffic is centralised and cached**: the server keeps a daily copy of Scryfall's bulk card data in SQLite and serves card images/metadata/autocomplete locally; the few remaining live calls (full-text search, card detail, set browsing) go through a server-side proxy with a shared rate-limit queue and a 10-minute response cache — the browser never talks to api.scryfall.com directly
 - Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥1024px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
-- Collapsible panels throughout (Add Collection, Collections, each player section)
+- Collapsible panels throughout (Add Collection, Collections, each player section, Deck Pool, Admin's Create User) — rarely-used forms start collapsed and remember your toggle
 - Per-user login system with player-linked accounts and an admin role
 - **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content, with account actions (user badge, theme picker, RSS, change password, sign out) anchored to the bottom; click Collapse to shrink to icon-only mode — state persists across reloads. There's no top header on desktop — it's mobile-only
 - **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown plus a slim header (logo + RSS); all forms stack to full-width; inputs use a 16px font to avoid iOS zoom-on-focus; view toggles are right-aligned across all tabs
@@ -194,7 +198,7 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | `COOKIE_SECURE` | Set to `1` to add the `Secure` flag to session cookies — recommended when running behind HTTPS |
 | `AUTH_RATE_LIMIT_MAX` | Override the login rate-limit window max (default: 30 requests per 15 min per IP) |
 
-Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
+Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All app data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). A second database, `scryfall.db`, holds the local Scryfall bulk-data cache: on first startup the server downloads Scryfall's `oracle_cards` file (~150 MB, ~35k cards) in the background and refreshes it daily — watch for `[scryfall-db] imported … cards` in the log. The app works during/without the download; card lookups just fall back to live (proxied) Scryfall until it completes. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
 
 ### Stop
 
@@ -225,14 +229,17 @@ Moxfield collection URLs are not supported — their API is behind Cloudflare bo
 ```
 mtgtools/
 ├── server.js          # Express entry point — wires up middleware, routes, and /healthz
-├── available-db.js    # SQLite setup (all persistent data)
+├── available-db.js    # SQLite setup (all persistent app data)
+├── scryfall-db.js     # Scryfall bulk-data cache — daily oracle_cards download into SQLite
 ├── middleware/
 │   └── auth.js        # Session auth helpers (requireAuth, requireAdmin)
 ├── routes/
 │   ├── admin.js       # Admin panel API — user management, account requests
 │   ├── auth.js        # Auth API — login, logout, account request, change password
 │   ├── available.js   # Availability calendar API
-│   ├── proxy.js       # Scryfall card-image proxy
+│   ├── cards.js       # Local card endpoints — /api/cards/collection + /api/cards/autocomplete (from scryfall-db)
+│   ├── scryfall-proxy.js # Live Scryfall proxy — shared rate-limit queue, Retry-After handling, 10-min GET cache
+│   ├── proxy.js       # Archidekt/Moxfield collection + deck proxy, EDHREC proxy
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   └── state.js       # App state API — collections, players, decks, want lists
 ├── test/
@@ -244,8 +251,8 @@ mtgtools/
 │   │   └── style.css
 │   └── js/
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
-│       ├── sortui.js      # Shared sorting + column-visibility controls (used by all card views)
-│       ├── scryfall.js    # Scryfall image + metadata cache helpers (used for sorting)
+│       ├── sortui.js      # Shared UI components: sort control, columns menu, view toggle, "⋯" kebab menus
+│       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches
 │       ├── card.js        # Card Detail tab (oracle text, rulings, prices, alt-art printings)
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks
@@ -266,8 +273,9 @@ mtgtools/
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
-    └── available.db   # All persistent data: collections, players, decks,
-                       # want lists, availability calendar, user accounts (SQLite)
+    ├── available.db   # All persistent app data: collections, players, decks,
+    │                  # want lists, availability calendar, user accounts (SQLite)
+    └── scryfall.db    # Local Scryfall bulk-data cache (~35k cards, refreshed daily)
 ```
 
 ## Testing
@@ -286,7 +294,7 @@ Tests spin up an isolated in-memory SQLite database and a temporary state file s
 |-----------|--------|
 | **[Express](https://expressjs.com/)** | Server framework — MIT licence |
 | **[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)** | SQLite for all persistent data — MIT licence |
-| **[Scryfall API](https://scryfall.com/docs/api)** | Card data, images, search, autocomplete, prices, rulings, and printings (alt-art). Free to use; please follow their [rate limit guidelines](https://scryfall.com/docs/api#rate-limits). Scryfall search is triggered manually (Enter / button) rather than on every keystroke. |
+| **[Scryfall API](https://scryfall.com/docs/api)** | Card data, images, search, autocomplete, prices, rulings, and printings (alt-art). Free to use; please follow their [rate limit guidelines](https://scryfall.com/docs/api#rate-limits). Per their guidance, card data is served from a daily [bulk-data](https://scryfall.com/docs/api/bulk-data) download cached in SQLite; the remaining live calls (search, card detail, sets) go through a single server-side proxy queue that stays under 10 req/s and honors `Retry-After`. Scryfall search is triggered manually (Enter / button) rather than on every keystroke. |
 | **[mana-font](https://github.com/andrewgioia/mana)** | MTG mana symbol icons — MIT licence |
 | **[Archidekt](https://archidekt.com)** | Collection and deck data via their public REST API |
 | **[Moxfield](https://moxfield.com)** | Collection data via CSV export |
