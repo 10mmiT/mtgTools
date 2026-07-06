@@ -308,3 +308,7 @@ Cardmarket prices are sourced from Scryfall's `prices.eur` field and reflect Car
 Card images and search data are provided by Scryfall. Scryfall is not produced by or endorsed by Wizards of the Coast.
 
 Magic: The Gathering is © Wizards of the Coast LLC.
+
+## License
+
+This project's code is released under the [MIT License](LICENSE). Card data, images, and Magic: The Gathering IP remain the property of their respective owners (see credits above).

@@ -2,6 +2,7 @@
   "name": "mtgtools",
   "version": "1.0.0",
   "description": "MTG Tools — search collections, track decks, coordinate availability",
+  "license": "MIT",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
