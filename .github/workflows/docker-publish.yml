@@ -29,3 +29,12 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/mtgtools:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/mtgtools
+          short-description: ${{ github.event.repository.description }}
+          readme-filepath: ./README.md
