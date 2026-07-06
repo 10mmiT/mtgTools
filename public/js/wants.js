@@ -359,7 +359,7 @@ async function renderWantList() {
       .map(p => {
         const initial = esc(p.name.charAt(0).toUpperCase());
         const canEdit = isMyPlayer(p.id);
-        return `<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${p.color};color:#fff;font-size:.65rem;font-weight:800;flex-shrink:0;cursor:${canEdit?'pointer':'default'}" title="${esc(p.name)}"
+        return `<span class="want-dot" style="background:${p.color};cursor:${canEdit?'pointer':'default'}" title="${esc(p.name)}"
           ${canEdit ? `onclick="removeWant('${p.id}','${jsAttr(cardName)}')"` : ''}
         >${initial}</span>`;
       }).join('');

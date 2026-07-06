@@ -1293,11 +1293,21 @@ html[data-theme="light"] .deck-tile-overlay {
   font-size: .82rem; font-weight: 700;
 }
 .want-rm {
-  background: transparent; color: var(--muted); border: none;
-  cursor: pointer; font-size: .72rem; padding: 0 .1rem; font-family: inherit;
-  line-height: 1;
+  font-size: 1.05rem; min-width: 36px; min-height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0; font-family: inherit; line-height: 1;
+  color: var(--danger);
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--card-2);
 }
-.want-rm:hover { color: var(--danger); }
+.want-rm:hover { border-color: var(--danger); background: var(--card); }
+
+/* Player dot in grid/XL views — tap your own to remove */
+.want-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  color: #fff; font-size: .8rem; font-weight: 800; flex-shrink: 0;
+}
 
 /* ── Available week list — base hidden; shown by media query below ──────── */
 .avail-week-cal { display: none; }
