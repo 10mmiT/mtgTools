@@ -77,6 +77,16 @@ function cacheSet(url, status, body) {
 
 const SF_HEADERS = { 'User-Agent': 'MTGTools/1.0', 'Accept': 'application/json' };
 
+// Scryfall is Cloudflare-fronted — if something between us and them (a bot
+// challenge, a captive portal, a network block) intercepts the request, we
+// can get an HTML page back with a 200 status instead of JSON. Verify the
+// body actually parses before trusting or caching it; otherwise the client
+// gets a confusing "JSON.parse: unexpected character" error and, for cached
+// GETs, we'd serve the broken response to everyone for 10 minutes.
+function isValidJson(body) {
+  try { JSON.parse(body); return true; } catch { return false; }
+}
+
 // GET /api/scryfall/<anything scryfall serves under cards/ or sets/>
 router.get(/^\/scryfall\/(.+)$/, requireAuth, async (req, res) => {
   const rest = req.params[0];
@@ -90,6 +100,12 @@ router.get(/^\/scryfall\/(.+)$/, requireAuth, async (req, res) => {
   try {
     const sfRes = await queuedFetch(url, { headers: SF_HEADERS });
     const body  = await sfRes.text();
+
+    if (!isValidJson(body)) {
+      console.error(`[scryfall-proxy] non-JSON response from ${url} (status ${sfRes.status}): ${body.slice(0, 200)}`);
+      return res.status(502).json({ error: 'Scryfall returned an unexpected (non-JSON) response — try again shortly' });
+    }
+
     if (sfRes.status === 200 || sfRes.status === 404) cacheSet(url, sfRes.status, body);
     res.status(sfRes.status).type('application/json').send(body);
   } catch (e) {
@@ -106,7 +122,12 @@ router.post('/scryfall/cards/collection', requireAuth, async (req, res) => {
       headers: { ...SF_HEADERS, 'Content-Type': 'application/json' },
       body:    JSON.stringify(req.body || {}),
     });
-    res.status(sfRes.status).type('application/json').send(await sfRes.text());
+    const body = await sfRes.text();
+    if (!isValidJson(body)) {
+      console.error(`[scryfall-proxy] non-JSON response from cards/collection (status ${sfRes.status}): ${body.slice(0, 200)}`);
+      return res.status(502).json({ error: 'Scryfall returned an unexpected (non-JSON) response — try again shortly' });
+    }
+    res.status(sfRes.status).type('application/json').send(body);
   } catch (e) {
     console.error(`[scryfall-proxy] collection: ${e.message}`);
     res.status(502).json({ error: e.message });
