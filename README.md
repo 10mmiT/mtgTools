@@ -253,7 +253,8 @@ mtgtools/
 │   ├── index.html     # Single-page app shell
 │   ├── login.html     # Password login page
 │   ├── css/           # Loaded in this order; later files may override earlier
-│   │   ├── tokens.css     # Theme variables and per-tab accent colours
+│   │   ├── tokens.css     # The only file allowed raw colours: five theme palettes,
+│   │   │                  # the type/spacing/radius scales, per-tab accent colours
 │   │   ├── base.css       # Element defaults and shared text utilities
 │   │   ├── layout.css     # Page shell, header, navigation, panels
 │   │   ├── components.css # Controls and widgets shared across tabs

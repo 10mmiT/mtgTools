@@ -1,6 +1,72 @@
 /* Design tokens — theme variables and the per-tab accent colours.
-   File 1 of 5 in load order; later files may override earlier ones. */
-/* ── Theme variables ─────────────────────────────────────────────────── */
+   File 1 of 5 in load order; later files may override earlier ones.
+
+   Raw colour values (#hex, rgb(), rgba(), hsl()) are permitted in THIS FILE
+   ONLY. Everywhere else colour comes from a var(--token). Two exemptions,
+   which must carry a comment saying so: text/controls layered over card art
+   may use fixed white or black, and color-mix() on a token is allowed
+   anywhere. The same rule applies to font-size, padding, gap, margin and
+   border-radius — use a scale token below; a one-off value is a bug.
+
+   The file has three parts:
+     1. Fixed scales — type, spacing, radius, breakpoints, measure. Not
+        theme-dependent, so they are declared once.
+     2. Themes — five palettes, each a complete set of colour tokens.
+     3. Per-tab accent colours.
+
+   The new semantic token vocabulary (--surface-*, --text-muted, --success,
+   --player-N, the scales) sits BESIDE the older tokens (--card, --muted,
+   --radius, …) while call sites are migrated one batch at a time. Nothing
+   consumes the new names yet; the old ones are deleted once nothing refers
+   to them. */
+
+/* ── 1. Fixed scales ──────────────────────────────────────────────────────
+   These do not vary by theme. Shadows do — they live with the palettes. */
+:root {
+  /* Type scale — base 16px, seven steps, the only permitted font sizes.
+     Note --text-2xs…--text-xl are SIZES; --text, --text-muted and
+     --text-subtle in the palettes below are COLOURS. */
+  --text-2xs:  .6875rem;  /* 11px — badges, pips, dense metadata */
+  --text-xs:   .75rem;    /* 12px — table secondary, captions, help text */
+  --text-sm:   .8125rem;  /* 13px — table body, chips, buttons */
+  --text-base: .875rem;   /* 14px — app default */
+  --text-md:   1rem;      /* 16px — prose: oracle text, rulings, long-form */
+  --text-lg:   1.25rem;   /* 20px — section headings, card name in detail */
+  --text-xl:   1.75rem;   /* 28px — page/tab title, the only display size */
+
+  --leading-tight:  1.25; /* headings, table rows */
+  --leading-normal: 1.5;  /* prose */
+
+  /* Spacing scale — 4px base, six steps, the only permitted gap/padding/
+     margin values. */
+  --space-1: .25rem;   /*  4px — icon-to-label, pip gaps */
+  --space-2: .5rem;    /*  8px — inside controls, chip padding */
+  --space-3: .75rem;   /* 12px — grid gutters, control gaps */
+  --space-4: 1rem;     /* 16px — section padding, toolbar padding */
+  --space-5: 1.5rem;   /* 24px — between major sections */
+  --space-6: 2rem;     /* 32px — page top/bottom rhythm */
+
+  /* Radius scale — three steps, the only permitted corner sizes. */
+  --radius-sm:   4px;    /* chips, badges, inputs, small buttons */
+  --radius-md:   8px;    /* cards, panels, modals, images */
+  --radius-full: 999px;  /* pills, avatars, toggles */
+
+  /* Breakpoints. Custom properties cannot be used inside a media query, so
+     @media rules must repeat these literals — 640px, 900px, 1280px. The
+     tokens are here as the single written-down definition, and so that
+     scripts can read them off the computed style. */
+  --bp-sm:  640px;   /* compact phone */
+  --bp-md:  900px;   /* nav switches: bottom bar <-> sidebar */
+  --bp-lg: 1280px;   /* wide desktop: denser grids, wider tables */
+
+  --measure: 72ch;   /* max line length for prose */
+}
+
+/* ── 2. Themes ────────────────────────────────────────────────────────────
+   Each block is a complete palette. Every colour the app can show is named
+   here so that no theme is second-class. */
+
+/* Dark — the default. */
 :root {
   --bg:         #111118;
   --card:       #1c1c27;
@@ -26,6 +92,50 @@
   --mc-g: #4aa86a;
   --mc-c: #9aa0b5;
   --mc-gold: #d4af37;
+
+  /* Surfaces. --surface-1/2 alias the older names so the migration cannot
+     shift a pixel; --surface-3 is new (hover fills, disabled fills). */
+  --surface-1: var(--card);
+  --surface-2: var(--card-2);
+  --surface-3: #2e2e46;
+
+  --border-strong: #474768;    /* focused inputs, active tiles */
+
+  --text-muted:  var(--muted);
+  --text-subtle: #6b6b88;      /* placeholders, disabled */
+
+  --primary-fg: #ffffff;       /* text/icon on a --primary fill */
+
+  /* Status. --success and --warning had no token at all before: these are
+     the values that were hardcoded through the sheet. */
+  --success:      #10b981;
+  --success-soft: rgba(16,185,129,.15);
+  --success-fg:   #ffffff;
+  --warning:      #fbbf24;
+  --warning-soft: rgba(245,158,11,.18);
+  --warning-fg:   #1a1206;     /* amber fill needs dark text */
+  --danger-soft:  var(--danger-lt);
+  --danger-fg:    #ffffff;
+
+  --scrim: rgb(17 17 24 / .82); /* veil between playmat and content */
+  --mat:   #191922;             /* Deck Builder felt surface */
+
+  /* Overlay shadows. Flat surfaces get a hairline instead — there is
+     deliberately no --shadow-raised. */
+  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
+  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
+  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .35);
+
+  /* Per-player categorical palette. These are the eight colours the .p0-.p7
+     classes use today, which had no theme variants whatsoever. */
+  --player-0: #818cf8;
+  --player-1: #34d399;
+  --player-2: #fb923c;
+  --player-3: #f87171;
+  --player-4: #fbbf24;
+  --player-5: #a78bfa;
+  --player-6: #22d3ee;
+  --player-7: #f472b6;
 
   /* Default section accent; per-tab rules below override this */
   --accent: var(--primary);
@@ -56,6 +166,44 @@ html[data-theme="light"] {
   --mc-c: #6b7187;
   --mc-gold: #b8941f;
 
+  --surface-1: var(--card);
+  --surface-2: var(--card-2);
+  --surface-3: #ebe3fb;
+
+  --border-strong: #bda7e6;
+
+  --text-muted:  var(--muted);
+  --text-subtle: #9b8cc0;
+
+  --primary-fg: #ffffff;
+
+  --success:      #1a7f4f;
+  --success-soft: #e4f4ea;
+  --success-fg:   #ffffff;
+  --warning:      #96660c;
+  --warning-soft: #fbf0dc;
+  --warning-fg:   #ffffff;
+  --danger-soft:  var(--danger-lt);
+  --danger-fg:    #ffffff;
+
+  --scrim: rgb(243 238 255 / .84);
+  --mat:   #e8e0fa;
+
+  /* Light themes carry roughly half the shadow alpha. */
+  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .14), 0 1px 3px rgb(0 0 0 / .08);
+  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .20);
+  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .16);
+
+  /* Same eight hues as the dark theme, darkened to read on a light surface. */
+  --player-0: #2f5fbf;
+  --player-1: #24794c;
+  --player-2: #a4650f;
+  --player-3: #b03445;
+  --player-4: #8a7410;
+  --player-5: #6d3fb5;
+  --player-6: #16707f;
+  --player-7: #a83c7e;
+
   --accent: var(--primary);
 }
 
@@ -85,6 +233,44 @@ html[data-theme="contrast"] {
   --mc-c: #c8ccd8;
   --mc-gold: #f0cc55;
 
+  --surface-1: var(--card);
+  --surface-2: var(--card-2);
+  --surface-3: #232323;
+
+  --border-strong: #808080;
+
+  --text-muted:  var(--muted);
+  --text-subtle: #adadad;
+
+  --primary-fg: #ffffff;
+
+  /* Brighter status fills than the other dark themes, so each clears AA
+     against the black background; their -fg text goes dark to match. */
+  --success:      #66e0a0;
+  --success-soft: #06231a;
+  --success-fg:   #000000;
+  --warning:      #ffd166;
+  --warning-soft: #241d08;
+  --warning-fg:   #000000;
+  --danger-soft:  var(--danger-lt);
+  --danger-fg:    #000000;
+
+  --scrim: rgb(0 0 0 / .90);   /* strongest scrim — legibility first */
+  --mat:   #0f0f0f;
+
+  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .45), 0 1px 3px rgb(0 0 0 / .25);
+  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .60);
+  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .50);
+
+  --player-0: #9dbcff;
+  --player-1: #85dba4;
+  --player-2: #f5bd76;
+  --player-3: #ff9099;
+  --player-4: #ecd977;
+  --player-5: #c9a8ff;
+  --player-6: #7fdbe8;
+  --player-7: #f5a3d0;
+
   --accent: var(--primary);
 }
 
@@ -112,6 +298,43 @@ html[data-theme="sepia"] {
   --mc-g: #3f7a4a;
   --mc-c: #71695a;
   --mc-gold: #9c7a1f;
+
+  --surface-1: var(--card);
+  --surface-2: var(--card-2);
+  --surface-3: #e7dbba;
+
+  --border-strong: #bda884;
+
+  --text-muted:  var(--muted);
+  --text-subtle: #a89372;
+
+  --primary-fg: #ffffff;
+
+  --success:      #1f7a4c;
+  --success-soft: #e6f1e4;
+  --success-fg:   #ffffff;
+  --warning:      #8e6209;
+  --warning-soft: #f7ecd6;
+  --warning-fg:   #ffffff;
+  --danger-soft:  var(--danger-lt);
+  --danger-fg:    #ffffff;
+
+  --scrim: rgb(236 224 196 / .84);
+  --mat:   #e3d5b4;
+
+  /* Half alpha like the other light theme, warmed to match the paper. */
+  --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
+  --shadow-modal:   0 16px 48px -8px rgb(60 40 10 / .22);
+  --shadow-lift:    0 8px 24px -4px rgb(60 40 10 / .18);
+
+  --player-0: #33589f;
+  --player-1: #2a7048;
+  --player-2: #97600f;
+  --player-3: #a83b3d;
+  --player-4: #806c10;
+  --player-5: #6a4099;
+  --player-6: #1c6a72;
+  --player-7: #9c3c70;
 
   --accent: var(--primary);
 }
@@ -144,10 +367,50 @@ html[data-theme="forest"] {
   --mc-c: #9aa0b5;
   --mc-gold: #d4af37;
 
+  --surface-1: var(--card);
+  --surface-2: var(--card-2);
+  --surface-3: #1d2f24;
+
+  --border-strong: #3d5546;
+
+  --text-muted:  var(--muted);
+  --text-subtle: #647a6c;
+
+  --primary-fg: #ffffff;
+
+  /* Success leans emerald rather than the theme's pure green, so "owned"
+     stays distinguishable from --primary on this theme alone. */
+  --success:      #34d399;
+  --success-soft: rgba(52,211,153,.15);
+  --success-fg:   #06251a;
+  --warning:      #fbbf24;
+  --warning-soft: rgba(245,158,11,.18);
+  --warning-fg:   #1a1206;
+  --danger-soft:  var(--danger-lt);
+  --danger-fg:    #ffffff;
+
+  --scrim: rgb(10 18 13 / .82);
+  --mat:   #12201a;
+
+  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .34), 0 1px 3px rgb(0 0 0 / .17);
+  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .44);
+  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .38);
+
+  /* Player colours match the base dark theme for the same reason the mana
+     colours do: they identify a person, not the chrome around them. */
+  --player-0: #818cf8;
+  --player-1: #34d399;
+  --player-2: #fb923c;
+  --player-3: #f87171;
+  --player-4: #fbbf24;
+  --player-5: #a78bfa;
+  --player-6: #22d3ee;
+  --player-7: #f472b6;
+
   --accent: var(--primary);
 }
 
-/* ── Per-tab accent colours (the "WUBRG here and there" theming) ─────────
+/* ── 3. Per-tab accent colours (the "WUBRG here and there" theming) ──────
    Each tab pane + its nav buttons inherit a mana-coloured --accent that
    tints the active nav item and panel-title bars within that tab. */
 #tab-available,    #tab-btn-available,    [data-tab="available"]    { --accent: var(--mc-u); }
