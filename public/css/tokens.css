@@ -1,0 +1,163 @@
+/* Design tokens — theme variables and the per-tab accent colours.
+   File 1 of 5 in load order; later files may override earlier ones. */
+/* ── Theme variables ─────────────────────────────────────────────────── */
+:root {
+  --bg:         #111118;
+  --card:       #1c1c27;
+  --card-2:     #25253a;
+  --border:     #32324a;
+  --text:       #f0f0f5;
+  --muted:      #9090b0;
+  --primary:    #a855f7;
+  --primary-dk: #9333ea;
+  --primary-lt: #2e1065;
+  --primary-tx: #e9d5ff;
+  --danger:     #ef4444;
+  --danger-lt:  #3b0a0a;
+  --radius:     10px;
+  --shadow:     0 2px 12px rgba(0,0,0,.45);
+  --hdr-bg:     #0c0916;
+
+  /* MTG mana palette (WUBRG + gold) — tuned for the dark theme */
+  --mc-w: #d9c879;
+  --mc-u: #5a9fd4;
+  --mc-b: #9b8bb0;
+  --mc-r: #e05a4d;
+  --mc-g: #4aa86a;
+  --mc-c: #9aa0b5;
+  --mc-gold: #d4af37;
+
+  /* Default section accent; per-tab rules below override this */
+  --accent: var(--primary);
+}
+
+html[data-theme="light"] {
+  --bg:         #f3eeff;
+  --card:       #ffffff;
+  --card-2:     #f5f0ff;
+  --border:     #ddd0f5;
+  --text:       #1a0a2e;
+  --muted:      #7060a0;
+  --primary:    #7c3aed;
+  --primary-dk: #6d28d9;
+  --primary-lt: #ede9fe;
+  --primary-tx: #4c1d95;
+  --danger:     #dc2626;
+  --danger-lt:  #fee2e2;
+  --shadow:     0 1px 4px rgba(80,0,160,.1);
+  --hdr-bg:     #7c3aed;
+
+  /* MTG mana palette — darkened for contrast on the light theme */
+  --mc-w: #a8841f;
+  --mc-u: #2f6fb0;
+  --mc-b: #6b5b8a;
+  --mc-r: #c43c30;
+  --mc-g: #2f8050;
+  --mc-c: #6b7187;
+  --mc-gold: #b8941f;
+
+  --accent: var(--primary);
+}
+
+/* High-contrast dark — pure black background, brighter borders/text for
+   maximum readability (e.g. low-vision or glare-prone setups). */
+html[data-theme="contrast"] {
+  --bg:         #000000;
+  --card:       #0a0a0a;
+  --card-2:     #161616;
+  --border:     #4a4a4a;
+  --text:       #ffffff;
+  --muted:      #c2c2c2;
+  --primary:    #c084fc;
+  --primary-dk: #a855f7;
+  --primary-lt: #3b0764;
+  --primary-tx: #f3e8ff;
+  --danger:     #f87171;
+  --danger-lt:  #450a0a;
+  --shadow:     0 2px 12px rgba(0,0,0,.7);
+  --hdr-bg:     #000000;
+
+  --mc-w: #f0e0a0;
+  --mc-u: #7cc0f0;
+  --mc-b: #c4b5e0;
+  --mc-r: #ff8a7a;
+  --mc-g: #6fd190;
+  --mc-c: #c8ccd8;
+  --mc-gold: #f0cc55;
+
+  --accent: var(--primary);
+}
+
+/* Sepia — warm paper tones, for a softer light theme alternative. */
+html[data-theme="sepia"] {
+  --bg:         #ece0c4;
+  --card:       #faf3e2;
+  --card-2:     #f0e5c8;
+  --border:     #d8c69e;
+  --text:       #3b2f1e;
+  --muted:      #8a7350;
+  --primary:    #a0522d;
+  --primary-dk: #84431f;
+  --primary-lt: #f1e0c8;
+  --primary-tx: #5c3a1e;
+  --danger:     #b91c1c;
+  --danger-lt:  #f3d8d2;
+  --shadow:     0 1px 4px rgba(80,50,0,.12);
+  --hdr-bg:     #84431f;
+
+  --mc-w: #a8841f;
+  --mc-u: #336699;
+  --mc-b: #6b5b45;
+  --mc-r: #b3402e;
+  --mc-g: #3f7a4a;
+  --mc-c: #71695a;
+  --mc-gold: #9c7a1f;
+
+  --accent: var(--primary);
+}
+
+/* Forest — dark theme with green hues. */
+html[data-theme="forest"] {
+  --bg:         #0a120d;
+  --card:       #101a14;
+  --card-2:     #16241c;
+  --border:     #2a3d30;
+  --text:       #e8f5ec;
+  --muted:      #8aa893;
+  --primary:    #22c55e;
+  --primary-dk: #16a34a;
+  --primary-lt: #052e16;
+  --primary-tx: #bbf7d0;
+  --danger:     #ef4444;
+  --danger-lt:  #3b0a0a;
+  --shadow:     0 2px 12px rgba(0,0,0,.5);
+  --hdr-bg:     #07120c;
+
+  /* Mana colours stay close to the base dark theme — they represent the
+     game's WUBRG identity, not the UI accent, so they shouldn't shift
+     just because the chrome around them turns green. */
+  --mc-w: #d9c879;
+  --mc-u: #5a9fd4;
+  --mc-b: #9b8bb0;
+  --mc-r: #e05a4d;
+  --mc-g: #4aa86a;
+  --mc-c: #9aa0b5;
+  --mc-gold: #d4af37;
+
+  --accent: var(--primary);
+}
+
+/* ── Per-tab accent colours (the "WUBRG here and there" theming) ─────────
+   Each tab pane + its nav buttons inherit a mana-coloured --accent that
+   tints the active nav item and panel-title bars within that tab. */
+#tab-available,    #tab-btn-available,    [data-tab="available"]    { --accent: var(--mc-u); }
+#tab-collections,  #tab-btn-collections,  [data-tab="collections"]  { --accent: var(--mc-g); }
+#tab-players,      #tab-btn-players,      [data-tab="players"]      { --accent: var(--mc-gold); }
+#tab-scryfall,     #tab-btn-scryfall,     [data-tab="scryfall"]     { --accent: var(--mc-r); }
+#tab-card,         #tab-btn-card,         [data-tab="card"]         { --accent: var(--mc-gold); }
+#tab-sets,         #tab-btn-sets,         [data-tab="sets"]         { --accent: var(--mc-w); }
+#tab-wants,        #tab-btn-wants,        [data-tab="wants"]        { --accent: var(--mc-b); }
+#tab-lands,        #tab-btn-lands,        [data-tab="lands"]        { --accent: var(--mc-g); }
+#tab-deckview,     #tab-btn-deckview,     [data-tab="deckview"]     { --accent: var(--mc-u); }
+#tab-pick,         #tab-btn-pick,         [data-tab="pick"]         { --accent: var(--primary); }
+#tab-admin,        #tab-btn-admin,        [data-tab="admin"]        { --accent: var(--primary); }
