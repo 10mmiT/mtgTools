@@ -123,7 +123,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Feed data is fetched server-side and cached for 10 minutes; supports HTTP redirects
 
 ### General
-- **5 themes** — Dark, Light, High Contrast, Sepia, and Forest. Desktop picks via a dropdown in the sidebar (with a checkmark on the active theme); mobile cycles through them with a single tap. Preference saved in the browser
+- **5 themes** — Dark, Light, High Contrast, Sepia, and Forest. Desktop picks via a dropdown in the sidebar (with a checkmark on the active theme); mobile cycles through them with a single tap. Preference saved in the browser. A `?theme=` URL parameter (`/?theme=light`, ids: `dark`, `light`, `contrast`, `sepia`, `forest`) overrides and replaces the saved preference — handy for sharing a link in a specific theme, or for recovering from an unreadable stored one; an unknown id is ignored
 - **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows — independent of the 5 UI themes above, since mana symbol colours represent the game, not the chrome
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - **Minimal-UI conventions across all tabs**: one shared List/Grid/XL(/Pile) view toggle component, shared Sort and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
@@ -247,11 +247,17 @@ mtgtools/
 │   └── state.js       # App state API — collections, players, decks, want lists
 ├── test/
 │   └── server.test.js # Integration tests (node:test + supertest)
+├── scripts/
+│   └── capture-screens.js # Screenshot harness — every tab × theme × viewport
 ├── public/
 │   ├── index.html     # Single-page app shell
 │   ├── login.html     # Password login page
-│   ├── css/
-│   │   └── style.css
+│   ├── css/           # Loaded in this order; later files may override earlier
+│   │   ├── tokens.css     # Theme variables and per-tab accent colours
+│   │   ├── base.css       # Element defaults and shared text utilities
+│   │   ├── layout.css     # Page shell, header, navigation, panels
+│   │   ├── components.css # Controls and widgets shared across tabs
+│   │   └── tabs.css       # Rules owned by a single tab
 │   └── js/
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
 │       ├── sortui.js      # Shared UI components: sort control, columns menu, view toggle, "⋯" kebab menus
@@ -290,6 +296,24 @@ npm test
 ```
 
 Tests spin up an isolated in-memory SQLite database and a temporary state file so they never touch production data. The suite covers auth, state, and admin API routes.
+
+### Screenshot harness
+
+For reviewing visual changes, `scripts/capture-screens.js` renders every screen of the app — 11 tabs × 5 themes × 2 viewports (1440×900 and 390×844) = 110 full-page PNGs, plus an `index.html` contact sheet showing them all at once.
+
+```bash
+DATA=--data=.scratch/ui-redesign/capture-data/state.json
+npm run capture-screens -- $DATA --name baseline   # before a change
+npm run capture-screens -- $DATA --name after      # after it, then compare
+```
+
+It starts its own copy of the server in open mode (no login needed) and drives the locally installed Firefox headless over WebDriver BiDi — no extra dependencies. Each view is loaded through the app's own URL routing (`/?theme=sepia#wants`) and captured once the page stops fetching. Tall pages are clipped to 4000px (`--max-height`), since a real collection runs to five figures. Output lands in `.scratch/ui-redesign/shots/<name>/` and is git-ignored.
+
+**Always pass `--data`.** Screens are only as interesting as the data behind them, and the repo's own `data/` is empty, so without it every tab renders an empty state and the comparison proves nothing. `.scratch/ui-redesign/capture-data/` holds a git-ignored snapshot of a populated database for exactly this; if it is missing, restore it before capturing. `DATA_FILE` names a file whose *directory* is used as the data directory, so `available.db` and `scryfall.db` sit beside the `state.json` path you pass. Always use a copy — the app writes to whatever database it is given.
+
+Runs are deterministic: capturing twice with no changes gives byte-identical PNGs, so `sha256sum` is a fair way to confirm that a change left unrelated views alone.
+
+This is a review aid, not an automated assertion: nothing compares the images. Useful flags — `--tabs`, `--themes`, `--viewports` to narrow a run, `--url` to point at an already-running app, `--help` for the rest.
 
 ## Tech Stack & Credits
 

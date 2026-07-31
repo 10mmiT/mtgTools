@@ -5,9 +5,11 @@
   classic <script> sharing one global scope; interactions are wired via inline
   onclick handlers. Keep it that way — do not introduce a bundler, modules, or
   a framework.
-- Styling is one hand-written `public/css/style.css` with 5 themes
-  (Dark/Light/High-Contrast/Sepia/Forest). Any new UI MUST work in all 5 themes
-  and use existing CSS variables, not hardcoded colors.
+- Styling is hand-written CSS in `public/css/`, loaded in cascade order:
+  `tokens.css`, `base.css`, `layout.css`, `components.css`, `tabs.css`. Colours
+  live in `tokens.css` and nowhere else. There are 5 themes
+  (Dark/Light/High-Contrast/Sepia/Forest); any new UI MUST work in all 5 and use
+  existing CSS variables, not hardcoded colors.
 - Card images/metadata come through the server Scryfall cache/proxy
   (`scryfall.js` helpers) — the browser never calls Scryfall directly. Reuse the
   existing image cache helpers; do not add new external requests.
@@ -17,6 +19,13 @@
   `deckview-panels.js` (search/autocomplete, drag/drop, EDHREC, import/export).
 - `sortui.js` already provides a shared List/Grid/XL/Pile view toggle used by all
   tabs. Build on the existing "Pile" concept rather than inventing a parallel one.
+- Check UI work with `npm run capture-screens` (see README → Testing). ALWAYS pass
+  `--data .scratch/ui-redesign/capture-data/state.json`: that is a snapshot of the
+  real database, and without it the repo's own `data/` is empty, so every tab
+  renders an empty state and the screenshots prove nothing. The snapshot is
+  git-ignored — if it is missing, ask the owner to restore it rather than
+  reviewing against empty screens. Capture before and after a change and compare;
+  the harness is deterministic, so unrelated views should stay byte-identical.
 
 ## Goal
 Make the app feel tactile — like looking at real cards on a table — while keeping
