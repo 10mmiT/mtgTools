@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test --test-force-exit test/server.test.js"
+    "test": "node --test --test-force-exit test/server.test.js",
+    "capture-screens": "node scripts/capture-screens.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -80,8 +80,17 @@ function applyTheme(id) {
     el.classList.toggle('active', el.dataset.theme === id));
 }
 
+// A `?theme=` URL parameter overrides the stored preference (and is then stored
+// itself, so the link is also the only way to clear a bad stored value without
+// dev tools). An unknown id is ignored rather than applied, which would leave
+// the page styled by a data-theme no stylesheet matches.
+function _themeFromUrl() {
+  const id = new URLSearchParams(location.search).get('theme');
+  return THEMES.some(t => t.id === id) ? id : null;
+}
+
 function initTheme() {
-  applyTheme(localStorage.getItem('mtgtools_theme') || 'dark');
+  applyTheme(_themeFromUrl() || localStorage.getItem('mtgtools_theme') || 'dark');
 }
 
 // Direct pick (desktop sidebar dropdown)

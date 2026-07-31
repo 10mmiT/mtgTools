@@ -8,11 +8,25 @@ Use the browser already installed on the machine and the app's existing URL-base
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A theme can be selected by URL parameter, validated against the known theme ids, taking precedence over the stored preference
-- [ ] An invalid theme value falls back to the stored preference rather than breaking the page
-- [ ] A capture script produces all 110 views (11 tabs × 5 themes × 2 viewports) in one run
-- [ ] The script runs against open mode so no login is required
-- [ ] Captured output is excluded from version control
-- [ ] A baseline set is captured and kept for comparison
+- [x] A theme can be selected by URL parameter, validated against the known theme ids, taking precedence over the stored preference
+- [x] An invalid theme value falls back to the stored preference rather than breaking the page
+- [x] A capture script produces all 110 views (11 tabs × 5 themes × 2 viewports) in one run
+- [x] The script runs against open mode so no login is required
+- [x] Captured output is excluded from version control
+- [x] A baseline set is captured and kept for comparison
+
+**Delivered:** `?theme=` in `public/js/main.js`; `scripts/capture-screens.js`
+(`npm run capture-screens`), which starts the server in open mode and drives the
+installed Firefox headless over WebDriver BiDi — no new dependencies. Baseline
+set of 110 views plus a contact sheet in `.scratch/ui-redesign/shots/baseline/`.
+
+The baseline was captured against a snapshot of the production database, so the
+panes show real collections, decks and availability rather than empty states.
+The snapshot lives in `.scratch/ui-redesign/capture-data/` and is passed with
+`--data`; refresh it before a phase that needs to be judged on current content.
+
+Tall pages are clipped to 4000px — Collections is 18,049px on desktop and
+22,866px on phone, which is neither reviewable nor thumbnailable. Raise or
+remove the cap with `--max-height` when a specific pane needs its full length.
