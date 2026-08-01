@@ -1,7 +1,7 @@
-// ── Collapsible panels ────────────────────────────────────────────────
+// ── Collapsible sections ────────────────────────────────────────────────
 const collapseState = JSON.parse(localStorage.getItem('mtgtools_collapse') || '{}');
 
-function togglePanel(id) {
+function toggleSection(id) {
   collapseState[id] = !collapseState[id];
   localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
   applyCollapse(id);

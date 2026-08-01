@@ -260,7 +260,7 @@
 }
 
 /* ── Deck panel ──────────────────────────────────────────────────────── */
-.deck-panel { display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: var(--space-4); }
+.deck-section { display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: var(--space-4); }
 
 .deck-upload-btn {
   width: 100%;

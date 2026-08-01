@@ -195,12 +195,12 @@
 <div class="main-col">
 
   <!-- Add collection -->
-  <div class="panel">
-    <div class="panel-title collapsible" onclick="togglePanel('add-col')">
+  <div class="section">
+    <div class="section-title collapsible" onclick="toggleSection('add-col')">
       Add Collection
       <svg class="chevron" id="chv-add-col" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
-    <div class="panel-body" id="pb-add-col">
+    <div class="section-body" id="pb-add-col">
     <div class="add-form">
       <div class="field">
         <label>Label (person's name)</label>
@@ -230,18 +230,18 @@
   </div>
 
   <!-- Saved collections -->
-  <div class="panel" id="collectionsPanel" style="display:none">
-    <div class="panel-title collapsible" onclick="togglePanel('collections')">
+  <div class="section" id="collectionsPanel" style="display:none">
+    <div class="section-title collapsible" onclick="toggleSection('collections')">
       Collections
       <svg class="chevron" id="chv-collections" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
-    <div class="panel-body" id="pb-collections">
+    <div class="section-body" id="pb-collections">
       <div class="collections-list" id="collectionsList"></div>
     </div>
   </div>
 
   <!-- Search + view toggle -->
-  <div class="panel">
+  <div class="section">
     <div class="search-row">
       <input id="searchInput" type="text" class="search-input" placeholder="Search by card name…" oninput="scheduleRender()">
       <span id="resultInfo" class="result-info"></span>
@@ -254,7 +254,7 @@
   </div>
 
   <!-- Results -->
-  <div class="panel">
+  <div class="section">
     <div id="listView">
       <div class="table-wrap">
         <table id="resultsTable">
@@ -280,8 +280,8 @@
 
 <!-- Deck sidebar -->
 <div class="deck-col">
-  <div class="panel deck-panel" id="deckPanel">
-    <div class="panel-title">Deck</div>
+  <div class="section deck-section" id="deckPanel">
+    <div class="section-title">Deck</div>
     <div id="deckEmpty">
       <button class="deck-upload-btn" onclick="document.getElementById('deckInput').click()">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -324,7 +324,7 @@
 
 <!-- Scryfall Search tab -->
 <div id="tab-scryfall" class="tab-pane" style="display:none">
-  <div class="panel" style="margin-bottom:var(--space-4)">
+  <div class="section" style="margin-bottom:var(--space-4)">
     <div class="search-row">
       <input id="sfInput" type="text" class="search-input"
              placeholder="Search Scryfall… (e.g. t:creature c:red cmc=3)"
@@ -356,7 +356,7 @@
 
 <!-- Set Browser tab -->
 <div id="tab-sets" class="tab-pane" style="display:none">
-  <div class="panel" style="margin-bottom:var(--space-4)">
+  <div class="section" style="margin-bottom:var(--space-4)">
     <div class="search-row" style="flex-wrap:wrap;gap:var(--space-2)">
       <input id="setSearchInput" type="text" class="search-input" placeholder="Filter sets…" oninput="filterSets()" style="max-width:280px">
       <select id="setFilterSel" style="flex-shrink:0" title="Filter by ownership" onchange="setSetFilter(this.value)">
@@ -379,10 +379,10 @@
 
 <!-- Want Lists tab -->
 <div id="tab-wants" class="tab-pane" style="display:none">
-  <div class="panel" style="margin-bottom:var(--space-4)">
+  <div class="section" style="margin-bottom:var(--space-4)">
 
     <!-- Add card to want list -->
-    <div class="panel-title" style="margin-bottom:var(--space-3)">Add to Want List</div>
+    <div class="section-title" style="margin-bottom:var(--space-3)">Add to Want List</div>
     <div class="want-add-bar">
       <select id="wantPlayerSel" style="flex-shrink:0" onchange="wantPlayerSelChange(this)">
         <option value="">Select player…</option>
@@ -421,8 +421,8 @@
   <div id="availApp" style="display:none">
 
     <!-- Name bar (admin / open-mode only — players are identified by their linked player) -->
-    <div class="panel" id="availNamePanel" style="margin-bottom:var(--space-4)">
-      <div class="panel-body" id="pb-avail-name" style="padding:var(--space-3) var(--space-4)">
+    <div class="section" id="availNamePanel" style="margin-bottom:var(--space-4)">
+      <div class="section-body" id="pb-avail-name" style="padding:var(--space-3) var(--space-4)">
         <div class="avail-name-bar">
           <label for="availNameInput">Who are you?</label>
           <input type="text" id="availNameInput" placeholder="Your name" maxlength="80"
@@ -436,8 +436,8 @@
 
     <div class="avail-layout">
       <!-- Calendar -->
-      <div class="panel">
-        <div class="panel-body" id="pb-avail-cal" style="padding:var(--space-3) var(--space-4)">
+      <div class="section">
+        <div class="section-body" id="pb-avail-cal" style="padding:var(--space-3) var(--space-4)">
           <div class="avail-month-cal">
             <div class="cal-header">
               <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()">&#8249;</button>
@@ -451,9 +451,9 @@
       </div>
 
       <!-- Best days -->
-      <div class="panel">
-        <div class="panel-title" style="font-size:var(--text-md);font-weight:700">Best upcoming days</div>
-        <div class="panel-body" id="pb-avail-best" style="padding:var(--space-3) var(--space-4)">
+      <div class="section">
+        <div class="section-title" style="font-size:var(--text-md);font-weight:700">Best upcoming days</div>
+        <div class="section-body" id="pb-avail-best" style="padding:var(--space-3) var(--space-4)">
           <div id="availBestDays"></div>
         </div>
       </div>
@@ -470,8 +470,8 @@
   <div class="lands-inputs-col">
 
     <!-- Deck size -->
-    <div class="panel">
-      <div class="panel-title">Deck Size</div>
+    <div class="section">
+      <div class="section-title">Deck Size</div>
       <div class="view-toggle" style="width:fit-content;margin-bottom:var(--space-3)">
         <button class="view-btn land-preset-btn" data-size="40">40 <span class="preset-sub">Limited</span></button>
         <button class="view-btn land-preset-btn active" data-size="60">60 <span class="preset-sub">Constructed</span></button>
@@ -482,7 +482,7 @@
         <span class="lands-hint">cards</span>
       </div>
 
-      <div class="panel-title" style="margin-top:var(--space-4)">Total Lands</div>
+      <div class="section-title" style="margin-top:var(--space-4)">Total Lands</div>
       <p class="lands-sub">Override how many lands to run. Leave blank to use the recommended amount for your deck size.</p>
       <div style="display:flex;align-items:center;gap:var(--space-2)">
         <input type="number" id="landsCount" class="lands-num-input" placeholder="24" min="0" max="500" style="width:110px">
@@ -491,8 +491,8 @@
     </div>
 
     <!-- Mana pips -->
-    <div class="panel">
-      <div class="panel-title">Mana Pips in Casting Costs</div>
+    <div class="section">
+      <div class="section-title">Mana Pips in Casting Costs</div>
       <p class="lands-sub">Count each colored symbol across all your non-land cards. Ignore generic mana (numbers).</p>
       <div class="lands-pips-grid">
         <div class="lands-pip-field">
@@ -529,8 +529,8 @@
     </div>
 
     <!-- Non-basic lands -->
-    <div class="panel">
-      <div class="panel-title">Non-Basic Lands</div>
+    <div class="section">
+      <div class="section-title">Non-Basic Lands</div>
       <p class="lands-sub">How many dual lands, fetch lands, or other non-basics are you including? These count toward your land total but are subtracted before basics are calculated.</p>
       <div class="lands-nonbasic-grid">
         <div class="lands-nonbasic-field">
@@ -553,8 +553,8 @@
 
   <!-- Right column: results -->
   <div class="lands-results-col">
-    <div class="panel" style="position:sticky;top:4.5rem">
-      <div class="panel-title">Recommended Mana Base</div>
+    <div class="section" style="position:sticky;top:4.5rem">
+      <div class="section-title">Recommended Mana Base</div>
       <div id="landsSummaryCards" class="lands-summary-cards"></div>
       <div id="landsResultRows" class="lands-result-rows" style="margin-top:var(--space-4)"></div>
       <div id="landsEmptyState" class="lands-empty-state">
@@ -570,19 +570,19 @@
 <div id="tab-pick" class="tab-pane" style="display:none">
 
   <!-- Deck Pool panel (collapsed by default) -->
-  <div class="panel" style="margin-bottom:var(--space-4)">
-    <div class="panel-title collapsible" onclick="togglePanel('pick-pool')">
+  <div class="section" style="margin-bottom:var(--space-4)">
+    <div class="section-title collapsible" onclick="toggleSection('pick-pool')">
       <span id="pickPoolTitle">Deck Pool</span>
       <svg class="chevron" id="chv-pick-pool" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
-    <div class="panel-body" id="pb-pick-pool">
+    <div class="section-body" id="pb-pick-pool">
       <div id="pickPoolDeckList"></div>
     </div>
   </div>
 
   <!-- Setup panel -->
-  <div class="panel" style="margin-bottom:var(--space-4)">
-    <div class="panel-title" style="margin-bottom:var(--space-3)">Who's playing tonight?</div>
+  <div class="section" style="margin-bottom:var(--space-4)">
+    <div class="section-title" style="margin-bottom:var(--space-3)">Who's playing tonight?</div>
     <div id="pickPlayersList" class="pick-players-list"></div>
     <div class="pick-controls">
       <div class="col-menu-wrap kebab-wrap">
@@ -611,8 +611,8 @@
 <div id="tab-admin" class="tab-pane" style="display:none">
 
   <!-- Pending account requests -->
-  <div class="panel" style="margin-bottom:var(--space-4)">
-    <div class="panel-title" style="margin-bottom:var(--space-3)">
+  <div class="section" style="margin-bottom:var(--space-4)">
+    <div class="section-title" style="margin-bottom:var(--space-3)">
       Pending Account Requests
       <span id="adminReqBadge" style="display:none;background:var(--primary);color:var(--primary-fg);font-size:var(--text-2xs);padding:var(--space-1) var(--space-2);border-radius:var(--radius-full);margin-left:var(--space-2);font-weight:700;vertical-align:middle"></span>
     </div>
@@ -629,12 +629,12 @@
   </div>
 
   <!-- Create user -->
-  <div class="panel" style="margin-bottom:var(--space-4)">
-    <div class="panel-title collapsible" onclick="togglePanel('admin-create')">
+  <div class="section" style="margin-bottom:var(--space-4)">
+    <div class="section-title collapsible" onclick="toggleSection('admin-create')">
       Create User Account
       <svg class="chevron" id="chv-admin-create" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
-    <div class="panel-body" id="pb-admin-create">
+    <div class="section-body" id="pb-admin-create">
     <form onsubmit="adminCreateUser(event)" class="admin-create-form">
       <div class="field">
         <label>Username</label>
@@ -666,8 +666,8 @@
   </div>
 
   <!-- Users table -->
-  <div class="panel">
-    <div class="panel-title" style="margin-bottom:var(--space-3)">All Users</div>
+  <div class="section">
+    <div class="section-title" style="margin-bottom:var(--space-3)">All Users</div>
     <div class="table-wrap">
       <table>
         <thead>

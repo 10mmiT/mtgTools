@@ -304,7 +304,7 @@ async function renderWantList() {
       </tr>`;
     }).join('');
 
-    container.innerHTML = `<div class="panel">
+    container.innerHTML = `<div class="section">
       <div class="table-wrap">
         <table>
           <thead><tr>

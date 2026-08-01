@@ -183,8 +183,8 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
         </div>
       </div>
     </div>
-    <div class="card-detail-section" id="${rId}"><div class="panel-title">Rulings</div><div class="help-text">Loading rulings…</div></div>
-    <div class="card-detail-section" id="${pId}"><div class="panel-title">Other Printings &amp; Alt-Art</div><div class="help-text">Loading printings…</div></div>
+    <div class="card-detail-section" id="${rId}"><div class="section-title">Rulings</div><div class="help-text">Loading rulings…</div></div>
+    <div class="card-detail-section" id="${pId}"><div class="section-title">Other Printings &amp; Alt-Art</div><div class="help-text">Loading printings…</div></div>
   `;
 
   // Rulings + printings load async (independent of each other)
@@ -229,10 +229,10 @@ async function loadRulings(card, seq, sectionId = 'cardDetail-rulings') {
   } catch {}
   if (seq !== _cardReqSeq || !el) return;
   if (!rulings.length) {
-    el.innerHTML = `<div class="panel-title">Rulings</div><div class="help-text">No rulings for this card.</div>`;
+    el.innerHTML = `<div class="section-title">Rulings</div><div class="help-text">No rulings for this card.</div>`;
     return;
   }
-  el.innerHTML = `<div class="panel-title">Rulings (${rulings.length})</div>` +
+  el.innerHTML = `<div class="section-title">Rulings (${rulings.length})</div>` +
     rulings.map(r => `<div class="card-ruling">
       <span class="card-ruling-date">${esc((r.published_at || '').slice(0, 10))}</span>
       <span class="card-ruling-text">${cardOracleHtml(r.comment)}</span>
@@ -259,6 +259,6 @@ async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
     </button>`;
   }).join('');
 
-  el.innerHTML = `<div class="panel-title">Other Printings &amp; Alt-Art (${prints.length})</div>
+  el.innerHTML = `<div class="section-title">Other Printings &amp; Alt-Art (${prints.length})</div>
     <div class="card-prints-grid">${tiles}</div>`;
 }

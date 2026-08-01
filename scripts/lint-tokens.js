@@ -107,8 +107,8 @@ function readScales(source) {
  *                and a `.mob-nav-item:hover` rule that beat them on
  *                specificity — a `-danger` modifier at equal specificity
  *                removes all six.
- *   layout.css   .panel-body.closed fights an inline `display` set by the
- *                panel collapse script; moving that to a class removes it.
+ *   layout.css   .section-body.closed fights an inline `display` set by the
+ *                section collapse script; moving that to a class removes it.
  *   components.css  three of these override a base control rule inside a
  *                media query, one hides the card modal below 900px.
  *   tabs.css     five width overrides on mobile, all fighting the same
@@ -120,7 +120,7 @@ const IMPORTANT_ALLOWLIST = [
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger', count: 1 },
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger:hover', count: 1 },
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger svg', count: 1 },
-  { file: 'public/css/layout.css', selector: '.panel-body.closed', count: 1 },
+  { file: 'public/css/layout.css', selector: '.section-body.closed', count: 1 },
   { file: 'public/css/components.css', selector: '.sort-select', count: 2 },
   { file: 'public/css/components.css', selector: '.cards-grid', count: 1 },
   { file: 'public/css/components.css', selector: '.card-modal-overlay', count: 1 },
@@ -148,12 +148,12 @@ const IMPORTANT_ALLOWLIST = [
  * THIS LIST ONLY EVER SHRINKS, to zero, in ticket 10. Nothing may be added:
  * a new shadow on a bordered surface is a lint failure.
  *
- *   border + shadow        .panel and the eight surfaces that copy it
+ *   border + shadow        .section and the eight surfaces that copy it
  *   accent-tinted glow     the three :hover glows, plus the accent halo on
  *                          .card-detail-img (which per the spec should have
  *                          no edge at all — the artwork is its own edge) */
 const ELEVATION_ALLOWLIST = [
-  { file: 'public/css/layout.css', selector: '.panel' },
+  { file: 'public/css/layout.css', selector: '.section' },
   { file: 'public/css/layout.css', selector: '.mob-nav-btn' },
   { file: 'public/css/layout.css', selector: '.mob-nav-menu' },
   { file: 'public/css/components.css', selector: '.ac-dropdown' },

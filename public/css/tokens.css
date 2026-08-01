@@ -54,7 +54,7 @@
 
   /* Radius scale — three steps, the only permitted corner sizes. */
   --radius-sm:   4px;    /* chips, badges, inputs, small buttons */
-  --radius-md:   8px;    /* cards, panels, modals, images */
+  --radius-md:   8px;    /* cards, sections, modals, images */
   --radius-full: 999px;  /* pills, avatars, toggles */
 
   /* Breakpoints. Custom properties cannot be used inside a media query, so
@@ -133,7 +133,7 @@
   --mc-c: #a3aab8;
   --mc-gold: #d9b955;
 
-  /* Surfaces. 1 is the resting panel, 2 the step above it, 3 hover and
+  /* Surfaces. 1 is the resting section, 2 the step above it, 3 hover and
      disabled fills. */
   --surface-1: #15181c;
   --surface-2: #1c2026;
