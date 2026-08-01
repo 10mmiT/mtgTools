@@ -15,6 +15,11 @@
   at `--text-2xs`. Padding, margin and gap come from the six `--space-*` steps
   and corners from the three `--radius-*` steps; a raw value in either is a bug.
   The same rules apply to inline `style=` attributes in HTML and JS.
+- There are exactly three breakpoints — 640, 900 and 1280 — written as range
+  queries, `(width < 900px)` / `(width >= 900px)`. Any other number in an
+  `@media` rule is a bug. 900 is where the nav switches between the bottom bar
+  and the sidebar, and where a card switches between the full-page tab and the
+  modal. JS reads the same numbers from `BP_SM`/`BP_MD` in `state.js`.
 - Card images/metadata come through the server Scryfall cache/proxy
   (`scryfall.js` helpers) — the browser never calls Scryfall directly. Reuse the
   existing image cache helpers; do not add new external requests.

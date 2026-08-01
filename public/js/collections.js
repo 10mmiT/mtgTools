@@ -485,7 +485,7 @@ function renderResults() {
 
   const rows      = buildRows(query);
   ensureSortMeta(rows);
-  const isMobile  = window.innerWidth <= 640;
+  const isMobile  = window.innerWidth < BP_SM;
   const MOBILE_CAP = 150;
   const fullMax   = viewMode === 'grid' ? 200 : 500;
   const MAX       = (isMobile && !_mobileShowAll) ? MOBILE_CAP : fullMax;

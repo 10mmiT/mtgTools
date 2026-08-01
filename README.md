@@ -50,7 +50,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Search on Enter or button click — no auto-search while typing to stay within Scryfall's rate limits
 
 ### Card tab
-- Detailed view for a single card — on **desktop (≥1024px)** clicking any card name or image opens a dimmed **modal overlay** on the current tab (close with **✕**, **Esc**, or click outside); on **mobile** it switches to the full-page Card tab (the Card tab entry is hidden in the desktop sidebar since it's only reachable via mobile)
+- Detailed view for a single card — on **desktop (≥900px)** clicking any card name or image opens a dimmed **modal overlay** on the current tab (close with **✕**, **Esc**, or click outside); on **mobile** it switches to the full-page Card tab (the Card tab entry is hidden in the desktop sidebar since it's only reachable via mobile)
 - Shows the full card image (both faces for double-faced cards) with oracle text rendered using proper mana symbols
 - Card info: mana cost, type line, power/toughness/loyalty, set · collector number · rarity · artist
 - Cardmarket (EUR) and USD prices
@@ -129,7 +129,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Minimal-UI conventions across all tabs**: one shared List/Grid/XL(/Pile) view toggle component, shared Sort and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
 - **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck Builder); your sort field/direction and which columns are shown persist per-view in the browser
 - **Scryfall traffic is centralised and cached**: the server keeps a daily copy of Scryfall's bulk card data in SQLite and serves card images/metadata/autocomplete locally; the few remaining live calls (full-text search, card detail, set browsing) go through a server-side proxy with a shared rate-limit queue and a 10-minute response cache — the browser never talks to api.scryfall.com directly
-- Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥1024px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
+- Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥900px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
 - Collapsible panels throughout (Add Collection, Collections, each player section, Deck Pool, Admin's Create User) — rarely-used forms start collapsed and remember your toggle
 - Per-user login system with player-linked accounts and an admin role
@@ -254,7 +254,8 @@ mtgtools/
 │   ├── login.html     # Password login page
 │   ├── css/           # Loaded in this order; later files may override earlier
 │   │   ├── tokens.css     # The only file allowed raw colours: five theme palettes,
-│   │   │                  # the type/spacing/radius scales, per-tab accent colours
+│   │   │                  # the type/spacing/radius scales, the three breakpoints,
+│   │   │                  # per-tab accent colours
 │   │   ├── base.css       # Element defaults and shared text utilities
 │   │   ├── layout.css     # Page shell, header, navigation, panels
 │   │   ├── components.css # Controls and widgets shared across tabs
@@ -301,6 +302,8 @@ Tests spin up an isolated in-memory SQLite database and a temporary state file s
 ### Screenshot harness
 
 For reviewing visual changes, `scripts/capture-screens.js` renders every screen of the app — 11 tabs × 5 themes × 2 viewports (1440×900 and 390×844) = 110 full-page PNGs, plus an `index.html` contact sheet showing them all at once.
+
+Two further viewports, `tablet` (880px) and `tablet-wide` (960px), sit either side of the 900px breakpoint and are not in the default set. Pass `--viewports tablet,tablet-wide` when a change touches responsive behaviour: the default pair never crosses that boundary, so a rule that only misbehaves at tablet width does not show up in a standard capture.
 
 ```bash
 DATA=--data=.scratch/ui-redesign/capture-data/state.json

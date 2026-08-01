@@ -7,6 +7,12 @@ const STORAGE_KEY    = 'mtgtools_v3';
 // routes/state.js, which assigns the same defaults server-side.
 const COLORS         = ['#a855f7','#3b82f6','#10b981','#f59e0b','#ec4899','#0ea5e9','#6366f1','#ef4444'];
 const PLAYER_COLORS  = ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d399','#fbbf24','#60a5fa'];
+
+// Breakpoints — the JS half of the three in css/tokens.css (--bp-sm/md/lg).
+// Compare with < and >= so a boundary width lands on the same side here as it
+// does in the stylesheet's (width < 900px) / (width >= 900px) rules.
+const BP_SM = 640;   // compact phone
+const BP_MD = 900;   // nav switches: bottom bar <-> sidebar, card modal <-> card tab
 // ── State ─────────────────────────────────────────────────────────────────
 const state = {
   collections: [],
@@ -16,7 +22,7 @@ const state = {
   version: 0,  // optimistic-concurrency version from server
 };
 
-let viewMode       = window.innerWidth <= 640 ? 'grid' : 'list';
+let viewMode       = window.innerWidth < BP_SM ? 'grid' : 'list';
 let pendingCsvKey  = null;
 let pendingCsvName = null;
 

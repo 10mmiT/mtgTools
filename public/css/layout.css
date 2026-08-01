@@ -22,7 +22,7 @@ header {
   z-index: 10;
   box-shadow: var(--shadow-overlay);
 }
-@media (min-width: 861px) { header { display: none; } }
+@media (width >= 900px) { header { display: none; } }
 
 .logo { color: var(--primary-fg); font-size: var(--text-lg); font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: var(--space-2); }
 
@@ -114,7 +114,7 @@ header {
 .tab-btn.active { color: var(--accent, var(--primary)); border-bottom-color: var(--accent, var(--primary)); }
 
 /* ── Desktop sidebar nav ─────────────────────────────────────────────── */
-@media (min-width: 861px) {
+@media (width >= 900px) {
   .tab-bar {
     position: fixed;
     left: 0;
@@ -267,8 +267,10 @@ header {
   .tab-bar.collapsed .side-nav-toggle svg { transform: rotate(180deg); width: 20px; height: 20px; }
 }
 
-/* ── Mobile nav — MUST be after .tab-bar so display:none wins ────────── */
-@media (max-width: 860px) {
+/* ── Mobile nav — MUST be after .tab-bar so display:none wins ──────────
+   Moved up from ~860px: a window between 860 and 900 now gets the bottom bar
+   where it used to get the sidebar. */
+@media (width < 900px) {
   .tab-bar { display: none; }
   .mob-nav {
     display: block;
@@ -366,11 +368,11 @@ header {
 .chevron.closed { transform: rotate(-90deg); }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
+@media (width < 900px) {
   .page-layout { flex-direction: column; }
   .main-col { width: 100%; }  /* prevent content from sizing the column instead of the viewport */
 }
-@media (max-width: 640px) {
+@media (width < 640px) {
   .container { padding: var(--space-3); }
 }
 

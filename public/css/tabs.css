@@ -481,12 +481,12 @@
 .avail-week-cal { display: none; }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
+@media (width < 900px) {
   .deck-col { width: 100%; position: static; max-height: none; }
   .deck-list { max-height: 260px; }
   .deck-tiles-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 640px) {
+@media (width < 640px) {
   /* Prevent iOS Safari from auto-zooming when focusing inputs under 16px */
   input[type="text"],
   input[type="password"],
@@ -593,7 +593,7 @@
   gap: var(--space-4);
   align-items: start;
 }
-@media (max-width: 900px) { .avail-layout { grid-template-columns: 1fr; } }
+@media (width < 900px) { .avail-layout { grid-template-columns: 1fr; } }
 
 .avail-name-bar {
   display: flex;
@@ -746,7 +746,7 @@
   gap: var(--space-4);
   align-items: start;
 }
-@media (max-width: 900px) { .lands-layout { grid-template-columns: 1fr; } }
+@media (width < 900px) { .lands-layout { grid-template-columns: 1fr; } }
 
 .lands-inputs-col { display: flex; flex-direction: column; gap: var(--space-4); }
 
@@ -1167,7 +1167,7 @@
   text-align: right;
 }
 
-@media (max-width: 640px) {
+@media (width < 640px) {
   .dv-row {
     grid-template-columns: 1.1rem 2rem 1fr auto;
     grid-template-rows: auto auto;
@@ -1333,14 +1333,17 @@
   text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-@media (max-width: 720px) {
+/* Stacked below the nav breakpoint, up from ~720px: the card tab is the
+   narrow-window view now that wider windows get the modal, so the image and
+   text columns stack for the whole of that range rather than part of it. */
+@media (width < 900px) {
   .card-detail-top { grid-template-columns: 1fr; }
   .card-detail-imgcol { position: static; max-width: 280px; margin: 0 auto; }
   .card-prints-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
 }
 
 /* ── Phase 5.2 Mobile UI pass ────────────────────────────────────────────── */
-@media (max-width: 860px) {
+@media (width < 900px) {
   /* Deck comparison table: prevent narrow columns from squashing text */
   .deck-compare table {
     min-width: 480px;
@@ -1414,11 +1417,12 @@
      scale steps so it still moves with the scale. */
   padding-bottom: calc(var(--space-6) + var(--space-4));
 }
-@media (max-width: 640px) {
+@media (width < 640px) {
   .db-full-width { padding: var(--space-3); padding-bottom: calc(var(--space-6) + var(--space-4)); }
 }
-@media (max-width: 1023px) {
-  /* stats bar becomes static on mobile/tablet, no need to reserve space for it */
+@media (width < 900px) {
+  /* stats bar becomes static below the nav breakpoint, no need to reserve
+     space for it — pairs with the .db-stats-bar rule further down */
   .db-full-width { padding-bottom: var(--space-4); }
 }
 
@@ -1781,8 +1785,10 @@
 .db-curve-bar:hover { opacity: 1; }
 .db-stat-curve-label { font-size: var(--text-xs); color: var(--muted); }
 
-/* Mobile: stack panels */
-@media (max-width: 1023px) {
+/* Mobile: stack panels. Was ~1023px, which overlapped the 861px sidebar rule
+   below — a tablet-width window got a static stats bar and a sidebar offset
+   on it at the same time. Both sit on 900 now, so they cannot disagree. */
+@media (width < 900px) {
   .db-body { flex-direction: column; }
   .db-left-panel { width: 100%; }
   .db-results { max-height: 40vh; }
@@ -1792,7 +1798,7 @@
 }
 
 /* Sidebar offset for stats bar */
-@media (min-width: 861px) {
+@media (width >= 900px) {
   .db-stats-bar { left: var(--sidenav-width, 200px); }
   body.sidenav-collapsed .db-stats-bar { left: var(--sidenav-collapsed-width, 48px); }
 }

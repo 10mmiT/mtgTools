@@ -274,7 +274,7 @@ window.addEventListener('popstate', e => {
   if (s.view === 'card-modal') {
     // Navigating back into a modal state — re-open it
     const host = document.getElementById('cardModalDetail');
-    if (host && window.innerWidth >= 1024) {
+    if (host && window.innerWidth >= BP_MD) {
       document.getElementById('cardModal').style.display = 'flex';
       document.body.style.overflow = 'hidden';
       if (s.cardName)    loadCard({ name: s.cardName }, 'cardModalDetail');

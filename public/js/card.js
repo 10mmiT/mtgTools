@@ -30,10 +30,10 @@ function cardOracleHtml(text) {
     .replace(/\n/g, '<br>');
 }
 
-// Desktop breakpoint: >=1024px wide shows modal, smaller uses full-page tab
-const MODAL_BREAKPOINT = 1024;
-
-function _useModal() { return window.innerWidth >= MODAL_BREAKPOINT; }
+// At and above the nav breakpoint the card opens as a modal; below it, as the
+// full-page card tab. BP_MD lives in state.js beside the CSS token it mirrors,
+// and components.css hides the overlay on the same boundary.
+function _useModal() { return window.innerWidth >= BP_MD; }
 
 function _openModal(hostId) {
   const overlay = document.getElementById('cardModal');

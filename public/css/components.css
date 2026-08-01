@@ -248,7 +248,7 @@ td { padding: var(--space-2) var(--space-3); }
 }
 .ac-item { padding: var(--space-2) var(--space-3); font-size: var(--text-base); cursor: pointer; }
 .ac-item:hover { background: var(--card-2); }
-@media (max-width: 640px) {
+@media (width < 640px) {
   /* Collections — Add Collection form: stack fields + full-width buttons */
   .add-form { flex-direction: column; align-items: stretch; }
   .field { width: 100%; }
@@ -383,7 +383,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 /* Clear the mobile-only header (hidden on desktop, see header { display:none } above) */
 /* Clearance for the mobile header the drawer slides under, not rhythm —
    it has to be at least as tall as that bar. A sum of scale steps. */
-@media (max-width: 860px) { .rss-panel-hdr { padding-top: calc(var(--space-6) + var(--space-5)); } }
+@media (width < 900px) { .rss-panel-hdr { padding-top: calc(var(--space-6) + var(--space-5)); } }
 .rss-panel-hdr-title {
   font-size: var(--text-sm);
   font-weight: 700;
@@ -591,7 +591,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 .rarity-tag.r-special, .rarity-tag.r-bonus { color: var(--mc-gold); }
 
 /* ── Phase 5.2 Mobile UI pass ────────────────────────────────────────────── */
-@media (max-width: 860px) {
+@media (width < 900px) {
   /* Touch target minimum 44px for interactive elements */
   button, .btn-primary, .btn-secondary, .btn-danger,
   .mob-nav-item, .tab-btn, select {
@@ -663,12 +663,15 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 }
 .card-modal-close:hover { color: var(--text); }
 
-/* On small screens, disable modal and use the tab-based card view instead */
-@media (max-width: 1023px) {
+/* Below the nav breakpoint, disable modal and use the tab-based card view
+   instead. This moved down from ~1024px with the breakpoint consolidation, so
+   a tablet-width window now gets the modal where it used to get the tab.
+   js/card.js switches on the same boundary. */
+@media (width < 900px) {
   .card-modal-overlay { display: none !important; }
 }
 /* Card tab only makes sense when the modal is unavailable */
-@media (min-width: 1024px) {
+@media (width >= 900px) {
   #tab-btn-card { display: none; }
 }
 

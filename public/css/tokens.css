@@ -17,8 +17,8 @@
    The new semantic token vocabulary (--surface-*, --text-muted, --success,
    --player-N, the scales) sits BESIDE the older tokens (--card, --muted,
    --radius, …) while call sites are migrated one batch at a time. Colour,
-   type, spacing and radius are migrated; the breakpoints are not yet
-   consumed. The old names are deleted once nothing refers to them.
+   type, spacing, radius and the breakpoints are all migrated. The old names
+   are deleted once nothing refers to them.
 
    public/login.html loads this file too, so it is served by its own public
    route in server.js — the static mount sits behind the auth guard. */
@@ -57,10 +57,19 @@
   /* Breakpoints. Custom properties cannot be used inside a media query, so
      @media rules must repeat these literals — 640px, 900px, 1280px. The
      tokens are here as the single written-down definition, and so that
-     scripts can read them off the computed style. */
+     scripts can read them off the computed style.
+
+     Every @media rule is written in range syntax, exclusive below and
+     inclusive above: (width < 900px) and (width >= 900px). That is what keeps
+     the count at three — the older max-width/min-width pairs needed an
+     off-by-one twin each (860/861, 1023/1024) and the two halves drifted
+     apart. A rule using any other number is a bug.
+
+     JS reads the same boundaries from BP_SM/BP_MD in js/state.js, which
+     compares with < and >= to match. */
   --bp-sm:  640px;   /* compact phone */
-  --bp-md:  900px;   /* nav switches: bottom bar <-> sidebar */
-  --bp-lg: 1280px;   /* wide desktop: denser grids, wider tables */
+  --bp-md:  900px;   /* nav switches: bottom bar <-> sidebar, card modal <-> card tab */
+  --bp-lg: 1280px;   /* wide desktop: denser grids, wider tables — not yet used */
 
   --measure: 72ch;   /* max line length for prose */
 }

@@ -11,6 +11,7 @@
  *   node scripts/capture-screens.js --name baseline
  *   node scripts/capture-screens.js --name phase-2 --tabs collections,wants
  *   node scripts/capture-screens.js --url http://localhost:3000   # already-running app
+ *   node scripts/capture-screens.js --viewports tablet,tablet-wide  # 900px boundary
  *
  * No new dependencies: the app server is started in open mode (so no login is
  * needed), and the Firefox already installed on the machine is driven headless
@@ -33,10 +34,17 @@ const TABS = [
 
 const THEMES = ['dark', 'light', 'contrast', 'sepia', 'forest'];
 
+// The two tablet widths straddle the 900px breakpoint deliberately, and are
+// not in the default set — they exist to check the band the breakpoint
+// consolidation moved, which neither 1440 nor 390 passes through.
 const VIEWPORTS = [
-  { name: 'desktop', width: 1440, height: 900 },
-  { name: 'phone',   width:  390, height: 844 },
+  { name: 'desktop',     width: 1440, height:  900 },
+  { name: 'phone',       width:  390, height:  844 },
+  { name: 'tablet',      width:  880, height: 1000 },  // just below 900: bottom nav, card tab
+  { name: 'tablet-wide', width:  960, height: 1000 },  // just above 900: sidebar, card modal
 ];
+
+const DEFAULT_VIEWPORTS = ['desktop', 'phone'];
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -53,8 +61,8 @@ function parseArgs(argv) {
   return opts;
 }
 
-function pickList(value, all, label) {
-  if (!value) return all;
+function pickList(value, all, label, fallback = all) {
+  if (!value) return fallback;
   const picked = value.split(',').map(s => s.trim()).filter(Boolean);
   const unknown = picked.filter(p => !all.includes(p));
   if (unknown.length) throw new Error(`Unknown ${label}: ${unknown.join(', ')} (known: ${all.join(', ')})`);
@@ -299,7 +307,9 @@ async function main() {
   --browser <path>    Firefox binary (default: firefox)
   --tabs <a,b>        Subset of tabs (default: all 11)
   --themes <a,b>      Subset of themes (default: all 5)
-  --viewports <a,b>   desktop, phone, or both (default: both)
+  --viewports <a,b>   desktop, phone, tablet (880px), tablet-wide (960px)
+                      (default: desktop,phone — the tablet pair straddles the
+                      900px breakpoint and is opt-in)
   --settle <ms>       Pause after the network goes quiet (default: 400)
   --max-height <px>   Clip tall pages to this height, 0 for none (default: 4000)`);
     return;
@@ -307,7 +317,7 @@ async function main() {
 
   const tabs      = pickList(opts.tabs, TABS, 'tabs');
   const themes    = pickList(opts.themes, THEMES, 'themes');
-  const viewports = pickList(opts.viewports, VIEWPORTS.map(v => v.name), 'viewports')
+  const viewports = pickList(opts.viewports, VIEWPORTS.map(v => v.name), 'viewports', DEFAULT_VIEWPORTS)
     .map(name => VIEWPORTS.find(v => v.name === name));
   const settleMs  = Number(opts.settle ?? 400);
   const maxHeight = Number(opts['max-height'] ?? 4000);
