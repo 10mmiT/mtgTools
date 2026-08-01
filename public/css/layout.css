@@ -45,8 +45,26 @@ header {
 }
 .theme-btn:hover { background: color-mix(in srgb, var(--hdr-fg) 20%, transparent); }
 
-/* ── Layout ─────────────────────────────────────────────────────────── */
-.container { max-width: 1400px; margin: 0 auto; padding: var(--space-4) var(--space-5); }
+/* ── Width (§8.3) ──────────────────────────────────────────────────────
+   One fixed cap of 1400px used to hold every screen, which on a 2560px
+   monitor left roughly 1160px of empty margin beside a grid of cards, and
+   on any monitor let a line of oracle text run the full 1400. Neither is a
+   width — they are two different behaviours that had been averaged into
+   one number.
+
+   So there are two now, and each says what it is for:
+
+     .content-wide   grids, tables, the whole page shell. No cap: a wider
+                     window shows more cards, which is the point.
+     .content-prose  rules text, rulings, forms, admin, login, empty
+                     states. Capped at --measure. Defined in base.css,
+                     next to the typography it exists to serve.
+
+   Wide is the shell, so it carries the page's inline padding — dropped
+   from --space-5 to --space-4 (§8.4), which is the third of the three
+   changes that take horizontal chrome from 284px to under 80. The other
+   two are the cap above and the collapsed sidebar default. */
+.content-wide { width: 100%; max-width: none; padding: var(--space-4); }
 
 /* ── Section (§7.1) ───────────────────────────────────────────────────
    A section is a grouping, not a box. It used to carry all three
@@ -123,7 +141,7 @@ header {
     left: 0;
     top: 0;
     height: 100vh;
-    width: 186px;
+    width: var(--sidenav-width);
     z-index: 9;
     background: var(--surface-1);
     border-right: 2px solid var(--border);
@@ -135,7 +153,7 @@ header {
     transition: width .2s;
   }
   .tab-bar::-webkit-scrollbar { display: none; }
-  .tab-bar.collapsed { width: 46px; }
+  .tab-bar.collapsed { width: var(--sidenav-collapsed-width); }
 
   /* Brand block (replaces the old top header on desktop) */
   .sidenav-brand {
@@ -201,13 +219,14 @@ header {
   /* EXEMPT-BEGIN from the spacing scale. Push content right to clear the
      fixed sidebar. These two are the sidebar's own measured width, not
      rhythm — they must equal .tab-bar's width exactly or the content
-     overlaps it, so they stay literal. */
+     overlaps it, which is why they name the same token it does rather
+     than a step of the scale. */
   .site-main {
-    padding-left: 186px;
+    padding-left: var(--sidenav-width);
     transition: padding-left .2s;
   }
   body.sidenav-collapsed .site-main {
-    padding-left: 46px;
+    padding-left: var(--sidenav-collapsed-width);
   }
   /* EXEMPT-END */
 
@@ -379,7 +398,7 @@ header {
   .main-col { width: 100%; }  /* prevent content from sizing the column instead of the viewport */
 }
 @media (width < 640px) {
-  .container { padding: var(--space-3); }
+  .content-wide { padding: var(--space-3); }
 }
 
 /* ── User badge (header) ───────────────────────────────────────────────────

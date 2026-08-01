@@ -183,7 +183,9 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
         </div>
       </div>
     </div>
-    <div class="card-detail-section" id="${rId}"><div class="section-title">Rulings</div><div class="help-text">Loading rulings…</div></div>
+    <!-- Rulings are prose and take the reading measure; the printings below
+         them are a grid of card images and take the full width (§8.3). -->
+    <div class="card-detail-section content-prose" id="${rId}"><div class="section-title">Rulings</div><div class="help-text">Loading rulings…</div></div>
     <div class="card-detail-section" id="${pId}"><div class="section-title">Other Printings &amp; Alt-Art</div><div class="help-text">Loading printings…</div></div>
   `;
 

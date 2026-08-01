@@ -763,7 +763,11 @@
 }
 
 .lands-hint { font-size: var(--text-sm); color: var(--text-muted); }
-.lands-sub  { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5; }
+/* The three explanatory paragraphs on this tab, and the one place in the app
+   where a real paragraph sits directly in a column that the width work
+   widened — so it takes the reading measure (§8.3) rather than running the
+   length of the column. */
+.lands-sub  { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5; max-width: var(--measure); }
 
 .preset-sub { font-size: var(--text-2xs); font-weight: 400; opacity: .7; display: block; }
 
@@ -1203,7 +1207,7 @@
 
 .card-detail-top {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 320px minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
   margin-bottom: var(--space-4);
@@ -1232,11 +1236,22 @@
   border: 1px solid var(--border);
 }
 
+/* The prose case the width work exists for (§9.6). Under the old 1400px cap
+   this column could only ever get so wide; with the cap gone, a line of
+   oracle text on an ultrawide monitor would run the whole way across the
+   display. So the text column takes the reading measure and the grid track
+   keeps the slack.
+
+   The cap is on the box rather than the track so that the modal form of
+   this view is unaffected: .card-modal-box is 900px wide, the track there
+   is already narrower than the measure, and a track sized to the measure
+   outright would have overflowed it. */
 .card-detail-info {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-4) var(--space-5);
+  max-width: var(--measure);
 }
 .card-detail-name {
   font-size: var(--text-lg);
@@ -1416,22 +1431,21 @@
 
 /* ── Deck Builder ────────────────────────────────────────────────────────── */
 
-/* Rendered outside .container so it can use the full viewport width
-   instead of being capped at 1400px; re-applies the same padding. */
-.db-full-width {
-  padding: var(--space-4) var(--space-5);
-  /* Clearance for the fixed stats bar, not rhythm: it has to be at least as
-     tall as that bar or the bar covers the add-category row. Kept as a sum of
-     scale steps so it still moves with the scale. */
-  padding-bottom: calc(var(--space-6) + var(--space-4));
-}
-@media (width < 640px) {
-  .db-full-width { padding: var(--space-3); padding-bottom: calc(var(--space-6) + var(--space-4)); }
-}
+/* This pane used to live outside the shell, with its own copy of the page
+   padding, purely so it could escape the 1400px cap. The shell has no cap
+   now (§8.3), so the pane is back inside it and all that is left here is
+   the one thing that really is particular to Deck Builder: clearance for
+   its fixed stats bar.
+
+   One step, --space-6, on top of the shell's --space-4: the same 48px of
+   clearance the pane reserved for itself before, now expressed as what it
+   adds to the page rather than as a total it has to restate. It has to be
+   at least as tall as that bar or the bar covers the add-category row. */
+.db-pane { padding-bottom: var(--space-6); }
 @media (width < 900px) {
   /* stats bar becomes static below the nav breakpoint, no need to reserve
      space for it — pairs with the .db-stats-bar rule further down */
-  .db-full-width { padding-bottom: var(--space-4); }
+  .db-pane { padding-bottom: 0; }
 }
 
 /* Top bar */
@@ -1809,10 +1823,14 @@
   #dbStatColors, .db-stat-curve-label, #dbCurve { display: none; }
 }
 
-/* Sidebar offset for stats bar */
+/* Sidebar offset for the fixed stats bar. It named these two tokens before
+   they existed, so what it actually used were the fallbacks — 200px and
+   48px against a sidebar that is 186 and 46, leaving the bar 14px (or 2px)
+   short of the content above it. The tokens are defined now, so the bar
+   lines up. */
 @media (width >= 900px) {
-  .db-stats-bar { left: var(--sidenav-width, 200px); }
-  body.sidenav-collapsed .db-stats-bar { left: var(--sidenav-collapsed-width, 48px); }
+  .db-stats-bar { left: var(--sidenav-width); }
+  body.sidenav-collapsed .db-stats-bar { left: var(--sidenav-collapsed-width); }
 }
 
 /* ── Search/EDHREC drawer panel ─────────────────────────────────────────────── */

@@ -250,6 +250,8 @@ mtgtools/
 │   └── tokens.test.js # Token-contract lint, asserted over the delivered CSS
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
+│   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
+│   ├── check-contrast.js  # Contrast measurement — every fg/bg pair, all five themes
 │   └── lint-tokens.js     # Token-contract linter (colour, type, spacing,
 │                          # radius, elevation, !important)
 ├── public/
@@ -260,7 +262,7 @@ mtgtools/
 │   │   │                  # the type/spacing/radius scales, the three breakpoints,
 │   │   │                  # per-tab accent colours. Enforced by scripts/lint-tokens.js
 │   │   ├── base.css       # Element defaults and shared text utilities
-│   │   ├── layout.css     # Page shell, header, navigation, panels
+│   │   ├── layout.css     # Page shell, header, navigation, sections, the wide width
 │   │   ├── components.css # Controls and widgets shared across tabs
 │   │   └── tabs.css       # Rules owned by a single tab
 │   └── js/
@@ -337,9 +339,23 @@ It starts its own copy of the server in open mode (no login needed) and drives t
 
 Runs are deterministic: capturing twice with no changes gives byte-identical PNGs, so `sha256sum` is a fair way to confirm that a change left unrelated views alone.
 
-**With one exception — the Set Browser.** Its set list comes from the live Scryfall API rather than the local snapshot, so its ordering can shift between runs that are hours apart, producing large diffs on all ten `sets--*` views that have nothing to do with your change. Capture the before and after close together, or discount that tab. If a diff looks far too big for what you changed, check the maximum per-channel delta before assuming the worst: a restyle moves pixels a little across a wide area, whereas reordered content moves a few pixels a lot.
+**With two exceptions.** The **Set Browser**'s list comes from the live Scryfall API rather than the local snapshot, so its ordering can shift between runs that are hours apart, producing large diffs on all ten `sets--*` views that have nothing to do with your change. **Available@** draws a calendar around today, so any pair of captures that straddles midnight differs on the highlighted day and the "best upcoming days" list. Capture the before and after close together, or discount those tabs. If a diff looks far too big for what you changed, check the maximum per-channel delta before assuming the worst: a restyle moves pixels a little across a wide area, whereas reordered content moves a few pixels a lot.
 
 This is a review aid, not an automated assertion: nothing compares the images. Useful flags — `--tabs`, `--themes`, `--viewports` to narrow a run, `--url` to point at an already-running app, `--help` for the rest.
+
+### Layout measurement
+
+Two of the layout rules are numbers, and a screenshot cannot produce a number, so `npm run measure:layout` measures them in the running app. It reuses the harness above — same open-mode server, same headless Firefox — and reports one line per tab per window:
+
+```bash
+npm run measure:layout -- --data .scratch/ui-redesign/capture-data/available.db
+```
+
+- **Horizontal chrome** — everything the page spends on itself rather than on content: the sidebar plus the shell's inline padding. Budget is 80px at a 1440px window; it currently measures 78.
+- **The reading measure** — no line of running text may be wider than `--measure`. What is measured is the rendered *line box*, via a `Range`, not the container: a short sentence centred in a full-width table cell is not a long line. The measure itself is read from a probe element rather than assumed, since `72ch` depends on the typeface in use.
+- **Grid width** — the widest grid or table on the page, reported rather than asserted. It is there to be read at the 2560px window, where a width cap that had crept back in would show up as a number that stopped growing.
+
+It exits non-zero if the chrome budget is blown or any line of prose runs past the measure, so it can be wired into CI later; it is not part of `npm test`, which needs neither a browser nor a populated database.
 
 ## Tech Stack & Credits
 

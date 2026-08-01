@@ -157,7 +157,19 @@ td { padding: var(--space-2) var(--space-3); }
 .qty-some { color: var(--success); }
 .td-total { text-align: center; font-weight: 700; color: var(--primary); }
 
-.empty-state { text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: var(--text-base); }
+/* An empty state is a sentence, so it takes the reading measure like any
+   other prose (§8.3) — it just centres itself in whatever it is standing
+   in rather than sitting flush left. It composes the cap rather than
+   carrying .content-prose because it is written from some thirty places
+   across the JS, most of them a bare `<div class="empty-state">`. */
+.empty-state {
+  text-align: center;
+  padding: var(--space-6);
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  max-width: var(--measure);
+  margin-inline: auto;
+}
 
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .card-grid {

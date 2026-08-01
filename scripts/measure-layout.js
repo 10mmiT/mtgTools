@@ -1,0 +1,243 @@
+#!/usr/bin/env node
+'use strict';
+
+/**
+ * Measure the two width behaviours (§8.3) in the running app, because the
+ * layout ticket's acceptance criteria are numbers and eyeballing a
+ * screenshot cannot produce one.
+ *
+ * Three questions, one per criterion:
+ *
+ *   chrome  How much of the window is not content? Everything horizontal
+ *           the page spends on itself — the sidebar, the shell's inline
+ *           padding — at a 1440px window. Must be under 80px.
+ *   prose   Is any block of running text wider than the reading measure?
+ *           Must be none.
+ *   wide    Do grids and tables actually use what is left? Measured at an
+ *           ultrawide window, where a surviving cap would be obvious.
+ *
+ * Sibling of scripts/check-contrast.js: both take a property the redesign
+ * claims, measure it against the app as served, and fail if it does not
+ * hold. The browser plumbing is capture-screens.js's, imported rather than
+ * copied.
+ *
+ *   node scripts/measure-layout.js
+ *   node scripts/measure-layout.js --tabs collections,card --json
+ */
+
+const fs = require('fs');
+const {
+  BidiSession, startServer, startFirefox, assertOpenMode, waitForHttp, parseArgs,
+} = require('./capture-screens.js');
+
+/* Every tab, plus the card detail, which has no tab of its own. Narrowing
+ * this to the interesting-looking tabs is exactly how a stray paragraph gets
+ * missed: the run that first measured five of them passed, and the Mana Base
+ * tab it skipped had three paragraphs running 965px. */
+const TABS = [
+  'available', 'collections', 'players', 'scryfall', 'card',
+  'sets', 'wants', 'lands', 'deckview', 'pick', 'admin',
+];
+
+/* Windows. 1440 is the criterion's width; 2560 is where a surviving cap
+ * would show up as empty margin rather than as a slightly narrower grid. */
+const VIEWPORTS = [
+  { name: 'desktop',   width: 1440, height: 900 },
+  { name: 'ultrawide', width: 2560, height: 1080 },
+];
+
+const CHROME_BUDGET = 80;   // px, at 1440 (§8.4 predicts ~78)
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ── The measurement, as it runs in the page ──────────────────────────────
+ * A string because it is evaluated in the browser, not here. It returns
+ * JSON so the driver side stays free of DOM types. */
+const MEASURE = `(() => {
+  const shell = document.querySelector('.content-wide');
+  if (!shell) return JSON.stringify({ error: 'no .content-wide shell on the page' });
+
+  // documentElement.clientWidth, not innerWidth: the latter counts the
+  // scrollbar, which would flatter the chrome number by ~15px.
+  const windowWidth = document.documentElement.clientWidth;
+
+  const cs = getComputedStyle(shell);
+  const contentWidth =
+    shell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+
+  // The measure in pixels, resolved the same way the stylesheet resolves it
+  // — 72ch depends on the font actually in use, so it is asked of a probe
+  // rather than assumed.
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--measure)';
+  shell.appendChild(probe);
+  const measure = probe.getBoundingClientRect().width;
+  probe.remove();
+
+  // Running text, and only running text. A table cell holding a long card
+  // name is data in a column, not a paragraph, and is not this rule's
+  // business.
+  // 'p' is here so the list does not have to stay complete by hand: a
+  // paragraph element is prose by definition, whatever it is called. The
+  // named classes are the blocks of running text that are not <p>.
+  const PROSE = [
+    'p', '.content-prose', '.empty-state', '.card-oracle', '.card-flavor',
+    '.card-ruling-text', '.help-text', '.login-sub',
+  ];
+
+  // The criterion is about *lines*, not boxes, so what is measured is the
+  // rendered line box: a Range over the element's contents returns one rect
+  // per line. Measuring the container instead reports a short centred
+  // sentence in a full-width table cell as a 2482px line, which it plainly
+  // is not — and would still miss nothing, since a line can never be wider
+  // than the box it wraps inside.
+  const widestLine = el => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    let widest = 0;
+    for (const r of range.getClientRects()) widest = Math.max(widest, r.width);
+    return widest;
+  };
+  const visible = el => el.getBoundingClientRect().width > 0 && el.textContent.trim();
+  const prose = [...document.querySelectorAll(PROSE.join(','))]
+    .filter(visible)
+    .map(el => ({
+      selector: el.className.toString().split(/\\s+/).filter(Boolean).map(c => '.' + c).join('') || el.tagName.toLowerCase(),
+      width: Math.round(widestLine(el)),
+    }));
+
+  const WIDE = ['.card-grid', '.cards-grid', '.table-wrap', 'table'];
+  const wide = [...document.querySelectorAll(WIDE.join(','))]
+    .filter(visible)
+    .map(el => Math.round(el.getBoundingClientRect().width));
+
+  return JSON.stringify({
+    windowWidth,
+    contentWidth: Math.round(contentWidth),
+    chrome: Math.round(windowWidth - contentWidth),
+    measure: Math.round(measure),
+    prose,
+    widest: wide.length ? Math.max(...wide) : null,
+  });
+})()`;
+
+async function measureView(session, context, url, viewport) {
+  await session.send('browsingContext.navigate', { context, url: 'about:blank', wait: 'complete' });
+  await session.send('browsingContext.setViewport', {
+    context, viewport: { width: viewport.width, height: viewport.height },
+  });
+  await session.send('browsingContext.navigate', { context, url, wait: 'complete' });
+  await session.waitForNetworkIdle();
+  await sleep(400);
+
+  const res = await session.send('script.evaluate', {
+    expression: MEASURE, target: { context }, awaitPromise: false,
+  });
+  if (res.type === 'exception') throw new Error(res.exceptionDetails.text);
+  return JSON.parse(res.result.value);
+}
+
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  if ('help' in opts || 'h' in opts) {
+    console.log(`Usage: node scripts/measure-layout.js [options]
+
+  --url <base>      Measure an already-running app instead of starting one
+  --port <port>     Port for the app server this script starts (default: 3401)
+  --data <file>     DATA_FILE for the app server (default: the repo's data/)
+  --browser <path>  Firefox binary (default: firefox)
+  --tabs <a,b>      Subset of ${TABS.join(',')}
+  --card <name>     Card to open on the card tab (default: Lightning Bolt)
+  --json            Machine-readable output`);
+    return;
+  }
+
+  const tabs = opts.tabs ? opts.tabs.split(',').map(s => s.trim()).filter(Boolean) : TABS;
+  const card = opts.card || 'Lightning Bolt';
+  const cleanups = [];
+  const rows = [];
+  const failures = [];
+
+  try {
+    let base = opts.url;
+    if (base) {
+      base = base.replace(/\/$/, '');
+      await waitForHttp(`${base}/healthz`, 5_000, 'the app server');
+    } else {
+      const port = Number(opts.port || 3401);
+      const server = await startServer(port, opts.data);
+      cleanups.push(() => server.child.kill('SIGTERM'));
+      base = server.base;
+    }
+    await assertOpenMode(base);
+
+    const debugPort = 9224;
+    const firefox = await startFirefox(opts.browser || 'firefox', debugPort);
+    cleanups.push(() => {
+      firefox.child.kill('SIGTERM');
+      fs.rmSync(firefox.profile, { recursive: true, force: true });
+    });
+    const session = await Promise.race([BidiSession.connect(debugPort), firefox.failed]);
+    cleanups.push(() => session.close());
+    await session.send('session.new', { capabilities: { alwaysMatch: {} } });
+    await session.send('session.subscribe', {
+      events: ['network.beforeRequestSent', 'network.responseCompleted', 'network.fetchError'],
+    });
+    const tree    = await session.send('browsingContext.getTree', {});
+    const context = tree.contexts[0].context;
+
+    for (const viewport of VIEWPORTS) {
+      for (const tab of tabs) {
+        // The card tab is empty until a card is opened, and an empty card
+        // tab has no prose to measure.
+        const hash = tab === 'card' ? `card=${encodeURIComponent(card)}` : tab;
+        const m = await measureView(session, context, `${base}/#${hash}`, viewport);
+        if (m.error) { failures.push(`${tab} @ ${viewport.name}: ${m.error}`); continue; }
+
+        const overrun = m.prose.filter(p => p.width > m.measure + 1);
+        rows.push({ tab, viewport: viewport.name, ...m, overrun });
+
+        if (viewport.width === 1440 && m.chrome >= CHROME_BUDGET) {
+          failures.push(`${tab} @ ${viewport.name}: ${m.chrome}px of chrome, budget is ${CHROME_BUDGET}`);
+        }
+        for (const p of overrun) {
+          failures.push(`${tab} @ ${viewport.name}: ${p.selector} is ${p.width}px, measure is ${m.measure}`);
+        }
+      }
+    }
+  } finally {
+    for (const cleanup of cleanups.reverse()) {
+      try { cleanup(); } catch { /* best effort */ }
+    }
+  }
+
+  if ('json' in opts) {
+    console.log(JSON.stringify({ rows, failures }, null, 2));
+  } else {
+    const pad = (s, n) => String(s).padEnd(n);
+    console.log(`${pad('tab', 13)}${pad('window', 11)}${pad('chrome', 9)}${pad('content', 9)}${pad('widest grid', 13)}prose ≤ measure`);
+    for (const r of rows) {
+      const proseNote = r.prose.length
+        ? `${Math.max(...r.prose.map(p => p.width))} ≤ ${r.measure}${r.overrun.length ? '  ✗' : ''}`
+        : '—';
+      console.log(
+        pad(r.tab, 13) + pad(`${r.windowWidth}px`, 11) + pad(`${r.chrome}px`, 9) +
+        pad(`${r.contentWidth}px`, 9) + pad(r.widest == null ? '—' : `${r.widest}px`, 13) + proseNote);
+    }
+  }
+
+  if (failures.length) {
+    console.error(`\nlayout: ${failures.length} problem(s)`);
+    for (const f of failures) console.error(`  ${f}`);
+    process.exitCode = 1;
+  } else {
+    console.log('\nlayout: chrome within budget, no prose past the measure');
+  }
+}
+
+if (require.main === module) {
+  main().then(
+    () => process.exit(process.exitCode || 0),
+    err => { console.error(`\nmeasure-layout: ${err.message}`); process.exit(1); },
+  );
+}

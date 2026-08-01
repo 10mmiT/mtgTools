@@ -152,6 +152,18 @@
   --bp-lg: 1280px;   /* wide desktop: denser grids, wider tables — not yet used */
 
   --measure: 72ch;   /* max line length for prose */
+
+  /* Sidebar geometry. Not rhythm and not a scale — this is the measured
+     width of one fixed element, which six rules across two files have to
+     agree on exactly or the content overlaps it: the sidebar itself in
+     both states, the page's left padding in both states, and the Deck
+     Builder's fixed stats bar in both states.
+
+     They were literals, and they had already drifted: the stats bar was
+     written against 200/48 while the sidebar was 186/46, so it sat 14px
+     (or 2px) out. One definition now. */
+  --sidenav-width: 186px;
+  --sidenav-collapsed-width: 46px;
 }
 
 /* ── 2. Themes ────────────────────────────────────────────────────────────

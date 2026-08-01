@@ -417,7 +417,18 @@ async function main() {
   process.exitCode = failures ? 1 : 0;
 }
 
-main().then(
-  () => process.exit(process.exitCode || 0),
-  err => { console.error(`\ncapture-screens: ${err.message}`); process.exit(1); },
-);
+/* The plumbing — app server in open mode, headless Firefox, a BiDi session —
+ * is the same for anything that wants to drive the real app, so it is
+ * exported rather than copied. scripts/measure-layout.js is the other
+ * caller. Only the capture loop below `main` is particular to screenshots. */
+module.exports = {
+  BidiSession, startServer, startFirefox, assertOpenMode, waitForHttp,
+  parseArgs, VIEWPORTS, THEMES, TABS,
+};
+
+if (require.main === module) {
+  main().then(
+    () => process.exit(process.exitCode || 0),
+    err => { console.error(`\ncapture-screens: ${err.message}`); process.exit(1); },
+  );
+}

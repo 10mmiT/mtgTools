@@ -16,6 +16,22 @@ body {
   transition: background .2s, color .2s;
 }
 
+/* ── Reading measure (§8.3) ───────────────────────────────────────────
+   The narrower half of the two width behaviours — .content-wide, the
+   page shell, is in layout.css. Removing the 1400px cap is what makes
+   this necessary: without a cap, a paragraph of oracle text on an
+   ultrawide monitor is one line 2500px long, and the eye cannot find the
+   start of the next one.
+
+   72ch is the cap, not the width: it is a max-width, so a narrow window
+   is unaffected and nothing is ever padded out to reach it.
+
+   It sits in base.css because it is a typographic rule — the same
+   reasoning that puts --measure next to the leading tokens rather than
+   the breakpoints. Applied to running text, forms and empty states;
+   never to a grid or a table, which are .content-wide's business. */
+.content-prose { max-width: var(--measure); }
+
 /* ── Shared text utilities (replaces the scattered one-off hint classes) ─ */
 .help-text {
   font-size: var(--text-sm);

@@ -48,13 +48,34 @@ function toggleSideNav() {
   const collapsed = nav.classList.toggle('collapsed');
   document.body.classList.toggle('sidenav-collapsed', collapsed);
   localStorage.setItem('mtgtools_sidenav', collapsed ? '1' : '0');
+  _labelSideNavToggle(collapsed);
 }
 
+/* The button's label is hidden while the sidebar is collapsed, so the tooltip
+ * is the only thing left saying what it does — and collapsed is now the state
+ * most people are in. It used to read "Collapse sidebar" in both states. */
+function _labelSideNavToggle(collapsed) {
+  const btn = document.getElementById('sideNavToggle');
+  if (!btn) return;
+  btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+}
+
+/* Collapsed is the default (§8.2). Only the default flipped — the toggle and
+ * its persistence are unchanged, and someone who expands the sidebar still
+ * finds it expanded next time.
+ *
+ * The stored value is now read for '0' rather than '1', so the absence of a
+ * preference means collapsed. That silently re-collapses the sidebar for
+ * anyone who had never touched the toggle, which is the intent: 140px of
+ * every window was spent on eleven labels that are legible as icons.
+ *
+ * Nothing expands it on hover, deliberately — moving the pointer across the
+ * nav on the way to a card would slide the whole grid sideways. */
 function initSideNav() {
-  if (localStorage.getItem('mtgtools_sidenav') === '1') {
-    document.getElementById('sideNav')?.classList.add('collapsed');
-    document.body.classList.add('sidenav-collapsed');
-  }
+  if (localStorage.getItem('mtgtools_sidenav') === '0') { _labelSideNavToggle(false); return; }
+  document.getElementById('sideNav')?.classList.add('collapsed');
+  document.body.classList.add('sidenav-collapsed');
+  _labelSideNavToggle(true);
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────
