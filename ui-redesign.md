@@ -235,7 +235,16 @@ near-neutral so the mana accent and the card art are the only saturated things o
 
 > **Migration:** `localStorage.mtgtools_theme === 'forest'` maps to `'dusk'` on read. `forest`
 > is retired because the repainted theme is warm-neutral, not green — the name would lie.
-> **This conflicts with [ui.md](ui.md), which names Forest as a theme to support — see §15.1.**
+> **This conflicted with [ui.md](ui.md), which named Forest as a theme to support; resolved in
+> favour of Dusk — see §15.1.**
+
+> **Delivered:** the palettes below are the design intent; `public/css/tokens.css` is the
+> authority on the values actually shipped. They differ where measurement disagreed with the
+> eye: `scripts/check-contrast.js` measures every foreground/background pair on screen, and
+> the light and sepia player colours, their yellow mana colours, `--text-subtle`, and the
+> contrast theme's `--border` were all darkened or lightened until each cleared its floor.
+> The palettes here also do not name `--primary-dk/-lt/-tx`, `--hdr-bg/-fg` or the `*-fg`
+> status inks, all of which the app uses and the token file defines.
 
 ### 5.1 `dark` — cool (default)
 
@@ -959,16 +968,20 @@ The redesign is done when all of these hold:
 are complementary: **this document defines the visual system; ui.md defines interaction.** Four
 points need resolving before either is built.
 
-### 15.1 Theme names — **needs a decision**
+### 15.1 Theme names — **decided: (a)**
 
-ui.md names the five themes *Dark / Light / High-Contrast / Sepia / **Forest***. This spec
+ui.md named the five themes *Dark / Light / High-Contrast / Sepia / **Forest***. This spec
 retires `forest` and replaces it with `dusk` (warm neutral dark), because the repainted theme
-has no green in it. Either:
+has no green in it. The options were:
 
 - **(a)** Accept `dusk`, and update ui.md's theme list — recommended, the name should match the
   paint; or
 - **(b)** Keep the id and name `forest`, and repaint it warm-green rather than warm-neutral,
   accepting one hue-bearing theme in an otherwise neutral set.
+
+**(a) was taken** in the theme repaint (issue 09): ui.md's list now says Dusk, `THEME_ALIASES`
+in `public/js/main.js` maps a stored `forest` to `dusk` on read, and `public/login.html`
+repeats the mapping because it reads the preference before the app's own code runs.
 
 Everything else in ui.md's theming constraint ("must work in all 5 themes, use existing CSS
 variables, not hardcoded colors") is exactly §4.1 and is already satisfied.

@@ -477,11 +477,11 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 .rss-error { color: var(--danger); }
 
-/* RSS toggle button in header */
+/* RSS toggle button in header — draws in --hdr-fg like the rest of the bar */
 .rss-toggle-btn {
-  border: 1.5px solid color-mix(in srgb, var(--primary-fg) 25%, transparent);
-  background: color-mix(in srgb, var(--primary-fg) 10%, transparent);
-  color: color-mix(in srgb, var(--primary-fg) 90%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--hdr-fg) 25%, transparent);
+  background: color-mix(in srgb, var(--hdr-fg) 10%, transparent);
+  color: color-mix(in srgb, var(--hdr-fg) 90%, transparent);
   border-radius: var(--radius-md);
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
@@ -492,8 +492,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   gap: var(--space-1);
   transition: background .15s;
 }
-.rss-toggle-btn:hover { background: color-mix(in srgb, var(--primary-fg) 20%, transparent); }
-.rss-toggle-btn.active { background: color-mix(in srgb, var(--primary-fg) 25%, transparent); }
+.rss-toggle-btn:hover { background: color-mix(in srgb, var(--hdr-fg) 20%, transparent); }
+.rss-toggle-btn.active { background: color-mix(in srgb, var(--hdr-fg) 25%, transparent); }
 
 /* ── Sort control + column menu (shared across views) ────────────────── */
 .view-toolbar {

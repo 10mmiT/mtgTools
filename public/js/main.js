@@ -58,17 +58,31 @@ function initSideNav() {
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────
+// Five slots, differing by temperature rather than hue: cool dark, warm
+// dark, cool light, warm light, high contrast.
 const THEMES = [
   { id: 'dark',     label: 'Dark' },
   { id: 'light',    label: 'Light' },
   { id: 'contrast', label: 'High Contrast' },
   { id: 'sepia',    label: 'Sepia' },
-  { id: 'forest',   label: 'Forest' },
+  { id: 'dusk',     label: 'Dusk' },
 ];
+
+// Retired ids, mapped on read: 'forest' was a green dark theme, and the slot
+// was repainted warm-neutral and renamed 'dusk' because the old name would
+// misdescribe it. Without this map, everyone who had chosen 'forest' falls
+// silently back to Dark. public/login.html carries the same mapping, because
+// it reads the preference before any of this has run.
+const THEME_ALIASES = { forest: 'dusk' };
+
+const _canonicalTheme = id => THEME_ALIASES[id] || id;
 
 function _themeLabel(id) { return THEMES.find(t => t.id === id)?.label || id; }
 
-function applyTheme(id) {
+function applyTheme(rawId) {
+  // Canonicalising here rather than in initTheme means the retired id is
+  // also rewritten in storage, so the mapping is paid once per user.
+  const id = _canonicalTheme(rawId);
   document.documentElement.dataset.theme = id;
   localStorage.setItem('mtgtools_theme', id);
   const label = _themeLabel(id);
@@ -85,7 +99,7 @@ function applyTheme(id) {
 // dev tools). An unknown id is ignored rather than applied, which would leave
 // the page styled by a data-theme no stylesheet matches.
 function _themeFromUrl() {
-  const id = new URLSearchParams(location.search).get('theme');
+  const id = _canonicalTheme(new URLSearchParams(location.search).get('theme'));
   return THEMES.some(t => t.id === id) ? id : null;
 }
 

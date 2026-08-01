@@ -32,7 +32,7 @@ const TABS = [
   'sets', 'wants', 'lands', 'deckview', 'pick', 'admin',
 ];
 
-const THEMES = ['dark', 'light', 'contrast', 'sepia', 'forest'];
+const THEMES = ['dark', 'light', 'contrast', 'sepia', 'dusk'];
 
 // The two tablet widths straddle the 900px breakpoint deliberately, and are
 // not in the default set — they exist to check the band the breakpoint

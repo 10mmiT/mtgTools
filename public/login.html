@@ -17,22 +17,22 @@
       background: var(--bg); color: var(--text);
       min-height: 100vh; display: flex; flex-direction: column;
     }
-    /* Header chrome sits on the filled --hdr-bg bar and draws in
-       --primary-fg, matching layout.css. */
+    /* Header chrome sits on the filled --hdr-bg bar and draws in --hdr-fg,
+       matching layout.css. */
     header {
       background: var(--hdr-bg); padding: var(--space-3) var(--space-5);
       display: flex; align-items: center; justify-content: space-between;
       box-shadow: var(--shadow-overlay);
     }
-    .logo { color: var(--primary-fg); font-size: var(--text-lg); font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: var(--space-2); }
+    .logo { color: var(--hdr-fg); font-size: var(--text-lg); font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: var(--space-2); }
     .theme-btn {
-      border: 1.5px solid color-mix(in srgb, var(--primary-fg) 25%, transparent);
-      background: color-mix(in srgb, var(--primary-fg) 10%, transparent);
-      color: color-mix(in srgb, var(--primary-fg) 90%, transparent);
+      border: 1.5px solid color-mix(in srgb, var(--hdr-fg) 25%, transparent);
+      background: color-mix(in srgb, var(--hdr-fg) 10%, transparent);
+      color: color-mix(in srgb, var(--hdr-fg) 90%, transparent);
       border-radius: var(--radius-md); padding: var(--space-1) var(--space-3);
       font-size: var(--text-sm); font-weight: 600; cursor: pointer; font-family: inherit;
     }
-    .theme-btn:hover { background: color-mix(in srgb, var(--primary-fg) 20%, transparent); }
+    .theme-btn:hover { background: color-mix(in srgb, var(--hdr-fg) 20%, transparent); }
     main {
       flex: 1; display: flex; align-items: center; justify-content: center; padding: var(--space-6) var(--space-4);
     }
@@ -153,7 +153,12 @@
     document.querySelector('.theme-btn').textContent = next === 'dark' ? '☀ Light' : '🌙 Dark';
   }
   (function() {
-    const saved = localStorage.getItem('mtgtools_theme') || 'dark';
+    // 'forest' was retired when the themes were repainted, and maps to
+    // 'dusk'. The mapping is repeated here rather than reused because this
+    // page reads the preference before the app's own code has run — keep it
+    // in step with THEME_ALIASES in js/main.js.
+    const stored = localStorage.getItem('mtgtools_theme');
+    const saved  = (stored === 'forest' ? 'dusk' : stored) || 'dark';
     document.documentElement.dataset.theme = saved;
     document.querySelector('.theme-btn').textContent = saved === 'dark' ? '☀ Light' : '🌙 Dark';
   })();

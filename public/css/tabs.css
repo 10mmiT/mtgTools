@@ -220,14 +220,16 @@
 .btn-edit-tile:hover { color: #fff; border-color: rgba(255,255,255,.5); }
 
 /* The one tinted control on a deck tile. Its indigo belonged to no palette,
-   so it takes the theme's action colour; the white text stays exempt. */
+   so it briefly took --primary — but --primary is near-white on the dark
+   themes now, and a white wash under white text over artwork is unreadable.
+   It joins its neighbours on the white-alpha exemption instead. */
 .btn-dv-tile {
-  background: color-mix(in srgb, var(--primary) 25%, transparent); color: rgba(255,255,255,.85);
-  border: 1px solid color-mix(in srgb, var(--primary) 50%, transparent); border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.22); color: rgba(255,255,255,.85);
+  border: 1px solid rgba(255,255,255,.45); border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-2); font-size: var(--text-2xs); font-weight: 600;
   font-family: inherit; cursor: pointer; flex-shrink: 0;
 }
-.btn-dv-tile:hover { background: color-mix(in srgb, var(--primary) 45%, transparent); color: #fff; }
+.btn-dv-tile:hover { background: rgba(255,255,255,.35); color: #fff; }
 /* EXEMPT-END — .deck-tile-edit below sits on a theme surface again. */
 
 .deck-tile-edit {
@@ -309,13 +311,17 @@
   width: 30px; height: 17px; border-radius: var(--radius-full); background: var(--border);
   position: relative; transition: background .15s; flex-shrink: 0;
 }
+/* The knob has to read against two different tracks: --border when off and
+   --primary when on. Since --primary is near-white on the dark themes and
+   near-black on the light ones, one fixed knob colour cannot do both — off
+   uses the subtle-text grey, on uses the primary's own on-fill ink. */
 .tog-pill::after {
   content: ''; position: absolute;
-  width: 11px; height: 11px; border-radius: var(--radius-full); background: var(--primary-fg);
-  top: 3px; left: 3px; transition: transform .15s;
+  width: 11px; height: 11px; border-radius: var(--radius-full); background: var(--text-subtle);
+  top: 3px; left: 3px; transition: transform .15s, background .15s;
 }
 .deck-filter-row.active .tog-pill { background: var(--primary); }
-.deck-filter-row.active .tog-pill::after { transform: translateX(13px); }
+.deck-filter-row.active .tog-pill::after { transform: translateX(13px); background: var(--primary-fg); }
 
 .deck-list { overflow-y: auto; flex: 1; }
 
@@ -1600,8 +1606,11 @@
   justify-content: center;
   transition: background .12s;
 }
-.db-tile-move:hover { background: var(--primary); }
-.db-tile-del:hover  { background: var(--danger); }
+/* Both hovers swap the black scrim for a theme fill, so the glyph has to
+   swap with it — the base rule's fixed #fff only suits the black scrim, and
+   both fills are light on the dark themes. */
+.db-tile-move:hover { background: var(--primary); color: var(--primary-fg); }
+.db-tile-del:hover  { background: var(--danger);  color: var(--danger-fg); }
 
 /* Card-info button, top-left — hover-reveal like the move/delete buttons.
    Clicking the card itself (image, name, or anywhere else on the tile)

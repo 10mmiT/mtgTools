@@ -79,55 +79,87 @@
 
 /* ── 2. Themes ────────────────────────────────────────────────────────────
    Each block is a complete palette. Every colour the app can show is named
-   here so that no theme is second-class. */
+   here so that no theme is second-class.
 
-/* Dark — the default. */
+   The five differ by TEMPERATURE, not hue: cool dark, warm dark, cool light,
+   warm light, high contrast. Surfaces are near-neutral so that card artwork
+   and the per-tab Magic colour are the only saturated things on screen.
+
+   --primary is near-neutral too — a near-white fill on the dark themes, a
+   near-black one on the light themes — so the primary action no longer
+   competes with the mana accent for the eye. Three consequences follow from
+   that, and they are why the palettes below carry tokens the design brief's
+   palettes do not name:
+
+     --primary-fg   flips with the theme (near-black on dark themes). It is
+                    ink on a light fill there, not white.
+     --primary-lt   the soft "selected" fill, formerly a purple tint, is now
+                    a neutral one; --primary-tx is the text on it.
+     --hdr-fg       new. The mobile header used to be a dark or saturated
+                    brand bar drawn in --primary-fg, which was white on all
+                    five themes. --primary-fg no longer is, so the header
+                    names its own ink. --hdr-bg is a theme surface now.
+
+   scripts/check-contrast.js measures every foreground/background pair these
+   palettes put on screen; `npm test` fails if one drops below its floor. */
+
+/* Dark — cool near-black. The default.
+
+   Each palette opens with color-scheme, which is what the browser's own
+   chrome reads: scrollbars, select menus and form controls. Without it the
+   dark themes were framed by white scrollbars — visible in the Set Browser
+   long before this repaint. It is a declaration, not a token, so it belongs
+   to the theme block rather than the vocabulary above. */
 :root {
-  --bg:         #111118;
-  --border:     #32324a;
-  --text:       #f0f0f5;
-  --primary:    #a855f7;
-  --primary-dk: #9333ea;
-  --primary-lt: #2e1065;
-  --primary-tx: #e9d5ff;
-  --danger:     #ef4444;
-  --hdr-bg:     #0c0916;
+  color-scheme: dark;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #0e1013;
+  --border:     #262c34;
+  --text:       #e7eaee;
+  --primary:    #e7eaee;       /* near-white fill on dark */
+  --primary-dk: #ffffff;       /* hover: brighter, not darker */
+  --primary-lt: #232830;       /* soft selected fill */
+  --primary-tx: #e7eaee;
+  --danger:     #f0736b;
+  --hdr-bg:     #0a0c0f;
+  --hdr-fg:     #e7eaee;
 
-  /* MTG mana palette (WUBRG + gold) — tuned for the dark theme */
-  --mc-w: #d9c879;
-  --mc-u: #5a9fd4;
-  --mc-b: #9b8bb0;
-  --mc-r: #e05a4d;
-  --mc-g: #4aa86a;
-  --mc-c: #9aa0b5;
-  --mc-gold: #d4af37;
+  /* MTG mana palette (WUBRG + gold) — tuned for the dark themes */
+  --mc-w: #e3d7a1;
+  --mc-u: #6ba8dd;
+  --mc-b: #a596bd;
+  --mc-r: #e2665a;
+  --mc-g: #59b077;
+  --mc-c: #a3aab8;
+  --mc-gold: #d9b955;
 
   /* Surfaces. 1 is the resting panel, 2 the step above it, 3 hover and
      disabled fills. */
-  --surface-1: #1c1c27;
-  --surface-2: #25253a;
-  --surface-3: #2e2e46;
+  --surface-1: #15181c;
+  --surface-2: #1c2026;
+  --surface-3: #242931;
 
-  --border-strong: #474768;    /* focused inputs, active tiles */
+  --border-strong: #39414b;    /* focused inputs, active tiles */
 
-  --text-muted:  #9090b0;
-  --text-subtle: #6b6b88;      /* placeholders, disabled */
+  --text-muted:  #98a1ad;
+  --text-subtle: #6b7381;      /* placeholders, disabled */
 
-  --primary-fg: #ffffff;       /* text/icon on a --primary fill */
+  --primary-fg: #0e1013;       /* text/icon on a --primary fill */
 
-  /* Status. --success and --warning had no token at all before: these are
-     the values that were hardcoded through the sheet. */
-  --success:      #10b981;
-  --success-soft: rgba(16,185,129,.15);
-  --success-fg:   #ffffff;
-  --warning:      #fbbf24;
-  --warning-soft: rgba(245,158,11,.18);
-  --warning-fg:   #1a1206;     /* amber fill needs dark text */
-  --danger-soft:  #3b0a0a;
-  --danger-fg:    #ffffff;
+  /* Status. The fills are light on the dark themes, so their -fg text is
+     dark — the reverse of the old palette, where white sat on mid-tones at
+     roughly 2:1. */
+  --success:      #4ec78a;
+  --success-soft: #12291f;
+  --success-fg:   #0b1f16;
+  --warning:      #e0b055;
+  --warning-soft: #2a2214;
+  --warning-fg:   #241a06;
+  --danger-soft:  #2e1614;
+  --danger-fg:    #2a0f0c;
 
-  --scrim: rgb(17 17 24 / .82); /* veil between playmat and content */
-  --mat:   #191922;             /* Deck Builder felt surface */
+  --scrim: rgb(14 16 19 / .82); /* veil between playmat and content */
+  --mat:   #171b20;             /* Deck Builder felt surface */
 
   /* Overlay shadows. Flat surfaces get a hairline instead — there is
      deliberately no --shadow-raised. */
@@ -135,123 +167,261 @@
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
   --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .35);
 
-  /* Per-player categorical palette. These are the eight colours the .p0-.p7
-     classes use today, which had no theme variants whatsoever. */
-  --player-0: #818cf8;
-  --player-1: #34d399;
-  --player-2: #fb923c;
-  --player-3: #f87171;
-  --player-4: #fbbf24;
-  --player-5: #a78bfa;
-  --player-6: #22d3ee;
-  --player-7: #f472b6;
+  /* Per-player categorical palette — light enough to read as text on a dark
+     surface, and to carry --primary-fg as initials when used as a fill. */
+  --player-0: #7aa2f7;
+  --player-1: #6cc58c;
+  --player-2: #e0a458;
+  --player-3: #e47983;
+  --player-4: #d7c65a;
+  --player-5: #b28cf0;
+  --player-6: #5fc9d8;
+  --player-7: #e589c0;
 
   /* Default section accent; per-tab rules below override this */
   --accent: var(--primary);
 }
 
-html[data-theme="light"] {
-  --bg:         #f3eeff;
-  --border:     #ddd0f5;
-  --text:       #1a0a2e;
-  --primary:    #7c3aed;
-  --primary-dk: #6d28d9;
-  --primary-lt: #ede9fe;
-  --primary-tx: #4c1d95;
-  --danger:     #dc2626;
-  --hdr-bg:     #7c3aed;
+/* Dusk — warm near-black. Replaces the old green "forest" theme; a stored
+   preference for that id is mapped here on read (THEME_ALIASES in main.js). */
+html[data-theme="dusk"] {
+  color-scheme: dark;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #121010;
+  --border:     #2d2823;
+  --text:       #eeeae5;
+  --primary:    #eeeae5;
+  --primary-dk: #fffbf7;
+  --primary-lt: #282320;
+  --primary-tx: #eeeae5;
+  --danger:     #ef7466;
+  --hdr-bg:     #0d0b0b;
+  --hdr-fg:     #eeeae5;
 
-  /* MTG mana palette — darkened for contrast on the light theme */
-  --mc-w: #a8841f;
-  --mc-u: #2f6fb0;
-  --mc-b: #6b5b8a;
-  --mc-r: #c43c30;
-  --mc-g: #2f8050;
-  --mc-c: #6b7187;
-  --mc-gold: #b8941f;
+  /* Warmed a shade against the cool dark theme's, but still the game's
+     WUBRG identity rather than chrome — they stay recognisably WUBRG. */
+  --mc-w: #e6d9a4;
+  --mc-u: #74a6d4;
+  --mc-b: #a998b6;
+  --mc-r: #e26b58;
+  --mc-g: #5faf73;
+  --mc-c: #a8a49b;
+  --mc-gold: #dbb95e;
+
+  --surface-1: #191614;
+  --surface-2: #201d19;
+  --surface-3: #292520;
+
+  --border-strong: #453e37;
+
+  --text-muted:  #a89e94;
+  --text-subtle: #7a7168;
+
+  --primary-fg: #121010;
+
+  --success:      #5cc088;
+  --success-soft: #16261d;
+  --success-fg:   #0c1f16;
+  --warning:      #dfae5c;
+  --warning-soft: #2b2214;
+  --warning-fg:   #241a06;
+  --danger-soft:  #2e1815;
+  --danger-fg:    #2a100c;
+
+  --scrim: rgb(18 16 16 / .82);
+  --mat:   #1c1815;
+
+  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
+  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
+  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .35);
+
+  --player-0: #85a3ef;
+  --player-1: #74c28c;
+  --player-2: #e3a75c;
+  --player-3: #e5797f;
+  --player-4: #d9c463;
+  --player-5: #b490e8;
+  --player-6: #6cc4cd;
+  --player-7: #e58cb9;
+
+  --accent: var(--primary);
+}
+
+/* Light — cool off-white. */
+html[data-theme="light"] {
+  color-scheme: light;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #f5f6f8;
+  --border:     #e0e4ea;
+  --text:       #14181d;
+  --primary:    #14181d;       /* near-black fill on light */
+  --primary-dk: #000000;
+  --primary-lt: #e6e9ee;
+  --primary-tx: #14181d;
+  --danger:     #bf3025;
+  --hdr-bg:     #ffffff;
+  --hdr-fg:     #14181d;
+
+  /* MTG mana palette — darkened to read on a light surface */
+  --mc-w: #886c17;
+  --mc-u: #2a6ba8;
+  --mc-b: #5f5180;
+  --mc-r: #b83a2e;
+  --mc-g: #2a7a4a;
+  --mc-c: #616875;
+  --mc-gold: #8a6b15;
 
   --surface-1: #ffffff;
-  --surface-2: #f5f0ff;
-  --surface-3: #ebe3fb;
+  --surface-2: #f0f2f5;
+  --surface-3: #e6e9ee;
 
-  --border-strong: #bda7e6;
+  --border-strong: #c2c9d3;
 
-  --text-muted:  #7060a0;
-  --text-subtle: #9b8cc0;
+  --text-muted:  #5b636e;
+  --text-subtle: #7c848f;
 
   --primary-fg: #ffffff;
 
-  --success:      #1a7f4f;
+  --success:      #197b4d;
   --success-soft: #e4f4ea;
   --success-fg:   #ffffff;
-  --warning:      #96660c;
+  --warning:      #92640c;
   --warning-soft: #fbf0dc;
   --warning-fg:   #ffffff;
-  --danger-soft:  #fee2e2;
+  --danger-soft:  #fbe6e4;
   --danger-fg:    #ffffff;
 
-  --scrim: rgb(243 238 255 / .84);
-  --mat:   #e8e0fa;
+  --scrim: rgb(245 246 248 / .84);
+  --mat:   #e9ecf1;
 
   /* Light themes carry roughly half the shadow alpha. */
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .14), 0 1px 3px rgb(0 0 0 / .08);
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .20);
   --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .16);
 
-  /* Same eight hues as the dark theme, darkened to read on a light surface. */
-  --player-0: #2f5fbf;
-  --player-1: #24794c;
-  --player-2: #a4650f;
-  --player-3: #b03445;
-  --player-4: #8a7410;
+  /* Same eight hues as the dark themes, darkened to read on a light
+     surface — and dark enough to carry white initials as a fill. */
+  --player-0: #2b58b0;
+  --player-1: #1f6842;
+  --player-2: #83500c;
+  --player-3: #a33040;
+  --player-4: #6c5b0d;
   --player-5: #6d3fb5;
-  --player-6: #16707f;
-  --player-7: #a83c7e;
+  --player-6: #146572;
+  --player-7: #983672;
 
   --accent: var(--primary);
 }
 
-/* High-contrast dark — pure black background, brighter borders/text for
-   maximum readability (e.g. low-vision or glare-prone setups). */
-html[data-theme="contrast"] {
-  --bg:         #000000;
-  --border:     #4a4a4a;
-  --text:       #ffffff;
-  --primary:    #c084fc;
-  --primary-dk: #a855f7;
-  --primary-lt: #3b0764;
-  --primary-tx: #f3e8ff;
-  --danger:     #f87171;
-  --hdr-bg:     #000000;
+/* Sepia — warm paper. */
+html[data-theme="sepia"] {
+  color-scheme: light;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #f7f3ec;
+  --border:     #e5ddce;
+  --text:       #1f1b15;
+  --primary:    #1f1b15;
+  --primary-dk: #000000;
+  --primary-lt: #eae2d4;
+  --primary-tx: #1f1b15;
+  --danger:     #b53228;
+  --hdr-bg:     #fffdf8;
+  --hdr-fg:     #1f1b15;
 
-  --mc-w: #f0e0a0;
-  --mc-u: #7cc0f0;
-  --mc-b: #c4b5e0;
-  --mc-r: #ff8a7a;
-  --mc-g: #6fd190;
-  --mc-c: #c8ccd8;
-  --mc-gold: #f0cc55;
+  --mc-w: #876a16;
+  --mc-u: #2d6699;
+  --mc-b: #635541;
+  --mc-r: #b03c2c;
+  --mc-g: #2f7548;
+  --mc-c: #6b6354;
+  --mc-gold: #876a1b;
+
+  --surface-1: #fffdf8;
+  --surface-2: #f2ece1;
+  --surface-3: #eae2d4;
+
+  --border-strong: #cdc1ac;
+
+  --text-muted:  #6b6151;
+  --text-subtle: #887d6d;
+
+  --primary-fg: #fffdf8;
+
+  --success:      #1f7a4c;
+  --success-soft: #e6f1e4;
+  --success-fg:   #fffdf8;
+  --warning:      #8e6209;
+  --warning-soft: #f7ecd6;
+  --warning-fg:   #fffdf8;
+  --danger-soft:  #f7e3de;
+  --danger-fg:    #fffdf8;
+
+  --scrim: rgb(247 243 236 / .84);
+  --mat:   #ece4d6;
+
+  /* Half alpha like the other light theme, warmed to match the paper. */
+  --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
+  --shadow-modal:   0 16px 48px -8px rgb(60 40 10 / .22);
+  --shadow-lift:    0 8px 24px -4px rgb(60 40 10 / .18);
+
+  --player-0: #33589f;
+  --player-1: #266642;
+  --player-2: #7f500d;
+  --player-3: #9c3739;
+  --player-4: #6a5a0d;
+  --player-5: #6a4099;
+  --player-6: #1a636a;
+  --player-7: #94396a;
+
+  --accent: var(--primary);
+}
+
+/* High contrast — pure black, AAA body text. This is the accessibility
+   theme: where contrast and aesthetics conflict here, contrast wins. Its
+   floors are 7:1 for body text and 4.5:1 for every other piece of interface
+   text, measured rather than eyeballed (scripts/check-contrast.js). */
+html[data-theme="contrast"] {
+  color-scheme: dark;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #000000;
+  --border:     #6a6a6a;       /* deliberately visible, unlike other themes */
+  --text:       #ffffff;
+  --primary:    #ffffff;
+  --primary-dk: #e0e0e0;
+  --primary-lt: #1f1f1f;
+  --primary-tx: #ffffff;
+  --danger:     #ff9184;
+  --hdr-bg:     #000000;
+  --hdr-fg:     #ffffff;
+
+  --mc-w: #f5e6ad;
+  --mc-u: #8ccbff;
+  --mc-b: #d2c2ea;
+  --mc-r: #ff9484;
+  --mc-g: #7ee0a0;
+  --mc-c: #d0d5e0;
+  --mc-gold: #ffd966;
 
   --surface-1: #0a0a0a;
-  --surface-2: #161616;
-  --surface-3: #232323;
+  --surface-2: #141414;
+  --surface-3: #1f1f1f;
 
   --border-strong: #808080;
 
-  --text-muted:  #c2c2c2;
+  --text-muted:  #d6d6d6;
   --text-subtle: #adadad;
 
-  --primary-fg: #ffffff;
+  --primary-fg: #000000;
 
-  /* Brighter status fills than the other dark themes, so each clears AA
-     against the black background; their -fg text goes dark to match. */
+  /* Brighter status fills than the other dark themes, so each clears AAA
+     against the black background; their -fg text goes black to match. */
   --success:      #66e0a0;
   --success-soft: #06231a;
   --success-fg:   #000000;
   --warning:      #ffd166;
   --warning-soft: #241d08;
   --warning-fg:   #000000;
-  --danger-soft:  #450a0a;
+  --danger-soft:  #2b100c;
   --danger-fg:    #000000;
 
   --scrim: rgb(0 0 0 / .90);   /* strongest scrim — legibility first */
@@ -269,132 +439,6 @@ html[data-theme="contrast"] {
   --player-5: #c9a8ff;
   --player-6: #7fdbe8;
   --player-7: #f5a3d0;
-
-  --accent: var(--primary);
-}
-
-/* Sepia — warm paper tones, for a softer light theme alternative. */
-html[data-theme="sepia"] {
-  --bg:         #ece0c4;
-  --border:     #d8c69e;
-  --text:       #3b2f1e;
-  --primary:    #a0522d;
-  --primary-dk: #84431f;
-  --primary-lt: #f1e0c8;
-  --primary-tx: #5c3a1e;
-  --danger:     #b91c1c;
-  --hdr-bg:     #84431f;
-
-  --mc-w: #a8841f;
-  --mc-u: #336699;
-  --mc-b: #6b5b45;
-  --mc-r: #b3402e;
-  --mc-g: #3f7a4a;
-  --mc-c: #71695a;
-  --mc-gold: #9c7a1f;
-
-  --surface-1: #faf3e2;
-  --surface-2: #f0e5c8;
-  --surface-3: #e7dbba;
-
-  --border-strong: #bda884;
-
-  --text-muted:  #8a7350;
-  --text-subtle: #a89372;
-
-  --primary-fg: #ffffff;
-
-  --success:      #1f7a4c;
-  --success-soft: #e6f1e4;
-  --success-fg:   #ffffff;
-  --warning:      #8e6209;
-  --warning-soft: #f7ecd6;
-  --warning-fg:   #ffffff;
-  --danger-soft:  #f3d8d2;
-  --danger-fg:    #ffffff;
-
-  --scrim: rgb(236 224 196 / .84);
-  --mat:   #e3d5b4;
-
-  /* Half alpha like the other light theme, warmed to match the paper. */
-  --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
-  --shadow-modal:   0 16px 48px -8px rgb(60 40 10 / .22);
-  --shadow-lift:    0 8px 24px -4px rgb(60 40 10 / .18);
-
-  --player-0: #33589f;
-  --player-1: #2a7048;
-  --player-2: #97600f;
-  --player-3: #a83b3d;
-  --player-4: #806c10;
-  --player-5: #6a4099;
-  --player-6: #1c6a72;
-  --player-7: #9c3c70;
-
-  --accent: var(--primary);
-}
-
-/* Forest — dark theme with green hues. */
-html[data-theme="forest"] {
-  --bg:         #0a120d;
-  --border:     #2a3d30;
-  --text:       #e8f5ec;
-  --primary:    #22c55e;
-  --primary-dk: #16a34a;
-  --primary-lt: #052e16;
-  --primary-tx: #bbf7d0;
-  --danger:     #ef4444;
-  --hdr-bg:     #07120c;
-
-  /* Mana colours stay close to the base dark theme — they represent the
-     game's WUBRG identity, not the UI accent, so they shouldn't shift
-     just because the chrome around them turns green. */
-  --mc-w: #d9c879;
-  --mc-u: #5a9fd4;
-  --mc-b: #9b8bb0;
-  --mc-r: #e05a4d;
-  --mc-g: #4aa86a;
-  --mc-c: #9aa0b5;
-  --mc-gold: #d4af37;
-
-  --surface-1: #101a14;
-  --surface-2: #16241c;
-  --surface-3: #1d2f24;
-
-  --border-strong: #3d5546;
-
-  --text-muted:  #8aa893;
-  --text-subtle: #647a6c;
-
-  --primary-fg: #ffffff;
-
-  /* Success leans emerald rather than the theme's pure green, so "owned"
-     stays distinguishable from --primary on this theme alone. */
-  --success:      #34d399;
-  --success-soft: rgba(52,211,153,.15);
-  --success-fg:   #06251a;
-  --warning:      #fbbf24;
-  --warning-soft: rgba(245,158,11,.18);
-  --warning-fg:   #1a1206;
-  --danger-soft:  #3b0a0a;
-  --danger-fg:    #ffffff;
-
-  --scrim: rgb(10 18 13 / .82);
-  --mat:   #12201a;
-
-  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .34), 0 1px 3px rgb(0 0 0 / .17);
-  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .44);
-  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .38);
-
-  /* Player colours match the base dark theme for the same reason the mana
-     colours do: they identify a person, not the chrome around them. */
-  --player-0: #818cf8;
-  --player-1: #34d399;
-  --player-2: #fb923c;
-  --player-3: #f87171;
-  --player-4: #fbbf24;
-  --player-5: #a78bfa;
-  --player-6: #22d3ee;
-  --player-7: #f472b6;
 
   --accent: var(--primary);
 }

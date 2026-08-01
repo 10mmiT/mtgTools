@@ -6,8 +6,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test --test-force-exit test/server.test.js test/tokens.test.js",
+    "test": "node --test --test-force-exit test/server.test.js test/tokens.test.js test/themes.test.js",
     "lint:tokens": "node scripts/lint-tokens.js",
+    "check:contrast": "node scripts/check-contrast.js",
     "capture-screens": "node scripts/capture-screens.js"
   },
   "dependencies": {
