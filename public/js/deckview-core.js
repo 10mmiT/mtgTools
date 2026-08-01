@@ -170,7 +170,7 @@ async function dbSelectDeck(value) {
   dbEdhrecData = null; _dbEdhrecLoaded = false;
 
   document.getElementById('dbDeckContent').innerHTML =
-    '<div class="empty-state" style="padding:3rem 1rem">Loading deck…</div>';
+    '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading deck…</div>';
   _dbShowDeckUI();
 
   try {
@@ -183,7 +183,7 @@ async function dbSelectDeck(value) {
     // Auto-import Archidekt cards when the deck has never been built locally
     if (dbCards.length === 0 && deck.source === 'archidekt' && deck.deckId) {
       document.getElementById('dbDeckContent').innerHTML =
-        '<div class="empty-state" style="padding:3rem 1rem">Importing from Archidekt…</div>';
+        '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Importing from Archidekt…</div>';
       const imported = await _dbImportArchidekt(deck.deckId);
       if (imported.length) {
         dbCards = imported;
@@ -212,7 +212,7 @@ async function dbSelectDeck(value) {
     }
   } catch (e) {
     document.getElementById('dbDeckContent').innerHTML =
-      `<div class="error-msg" style="margin:.5rem 0">${esc(e.message)}</div>`;
+      `<div class="error-msg" style="margin:var(--space-2) 0">${esc(e.message)}</div>`;
   }
 }
 
@@ -234,7 +234,7 @@ function _dbHideDeckUI() {
   document.getElementById('dbCategoriesBtn').style.display = 'none';
   document.getElementById('dbDeleteDeckBtn').style.display = 'none';
   document.getElementById('dbDeckContent').innerHTML =
-    '<div class="empty-state" style="padding:3rem 1rem">Select a deck or create a new one</div>';
+    '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Select a deck or create a new one</div>';
 }
 
 // ── Delete deck ───────────────────────────────────────────────────────────────

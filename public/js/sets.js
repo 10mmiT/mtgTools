@@ -179,7 +179,7 @@ function renderSetCardGrid(card) {
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem">
+      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
            data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
         ${price}
@@ -205,14 +205,14 @@ function renderSetCardXL(card) {
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
            data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
         ${price}
         ${wantBtnHtml(card.name)}
       </div>
-      ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
+      ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
+      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

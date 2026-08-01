@@ -146,7 +146,7 @@ function _dbRenderCategoriesModalList() {
       <span class="db-catmodal-count">${count}</span>
       ${actions}
     </div>`;
-  }).join('') || '<div class="empty-state" style="padding:1rem">No categories yet</div>';
+  }).join('') || '<div class="empty-state" style="padding:var(--space-4)">No categories yet</div>';
 }
 
 function dbAddCategoryFromModal() {

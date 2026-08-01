@@ -345,7 +345,7 @@ function renderCollections() {
       <div class="col-row">
         <div class="col-dot" style="background:${col.color}"></div>
         <div class="col-info">
-          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap">
             <span class="col-name">${esc(col.name)}</span>
             <span class="badge badge-source">${sourceLabel(col.source)}</span>
             <span class="badge ${badgeCls}">${badgeTxt}</span>
@@ -502,7 +502,7 @@ function renderResults() {
     const capped = isMobile && !_mobileShowAll && rows.length > MOBILE_CAP;
     if (capped) {
       moreEl.style.display = '';
-      moreEl.innerHTML = `<button class="btn-secondary" style="width:100%;padding:.6rem;font-size:var(--text-base)"
+      moreEl.innerHTML = `<button class="btn-secondary" style="width:100%;padding:var(--space-2);font-size:var(--text-base)"
         onclick="_mobileShowAll=true;renderResults()">Show all ${rows.length.toLocaleString()} cards ↓</button>`;
     } else {
       moreEl.style.display = 'none';

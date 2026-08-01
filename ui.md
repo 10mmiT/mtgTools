@@ -12,7 +12,9 @@
   existing CSS variables, not hardcoded colors. Font sizes come from the seven
   `--text-*` steps in the same file — a raw `font-size` is a bug — weights are
   limited to 400/500/600/700, and `text-transform: uppercase` is only for badges
-  at `--text-2xs`.
+  at `--text-2xs`. Padding, margin and gap come from the six `--space-*` steps
+  and corners from the three `--radius-*` steps; a raw value in either is a bug.
+  The same rules apply to inline `style=` attributes in HTML and JS.
 - Card images/metadata come through the server Scryfall cache/proxy
   (`scryfall.js` helpers) — the browser never calls Scryfall directly. Reuse the
   existing image cache helpers; do not add new external requests.

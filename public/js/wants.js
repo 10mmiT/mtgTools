@@ -203,7 +203,7 @@ async function renderWantList() {
   }
 
   if (!allWants.size) {
-    container.innerHTML = `<div class="empty-state" style="padding:2.5rem">
+    container.innerHTML = `<div class="empty-state" style="padding:var(--space-6)">
       No want lists yet — select a player above and start adding cards.
     </div>`;
     return;
@@ -217,7 +217,7 @@ async function renderWantList() {
   // ── Player filter chips ───────────────────────────────────────────────
   const filterMount = document.getElementById('wantFilterMount');
   if (filterMount && activePlayers.length > 1) {
-    filterMount.innerHTML = `<div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;padding:.5rem 0 .1rem">
+    filterMount.innerHTML = `<div style="display:flex;gap:var(--space-1);flex-wrap:wrap;align-items:center;padding:var(--space-2) 0 0">
       <span class="section-label" style="flex-shrink:0">Filter:</span>
       <button class="pick-chip ${!wantFilterPlayer ? 'pick-chip-on' : ''}"
         onclick="setWantFilterPlayer('')" style="--pc:var(--primary)">All</button>
@@ -335,7 +335,7 @@ async function renderWantList() {
   // Need Scryfall data — show loading state then fetch if missing
   const missingGrid = visibleRows.map(([n]) => n).filter(n => !wantCardData.has(n));
   if (missingGrid.length) {
-    container.innerHTML = `<div class="empty-state" style="padding:3rem 1rem">Loading card images…</div>`;
+    container.innerHTML = `<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading card images…</div>`;
     await fetchWantCardData(missingGrid);
   }
 
@@ -371,14 +371,14 @@ async function renderWantList() {
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
       </a>
       <div class="sf-card-lg-footer">
-        <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+        <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
           <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
              data-name="${esc(cardName)}" title="${esc(cardName)}" style="margin-bottom:0;flex:1">${esc(cardName)}</a>
           ${price}
         </div>
-        ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
-        ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
-        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem">${playerDots}</div>
+        ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
+        ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
+        <div style="display:flex;gap:var(--space-1);flex-wrap:wrap;margin-bottom:var(--space-1)">${playerDots}</div>
         <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
       </div>
     </div>`;

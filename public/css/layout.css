@@ -12,11 +12,11 @@
    variants are a color-mix of that token rather than a raw rgba(). ─── */
 header {
   background: var(--hdr-bg);
-  padding: .875rem 1.5rem;
+  padding: var(--space-3) var(--space-5);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-4);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -24,16 +24,16 @@ header {
 }
 @media (min-width: 861px) { header { display: none; } }
 
-.logo { color: var(--primary-fg); font-size: var(--text-lg); font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: .5rem; }
+.logo { color: var(--primary-fg); font-size: var(--text-lg); font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; gap: var(--space-2); }
 
-.hdr-right { display: flex; align-items: center; gap: .6rem; }
+.hdr-right { display: flex; align-items: center; gap: var(--space-2); }
 
 .theme-btn {
   border: 1.5px solid color-mix(in srgb, var(--primary-fg) 25%, transparent);
   background: color-mix(in srgb, var(--primary-fg) 10%, transparent);
   color: color-mix(in srgb, var(--primary-fg) 90%, transparent);
-  border-radius: 7px;
-  padding: .3rem .75rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
@@ -43,14 +43,14 @@ header {
 .theme-btn:hover { background: color-mix(in srgb, var(--primary-fg) 20%, transparent); }
 
 /* ── Layout ─────────────────────────────────────────────────────────── */
-.container { max-width: 1400px; margin: 0 auto; padding: 1.25rem 1.5rem; }
+.container { max-width: 1400px; margin: 0 auto; padding: var(--space-4) var(--space-5); }
 
 .panel {
   background: var(--card);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
   box-shadow: var(--shadow);
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
   border: 1px solid var(--border);
 }
 
@@ -58,9 +58,9 @@ header {
   font-size: var(--text-xs);
   font-weight: 700;
   color: var(--muted);
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
   position: relative;
-  padding-left: .7rem;
+  padding-left: var(--space-3);
 }
 /* Mana-coloured accent bar on every panel heading */
 .panel-title::before {
@@ -70,12 +70,12 @@ header {
   top: .02em;
   bottom: .02em;
   width: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--accent, var(--primary));
 }
 
 /* ── Page layout ─────────────────────────────────────────────────────── */
-.page-layout { display: flex; gap: 1rem; align-items: flex-start; }
+.page-layout { display: flex; gap: var(--space-4); align-items: flex-start; }
 .main-col { flex: 1; min-width: 0; }
 
 /* ── Mobile navigation dropdown — base (hidden on desktop) ───────────── */
@@ -87,7 +87,7 @@ header {
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--space-4);
   border-bottom: 2px solid var(--border);
 }
 .tab-bar::-webkit-scrollbar { display: none; }
@@ -95,17 +95,20 @@ header {
   background: transparent;
   border: none;
   color: var(--muted);
-  padding: .65rem 1.35rem;
+  padding: var(--space-3) var(--space-5);
   font-size: var(--text-base);
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   border-bottom: 2px solid transparent;
+  /* Not rhythm: pulls this button's border on top of the bar's own 2px
+     border, so it must stay equal to that border width. Same below and on
+     .db-ltab. */
   margin-bottom: -2px;
   transition: color .15s;
   display: flex;
   align-items: center;
-  gap: .4rem;
+  gap: var(--space-2);
 }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--accent, var(--primary)); border-bottom-color: var(--accent, var(--primary)); }
@@ -135,11 +138,11 @@ header {
   .sidenav-brand {
     display: flex;
     align-items: center;
-    gap: .5rem;
-    padding: .9rem .85rem .75rem;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-3) var(--space-3);
     flex-shrink: 0;
   }
-  .sidenav-brand-icon { border-radius: 5px; flex-shrink: 0; }
+  .sidenav-brand-icon { border-radius: var(--radius-sm); flex-shrink: 0; }
   .sidenav-brand-text {
     font-size: var(--text-md);
     font-weight: 700;
@@ -148,13 +151,13 @@ header {
     white-space: nowrap;
     overflow: hidden;
   }
-  .tab-bar.collapsed .sidenav-brand { justify-content: center; padding: .9rem 0 .75rem; }
+  .tab-bar.collapsed .sidenav-brand { justify-content: center; padding: var(--space-4) 0 var(--space-3); }
   .tab-bar.collapsed .sidenav-brand-text { max-width: 0; opacity: 0; }
 
   /* Account section at the bottom (theme / RSS / change password / sign out) */
-  .sidenav-divider { border: none; border-top: 1px solid var(--border); margin: auto .85rem .4rem; flex-shrink: 0; }
+  .sidenav-divider { border: none; border-top: 1px solid var(--border); margin: auto var(--space-3) var(--space-2); flex-shrink: 0; }
   .sidenav-user-row {
-    padding: .3rem .85rem .5rem;
+    padding: var(--space-1) var(--space-3) var(--space-2);
     font-size: var(--text-xs);
     font-weight: 700;
     color: var(--muted);
@@ -169,10 +172,10 @@ header {
     display: inline-block;
     width: 5px;
     height: 5px;
-    border-radius: 50%;
+    border-radius: var(--radius-full);
     background: currentColor;
     color: var(--muted);
-    margin-right: .35rem;
+    margin-right: var(--space-1);
     vertical-align: middle;
   }
   .sidenav-user-row.user-badge-admin::before { color: var(--warning); }
@@ -193,7 +196,9 @@ header {
   .theme-pick-item.active::after { content: '✓'; margin-left: auto; }
   .tab-bar.collapsed #themePickMenu.theme-pick-menu { left: 0; }
 
-  /* Push content right to clear the fixed 186-px sidebar */
+  /* Push content right to clear the fixed sidebar. These two are the
+     sidebar's own measured width, not rhythm — they must equal .tab-bar's
+     width exactly or the content overlaps it, so they stay literal. */
   .site-main {
     padding-left: 186px;
     transition: padding-left .2s;
@@ -208,7 +213,7 @@ header {
     border-right: 2px solid transparent;
     margin-bottom: 0;
     margin-right: -2px;
-    padding: .65rem .85rem;
+    padding: var(--space-3);
     justify-content: flex-start;
     white-space: nowrap;
     overflow: hidden;
@@ -220,7 +225,7 @@ header {
     background: color-mix(in srgb, var(--accent, var(--primary)) 16%, transparent);
   }
   .tab-bar.collapsed .tab-btn {
-    padding: .7rem 0;
+    padding: var(--space-3) 0;
     justify-content: center;
   }
   .tab-bar.collapsed .tab-btn svg { width: 20px; height: 20px; }
@@ -236,14 +241,14 @@ header {
   .side-nav-toggle {
     display: flex;
     align-items: center;
-    gap: .4rem;
+    gap: var(--space-2);
     width: 100%;
     background: transparent;
     border: none;
     border-top: 1px solid var(--border);
     border-right: 2px solid transparent;
     margin-right: -2px;
-    padding: .55rem .85rem;
+    padding: var(--space-2) var(--space-3);
     font-size: var(--text-sm);
     font-weight: 600;
     font-family: inherit;
@@ -258,7 +263,7 @@ header {
   }
   .side-nav-toggle:hover { background: var(--card-2); color: var(--text); }
   .side-nav-toggle svg { flex-shrink: 0; transition: transform .2s; }
-  .tab-bar.collapsed .side-nav-toggle { padding: .55rem 0; justify-content: center; }
+  .tab-bar.collapsed .side-nav-toggle { padding: var(--space-2) 0; justify-content: center; }
   .tab-bar.collapsed .side-nav-toggle svg { transform: rotate(180deg); width: 20px; height: 20px; }
 }
 
@@ -268,7 +273,7 @@ header {
   .mob-nav {
     display: block;
     position: relative;
-    margin-bottom: 1.25rem;
+    margin-bottom: var(--space-4);
     z-index: 20;
   }
 
@@ -279,8 +284,8 @@ header {
     width: 100%;
     background: var(--card);
     border: 1.5px solid var(--border);
-    border-radius: var(--radius);
-    padding: .8rem 1.1rem;
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
     font-size: var(--text-md);
     font-weight: 700;
     color: var(--primary);
@@ -302,7 +307,7 @@ header {
     right: 0;
     background: var(--card);
     border: 1.5px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-overlay);
     overflow-y: auto;
     max-height: calc(100vh - 8rem);
@@ -312,12 +317,12 @@ header {
   .mob-nav-item {
     display: flex;
     align-items: center;
-    gap: .65rem;
+    gap: var(--space-3);
     width: 100%;
     background: transparent;
     border: none;
     border-bottom: 1px solid var(--border);
-    padding: .8rem 1.1rem;
+    padding: var(--space-3) var(--space-4);
     font-size: var(--text-md);
     font-weight: 600;
     color: var(--text);
@@ -335,7 +340,7 @@ header {
   /* Divider + utility rows at bottom of dropdown */
   .mob-nav-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
   .mob-nav-meta {
-    padding: .45rem 1.1rem;
+    padding: var(--space-2) var(--space-4);
     font-size: var(--text-xs);
     color: var(--muted);
     font-weight: 700;
@@ -355,7 +360,7 @@ header {
   user-select: none;
 }
 .panel-title.collapsible:hover { color: var(--text); }
-.panel-body { padding-top: .9rem; }
+.panel-body { padding-top: var(--space-4); }
 .panel-body.closed { display: none !important; }
 .chevron { color: var(--muted); transition: transform .18s; flex-shrink: 0; }
 .chevron.closed { transform: rotate(-90deg); }
@@ -366,7 +371,7 @@ header {
   .main-col { width: 100%; }  /* prevent content from sizing the column instead of the viewport */
 }
 @media (max-width: 640px) {
-  .container { padding: .75rem; }
+  .container { padding: var(--space-3); }
 }
 
 /* ── User badge (header) ───────────────────────────────────────────────────
@@ -375,11 +380,11 @@ header {
 .user-badge {
   display: inline-flex;
   align-items: center;
-  gap: .35rem;
+  gap: var(--space-1);
   background: color-mix(in srgb, var(--primary-fg) 10%, transparent);
   border: 1.5px solid color-mix(in srgb, var(--primary-fg) 20%, transparent);
-  border-radius: 7px;
-  padding: .28rem .7rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
   font-size: var(--text-sm);
   font-weight: 700;
   color: color-mix(in srgb, var(--primary-fg) 90%, transparent);
@@ -391,7 +396,7 @@ header {
   display: inline-block;
   width: 4px;
   height: 4px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: currentColor;
   color: color-mix(in srgb, var(--primary-fg) 50%, transparent);
   vertical-align: middle;
@@ -399,4 +404,4 @@ header {
 .user-badge-admin::before { color: var(--warning); }
 
 /* Spacing fix: buttons in forms could use more breathing room */
-.panel-actions { gap: .6rem; display: flex; flex-wrap: wrap; }
+.panel-actions { gap: var(--space-2); display: flex; flex-wrap: wrap; }

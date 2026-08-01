@@ -232,7 +232,7 @@ function renderPickResults() {
         <span class="pick-result-dot" style="background:${player.color}"></span>
         <span class="pick-result-name">${esc(player.name)}</span>
       </div>
-      <div class="deck-tile" style="${bg};border-radius:0 0 10px 10px;cursor:default">
+      <div class="deck-tile" style="${bg};border-radius:0 0 var(--radius-md) var(--radius-md);cursor:default">
         <div class="deck-tile-overlay">
           <div class="deck-tile-top">
             ${ownerTag}${bracket}${viewLink}
@@ -253,7 +253,7 @@ function renderPickResults() {
   el.innerHTML = `
     <div class="pick-results-bar">
       <span class="pick-results-label">Tonight's picks</span>
-      <button class="btn-secondary" style="padding:.35rem .85rem;font-size:var(--text-sm)" onclick="pickRoll()">↺ Re-roll all</button>
+      <button class="btn-secondary" style="padding:var(--space-1) var(--space-3);font-size:var(--text-sm)" onclick="pickRoll()">↺ Re-roll all</button>
     </div>
     <div class="pick-results-grid">${tiles}</div>`;
 }

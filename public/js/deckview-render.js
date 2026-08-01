@@ -50,7 +50,7 @@ function dbRender() {
     ? 'No cards match your search'
     : 'No cards yet';
   _dbContent.innerHTML =
-    sections.length ? sections.join('') : `<div class="empty-state" style="padding:2rem 1rem">${esc(emptyMsg)}</div>`;
+    sections.length ? sections.join('') : `<div class="empty-state" style="padding:var(--space-6) var(--space-4)">${esc(emptyMsg)}</div>`;
   _dbContent.classList.toggle('db-pile-layout', dbView === 'pile');
 
   _dbRenderBulkBar();
@@ -156,7 +156,7 @@ function _dbAutoCatButtonHtml() {
   return `<button class="btn-primary" style="text-align:left" onclick="dbAutoCategorizeMove()"
        title="Known staples go to a functional category like Ramp or Removal; everything else by card type">
        ✨ Auto-categorize</button>
-    <div style="border-top:1px solid var(--border);margin:.15rem 0"></div>`;
+    <div style="border-top:1px solid var(--border);margin:var(--space-1) 0"></div>`;
 }
 
 function dbAutoCategorizeMove() {
@@ -290,7 +290,7 @@ function _dbGridTile(card, canEdit) {
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </div>
     <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem">
+      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
            style="flex:1;margin-bottom:0">${esc(card.card_name)}</a>
         ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--muted)">×${card.qty}</span>` : ''}
@@ -327,14 +327,14 @@ function _dbGridTileXL(card, canEdit) {
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </div>
     <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
            style="flex:1;margin-bottom:0">${esc(card.card_name)}</a>
         ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--muted)">×${card.qty}</span>` : ''}
         ${price}
       </div>
-      ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
+      ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
+      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;
@@ -361,7 +361,7 @@ function _dbPileTile(card, canEdit) {
     ${btns}
     <div data-name="${esc(card.card_name)}">
       ${img ? `<img src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
-              `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--card-2);border-radius:8px"></div>`}
+              `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--card-2);border-radius:var(--radius-md)"></div>`}
     </div>
   </div>`;
 }

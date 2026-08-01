@@ -101,7 +101,7 @@ function sfRender() {
 
   container.innerHTML = `<div class="${wrap}" id="sfGrid">${html}</div>` +
     (sfState.nextPage
-      ? `<button id="sfLoadMore" class="btn-secondary" style="width:100%;margin-top:.75rem;padding:.6rem"
+      ? `<button id="sfLoadMore" class="btn-secondary" style="width:100%;margin-top:var(--space-3);padding:var(--space-2)"
            onclick="fetchScryfallPage(sfState.nextPage, true)">Load more results</button>`
       : '');
 }
@@ -145,7 +145,7 @@ function renderSfCardLarge(card) {
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem">
+      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
         ${price}
         ${wantBtnHtml(card.name)}
@@ -171,13 +171,13 @@ function renderSfCardXL(card) {
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
         ${price}
         ${wantBtnHtml(card.name)}
       </div>
-      ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
+      ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
+      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

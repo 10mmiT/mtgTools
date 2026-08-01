@@ -68,7 +68,7 @@ function availRenderWeekView() {
   const days   = availWeekDates(availWeekOffset);
   const lookup = availBuildLookup();
 
-  let html = `<div class="cal-header" style="margin-bottom:.6rem">
+  let html = `<div class="cal-header" style="margin-bottom:var(--space-2)">
     <button class="nav-btn" onclick="availWeekPrev()" ${availWeekOffset === 0 ? 'disabled' : ''}>&#8249;</button>
     <span class="month-title">${availWeekRangeLabel(days)}</span>
     <button class="nav-btn" onclick="availWeekNext()">&#8250;</button>

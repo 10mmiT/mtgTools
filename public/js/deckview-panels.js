@@ -112,13 +112,13 @@ async function dbSearch() {
   }
 
   const resultsEl = document.getElementById('dbSearchResults');
-  resultsEl.innerHTML = '<div class="empty-state" style="padding:1rem">Searching…</div>';
+  resultsEl.innerHTML = '<div class="empty-state" style="padding:var(--space-4)">Searching…</div>';
 
   try {
     const res  = await scryfallFetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=name&page=1`);
     const data = await res.json();
     if (data.object === 'error') {
-      resultsEl.innerHTML = `<div class="error-msg" style="margin:.5rem 0">${esc(data.details || data.warnings?.join(' ') || 'No results')}</div>`;
+      resultsEl.innerHTML = `<div class="error-msg" style="margin:var(--space-2) 0">${esc(data.details || data.warnings?.join(' ') || 'No results')}</div>`;
       return;
     }
     dbSrResults = data.data || [];
@@ -129,14 +129,14 @@ async function dbSearch() {
     }
     _dbRenderSearch();
   } catch (e) {
-    resultsEl.innerHTML = `<div class="error-msg" style="margin:.5rem 0">${esc(e.message)}</div>`;
+    resultsEl.innerHTML = `<div class="error-msg" style="margin:var(--space-2) 0">${esc(e.message)}</div>`;
   }
 }
 
 function _dbRenderSearch() {
   const el = document.getElementById('dbSearchResults');
   if (!dbSrResults.length) {
-    el.innerHTML = '<div class="empty-state" style="padding:1rem">No results</div>';
+    el.innerHTML = '<div class="empty-state" style="padding:var(--space-4)">No results</div>';
     return;
   }
   const canAdd = !!(dbDeck && isMyPlayer(dbDeck.playerId));
@@ -238,11 +238,11 @@ async function dbLoadEdhrec() {
   const commanderName = commanderCard?.card_name || dbDeck?.commander;
   const el = document.getElementById('dbEdhrecContent');
   if (!commanderName) {
-    el.innerHTML = '<div class="empty-state" style="padding:2rem 0">Add a card to the Commander category to see EDHREC recommendations</div>';
+    el.innerHTML = '<div class="empty-state" style="padding:var(--space-6) 0">Add a card to the Commander category to see EDHREC recommendations</div>';
     return;
   }
   _dbEdhrecLoaded = true;
-  el.innerHTML = `<div class="empty-state" style="padding:2rem 1rem">Loading EDHREC recommendations for ${esc(commanderName)}…</div>`;
+  el.innerHTML = `<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading EDHREC recommendations for ${esc(commanderName)}…</div>`;
 
   try {
     const res  = await fetch(`/api/edhrec/commander/${encodeURIComponent(commanderName)}`);
@@ -257,7 +257,7 @@ async function dbLoadEdhrec() {
 
     _dbRenderEdhrec();
   } catch (e) {
-    el.innerHTML = `<div class="error-msg" style="margin:.5rem 0">${esc(e.message)}</div>`;
+    el.innerHTML = `<div class="error-msg" style="margin:var(--space-2) 0">${esc(e.message)}</div>`;
   }
 }
 
@@ -281,7 +281,7 @@ const DB_EDHREC_PER_SECTION = 36;
 function _dbRenderEdhrec() {
   const el = document.getElementById('dbEdhrecContent');
   if (!dbEdhrecData?.length) {
-    el.innerHTML = '<div class="empty-state" style="padding:1rem">No recommendations found</div>';
+    el.innerHTML = '<div class="empty-state" style="padding:var(--space-4)">No recommendations found</div>';
     return;
   }
 
@@ -323,8 +323,8 @@ function _dbRenderEdhrec() {
     }).join('');
 
   el.innerHTML = `
-    ${sections || '<div class="empty-state" style="padding:1rem">No recommendations found</div>'}
-    <div style="font-size:var(--text-xs);color:var(--muted);text-align:center;padding:.75rem 0">
+    ${sections || '<div class="empty-state" style="padding:var(--space-4)">No recommendations found</div>'}
+    <div style="font-size:var(--text-xs);color:var(--muted);text-align:center;padding:var(--space-3) 0">
       Recommendations powered by <a href="https://edhrec.com" target="_blank" rel="noopener" style="color:inherit">EDHREC</a>
     </div>`;
 }
@@ -444,7 +444,7 @@ function _dbParseTextList(text) {
 async function _dbImportCards(cards) {
   if (!cards.length || !dbDeck) return;
   document.getElementById('dbDeckContent').innerHTML =
-    '<div class="empty-state" style="padding:2rem 1rem">Importing cards…</div>';
+    '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Importing cards…</div>';
 
   const names = [...new Set(cards.map(c => c.name))];
   await dbFetchCardData(names);
