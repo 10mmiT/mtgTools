@@ -121,7 +121,7 @@ function renderSetCards() {
     <strong>${esc(currentSet?.name)}</strong>
     <span>${setCardsAll.length} cards in set</span>
     <span style="color:var(--success)">${ownedCount} owned</span>
-    <span style="color:var(--muted)">${unownedCount} unowned</span>
+    <span style="color:var(--text-muted)">${unownedCount} unowned</span>
     ${displayed.length !== setCardsAll.length ? `<span>(showing ${displayed.length})</span>` : ''}`;
 
   if (!displayed.length) {
@@ -212,7 +212,7 @@ function renderSetCardXL(card) {
         ${wantBtnHtml(card.name)}
       </div>
       ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
+      ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

@@ -293,7 +293,7 @@ function _dbGridTile(card, canEdit) {
       <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
            style="flex:1;margin-bottom:0">${esc(card.card_name)}</a>
-        ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--muted)">×${card.qty}</span>` : ''}
+        ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--text-muted)">×${card.qty}</span>` : ''}
         ${price}
       </div>
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
@@ -330,11 +330,11 @@ function _dbGridTileXL(card, canEdit) {
       <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
            style="flex:1;margin-bottom:0">${esc(card.card_name)}</a>
-        ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--muted)">×${card.qty}</span>` : ''}
+        ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--text-muted)">×${card.qty}</span>` : ''}
         ${price}
       </div>
       ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
+      ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;
@@ -361,7 +361,7 @@ function _dbPileTile(card, canEdit) {
     ${btns}
     <div data-name="${esc(card.card_name)}">
       ${img ? `<img src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
-              `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--card-2);border-radius:var(--radius-md)"></div>`}
+              `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--surface-2);border-radius:var(--radius-md)"></div>`}
     </div>
   </div>`;
 }
@@ -419,7 +419,7 @@ function dbRenderStats() {
   if (cardsEl)  cardsEl.innerHTML  = `<strong style="color:${over ? 'var(--danger)' : display === target ? 'var(--success)' : ''}">${display}/${target}</strong> cards`;
   if (landsEl)  landsEl.innerHTML  = `<strong>${landCount}</strong> lands`;
   if (cmcEl)    cmcEl.innerHTML    = `avg CMC <strong>${avgCmc}</strong>`;
-  if (colorsEl) colorsEl.innerHTML = pipHtml || '<span style="color:var(--muted)">colorless</span>';
+  if (colorsEl) colorsEl.innerHTML = pipHtml || '<span style="color:var(--text-muted)">colorless</span>';
   if (curveEl)  curveEl.innerHTML  = curveHtml;
 }
 

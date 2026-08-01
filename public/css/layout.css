@@ -46,10 +46,10 @@ header {
 .container { max-width: 1400px; margin: 0 auto; padding: var(--space-4) var(--space-5); }
 
 .panel {
-  background: var(--card);
+  background: var(--surface-1);
   border-radius: var(--radius-md);
   padding: var(--space-4) var(--space-5);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-overlay);
   margin-bottom: var(--space-4);
   border: 1px solid var(--border);
 }
@@ -57,7 +57,7 @@ header {
 .panel-title {
   font-size: var(--text-xs);
   font-weight: 700;
-  color: var(--muted);
+  color: var(--text-muted);
   margin-bottom: var(--space-4);
   position: relative;
   padding-left: var(--space-3);
@@ -94,16 +94,16 @@ header {
 .tab-btn {
   background: transparent;
   border: none;
-  color: var(--muted);
+  color: var(--text-muted);
   padding: var(--space-3) var(--space-5);
   font-size: var(--text-base);
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  /* Not rhythm: pulls this button's border on top of the bar's own 2px
-     border, so it must stay equal to that border width. Same below and on
-     .db-ltab. */
+  /* EXEMPT from the spacing scale. Not rhythm: this pulls the button's
+     border on top of the bar's own 2px border, so it must stay equal to
+     that border width. Same below and on .db-ltab. */
   margin-bottom: -2px;
   transition: color .15s;
   display: flex;
@@ -122,7 +122,7 @@ header {
     height: 100vh;
     width: 186px;
     z-index: 9;
-    background: var(--card);
+    background: var(--surface-1);
     border-right: 2px solid var(--border);
     overflow-y: auto;
     overflow-x: hidden;
@@ -160,7 +160,7 @@ header {
     padding: var(--space-1) var(--space-3) var(--space-2);
     font-size: var(--text-xs);
     font-weight: 700;
-    color: var(--muted);
+    color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
     flex-shrink: 0;
@@ -174,14 +174,14 @@ header {
     height: 5px;
     border-radius: var(--radius-full);
     background: currentColor;
-    color: var(--muted);
+    color: var(--text-muted);
     margin-right: var(--space-1);
     vertical-align: middle;
   }
   .sidenav-user-row.user-badge-admin::before { color: var(--warning); }
   .tab-bar.collapsed .sidenav-user-row { display: none; }
   .sidenav-danger { color: var(--danger) !important; }
-  .sidenav-danger:hover { background: var(--danger-lt) !important; }
+  .sidenav-danger:hover { background: var(--danger-soft) !important; }
   .sidenav-danger svg { color: var(--danger) !important; }
   #sidenavRssBtn.rss-open {
     color: var(--accent, var(--primary));
@@ -196,9 +196,10 @@ header {
   .theme-pick-item.active::after { content: '✓'; margin-left: auto; }
   .tab-bar.collapsed #themePickMenu.theme-pick-menu { left: 0; }
 
-  /* Push content right to clear the fixed sidebar. These two are the
-     sidebar's own measured width, not rhythm — they must equal .tab-bar's
-     width exactly or the content overlaps it, so they stay literal. */
+  /* EXEMPT-BEGIN from the spacing scale. Push content right to clear the
+     fixed sidebar. These two are the sidebar's own measured width, not
+     rhythm — they must equal .tab-bar's width exactly or the content
+     overlaps it, so they stay literal. */
   .site-main {
     padding-left: 186px;
     transition: padding-left .2s;
@@ -206,12 +207,15 @@ header {
   body.sidenav-collapsed .site-main {
     padding-left: 46px;
   }
+  /* EXEMPT-END */
 
   .tab-btn {
     width: 100%;
     border-bottom: none;
     border-right: 2px solid transparent;
     margin-bottom: 0;
+    /* EXEMPT from the spacing scale: the same border overlap as above,
+       turned on its side now that the nav is a sidebar. */
     margin-right: -2px;
     padding: var(--space-3);
     justify-content: flex-start;
@@ -247,21 +251,22 @@ header {
     border: none;
     border-top: 1px solid var(--border);
     border-right: 2px solid transparent;
+    /* EXEMPT from the spacing scale: border overlap, as on .tab-btn. */
     margin-right: -2px;
     padding: var(--space-2) var(--space-3);
     font-size: var(--text-sm);
     font-weight: 600;
     font-family: inherit;
-    color: var(--muted);
+    color: var(--text-muted);
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     position: sticky;
     bottom: 0;
-    background: var(--card);
+    background: var(--surface-1);
     transition: background .15s, color .15s;
   }
-  .side-nav-toggle:hover { background: var(--card-2); color: var(--text); }
+  .side-nav-toggle:hover { background: var(--surface-2); color: var(--text); }
   .side-nav-toggle svg { flex-shrink: 0; transition: transform .2s; }
   .tab-bar.collapsed .side-nav-toggle { padding: var(--space-2) 0; justify-content: center; }
   .tab-bar.collapsed .side-nav-toggle svg { transform: rotate(180deg); width: 20px; height: 20px; }
@@ -284,7 +289,7 @@ header {
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    background: var(--card);
+    background: var(--surface-1);
     border: 1.5px solid var(--border);
     border-radius: var(--radius-md);
     padding: var(--space-3) var(--space-4);
@@ -293,10 +298,10 @@ header {
     color: var(--primary);
     cursor: pointer;
     font-family: inherit;
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-overlay);
     transition: background .15s, border-color .15s;
   }
-  .mob-nav-btn:hover { background: var(--card-2); border-color: var(--primary); }
+  .mob-nav-btn:hover { background: var(--surface-2); border-color: var(--primary); }
 
   .mob-nav-chev { flex-shrink: 0; transition: transform .2s; }
   .mob-nav-chev.open { transform: rotate(180deg); }
@@ -307,7 +312,7 @@ header {
     top: calc(100% + 5px);
     left: 0;
     right: 0;
-    background: var(--card);
+    background: var(--surface-1);
     border: 1.5px solid var(--border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-overlay);
@@ -334,8 +339,8 @@ header {
     transition: background .12s, color .12s;
   }
   .mob-nav-item:last-child { border-bottom: none; }
-  .mob-nav-item:hover { background: var(--card-2); }
-  .mob-nav-item svg { flex-shrink: 0; color: var(--muted); }
+  .mob-nav-item:hover { background: var(--surface-2); }
+  .mob-nav-item svg { flex-shrink: 0; color: var(--text-muted); }
   .mob-nav-item.active { color: var(--accent, var(--primary)); background: color-mix(in srgb, var(--accent, var(--primary)) 16%, transparent); }
   .mob-nav-item.active svg { color: var(--accent, var(--primary)); }
 
@@ -344,11 +349,11 @@ header {
   .mob-nav-meta {
     padding: var(--space-2) var(--space-4);
     font-size: var(--text-xs);
-    color: var(--muted);
+    color: var(--text-muted);
     font-weight: 700;
   }
   .mob-nav-item-danger { color: var(--danger) !important; }
-  .mob-nav-item-danger:hover { background: var(--danger-lt) !important; }
+  .mob-nav-item-danger:hover { background: var(--danger-soft) !important; }
   .mob-nav-item-danger svg { color: var(--danger) !important; }
 }
 
@@ -364,7 +369,7 @@ header {
 .panel-title.collapsible:hover { color: var(--text); }
 .panel-body { padding-top: var(--space-4); }
 .panel-body.closed { display: none !important; }
-.chevron { color: var(--muted); transition: transform .18s; flex-shrink: 0; }
+.chevron { color: var(--text-muted); transition: transform .18s; flex-shrink: 0; }
 .chevron.closed { transform: rotate(-90deg); }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */

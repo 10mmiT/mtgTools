@@ -246,16 +246,19 @@ mtgtools/
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   └── state.js       # App state API — collections, players, decks, want lists
 ├── test/
-│   └── server.test.js # Integration tests (node:test + supertest)
+│   ├── server.test.js # Integration tests (node:test + supertest)
+│   └── tokens.test.js # Token-contract lint, asserted over the delivered CSS
 ├── scripts/
-│   └── capture-screens.js # Screenshot harness — every tab × theme × viewport
+│   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
+│   └── lint-tokens.js     # Token-contract linter (colour, type, spacing,
+│                          # radius, elevation, !important)
 ├── public/
 │   ├── index.html     # Single-page app shell
 │   ├── login.html     # Password login page
 │   ├── css/           # Loaded in this order; later files may override earlier
 │   │   ├── tokens.css     # The only file allowed raw colours: five theme palettes,
 │   │   │                  # the type/spacing/radius scales, the three breakpoints,
-│   │   │                  # per-tab accent colours
+│   │   │                  # per-tab accent colours. Enforced by scripts/lint-tokens.js
 │   │   ├── base.css       # Element defaults and shared text utilities
 │   │   ├── layout.css     # Page shell, header, navigation, panels
 │   │   ├── components.css # Controls and widgets shared across tabs
@@ -299,6 +302,23 @@ npm test
 
 Tests spin up an isolated in-memory SQLite database and a temporary state file so they never touch production data. The suite covers auth, state, and admin API routes.
 
+### Token-contract linter
+
+`npm test` also runs `scripts/lint-tokens.js`, which reads the CSS the browser is actually served — plus the inline `style=` attributes in the HTML and JS — and fails on anything that has drifted off the design token contract:
+
+| rule | fails on |
+| --- | --- |
+| `colour` | a raw `#hex`, `rgb()` or named colour outside `tokens.css` |
+| `type` | a `font-size` that is not one of the seven `--text-*` steps |
+| `space` | `padding`/`margin`/`gap` that is not one of the six `--space-*` steps |
+| `radius` | a corner that is not one of the three `--radius-*` steps |
+| `shadow` | a shadow that is not one of the `--shadow-*` overlay tokens, or a surface drawing a border *and* a shadow |
+| `important` | an `!important` outside the allowlist in the script |
+
+Run it alone with `npm run lint:tokens`. The scales are read out of `tokens.css` at startup rather than duplicated in the script, so that file stays the single written-down definition.
+
+A genuine one-off escapes with a CSS comment containing `EXEMPT`, which must say **which rule** it is escaping and **why** — `/* EXEMPT from the colour rule: this sits over card artwork. */`. The scope is the rest of the enclosing rule, or the next rule if the comment is at the top level, or an explicit `EXEMPT-BEGIN` … `EXEMPT-END` span. Naming no rule escapes all of them, which is almost never what you want. `!important` can never be excused this way; it has an allowlist instead, so the count stays visible in one place. Both allowlists are ratchets — they only ever shrink, and a test asserts their current size.
+
 ### Screenshot harness
 
 For reviewing visual changes, `scripts/capture-screens.js` renders every screen of the app — 11 tabs × 5 themes × 2 viewports (1440×900 and 390×844) = 110 full-page PNGs, plus an `index.html` contact sheet showing them all at once.
@@ -316,6 +336,8 @@ It starts its own copy of the server in open mode (no login needed) and drives t
 **Always pass `--data`.** Screens are only as interesting as the data behind them, and the repo's own `data/` is empty, so without it every tab renders an empty state and the comparison proves nothing. `.scratch/ui-redesign/capture-data/` holds a git-ignored snapshot of a populated database for exactly this; if it is missing, restore it before capturing. `DATA_FILE` names a file whose *directory* is used as the data directory, so `available.db` and `scryfall.db` sit beside the `state.json` path you pass. Always use a copy — the app writes to whatever database it is given.
 
 Runs are deterministic: capturing twice with no changes gives byte-identical PNGs, so `sha256sum` is a fair way to confirm that a change left unrelated views alone.
+
+**With one exception — the Set Browser.** Its set list comes from the live Scryfall API rather than the local snapshot, so its ordering can shift between runs that are hours apart, producing large diffs on all ten `sets--*` views that have nothing to do with your change. Capture the before and after close together, or discount that tab. If a diff looks far too big for what you changed, check the maximum per-channel delta before assuming the worst: a restyle moves pixels a little across a wide area, whereas reordered content moves a few pixels a lot.
 
 This is a review aid, not an automated assertion: nothing compares the images. Useful flags — `--tabs`, `--themes`, `--viewports` to narrow a run, `--url` to point at an already-running app, `--help` for the rest.
 

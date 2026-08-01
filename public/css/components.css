@@ -13,7 +13,7 @@
 .btn-primary:hover:not(:disabled) { background: var(--primary-dk); }
 
 .btn-secondary {
-  background: var(--card-2);
+  background: var(--surface-2);
   color: var(--primary-tx);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
@@ -56,7 +56,7 @@
   font-size: var(--text-xs);
   font-weight: 600;
 }
-.btn-remove:hover:not(:disabled) { background: var(--danger-lt); }
+.btn-remove:hover:not(:disabled) { background: var(--danger-soft); }
 
 /* ── Form ────────────────────────────────────────────────────────────── */
 .add-form { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; }
@@ -65,7 +65,7 @@
 .field label {
   font-size: var(--text-xs);
   font-weight: 600;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .url-input { width: 340px; }
@@ -76,7 +76,7 @@
   align-items: center;
   gap: var(--space-3);
   margin: var(--space-4) 0;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: var(--text-xs);
 }
 .add-divider::before, .add-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
@@ -88,7 +88,7 @@
 /* ── Search bar ──────────────────────────────────────────────────────── */
 .search-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .search-input { flex: 1; min-width: 200px; max-width: 480px; }
-.result-info { font-size: var(--text-sm); color: var(--muted); flex: 1; min-width: 80px; }
+.result-info { font-size: var(--text-sm); color: var(--text-muted); flex: 1; min-width: 80px; }
 
 /* ── View toggle ─────────────────────────────────────────────────────── */
 .view-toggle {
@@ -100,7 +100,7 @@
 }
 .view-btn {
   background: transparent;
-  color: var(--muted);
+  color: var(--text-muted);
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -111,7 +111,7 @@
 }
 .view-btn + .view-btn { border-left: 1.5px solid var(--border); }
 .view-btn.active { background: var(--primary); color: var(--primary-fg); }
-.view-btn:hover:not(.active) { background: var(--card-2); color: var(--text); }
+.view-btn:hover:not(.active) { background: var(--surface-2); color: var(--text); }
 
 /* ── Results table ───────────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto; }
@@ -124,8 +124,8 @@ table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
 #resultsTable thead th { white-space: nowrap; }
 
 thead th {
-  background: var(--card-2);
-  color: var(--muted);
+  background: var(--surface-2);
+  color: var(--text-muted);
   padding: var(--space-2) var(--space-3);
   text-align: left;
   font-size: var(--text-xs);
@@ -140,21 +140,21 @@ thead th.sorted-asc::after  { content: ' ↑'; color: var(--primary); }
 thead th.sorted-desc::after { content: ' ↓'; color: var(--primary); }
 
 tbody tr { border-bottom: 1px solid var(--border); }
-tbody tr:hover { background: var(--card-2); }
+tbody tr:hover { background: var(--surface-2); }
 
 td { padding: var(--space-2) var(--space-3); }
 
 .td-name { font-weight: 500; }
 .card-link { color: var(--text); text-decoration: none; }
 .card-link:hover { color: var(--primary); text-decoration: underline; }
-.td-type { color: var(--muted); font-size: var(--text-sm); }
-.td-mana { font-family: 'Courier New', monospace; font-size: var(--text-sm); color: var(--muted); }
+.td-type { color: var(--text-muted); font-size: var(--text-sm); }
+.td-mana { font-family: 'Courier New', monospace; font-size: var(--text-sm); color: var(--text-muted); }
 .td-qty  { text-align: center; font-weight: 600; }
 .qty-zero { color: var(--border); font-weight: 400; }
 .qty-some { color: var(--success); }
 .td-total { text-align: center; font-weight: 700; color: var(--primary); }
 
-.empty-state { text-align: center; padding: var(--space-6); color: var(--muted); font-size: var(--text-base); }
+.empty-state { text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: var(--text-base); }
 
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .card-grid {
@@ -164,7 +164,7 @@ td { padding: var(--space-2) var(--space-3); }
 }
 
 .grid-card {
-  background: var(--card-2);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -181,7 +181,7 @@ td { padding: var(--space-2) var(--space-3); }
 .grid-img-link {
   display: block;
   aspect-ratio: 5/7;
-  background: var(--card);
+  background: var(--surface-1);
   position: relative;
   overflow: hidden;
 }
@@ -221,7 +221,7 @@ td { padding: var(--space-2) var(--space-3); }
   font-weight: 700;
   padding: 0 var(--space-1);
   border-radius: var(--radius-md);
-  background: var(--card);
+  background: var(--surface-1);
   border: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -242,12 +242,12 @@ td { padding: var(--space-2) var(--space-3); }
 .autocomplete-wrap { position: relative; flex: 1; min-width: 200px; }
 .ac-dropdown {
   display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 0 0 var(--radius-md) var(--radius-md); box-shadow: var(--shadow);
+  background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-md) var(--radius-md); box-shadow: var(--shadow-overlay);
   z-index: 200; max-height: 220px; overflow-y: auto;
 }
 .ac-item { padding: var(--space-2) var(--space-3); font-size: var(--text-base); cursor: pointer; }
-.ac-item:hover { background: var(--card-2); }
+.ac-item:hover { background: var(--surface-2); }
 @media (width < 640px) {
   /* Collections — Add Collection form: stack fields + full-width buttons */
   .add-form { flex-direction: column; align-items: stretch; }
@@ -325,7 +325,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .stepper-btn {
   width: 30px;
   flex-shrink: 0;
-  background: var(--card-2);
+  background: var(--surface-2);
   border: 1.5px solid var(--border);
   color: var(--accent, var(--primary));
   font-size: var(--text-md);
@@ -341,11 +341,11 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .stepper-btn:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
 .stepper-btn:last-child  { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
 .stepper-btn:hover {
-  background: color-mix(in srgb, var(--accent, var(--primary)) 18%, var(--card-2));
+  background: color-mix(in srgb, var(--accent, var(--primary)) 18%, var(--surface-2));
   border-color: var(--accent, var(--primary));
 }
 .stepper-btn:active {
-  background: color-mix(in srgb, var(--accent, var(--primary)) 32%, var(--card-2));
+  background: color-mix(in srgb, var(--accent, var(--primary)) 32%, var(--surface-2));
 }
 
 /* ── RSS Panel ───────────────────────────────────────────────────────────── */
@@ -355,7 +355,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   top: 0;
   width: 0;
   height: 100vh;
-  background: var(--card);
+  background: var(--surface-1);
   border-left: 2px solid var(--border);
   z-index: 25;
   overflow: hidden;
@@ -375,7 +375,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
-  background: var(--card);
+  background: var(--surface-1);
   position: sticky;
   top: 0;
   flex-shrink: 0;
@@ -387,13 +387,13 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .rss-panel-hdr-title {
   font-size: var(--text-sm);
   font-weight: 700;
-  color: var(--muted);
+  color: var(--text-muted);
   flex: 1;
 }
 .rss-panel-hdr button {
   background: transparent;
   border: none;
-  color: var(--muted);
+  color: var(--text-muted);
   cursor: pointer;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
@@ -401,7 +401,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-family: inherit;
   transition: background .12s, color .12s;
 }
-.rss-panel-hdr button:hover { background: var(--card-2); color: var(--text); }
+.rss-panel-hdr button:hover { background: var(--surface-2); color: var(--text); }
 
 .rss-feed-list {
   flex: 1;
@@ -444,7 +444,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 
 .rss-item-date {
   font-size: var(--text-xs);
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .rss-item-title {
@@ -460,7 +460,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 
 .rss-item-desc {
   font-size: var(--text-xs);
-  color: var(--muted);
+  color: var(--text-muted);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-box-orient: vertical; /* stylelint-disable-line */
@@ -471,7 +471,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 
 .rss-status {
   font-size: var(--text-sm);
-  color: var(--muted);
+  color: var(--text-muted);
   padding: var(--space-4) 0;
   text-align: center;
 }
@@ -512,7 +512,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .sort-control-lbl {
   font-size: var(--text-xs);
   font-weight: 700;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .sort-select {
   padding: var(--space-2) var(--space-6) var(--space-2) var(--space-2) !important;
@@ -520,7 +520,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   background-position: right .45rem center;
 }
 .sort-dir-btn {
-  background: var(--card-2);
+  background: var(--surface-2);
   border: 1.5px solid var(--border);
   color: var(--accent, var(--primary));
   border-radius: var(--radius-md);
@@ -531,14 +531,14 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   flex-shrink: 0;
   transition: background .12s, border-color .12s;
 }
-.sort-dir-btn:hover { border-color: var(--accent, var(--primary)); background: color-mix(in srgb, var(--accent, var(--primary)) 14%, var(--card-2)); }
+.sort-dir-btn:hover { border-color: var(--accent, var(--primary)); background: color-mix(in srgb, var(--accent, var(--primary)) 14%, var(--surface-2)); }
 
 .col-menu-wrap { position: relative; display: inline-block; flex-shrink: 0; }
 .col-menu-btn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  background: var(--card-2);
+  background: var(--surface-2);
   border: 1.5px solid var(--border);
   color: var(--text);
   border-radius: var(--radius-md);
@@ -555,7 +555,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   right: 0;
   top: calc(100% + 5px);
   z-index: 30;
-  background: var(--card);
+  background: var(--surface-1);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-overlay);
@@ -573,16 +573,16 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   cursor: pointer;
   white-space: nowrap;
 }
-.col-menu-item:hover { background: var(--card-2); }
+.col-menu-item:hover { background: var(--surface-2); }
 .col-menu-item input { width: auto; cursor: pointer; accent-color: var(--accent, var(--primary)); }
 /* .col-menu-item is normally a <label>; reset button-specific UA styles when
    used as a plain action row (e.g. the deck builder's "More" menu). */
 button.col-menu-item { width: 100%; background: none; border: none; font: inherit; color: var(--text); text-align: left; }
 
-.td-meta { font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
+.td-meta { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
 .td-meta .ms { vertical-align: -1px; }
 .rarity-tag { font-size: var(--text-xs); font-weight: 700; }
-.rarity-tag.r-common   { color: var(--muted); }
+.rarity-tag.r-common   { color: var(--text-muted); }
 /* Uncommon is silver; --mc-c (colourless) is the themed grey that already
    carries that hue, so rarity stays on the same mana palette as the rest. */
 .rarity-tag.r-uncommon { color: var(--mc-c); }
@@ -638,7 +638,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 .card-modal-box {
   position: relative;
   z-index: 1;
-  background: var(--card);
+  background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-modal);
@@ -653,7 +653,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   right: .9rem;
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: var(--text-xl);
   line-height: 1;
   cursor: pointer;
@@ -708,7 +708,7 @@ a:focus-visible, [tabindex]:focus-visible {
 .kebab-btn {
   border: none;
   background: none;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: var(--text-md);
   font-weight: 700;
   line-height: 1;
@@ -720,7 +720,8 @@ a:focus-visible, [tabindex]:focus-visible {
 }
 .kebab-btn:hover { color: var(--text); background: var(--border); }
 /* Variant for dark deck-tile overlays (white-on-image).
-   EXEMPT from the token rule: the backdrop here is commander artwork, not a
-   theme surface, so fixed white is correct on every theme. */
+   EXEMPT-BEGIN from the colour rule: the backdrop here is commander artwork,
+   not a theme surface, so fixed white is correct on every theme. */
 .kebab-btn-tile { color: rgba(255,255,255,.85); background: rgba(255,255,255,.12); }
 .kebab-btn-tile:hover { color: #fff; background: rgba(255,255,255,.28); }
+/* EXEMPT-END */

@@ -377,7 +377,7 @@ async function renderWantList() {
           ${price}
         </div>
         ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
-        ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
+        ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
         <div style="display:flex;gap:var(--space-1);flex-wrap:wrap;margin-bottom:var(--space-1)">${playerDots}</div>
         <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
       </div>

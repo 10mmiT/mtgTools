@@ -308,7 +308,7 @@ function renderPlayers() {
   const isAdmin = currentUser?.role === 'admin';
 
   if (!state.players.length) {
-    list.innerHTML = `<div style="color:var(--muted);font-size:var(--text-base);text-align:center;padding:var(--space-6) var(--space-4)">
+    list.innerHTML = `<div style="color:var(--text-muted);font-size:var(--text-base);text-align:center;padding:var(--space-6) var(--space-4)">
       No players yet — add one above to get started.
     </div>`;
     return;
@@ -390,7 +390,7 @@ function renderPlayers() {
       </div>` : ''}
       <div class="deck-tiles-grid ${pCollapsed ? 'closed' : ''}" id="pb-player-${player.id}"
            style="${pCollapsed ? 'display:none' : ''}">${tilesHTML ||
-        `<div style="color:var(--muted);font-size:var(--text-base);font-style:italic;padding:var(--space-2) 0">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
+        `<div style="color:var(--text-muted);font-size:var(--text-base);font-style:italic;padding:var(--space-2) 0">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
       }</div>
     </div>`;
   }).join('');

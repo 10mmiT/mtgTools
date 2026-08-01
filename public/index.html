@@ -367,7 +367,7 @@
       <div id="setViewMount" style="flex-shrink:0;margin-left:auto"></div>
     </div>
     <div id="setList" class="set-list">
-      <span style="font-size:var(--text-sm);color:var(--muted)">Loading sets…</span>
+      <span style="font-size:var(--text-sm);color:var(--text-muted)">Loading sets…</span>
     </div>
     <div id="setInfoBar" class="set-info-bar" style="display:none"></div>
     <div class="view-toolbar" id="setSortBar" style="display:none">
@@ -417,7 +417,7 @@
 
 <!-- Available@ tab (shown first / by default) -->
 <div id="tab-available" class="tab-pane">
-  <div id="availLoading" style="text-align:center;padding:var(--space-6) var(--space-4);color:var(--muted)">Loading calendar…</div>
+  <div id="availLoading" style="text-align:center;padding:var(--space-6) var(--space-4);color:var(--text-muted)">Loading calendar…</div>
   <div id="availApp" style="display:none">
 
     <!-- Name bar (admin / open-mode only — players are identified by their linked player) -->
@@ -912,18 +912,18 @@
 
 <!-- Change Password modal -->
 <div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--scrim);align-items:center;justify-content:center">
-  <div style="background:var(--card);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);width:calc(100% - 2rem);max-width:340px;box-shadow:var(--shadow-modal)">
+  <div style="background:var(--surface-1);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);width:calc(100% - 2rem);max-width:340px;box-shadow:var(--shadow-modal)">
     <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Change Password</div>
     <div style="margin-bottom:var(--space-3)">
-      <label style="font-size:var(--text-sm);color:var(--muted);margin-bottom:var(--space-1);display:block">Current password</label>
+      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Current password</label>
       <input type="password" id="cpCurrentPw" style="width:100%;box-sizing:border-box" placeholder="Current password">
     </div>
     <div style="margin-bottom:var(--space-3)">
-      <label style="font-size:var(--text-sm);color:var(--muted);margin-bottom:var(--space-1);display:block">New password</label>
+      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">New password</label>
       <input type="password" id="cpNewPw" style="width:100%;box-sizing:border-box" placeholder="New password (min 6 chars)">
     </div>
     <div style="margin-bottom:var(--space-4)">
-      <label style="font-size:var(--text-sm);color:var(--muted);margin-bottom:var(--space-1);display:block">Confirm new password</label>
+      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Confirm new password</label>
       <input type="password" id="cpConfirmPw" style="width:100%;box-sizing:border-box" placeholder="Confirm new password"
              onkeydown="if(event.key==='Enter')submitChangePassword()">
     </div>

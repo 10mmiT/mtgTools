@@ -14,11 +14,14 @@
      2. Themes — five palettes, each a complete set of colour tokens.
      3. Per-tab accent colours.
 
-   The new semantic token vocabulary (--surface-*, --text-muted, --success,
-   --player-N, the scales) sits BESIDE the older tokens (--card, --muted,
-   --radius, …) while call sites are migrated one batch at a time. Colour,
-   type, spacing, radius and the breakpoints are all migrated. The old names
-   are deleted once nothing refers to them.
+   The vocabulary is semantic: a token names the job a value does, so a theme
+   can be repainted without renaming anything. The superseded names that this
+   file used to carry alongside it — --card, --card-2, --muted, --danger-lt,
+   --radius, --shadow — are gone; --surface-1/2, --text-muted, --danger-soft,
+   the --radius-* scale and the --shadow-* set do those jobs now.
+
+   scripts/lint-tokens.js enforces all of the above against the delivered
+   stylesheet, and `npm test` runs it.
 
    public/login.html loads this file too, so it is served by its own public
    route in server.js — the static mount sits behind the auth guard. */
@@ -81,19 +84,13 @@
 /* Dark — the default. */
 :root {
   --bg:         #111118;
-  --card:       #1c1c27;
-  --card-2:     #25253a;
   --border:     #32324a;
   --text:       #f0f0f5;
-  --muted:      #9090b0;
   --primary:    #a855f7;
   --primary-dk: #9333ea;
   --primary-lt: #2e1065;
   --primary-tx: #e9d5ff;
   --danger:     #ef4444;
-  --danger-lt:  #3b0a0a;
-  --radius:     10px;   /* legacy, now unreferenced — 08 deletes it */
-  --shadow:     0 2px 12px rgba(0,0,0,.45);
   --hdr-bg:     #0c0916;
 
   /* MTG mana palette (WUBRG + gold) — tuned for the dark theme */
@@ -105,15 +102,15 @@
   --mc-c: #9aa0b5;
   --mc-gold: #d4af37;
 
-  /* Surfaces. --surface-1/2 alias the older names so the migration cannot
-     shift a pixel; --surface-3 is new (hover fills, disabled fills). */
-  --surface-1: var(--card);
-  --surface-2: var(--card-2);
+  /* Surfaces. 1 is the resting panel, 2 the step above it, 3 hover and
+     disabled fills. */
+  --surface-1: #1c1c27;
+  --surface-2: #25253a;
   --surface-3: #2e2e46;
 
   --border-strong: #474768;    /* focused inputs, active tiles */
 
-  --text-muted:  var(--muted);
+  --text-muted:  #9090b0;
   --text-subtle: #6b6b88;      /* placeholders, disabled */
 
   --primary-fg: #ffffff;       /* text/icon on a --primary fill */
@@ -126,7 +123,7 @@
   --warning:      #fbbf24;
   --warning-soft: rgba(245,158,11,.18);
   --warning-fg:   #1a1206;     /* amber fill needs dark text */
-  --danger-soft:  var(--danger-lt);
+  --danger-soft:  #3b0a0a;
   --danger-fg:    #ffffff;
 
   --scrim: rgb(17 17 24 / .82); /* veil between playmat and content */
@@ -155,18 +152,13 @@
 
 html[data-theme="light"] {
   --bg:         #f3eeff;
-  --card:       #ffffff;
-  --card-2:     #f5f0ff;
   --border:     #ddd0f5;
   --text:       #1a0a2e;
-  --muted:      #7060a0;
   --primary:    #7c3aed;
   --primary-dk: #6d28d9;
   --primary-lt: #ede9fe;
   --primary-tx: #4c1d95;
   --danger:     #dc2626;
-  --danger-lt:  #fee2e2;
-  --shadow:     0 1px 4px rgba(80,0,160,.1);
   --hdr-bg:     #7c3aed;
 
   /* MTG mana palette — darkened for contrast on the light theme */
@@ -178,13 +170,13 @@ html[data-theme="light"] {
   --mc-c: #6b7187;
   --mc-gold: #b8941f;
 
-  --surface-1: var(--card);
-  --surface-2: var(--card-2);
+  --surface-1: #ffffff;
+  --surface-2: #f5f0ff;
   --surface-3: #ebe3fb;
 
   --border-strong: #bda7e6;
 
-  --text-muted:  var(--muted);
+  --text-muted:  #7060a0;
   --text-subtle: #9b8cc0;
 
   --primary-fg: #ffffff;
@@ -195,7 +187,7 @@ html[data-theme="light"] {
   --warning:      #96660c;
   --warning-soft: #fbf0dc;
   --warning-fg:   #ffffff;
-  --danger-soft:  var(--danger-lt);
+  --danger-soft:  #fee2e2;
   --danger-fg:    #ffffff;
 
   --scrim: rgb(243 238 255 / .84);
@@ -223,18 +215,13 @@ html[data-theme="light"] {
    maximum readability (e.g. low-vision or glare-prone setups). */
 html[data-theme="contrast"] {
   --bg:         #000000;
-  --card:       #0a0a0a;
-  --card-2:     #161616;
   --border:     #4a4a4a;
   --text:       #ffffff;
-  --muted:      #c2c2c2;
   --primary:    #c084fc;
   --primary-dk: #a855f7;
   --primary-lt: #3b0764;
   --primary-tx: #f3e8ff;
   --danger:     #f87171;
-  --danger-lt:  #450a0a;
-  --shadow:     0 2px 12px rgba(0,0,0,.7);
   --hdr-bg:     #000000;
 
   --mc-w: #f0e0a0;
@@ -245,13 +232,13 @@ html[data-theme="contrast"] {
   --mc-c: #c8ccd8;
   --mc-gold: #f0cc55;
 
-  --surface-1: var(--card);
-  --surface-2: var(--card-2);
+  --surface-1: #0a0a0a;
+  --surface-2: #161616;
   --surface-3: #232323;
 
   --border-strong: #808080;
 
-  --text-muted:  var(--muted);
+  --text-muted:  #c2c2c2;
   --text-subtle: #adadad;
 
   --primary-fg: #ffffff;
@@ -264,7 +251,7 @@ html[data-theme="contrast"] {
   --warning:      #ffd166;
   --warning-soft: #241d08;
   --warning-fg:   #000000;
-  --danger-soft:  var(--danger-lt);
+  --danger-soft:  #450a0a;
   --danger-fg:    #000000;
 
   --scrim: rgb(0 0 0 / .90);   /* strongest scrim — legibility first */
@@ -289,18 +276,13 @@ html[data-theme="contrast"] {
 /* Sepia — warm paper tones, for a softer light theme alternative. */
 html[data-theme="sepia"] {
   --bg:         #ece0c4;
-  --card:       #faf3e2;
-  --card-2:     #f0e5c8;
   --border:     #d8c69e;
   --text:       #3b2f1e;
-  --muted:      #8a7350;
   --primary:    #a0522d;
   --primary-dk: #84431f;
   --primary-lt: #f1e0c8;
   --primary-tx: #5c3a1e;
   --danger:     #b91c1c;
-  --danger-lt:  #f3d8d2;
-  --shadow:     0 1px 4px rgba(80,50,0,.12);
   --hdr-bg:     #84431f;
 
   --mc-w: #a8841f;
@@ -311,13 +293,13 @@ html[data-theme="sepia"] {
   --mc-c: #71695a;
   --mc-gold: #9c7a1f;
 
-  --surface-1: var(--card);
-  --surface-2: var(--card-2);
+  --surface-1: #faf3e2;
+  --surface-2: #f0e5c8;
   --surface-3: #e7dbba;
 
   --border-strong: #bda884;
 
-  --text-muted:  var(--muted);
+  --text-muted:  #8a7350;
   --text-subtle: #a89372;
 
   --primary-fg: #ffffff;
@@ -328,7 +310,7 @@ html[data-theme="sepia"] {
   --warning:      #8e6209;
   --warning-soft: #f7ecd6;
   --warning-fg:   #ffffff;
-  --danger-soft:  var(--danger-lt);
+  --danger-soft:  #f3d8d2;
   --danger-fg:    #ffffff;
 
   --scrim: rgb(236 224 196 / .84);
@@ -354,18 +336,13 @@ html[data-theme="sepia"] {
 /* Forest — dark theme with green hues. */
 html[data-theme="forest"] {
   --bg:         #0a120d;
-  --card:       #101a14;
-  --card-2:     #16241c;
   --border:     #2a3d30;
   --text:       #e8f5ec;
-  --muted:      #8aa893;
   --primary:    #22c55e;
   --primary-dk: #16a34a;
   --primary-lt: #052e16;
   --primary-tx: #bbf7d0;
   --danger:     #ef4444;
-  --danger-lt:  #3b0a0a;
-  --shadow:     0 2px 12px rgba(0,0,0,.5);
   --hdr-bg:     #07120c;
 
   /* Mana colours stay close to the base dark theme — they represent the
@@ -379,13 +356,13 @@ html[data-theme="forest"] {
   --mc-c: #9aa0b5;
   --mc-gold: #d4af37;
 
-  --surface-1: var(--card);
-  --surface-2: var(--card-2);
+  --surface-1: #101a14;
+  --surface-2: #16241c;
   --surface-3: #1d2f24;
 
   --border-strong: #3d5546;
 
-  --text-muted:  var(--muted);
+  --text-muted:  #8aa893;
   --text-subtle: #647a6c;
 
   --primary-fg: #ffffff;
@@ -398,7 +375,7 @@ html[data-theme="forest"] {
   --warning:      #fbbf24;
   --warning-soft: rgba(245,158,11,.18);
   --warning-fg:   #1a1206;
-  --danger-soft:  var(--danger-lt);
+  --danger-soft:  #3b0a0a;
   --danger-fg:    #ffffff;
 
   --scrim: rgb(10 18 13 / .82);

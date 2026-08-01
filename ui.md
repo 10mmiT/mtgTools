@@ -14,7 +14,14 @@
   limited to 400/500/600/700, and `text-transform: uppercase` is only for badges
   at `--text-2xs`. Padding, margin and gap come from the six `--space-*` steps
   and corners from the three `--radius-*` steps; a raw value in either is a bug.
-  The same rules apply to inline `style=` attributes in HTML and JS.
+  Shadows come from the `--shadow-*` overlay tokens, and a surface gets either
+  a border or a shadow, never both. The same rules apply to inline `style=`
+  attributes in HTML and JS. **All of this is enforced** — `npm test` runs
+  `scripts/lint-tokens.js` over the delivered CSS, so a violation fails the
+  build rather than getting reviewed. A genuine one-off escapes with a comment
+  naming the rule and the reason (`/* EXEMPT from the colour rule: sits over
+  card artwork. */`); see README → Testing for the scoping rules. `!important`
+  cannot be excused that way — it has a shrinking allowlist in the script.
 - There are exactly three breakpoints — 640, 900 and 1280 — written as range
   queries, `(width < 900px)` / `(width >= 900px)`. Any other number in an
   `@media` rule is a bug. 900 is where the nav switches between the bottom bar
