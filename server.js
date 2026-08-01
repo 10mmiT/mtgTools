@@ -42,6 +42,16 @@ app.get('/login.html', (req, res) => res.sendFile(path.join(__dirname, 'public',
 app.get('/css/tokens.css', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'css', 'tokens.css')));
 
+// tokens.css declares the @font-face rules, so the faces need the same
+// exemption: behind the guard, a font request from the login page would be
+// answered with a redirect to /login, the face would fail to decode, and the
+// sign-in screen alone would sit in the fallback stack. A typeface carries
+// nothing private either. Long-lived caching is safe because the filenames
+// name the subset and the axis — a different font is a different filename.
+app.use('/fonts', express.static(path.join(__dirname, 'public', 'fonts'), {
+  maxAge: '30d',
+}));
+
 // ── Auth routes (public — no global guard yet) ─────────────────────────────────
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);

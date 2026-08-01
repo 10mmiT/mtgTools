@@ -349,6 +349,7 @@ This is a review aid, not an automated assertion: nothing compares the images. U
 | **[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)** | SQLite for all persistent data — MIT licence |
 | **[Scryfall API](https://scryfall.com/docs/api)** | Card data, images, search, autocomplete, prices, rulings, and printings (alt-art). Free to use; please follow their [rate limit guidelines](https://scryfall.com/docs/api#rate-limits). Per their guidance, card data is served from a daily [bulk-data](https://scryfall.com/docs/api/bulk-data) download cached in SQLite; the remaining live calls (search, card detail, sets) go through a single server-side proxy queue that stays under 10 req/s and honors `Retry-After`. Scryfall search is triggered manually (Enter / button) rather than on every keystroke. |
 | **[mana-font](https://github.com/andrewgioia/mana)** | MTG mana symbol icons — MIT licence |
+| **[Inter](https://rsms.me/inter/)** | The application typeface — SIL Open Font License 1.1. Vendored into `public/fonts/` rather than loaded from a font service: the app has to render the same, and render at all, on a server with no route out. See [public/fonts/README.md](public/fonts/README.md) |
 | **[Archidekt](https://archidekt.com)** | Collection and deck data via their public REST API |
 | **[Moxfield](https://moxfield.com)** | Collection data via CSV export |
 | **[Docker](https://www.docker.com/)** | Containerisation |

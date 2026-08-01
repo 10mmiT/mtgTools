@@ -8,7 +8,10 @@
    anywhere. The same rule applies to font-size, padding, gap, margin and
    border-radius — use a scale token below; a one-off value is a bug.
 
-   The file has three parts:
+   The file has four parts:
+     0. Faces — the self-hosted @font-face declarations. They sit here rather
+        than in base.css because login.html loads only this file, and the
+        login page has to be in the app's typeface too.
      1. Fixed scales — type, spacing, radius, breakpoints, measure. Not
         theme-dependent, so they are declared once.
      2. Themes — five palettes, each a complete set of colour tokens.
@@ -24,11 +27,85 @@
    stylesheet, and `npm test` runs it.
 
    public/login.html loads this file too, so it is served by its own public
-   route in server.js — the static mount sits behind the auth guard. */
+   route in server.js — the static mount sits behind the auth guard. The same
+   applies to /fonts, which this file points at. */
+
+/* ── 0. Faces ─────────────────────────────────────────────────────────────
+   Inter, self-hosted. No build step, no request to a third party: this is
+   self-hosted software and it must work with the network unplugged.
+
+   One variable file per subset carries the whole 100–900 weight axis, so the
+   four weights the app uses (400/500/600/700) cost one download, not four.
+   The italic file is not optional — card flavour text is set in it.
+
+   The files are the latin and latin-ext subsets from @fontsource-variable/inter
+   5.3.0 (Inter 4.1, SIL OFL 1.1 — see fonts/LICENSE-Inter.txt and
+   fonts/README.md). 48KB + 52KB for latin; latin-ext is another 177KB that a
+   browser fetches only if a glyph on the page needs it, which for English card
+   data is close to never.
+
+   unicode-range is what makes that true, so it is copied verbatim from
+   upstream rather than trimmed. font-display: swap is the fallback promise
+   below made visible: text paints in the system stack immediately, and
+   re-paints in Inter when it arrives — or stays there for good if it never
+   does.
+
+   The format hint says woff2, not upstream's woff2-variations: a browser
+   reads the axes off the file, and a format string it does not recognise
+   makes it skip the source entirely — which would be a silent fallback in
+   whichever browser is the unlucky one. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-wght-italic.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-ext-wght-italic.woff2') format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
 
 /* ── 1. Fixed scales ──────────────────────────────────────────────────────
    These do not vary by theme. Shadows do — they live with the palettes. */
 :root {
+  /* Font stacks — the only two permitted font-family values. Everything
+     else says `font-family: inherit` or nothing at all.
+
+     The system stack stays behind Inter as the fallback: if the face fails
+     to load the app degrades to exactly how it looked before ticket 11,
+     not to a serif default. That ordering is the whole safety net, so the
+     stack is not to be trimmed to just `sans-serif`.
+
+     --font-mono replaces the 'Courier New' that mana text used to name.
+     ui-monospace resolves to whatever the platform considers its UI
+     monospace (SF Mono, Cascadia, DejaVu Sans Mono) instead of pinning one
+     face that most machines do not have and substitute badly. */
+  --font-ui:   'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
   /* Type scale — base 16px, seven steps, the only permitted font sizes.
      Note --text-2xs…--text-xl are SIZES; --text, --text-muted and
      --text-subtle in the palettes below are COLOURS. */

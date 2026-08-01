@@ -75,6 +75,36 @@ describe('GET /healthz', () => {
   });
 });
 
+// ── Assets the login page needs ──────────────────────────────────────────────
+// The static mount sits behind the auth guard, so anything the sign-in screen
+// loads has to be served by a route in front of it. Two things are: the token
+// file, and the typeface its @font-face rules point at. Behind the guard a
+// font request is answered with a redirect to /login, the face fails to
+// decode, and the login page alone falls back to the system stack.
+describe('Public assets', () => {
+  test('the token stylesheet is served without auth', async () => {
+    const res = await request.get('/css/tokens.css');
+    assert.equal(res.status, 200);
+    assert.match(res.headers['content-type'], /text\/css/);
+  });
+
+  test('the typeface is served without auth', async () => {
+    for (const file of fs.readdirSync(path.join(__dirname, '..', 'public', 'fonts'))
+                        .filter(f => f.endsWith('.woff2'))) {
+      const res = await request.get(`/fonts/${file}`);
+      assert.equal(res.status, 200, `/fonts/${file}`);
+      assert.match(res.headers['content-type'], /font\/woff2/);
+    }
+  });
+
+  test('the fonts route serves fonts and nothing else', async () => {
+    // A static mount two levels above its directory is the classic way to
+    // leak a database, so the traversal is worth an assertion.
+    const res = await request.get('/fonts/../../data/available.db');
+    assert.notEqual(res.status, 200);
+  });
+});
+
 // ── Login / logout ─────────────────────────────────────────────────────────────
 describe('Auth: login / logout', () => {
   beforeEach(resetDb);

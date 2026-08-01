@@ -4,7 +4,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-ui);
   /* The inherited default, now named. Anything without an explicit size has
      always rendered at the browser's 16px, which is --text-md; §4.3 wants the
      app default to be --text-base instead, but stepping every unsized element
@@ -29,6 +29,42 @@ body {
   font-weight: 700;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+/* ── Tabular figures ──────────────────────────────────────────────────
+   The reason for self-hosting a typeface at all (§6.2). Proportional
+   digits are set to the width of the glyph; tabular digits are all set to
+   one width, so a stack of prices, quantities or collector numbers lines
+   up on the decimal instead of sitting subtly ragged. The system stacks
+   this file used to name mostly have the feature too, but not all of them
+   and not identically — Inter is what makes it the same for everyone.
+
+   The rule lives here, in one block, rather than beside each component:
+   "every number in a column aligns" is a single promise, and a reviewer
+   should be able to read the whole of it at once. Everything below is
+   either a column of numbers or a number stacked above another one.
+
+   `table` covers every td and th, which is where most of it lives —
+   prices, quantities, mana value, collector number. Names in the same
+   table inherit it too, and that is fine: the feature only touches
+   digits, of which a card name has almost none.
+
+   Not here: mana cost text, which is monospaced already and so is fixed
+   width by construction, and running prose (oracle text, rulings), where
+   proportional digits read better because nothing below them has to
+   line up. */
+table,
+input[type="number"],
+.grid-qty,                                       /* grid-view copy counts */
+.sf-collector, .card-price, .card-stats,         /* search + card detail */
+.dv-qty, .dv-price, .dv-section-count,           /* deck rows and headers */
+.db-pile-qty, .db-catmodal-count,                /* deck builder piles */
+.db-stats-bar, .db-stat-curve-label,             /* deck builder stats + curve */
+.deck-tile-count,                                /* deck tiles */
+.lands-count, .lands-stat-val,                   /* mana base */
+.day-num, .best-day-count,                       /* availability calendar */
+.set-pill-year {                                 /* set browser */
+  font-variant-numeric: tabular-nums;
 }
 
 /* Mana-coloured text helpers */

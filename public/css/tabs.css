@@ -371,7 +371,10 @@
 .sf-name-row { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-1); }
 .sf-card-name { font-weight: 600; font-size: var(--text-base); color: var(--text); text-decoration: none; }
 .sf-card-name:hover { color: var(--primary); text-decoration: underline; }
-.sf-mana { font-size: var(--text-xs); color: var(--text-muted); font-family: 'Courier New', monospace; }
+.sf-mana { font-size: var(--text-xs); color: var(--text-muted); font-family: var(--font-mono); }
+/* Collector number, beside the mana cost. Was an inline style on the span in
+   sets.js; it is a class so it can carry tabular figures with the rest. */
+.sf-collector { font-size: var(--text-2xs); color: var(--text-subtle); }
 .sf-type { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-1); }
 .sf-ownership { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .sf-badge {
@@ -1151,7 +1154,7 @@
 .dv-mana {
   font-size: var(--text-xs);
   color: var(--text-muted);
-  font-family: monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

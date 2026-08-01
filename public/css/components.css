@@ -148,7 +148,10 @@ td { padding: var(--space-2) var(--space-3); }
 .card-link { color: var(--text); text-decoration: none; }
 .card-link:hover { color: var(--primary); text-decoration: underline; }
 .td-type { color: var(--text-muted); font-size: var(--text-sm); }
-.td-mana { font-family: 'Courier New', monospace; font-size: var(--text-sm); color: var(--text-muted); }
+/* .td-mana was here — one of the two 'Courier New' sites §6.3 names. No markup
+   in the app has carried the class for some time (the mana column renders
+   mana-font glyphs through renderMana), so it is deleted rather than restacked
+   onto --font-mono. */
 .td-qty  { text-align: center; font-weight: 600; }
 .qty-zero { color: var(--border); font-weight: 400; }
 .qty-some { color: var(--success); }
