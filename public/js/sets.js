@@ -120,7 +120,7 @@ function renderSetCards() {
   infoBar.innerHTML = `
     <strong>${esc(currentSet?.name)}</strong>
     <span>${setCardsAll.length} cards in set</span>
-    <span style="color:#10b981">${ownedCount} owned</span>
+    <span style="color:var(--success)">${ownedCount} owned</span>
     <span style="color:var(--muted)">${unownedCount} unowned</span>
     ${displayed.length !== setCardsAll.length ? `<span>(showing ${displayed.length})</span>` : ''}`;
 

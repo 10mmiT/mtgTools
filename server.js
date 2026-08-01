@@ -36,6 +36,12 @@ app.locals.createLinkedPlayer = createLinkedPlayer;
 app.get('/login',      (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/login.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 
+// The login page reads its palette from the app's token file instead of
+// inlining a copy, so that file has to clear the auth guard below — the
+// static mount is behind it. Design tokens carry nothing private.
+app.get('/css/tokens.css', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'css', 'tokens.css')));
+
 // ── Auth routes (public — no global guard yet) ─────────────────────────────────
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);

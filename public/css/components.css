@@ -4,7 +4,7 @@
 
 .btn-primary {
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-fg);
   border-radius: 8px;
   padding: .55rem 1.2rem;
   font-size: .9rem;
@@ -112,7 +112,7 @@
   font-family: inherit;
 }
 .view-btn + .view-btn { border-left: 1.5px solid var(--border); }
-.view-btn.active { background: var(--primary); color: #fff; }
+.view-btn.active { background: var(--primary); color: var(--primary-fg); }
 .view-btn:hover:not(.active) { background: var(--card-2); color: var(--text); }
 
 /* ── Results table ───────────────────────────────────────────────────── */
@@ -155,7 +155,7 @@ td { padding: .45rem .75rem; }
 .td-mana { font-family: 'Courier New', monospace; font-size: .8rem; color: var(--muted); }
 .td-qty  { text-align: center; font-weight: 600; }
 .qty-zero { color: var(--border); font-weight: 400; }
-.qty-some { color: #10b981; }
+.qty-some { color: var(--success); }
 .td-total { text-align: center; font-weight: 700; color: var(--primary); }
 
 .empty-state { text-align: center; padding: 2.5rem; color: var(--muted); font-size: .9rem; }
@@ -177,7 +177,7 @@ td { padding: .45rem .75rem; }
 .grid-card:hover {
   transform: translateY(-3px);
   border-color: var(--accent, var(--primary));
-  box-shadow: 0 8px 24px rgba(0,0,0,.5),
+  box-shadow: var(--shadow-lift),
               0 0 0 1.5px var(--accent, var(--primary)),
               0 4px 22px color-mix(in srgb, var(--accent, var(--primary)) 45%, transparent);
 }
@@ -238,7 +238,7 @@ td { padding: .45rem .75rem; }
   z-index: 1000;
   pointer-events: none;
   border-radius: 9px;
-  box-shadow: 0 6px 28px rgba(0,0,0,.6);
+  box-shadow: var(--shadow-overlay);
   background: var(--hdr-bg);
   padding: 3px;
 }
@@ -287,8 +287,8 @@ td { padding: .45rem .75rem; }
   padding: 0;
   font-family: inherit;
 }
-.want-quick-btn:hover:not(:disabled) { background: var(--primary); color: #fff; }
-.want-quick-btn.want-quick-added { border-color: #10b981; color: #10b981; cursor: default; }
+.want-quick-btn:hover:not(:disabled) { background: var(--primary); color: var(--primary-fg); }
+.want-quick-btn.want-quick-added { border-color: var(--success); color: var(--success); cursor: default; }
 .want-quick-btn:disabled { opacity: .7; }
 
 /* ── Want toast notification ─────────────────────────────────────────────── */
@@ -297,13 +297,13 @@ td { padding: .45rem .75rem; }
   bottom: 1.5rem;
   left: 50%;
   transform: translateX(-50%) translateY(1rem);
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--success-fg);
   font-size: .875rem;
   font-weight: 600;
   padding: .65rem 1.25rem;
   border-radius: 9px;
-  box-shadow: 0 4px 18px rgba(0,0,0,.4);
+  box-shadow: var(--shadow-overlay);
   opacity: 0;
   transition: opacity .2s, transform .2s;
   pointer-events: none;
@@ -366,7 +366,10 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   display: flex;
   flex-direction: column;
   transition: width .2s;
-  box-shadow: -4px 0 20px rgba(0,0,0,.3);
+  /* The shadow tokens are all cast downward, so this drawer loses the
+     leftward offset it used to have; its border-left still separates it.
+     Ticket 10 revisits which surfaces cast a shadow at all. */
+  box-shadow: var(--shadow-overlay);
 }
 .rss-panel.open { width: 310px; }
 
@@ -480,9 +483,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 
 /* RSS toggle button in header */
 .rss-toggle-btn {
-  border: 1.5px solid rgba(255,255,255,.25);
-  background: rgba(255,255,255,.1);
-  color: rgba(255,255,255,.9);
+  border: 1.5px solid color-mix(in srgb, var(--primary-fg) 25%, transparent);
+  background: color-mix(in srgb, var(--primary-fg) 10%, transparent);
+  color: color-mix(in srgb, var(--primary-fg) 90%, transparent);
   border-radius: 7px;
   padding: .3rem .6rem;
   font-size: .8rem;
@@ -493,8 +496,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   gap: .35rem;
   transition: background .15s;
 }
-.rss-toggle-btn:hover { background: rgba(255,255,255,.2); }
-.rss-toggle-btn.active { background: rgba(255,255,255,.25); }
+.rss-toggle-btn:hover { background: color-mix(in srgb, var(--primary-fg) 20%, transparent); }
+.rss-toggle-btn.active { background: color-mix(in srgb, var(--primary-fg) 25%, transparent); }
 
 /* ── Sort control + column menu (shared across views) ────────────────── */
 .view-toolbar {
@@ -561,7 +564,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   background: var(--card);
   border: 1.5px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  box-shadow: var(--shadow-overlay);
   padding: .35rem;
   min-width: 170px;
 }
@@ -586,7 +589,9 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 .td-meta .ms { vertical-align: -1px; }
 .rarity-tag { font-size: .72rem; font-weight: 700; }
 .rarity-tag.r-common   { color: var(--muted); }
-.rarity-tag.r-uncommon { color: #a9b6c4; }
+/* Uncommon is silver; --mc-c (colourless) is the themed grey that already
+   carries that hue, so rarity stays on the same mana palette as the rest. */
+.rarity-tag.r-uncommon { color: var(--mc-c); }
 .rarity-tag.r-rare     { color: var(--mc-w); }
 .rarity-tag.r-mythic   { color: var(--mc-r); }
 .rarity-tag.r-special, .rarity-tag.r-bonus { color: var(--mc-gold); }
@@ -626,7 +631,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   justify-content: center;
   padding: 2rem 1rem;
   overflow-y: auto;
-  background: rgba(0, 0, 0, .65);
+  background: var(--scrim);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }
@@ -642,7 +647,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: .75rem;
-  box-shadow: 0 24px 64px rgba(0,0,0,.55);
+  box-shadow: var(--shadow-modal);
   width: 100%;
   max-width: 900px;
   padding: 1.5rem;
@@ -717,6 +722,8 @@ a:focus-visible, [tabindex]:focus-visible {
   font-family: inherit;
 }
 .kebab-btn:hover { color: var(--text); background: var(--border); }
-/* Variant for dark deck-tile overlays (white-on-image) */
+/* Variant for dark deck-tile overlays (white-on-image).
+   EXEMPT from the token rule: the backdrop here is commander artwork, not a
+   theme surface, so fixed white is correct on every theme. */
 .kebab-btn-tile { color: rgba(255,255,255,.85); background: rgba(255,255,255,.12); }
 .kebab-btn-tile:hover { color: #fff; background: rgba(255,255,255,.28); }

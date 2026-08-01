@@ -1,5 +1,10 @@
 // ── Constants ─────────────────────────────────────────────────────────────
 const STORAGE_KEY    = 'mtgtools_v3';
+// NOT exempt from the token rule, just not this ticket's to move: these are
+// defaults written into stored collection/player records, so replacing them
+// with var(--player-N) means migrating rows that already hold a hex value.
+// Ticket 15 owns moving the per-player palette across. Mirrored in
+// routes/state.js, which assigns the same defaults server-side.
 const COLORS         = ['#a855f7','#3b82f6','#10b981','#f59e0b','#ec4899','#0ea5e9','#6366f1','#ef4444'];
 const PLAYER_COLORS  = ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d399','#fbbf24','#60a5fa'];
 // ── State ─────────────────────────────────────────────────────────────────

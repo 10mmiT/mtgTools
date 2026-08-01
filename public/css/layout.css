@@ -4,7 +4,12 @@
 /* ── Header ─────────────────────────────────────────────────────────────
    Desktop folds the header's contents into the left sidebar (see
    .sidenav-brand / .sidenav-user-row / #sidenav* buttons below), so the
-   header itself is only shown on mobile, where there's no sidebar. ───── */
+   header itself is only shown on mobile, where there's no sidebar.
+
+   The bar is filled with --hdr-bg, which is a dark or saturated brand
+   colour on every theme, so everything on it is drawn in --primary-fg
+   (the on-a-fill text token, white on all five themes). Translucent
+   variants are a color-mix of that token rather than a raw rgba(). ─── */
 header {
   background: var(--hdr-bg);
   padding: .875rem 1.5rem;
@@ -15,18 +20,18 @@ header {
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 2px 10px rgba(0,0,0,.5);
+  box-shadow: var(--shadow-overlay);
 }
 @media (min-width: 861px) { header { display: none; } }
 
-.logo { color: #fff; font-size: 1.2rem; font-weight: 800; letter-spacing: -.3px; display: flex; align-items: center; gap: .5rem; }
+.logo { color: var(--primary-fg); font-size: 1.2rem; font-weight: 800; letter-spacing: -.3px; display: flex; align-items: center; gap: .5rem; }
 
 .hdr-right { display: flex; align-items: center; gap: .6rem; }
 
 .theme-btn {
-  border: 1.5px solid rgba(255,255,255,.25);
-  background: rgba(255,255,255,.1);
-  color: rgba(255,255,255,.9);
+  border: 1.5px solid color-mix(in srgb, var(--primary-fg) 25%, transparent);
+  background: color-mix(in srgb, var(--primary-fg) 10%, transparent);
+  color: color-mix(in srgb, var(--primary-fg) 90%, transparent);
   border-radius: 7px;
   padding: .3rem .75rem;
   font-size: .8rem;
@@ -35,7 +40,7 @@ header {
   font-family: inherit;
   white-space: nowrap;
 }
-.theme-btn:hover { background: rgba(255,255,255,.2); }
+.theme-btn:hover { background: color-mix(in srgb, var(--primary-fg) 20%, transparent); }
 
 /* ── Layout ─────────────────────────────────────────────────────────── */
 .container { max-width: 1400px; margin: 0 auto; padding: 1.25rem 1.5rem; }
@@ -162,7 +167,7 @@ header {
     flex-shrink: 0;
   }
   .sidenav-user-row::before { content: '●'; font-size: .55rem; color: var(--muted); margin-right: .35rem; vertical-align: middle; }
-  .sidenav-user-row.user-badge-admin::before { color: #d97706; }
+  .sidenav-user-row.user-badge-admin::before { color: var(--warning); }
   .tab-bar.collapsed .sidenav-user-row { display: none; }
   .sidenav-danger { color: var(--danger) !important; }
   .sidenav-danger:hover { background: var(--danger-lt) !important; }
@@ -290,7 +295,7 @@ header {
     background: var(--card);
     border: 1.5px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    box-shadow: var(--shadow-overlay);
     overflow-y: auto;
     max-height: calc(100vh - 8rem);
   }
@@ -358,22 +363,24 @@ header {
   .container { padding: .75rem; }
 }
 
-/* ── User badge (header) ─────────────────────────────────────────────────── */
+/* ── User badge (header) ───────────────────────────────────────────────────
+   Sits on the filled --hdr-bg bar, so it draws in --primary-fg like the
+   rest of the header chrome above. */
 .user-badge {
   display: inline-flex;
   align-items: center;
   gap: .35rem;
-  background: rgba(255,255,255,.1);
-  border: 1.5px solid rgba(255,255,255,.2);
+  background: color-mix(in srgb, var(--primary-fg) 10%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--primary-fg) 20%, transparent);
   border-radius: 7px;
   padding: .28rem .7rem;
   font-size: .8rem;
   font-weight: 700;
-  color: rgba(255,255,255,.9);
+  color: color-mix(in srgb, var(--primary-fg) 90%, transparent);
   white-space: nowrap;
 }
-.user-badge::before { content: '●'; font-size: .45rem; color: rgba(255,255,255,.5); vertical-align: middle; }
-.user-badge-admin::before { color: #fbbf24; }
+.user-badge::before { content: '●'; font-size: .45rem; color: color-mix(in srgb, var(--primary-fg) 50%, transparent); vertical-align: middle; }
+.user-badge-admin::before { color: var(--warning); }
 
 /* Spacing fix: buttons in forms could use more breathing room */
 .panel-actions { gap: .6rem; display: flex; flex-wrap: wrap; }

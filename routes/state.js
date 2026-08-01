@@ -6,6 +6,8 @@ const { db }  = require('../available-db');
 const { getSession, requireAuth, requirePlayerAccess } = require('../middleware/auth');
 
 const DATA_FILE    = process.env.DATA_FILE || require('path').join(__dirname, '..', 'data', 'state.json');
+// Kept in step with public/js/state.js. Deferred to ticket 15 along with the
+// rest of the per-player palette — see the note there.
 const PLAYER_COLORS = ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d399','#fbbf24','#60a5fa'];
 
 const router = express.Router();

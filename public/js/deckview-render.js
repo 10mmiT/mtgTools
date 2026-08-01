@@ -416,7 +416,7 @@ function dbRenderStats() {
   const curveEl  = document.getElementById('dbCurve');
 
   const over = display > target;
-  if (cardsEl)  cardsEl.innerHTML  = `<strong style="color:${over ? 'var(--danger)' : display === target ? 'var(--success, #22c55e)' : ''}">${display}/${target}</strong> cards`;
+  if (cardsEl)  cardsEl.innerHTML  = `<strong style="color:${over ? 'var(--danger)' : display === target ? 'var(--success)' : ''}">${display}/${target}</strong> cards`;
   if (landsEl)  landsEl.innerHTML  = `<strong>${landCount}</strong> lands`;
   if (cmcEl)    cmcEl.innerHTML    = `avg CMC <strong>${avgCmc}</strong>`;
   if (colorsEl) colorsEl.innerHTML = pipHtml || '<span style="color:var(--muted)">colorless</span>';

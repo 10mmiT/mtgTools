@@ -1,8 +1,11 @@
 // ── Mana Base Calculator ───────────────────────────────────────────────────
 
 const LAND_NAMES  = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest', C: 'Wastes' };
-const LAND_COLORS = { W: '#c8b87a', U: '#4a90d9', B: '#7a7a8a', R: '#d94a4a', G: '#3a9a5c', C: '#888' };
-const LAND_BG     = { W: 'rgba(200,184,122,.15)', U: 'rgba(74,144,217,.15)', B: 'rgba(122,122,138,.15)', R: 'rgba(217,74,74,.15)', G: 'rgba(58,154,92,.15)', C: 'rgba(160,160,160,.1)' };
+// These are emitted straight into inline `style` attributes, so they name the
+// mana tokens rather than repeating hex — the chart is Magic colour used as
+// data, and the theme decides how each hue is tuned. --mc-* replaces a second,
+// slightly different set of WUBRG values that used to live only here.
+const LAND_COLORS = { W: 'var(--mc-w)', U: 'var(--mc-u)', B: 'var(--mc-b)', R: 'var(--mc-r)', G: 'var(--mc-g)', C: 'var(--mc-c)' };
 
 let _landsInited = false;
 

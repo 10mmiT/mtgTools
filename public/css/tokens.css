@@ -16,9 +16,12 @@
 
    The new semantic token vocabulary (--surface-*, --text-muted, --success,
    --player-N, the scales) sits BESIDE the older tokens (--card, --muted,
-   --radius, …) while call sites are migrated one batch at a time. Nothing
-   consumes the new names yet; the old ones are deleted once nothing refers
-   to them. */
+   --radius, …) while call sites are migrated one batch at a time. Colour is
+   migrated; the type, spacing and radius scales are not yet consumed. The
+   old names are deleted once nothing refers to them.
+
+   public/login.html loads this file too, so it is served by its own public
+   route in server.js — the static mount sits behind the auth guard. */
 
 /* ── 1. Fixed scales ──────────────────────────────────────────────────────
    These do not vary by theme. Shadows do — they live with the palettes. */
