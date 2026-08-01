@@ -176,6 +176,17 @@ Three radii replacing the current 3/4/5/6/7/8/9/10px spread:
 Light themes override these to roughly half alpha. There is no `--shadow-raised` — flat
 surfaces do not get one. This deletes the current `0 2px 12px rgba(0,0,0,.45)` from every panel.
 
+> **Delivered** (issue 10): all three of the contrast theme's shadow tokens lead with
+> `0 0 0 1px var(--border)`. "Overlays get a shadow and no border" assumes the lifted surface
+> reads as a step above the page, and on that palette it does not — `--bg` is `#000000` and
+> `--surface-1` is `#0a0a0a`, 1.06:1, under a black shadow — so a borderless dropdown or modal
+> lost its edge on the one theme that can least afford it. A ring sits at the element's own
+> edge rather than being cast beneath it, so the surface still declares one thing and still
+> draws no border; it is the same distinction the linter makes when it exempts
+> `0 0 0 <spread>` layers. The two side drawers (`.rss-panel`, `.db-search-panel`) are treated
+> as flat rather than as overlays: pinned to the viewport edge, they have one visible edge, and
+> these tokens all cast downward.
+
 ### 4.6 Breakpoints and measure
 
 Three breakpoints replacing the current seven (640 / 720 / 860 / 861 / 900 / 1023 / 1024):
@@ -217,6 +228,14 @@ What changes is **where it is allowed to appear**:
 
 Net effect: an idle screen has **no accent colour** except the one active nav item. Colour on
 screen comes from card art.
+
+> **Delivered** (issue 10): seven sites survive, all of them states — the focus ring, the
+> active item in each of the three navs, the active RSS toggle, the active theme-picker row,
+> and the selected printing tile on the Card tab. The last of those is visible at rest, which
+> the "no accent when idle" line reads as forbidding and the *selected chip* row above permits;
+> selected state won. The view toggle was **not** moved onto the accent this table allows it:
+> the repaint left `--primary` near-neutral, so leaving it there recedes further than taking
+> the licence would.
 
 ---
 
@@ -533,6 +552,12 @@ One rule, applied globally — this is where `--accent` earns its keep:
 ```
 
 The current `box-shadow: 0 0 0 3px color-mix(…)` focus rings are removed.
+
+> **Delivered** (issue 10) with two changes. The selector is an explicit list rather than
+> `:where()`, which has zero specificity and would have lost the `outline` property to the
+> typed `input[type="text"]` selectors in `base.css`. And the `border-radius` is dropped: it
+> reshapes the element while it is focused — squaring off the pill buttons and round avatars —
+> and browsers already follow the element's own radius when drawing an outline.
 
 ### 7.6 Tables
 

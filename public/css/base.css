@@ -62,16 +62,37 @@ select {
   font-size: var(--text-base);
   font-family: inherit;
   color: var(--text);
-  outline: none;
-  transition: border-color .15s, box-shadow .15s;
+  transition: border-color .15s;
 }
 input:focus,
 textarea:focus,
-select:focus {
-  border-color: var(--accent, var(--primary));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, var(--primary)) 22%, transparent);
-}
+select:focus { border-color: var(--border-strong); }
 ::placeholder { color: var(--text-muted); opacity: .75; }
+
+/* ── Focus ────────────────────────────────────────────────────────────
+   One indicator for the whole app (§7.5), and the one place the mana
+   accent still earns its keep. It replaces two competing treatments: a
+   3px accent-tinted box-shadow on inputs, and a --primary outline on
+   everything else, which disagreed on both colour and shape.
+
+   Written as an explicit selector list rather than the spec's :where(),
+   which has zero specificity and would have lost the `outline` property
+   to the typed input selectors above. These tie with them and come
+   later, so they win on source order.
+
+   The spec also set a border-radius here; that is dropped deliberately.
+   It would reshape the element while focused — squaring off the pill
+   buttons and round avatars — and browsers already follow the element's
+   own radius when drawing an outline. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 2px;
+}
 
 /* Selects: strip native chrome, add a consistent chevron */
 select {

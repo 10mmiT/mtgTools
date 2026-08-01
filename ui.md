@@ -16,13 +16,30 @@
   at `--text-2xs`. Padding, margin and gap come from the six `--space-*` steps
   and corners from the three `--radius-*` steps; a raw value in either is a bug.
   Shadows come from the `--shadow-*` overlay tokens, and a surface gets either
-  a border or a shadow, never both. The same rules apply to inline `style=`
+  a border or a shadow, never both. Decide which the surface is: **flat**
+  things (sections, toolbars, table containers, tiles at rest) take a
+  `--border` hairline and no shadow, **floating** things (menus, modals,
+  tooltips, drag previews, a hover-lifted tile) take a shadow and no border,
+  and card artwork takes neither — the art is its own edge. A tile that lifts
+  on hover swaps one for the other rather than wearing both. The same rules
+  apply to inline `style=`
   attributes in HTML and JS. **All of this is enforced** — `npm test` runs
   `scripts/lint-tokens.js` over the delivered CSS, so a violation fails the
   build rather than getting reviewed. A genuine one-off escapes with a comment
   naming the rule and the reason (`/* EXEMPT from the colour rule: sits over
   card artwork. */`); see README → Testing for the scoping rules. `!important`
   cannot be excused that way — it has a shrinking allowlist in the script.
+- The per-tab mana `--accent` marks **state and nothing else**: the active nav
+  item, the focus ring, an active toggle, a selected chip or tile. It is not a
+  decorative tint — never on headings, hover fills, hover borders or tinted
+  shadows — so a screen at rest shows no accent beyond the nav item it is on.
+  Mana colour used as *data* is a separate thing and is untouched: the `.mc-*`
+  glyph helpers, the curve chart, and the `--player-*` identity colours.
+- A grouping is a `.section`, which is vertical rhythm and nothing else — no
+  fill, no border, no padding. The few surfaces that genuinely need
+  containment (a form, a drawer) opt in with `.section--boxed`, which adds a
+  fill, a hairline and padding, and still no shadow. Headings are
+  `.section-title`: sentence case, no bar, no letterspacing.
 - There are exactly three breakpoints — 640, 900 and 1280 — written as range
   queries, `(width < 900px)` / `(width >= 900px)`. Any other number in an
   `@media` rule is a bug. 900 is where the nav switches between the bottom bar

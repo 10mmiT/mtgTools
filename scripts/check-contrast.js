@@ -162,7 +162,7 @@ function pairs(palette) {
   add('ui', '--primary-fg', '--primary-dk', 'text on the primary button, hovered');
   for (const status of ['success', 'warning', 'danger']) {
     add('ui', `--${status}-fg`, `--${status}`, `text on a ${status} fill`);
-    add('ui', `--${status}`, '--surface-1', `${status} text on a panel`);
+    add('ui', `--${status}`, '--surface-1', `${status} text on a section`);
     add('ui', `--${status}`, '--bg', `${status} text on the page`);
     add('ui', `--${status}`, `--${status}-soft`, `${status} text on its soft badge`);
   }
@@ -175,7 +175,7 @@ function pairs(palette) {
   // Mana colours are game data, but they are drawn as glyphs and as the
   // active-nav accent, so they are held to the text floor.
   for (const mc of MANA) {
-    add('ui', mc, '--surface-1', 'mana glyph on a panel');
+    add('ui', mc, '--surface-1', 'mana glyph on a section');
     add('ui', mc, '--bg', 'mana glyph on the page');
   }
 

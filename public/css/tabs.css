@@ -58,7 +58,6 @@
   border-radius: var(--radius-md);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
-  box-shadow: var(--shadow-overlay);
 }
 
 .player-section {
@@ -67,7 +66,6 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   margin-bottom: var(--space-4);
-  box-shadow: var(--shadow-overlay);
 }
 .player-header {
   display: flex;
@@ -136,7 +134,7 @@
   background-position: right center;
   transition: box-shadow .2s;
 }
-.deck-tile:hover { box-shadow: var(--shadow-lift); }
+.deck-tile:hover { border-color: transparent; box-shadow: var(--shadow-lift); }
 
 /* ── Deck tiles — EXEMPT-BEGIN from the colour rule ───────────────────────
    Everything from here to the EXEMPT-END below is layered over commander
@@ -358,7 +356,6 @@
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
   align-items: flex-start;
-  box-shadow: var(--shadow-overlay);
 }
 .sf-thumb {
   flex-shrink: 0;
@@ -412,15 +409,14 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-overlay);
   transition: transform .15s, box-shadow .15s, border-color .15s;
 }
+/* Lifted, so it trades the hairline for the shadow — and loses the
+   accent ring and accent glow, as .grid-card does. */
 .sf-card-lg:hover {
   transform: translateY(-3px);
-  border-color: var(--accent, var(--primary));
-  box-shadow: var(--shadow-lift),
-              0 0 0 1.5px var(--accent, var(--primary)),
-              0 4px 22px color-mix(in srgb, var(--accent, var(--primary)) 45%, transparent);
+  border-color: transparent;
+  box-shadow: var(--shadow-lift);
 }
 .sf-card-lg-img { display: block; width: 100%; border-radius: var(--radius-md) var(--radius-md) 0 0; }
 .sf-card-lg-footer { padding: var(--space-1) var(--space-2) var(--space-2); background: var(--surface-2); }
@@ -1002,7 +998,7 @@
   flex-direction: column;
   border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: var(--shadow-overlay);
+  border: 1px solid var(--border);
 }
 
 .pick-result-player {
@@ -1222,7 +1218,8 @@
      Magic card, so it has to scale with the image rather than sit on a
      fixed step — the same reasoning that exempts artwork overlays. */
   border-radius: 4.75% / 3.5%;
-  box-shadow: var(--shadow-overlay), 0 0 22px color-mix(in srgb, var(--accent, var(--primary)) 28%, transparent);
+  /* Neither border nor shadow, and no accent halo: the artwork is its
+     own edge (§4.5). */
   display: block;
 }
 .card-detail-img-ph {
@@ -1236,7 +1233,6 @@
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-overlay);
   padding: var(--space-4) var(--space-5);
 }
 .card-detail-name {
@@ -1254,9 +1250,9 @@
 .card-detail-prices { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); }
 .card-price {
   font-weight: 700; font-size: var(--text-base);
-  background: color-mix(in srgb, var(--accent, var(--primary)) 16%, var(--surface-2));
+  background: var(--surface-2);
   color: var(--text);
-  border: 1px solid color-mix(in srgb, var(--accent, var(--primary)) 45%, transparent);
+  border: 1px solid var(--border);
   padding: var(--space-1) var(--space-2); border-radius: var(--radius-full);
 }
 .card-price-usd { background: var(--surface-2); border-color: var(--border); color: var(--text-muted); }
@@ -1287,7 +1283,7 @@
 }
 .card-stats {
   margin-top: var(--space-3); font-weight: 700; font-size: var(--text-md);
-  color: var(--accent, var(--primary));
+  color: var(--text);
 }
 
 .card-legalities { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-4); }
@@ -1328,13 +1324,13 @@
 }
 .card-print-tile:hover {
   transform: translateY(-3px);
-  border-color: var(--accent, var(--primary));
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent, var(--primary)) 40%, transparent);
+  border-color: transparent;
+  box-shadow: var(--shadow-lift);
 }
-.card-print-tile.current {
-  border-color: var(--accent, var(--primary));
-  box-shadow: 0 0 0 1.5px var(--accent, var(--primary));
-}
+/* The one accent left on this tab: a selected state, which §4.7 permits.
+   The border alone says it — the 1.5px ring on top of it was the same
+   signal drawn twice. */
+.card-print-tile.current { border-color: var(--accent, var(--primary)); }
 .card-print-tile img { width: 100%; border-radius: var(--radius-sm); display: block; }
 .card-print-ph { width: 100%; aspect-ratio: 5/7; background: var(--surface-1); border-radius: var(--radius-sm); }
 .card-print-set {
@@ -1839,9 +1835,7 @@
   z-index: 201;
   transform: translateX(100%);
   transition: transform .22s ease;
-  /* As with .rss-panel: the shadow tokens cast downward, so this drawer
-     relies on its border-left for edge separation. See ticket 10. */
-  box-shadow: var(--shadow-overlay);
+  /* Border, not shadow — see .rss-panel for the reasoning. */
 }
 .db-search-panel.open { transform: translateX(0); }
 

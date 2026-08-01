@@ -168,14 +168,16 @@ td { padding: var(--space-2) var(--space-3); }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
-  transition: transform .15s, box-shadow .15s;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
 }
+/* A lifted tile is a floating thing, so it trades its hairline for a
+   shadow rather than wearing both (§4.5, §15.2). The accent ring and the
+   accent-tinted glow underneath it are gone: a hover is not a state the
+   mana colour is allowed to mark. */
 .grid-card:hover {
   transform: translateY(-3px);
-  border-color: var(--accent, var(--primary));
-  box-shadow: var(--shadow-lift),
-              0 0 0 1.5px var(--accent, var(--primary)),
-              0 4px 22px color-mix(in srgb, var(--accent, var(--primary)) 45%, transparent);
+  border-color: transparent;
+  box-shadow: var(--shadow-lift);
 }
 
 .grid-img-link {
@@ -242,7 +244,7 @@ td { padding: var(--space-2) var(--space-3); }
 .autocomplete-wrap { position: relative; flex: 1; min-width: 200px; }
 .ac-dropdown {
   display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0;
-  background: var(--surface-1); border: 1px solid var(--border);
+  background: var(--surface-1);
   border-radius: 0 0 var(--radius-md) var(--radius-md); box-shadow: var(--shadow-overlay);
   z-index: 200; max-height: 220px; overflow-y: auto;
 }
@@ -327,7 +329,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   flex-shrink: 0;
   background: var(--surface-2);
   border: 1.5px solid var(--border);
-  color: var(--accent, var(--primary));
+  color: var(--text);
   font-size: var(--text-md);
   font-weight: 700;
   line-height: 1;
@@ -340,13 +342,10 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 .stepper-btn:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
 .stepper-btn:last-child  { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
-.stepper-btn:hover {
-  background: color-mix(in srgb, var(--accent, var(--primary)) 18%, var(--surface-2));
-  border-color: var(--accent, var(--primary));
-}
-.stepper-btn:active {
-  background: color-mix(in srgb, var(--accent, var(--primary)) 32%, var(--surface-2));
-}
+/* Hover is a surface step, not a colour: the accent tint and the accent
+   border are both gone from here (§4.7). */
+.stepper-btn:hover { background: var(--surface-3); }
+.stepper-btn:active { background: var(--border); }
 
 /* ── RSS Panel ───────────────────────────────────────────────────────────── */
 .rss-panel {
@@ -362,10 +361,11 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   display: flex;
   flex-direction: column;
   transition: width .2s;
-  /* The shadow tokens are all cast downward, so this drawer loses the
-     leftward offset it used to have; its border-left still separates it.
-     Ticket 10 revisits which surfaces cast a shadow at all. */
-  box-shadow: var(--shadow-overlay);
+  /* Border, not shadow. A drawer pinned to the edge of the viewport is
+     not floating in the middle of the page — it has one visible edge,
+     and the hairline is what marks it. The shadow tokens all cast
+     downward anyway, so what this drew was a haze over the content
+     rather than an edge. Same reasoning on .db-search-panel. */
 }
 .rss-panel.open { width: 310px; }
 
@@ -522,7 +522,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .sort-dir-btn {
   background: var(--surface-2);
   border: 1.5px solid var(--border);
-  color: var(--accent, var(--primary));
+  color: var(--text);
   border-radius: var(--radius-md);
   width: 32px;
   height: 32px;
@@ -531,7 +531,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   flex-shrink: 0;
   transition: background .12s, border-color .12s;
 }
-.sort-dir-btn:hover { border-color: var(--accent, var(--primary)); background: color-mix(in srgb, var(--accent, var(--primary)) 14%, var(--surface-2)); }
+.sort-dir-btn:hover { background: var(--surface-3); }
 
 .col-menu-wrap { position: relative; display: inline-block; flex-shrink: 0; }
 .col-menu-btn {
@@ -548,7 +548,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-family: inherit;
   transition: border-color .12s;
 }
-.col-menu-btn:hover { border-color: var(--accent, var(--primary)); }
+.col-menu-btn:hover { background: var(--surface-3); }
 .col-menu {
   display: none;
   position: absolute;
@@ -556,7 +556,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   top: calc(100% + 5px);
   z-index: 30;
   background: var(--surface-1);
-  border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-overlay);
   padding: var(--space-1);
@@ -574,7 +573,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   white-space: nowrap;
 }
 .col-menu-item:hover { background: var(--surface-2); }
-.col-menu-item input { width: auto; cursor: pointer; accent-color: var(--accent, var(--primary)); }
+/* accent-color is the native control tint, not the mana accent — it
+   matches the checkboxes in tabs.css, which are already on --primary. */
+.col-menu-item input { width: auto; cursor: pointer; accent-color: var(--primary); }
 /* .col-menu-item is normally a <label>; reset button-specific UA styles when
    used as a plain action row (e.g. the deck builder's "More" menu). */
 button.col-menu-item { width: 100%; background: none; border: none; font: inherit; color: var(--text); text-align: left; }
@@ -639,7 +640,6 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   position: relative;
   z-index: 1;
   background: var(--surface-1);
-  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-modal);
   width: 100%;
@@ -677,12 +677,8 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 
 /* ── Phase 5.3 UI Polish ─────────────────────────────────────────────────── */
 
-/* Focus states: visible keyboard focus ring for accessibility */
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
-a:focus-visible, [tabindex]:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
+/* Focus lives in base.css now — one rule for the whole app (§7.5). This
+   was the second of the two treatments it replaced. */
 
 /* Button active/press feedback */
 .btn-primary:active, .btn-secondary:active, .btn-danger:active {

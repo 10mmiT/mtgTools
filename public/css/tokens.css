@@ -427,9 +427,21 @@ html[data-theme="contrast"] {
   --scrim: rgb(0 0 0 / .90);   /* strongest scrim — legibility first */
   --mat:   #0f0f0f;
 
-  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .45), 0 1px 3px rgb(0 0 0 / .25);
-  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .60);
-  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .50);
+  /* Each of these leads with a hairline ring, which no other palette needs.
+     An overlay carries a shadow and no border (§4.5), and that works because
+     the lifted surface is a visible step above the page — but here the page
+     is #000 and --surface-1 is #0a0a0a, 1.06:1, with a black shadow over
+     black. Without the ring a dropdown or a modal has no edge at all on the
+     one theme that can least afford it. Where contrast and the aesthetic
+     rule conflict, contrast wins.
+
+     It is a ring, at the element's own edge, not a second separation
+     signal cast beneath it — the same distinction the linter draws when it
+     exempts `0 0 0 <spread>` layers from the elevation rule. So an overlay
+     still declares exactly one thing, and still draws no border. */
+  --shadow-overlay: 0 0 0 1px var(--border), 0 4px 16px -2px rgb(0 0 0 / .45), 0 1px 3px rgb(0 0 0 / .25);
+  --shadow-modal:   0 0 0 1px var(--border), 0 16px 48px -8px rgb(0 0 0 / .60);
+  --shadow-lift:    0 0 0 1px var(--border), 0 8px 24px -4px rgb(0 0 0 / .50);
 
   --player-0: #9dbcff;
   --player-1: #85dba4;
@@ -444,8 +456,13 @@ html[data-theme="contrast"] {
 }
 
 /* ── 3. Per-tab accent colours (the "WUBRG here and there" theming) ──────
-   Each tab pane + its nav buttons inherit a mana-coloured --accent that
-   tints the active nav item and panel-title bars within that tab. */
+   Each tab pane + its nav buttons inherit a mana-coloured --accent. The
+   mapping is unchanged, but since ticket 10 it marks state and nothing
+   else (§4.7): the active nav item, the focus ring, and a selected tile.
+   It is no longer a decorative tint — not on heading bars, hover fills,
+   hover borders or tinted shadows. Mana colour used as *data* — the .mc-*
+   glyph helpers, the curve chart, player colours — is a separate concern
+   and untouched. */
 #tab-available,    #tab-btn-available,    [data-tab="available"]    { --accent: var(--mc-u); }
 #tab-collections,  #tab-btn-collections,  [data-tab="collections"]  { --accent: var(--mc-g); }
 #tab-players,      #tab-btn-players,      [data-tab="players"]      { --accent: var(--mc-gold); }

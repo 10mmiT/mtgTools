@@ -22,7 +22,8 @@ header {
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: var(--shadow-overlay);
+  /* A toolbar, not an overlay: a hairline rather than a cast shadow (§7.3). */
+  border-bottom: 1px solid var(--border);
 }
 @media (width >= 900px) { header { display: none; } }
 
@@ -47,33 +48,33 @@ header {
 /* ── Layout ─────────────────────────────────────────────────────────── */
 .container { max-width: 1400px; margin: 0 auto; padding: var(--space-4) var(--space-5); }
 
-.section {
+/* ── Section (§7.1) ───────────────────────────────────────────────────
+   A section is a grouping, not a box. It used to carry all three
+   separation signals at once — a surface step, a hairline and a shadow —
+   nested two and three deep inside .container, which is most of why the
+   chrome read as heavy. It is now nothing but vertical rhythm: the
+   heading and the whitespace do the grouping. */
+.section { margin-bottom: var(--space-5); }
+
+/* The opt-in box, for the few surfaces that genuinely need containment —
+   a form, a collapsed drawer. A fill and a hairline, and still no
+   shadow. */
+.section--boxed {
   background: var(--surface-1);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-4) var(--space-5);
-  box-shadow: var(--shadow-overlay);
-  margin-bottom: var(--space-4);
-  border: 1px solid var(--border);
 }
 
+/* ── Section heading (§7.2) ───────────────────────────────────────────
+   The 3px mana-coloured bar that used to sit in front of every heading
+   is deleted. It was the largest source of accent on an idle screen —
+   fifteen of them on the page at once — and §4.7 names it first. */
 .section-title {
-  font-size: var(--text-xs);
-  font-weight: 700;
+  font-size: var(--text-sm);
+  font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: var(--space-4);
-  position: relative;
-  padding-left: var(--space-3);
-}
-/* Mana-coloured accent bar on every panel heading */
-.section-title::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: .02em;
-  bottom: .02em;
-  width: 3px;
-  border-radius: var(--radius-sm);
-  background: var(--accent, var(--primary));
+  margin-bottom: var(--space-3);
 }
 
 /* ── Page layout ─────────────────────────────────────────────────────── */
@@ -185,10 +186,9 @@ header {
   .sidenav-danger { color: var(--danger) !important; }
   .sidenav-danger:hover { background: var(--danger-soft) !important; }
   .sidenav-danger svg { color: var(--danger) !important; }
-  #sidenavRssBtn.rss-open {
-    color: var(--accent, var(--primary));
-    background: color-mix(in srgb, var(--accent, var(--primary)) 16%, transparent);
-  }
+  /* Accent as ink only — the 16% fill tint is gone from every active
+     state in the nav (§4.7). */
+  #sidenavRssBtn.rss-open { color: var(--accent, var(--primary)); }
 
   /* Theme picker — opens upward since its button sits near the bottom of the
      sidebar, with little room below it for a menu to drop down into. */
@@ -228,7 +228,6 @@ header {
     border-bottom-color: transparent;
     border-right-color: var(--accent, var(--primary));
     color: var(--accent, var(--primary));
-    background: color-mix(in srgb, var(--accent, var(--primary)) 16%, transparent);
   }
   .tab-bar.collapsed .tab-btn {
     padding: var(--space-3) 0;
@@ -300,7 +299,6 @@ header {
     color: var(--primary);
     cursor: pointer;
     font-family: inherit;
-    box-shadow: var(--shadow-overlay);
     transition: background .15s, border-color .15s;
   }
   .mob-nav-btn:hover { background: var(--surface-2); border-color: var(--primary); }
@@ -315,8 +313,9 @@ header {
     left: 0;
     right: 0;
     background: var(--surface-1);
-    border: 1.5px solid var(--border);
     border-radius: var(--radius-md);
+    /* An overlay: it floats over the page, so it casts and drops its
+       border. */
     box-shadow: var(--shadow-overlay);
     overflow-y: auto;
     max-height: calc(100vh - 8rem);
@@ -343,7 +342,7 @@ header {
   .mob-nav-item:last-child { border-bottom: none; }
   .mob-nav-item:hover { background: var(--surface-2); }
   .mob-nav-item svg { flex-shrink: 0; color: var(--text-muted); }
-  .mob-nav-item.active { color: var(--accent, var(--primary)); background: color-mix(in srgb, var(--accent, var(--primary)) 16%, transparent); }
+  .mob-nav-item.active { color: var(--accent, var(--primary)); }
   .mob-nav-item.active svg { color: var(--accent, var(--primary)); }
 
   /* Divider + utility rows at bottom of dropdown */
@@ -369,7 +368,7 @@ header {
   user-select: none;
 }
 .section-title.collapsible:hover { color: var(--text); }
-.section-body { padding-top: var(--space-4); }
+.section-body { padding-top: var(--space-3); }
 .section-body.closed { display: none !important; }
 .chevron { color: var(--text-muted); transition: transform .18s; flex-shrink: 0; }
 .chevron.closed { transform: rotate(-90deg); }

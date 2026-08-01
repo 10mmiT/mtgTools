@@ -136,41 +136,14 @@ const IMPORTANT_ALLOWLIST = [
 
 /* ── Elevation allowlist ─────────────────────────────────────────────────
  * The elevation rule is "a surface gets either a border or a shadow, never
- * both, and never both plus a background step". Everything below breaks it:
- * a flat surface that draws a border and a shadow at once, or an
- * accent-tinted glow, which the accent rule removes as well.
+ * both, and never both plus a background step".
  *
- * Deciding which surfaces cast a shadow *at all* is ticket 10 — it is the
- * whole of that ticket. Doing it here would be a visual change under a
- * ticket whose contract is "screenshots unchanged", so the rule lands now
- * and the violations are held.
- *
- * THIS LIST ONLY EVER SHRINKS, to zero, in ticket 10. Nothing may be added:
- * a new shadow on a bordered surface is a lint failure.
- *
- *   border + shadow        .section and the eight surfaces that copy it
- *   accent-tinted glow     the three :hover glows, plus the accent halo on
- *                          .card-detail-img (which per the spec should have
- *                          no edge at all — the artwork is its own edge) */
-const ELEVATION_ALLOWLIST = [
-  { file: 'public/css/layout.css', selector: '.section' },
-  { file: 'public/css/layout.css', selector: '.mob-nav-btn' },
-  { file: 'public/css/layout.css', selector: '.mob-nav-menu' },
-  { file: 'public/css/components.css', selector: '.ac-dropdown' },
-  { file: 'public/css/components.css', selector: '.rss-panel' },
-  { file: 'public/css/components.css', selector: '.col-menu' },
-  { file: 'public/css/components.css', selector: '.card-modal-box' },
-  { file: 'public/css/components.css', selector: '.grid-card:hover' },
-  { file: 'public/css/tabs.css', selector: '.players-add-bar' },
-  { file: 'public/css/tabs.css', selector: '.player-section' },
-  { file: 'public/css/tabs.css', selector: '.sf-card' },
-  { file: 'public/css/tabs.css', selector: '.sf-card-lg' },
-  { file: 'public/css/tabs.css', selector: '.sf-card-lg:hover' },
-  { file: 'public/css/tabs.css', selector: '.card-detail-img' },
-  { file: 'public/css/tabs.css', selector: '.card-detail-info' },
-  { file: 'public/css/tabs.css', selector: '.card-print-tile:hover' },
-  { file: 'public/css/tabs.css', selector: '.db-search-panel' },
-];
+ * Empty, as of ticket 10. The seventeen surfaces that used to sit here
+ * were resolved rather than re-scoped: each one was decided to be either
+ * flat (hairline, no shadow) or floating (shadow, no border). Nothing may
+ * be added — a new shadow on a bordered surface is a lint failure, and the
+ * fix is to decide which of the two the surface is. */
+const ELEVATION_ALLOWLIST = [];
 
 /* ── A small CSS parser ──────────────────────────────────────────────────
  * Enough for hand-written CSS with no build step: comments, strings, nested

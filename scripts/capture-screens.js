@@ -64,7 +64,11 @@ function parseArgs(argv) {
 function pickList(value, all, label, fallback = all) {
   if (!value) return fallback;
   const picked = value.split(',').map(s => s.trim()).filter(Boolean);
-  const unknown = picked.filter(p => !all.includes(p));
+  // Anything containing '=' is passed through as a literal hash rather than
+  // checked against the list. That is how a view with no tab of its own gets
+  // captured — an open card detail is `--tabs 'card=Sol Ring'`. The default
+  // set is still the eleven tabs, so the standard run stays at 110 shots.
+  const unknown = picked.filter(p => !all.includes(p) && !p.includes('='));
   if (unknown.length) throw new Error(`Unknown ${label}: ${unknown.join(', ')} (known: ${all.join(', ')})`);
   return picked;
 }
@@ -369,7 +373,8 @@ async function main() {
     for (const viewport of viewports) {
       for (const theme of themes) {
         for (const tab of tabs) {
-          const fileName = `${tab}--${theme}--${viewport.name}.png`;
+          const slug = tab.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+          const fileName = `${slug}--${theme}--${viewport.name}.png`;
           const url = `${base}/?theme=${theme}#${tab}`;
           done++;
           process.stdout.write(`[${String(done).padStart(3)}/${total}] ${fileName} `);
