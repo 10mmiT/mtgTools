@@ -195,65 +195,21 @@
 <div class="page-layout">
 <div class="main-col">
 
-  <!-- Add collection. A form, so it takes the reading measure (§8.3) rather
-       than stretching its two fields across the whole window. -->
-  <div class="section section--boxed content-prose">
-    <div class="section-title collapsible" onclick="toggleSection('add-col')">
-      Add Collection
-      <svg class="chevron" id="chv-add-col" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-    <div class="section-body" id="pb-add-col">
-    <div class="add-form">
-      <div class="field">
-        <label>Label (person's name)</label>
-        <input id="nameInput" type="text" class="name-input" placeholder="Tim">
-      </div>
-      <div class="field">
-        <label>Archidekt URL</label>
-        <input id="urlInput" type="text" class="url-input" placeholder="archidekt.com/collection/v2/…">
-      </div>
-      <button class="btn-primary" onclick="addFromUrl()">Load from URL</button>
-    </div>
-
-    <div class="add-divider"><span>or import a CSV file</span></div>
-
-    <div class="add-form">
-      <button class="btn-secondary btn-csv" onclick="openCsvPicker(null)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:var(--space-1)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Upload CSV file
-      </button>
-      <span class="help-text" style="align-self:center">
-        Archidekt (<em>Collection → Export → CSV</em>) or Moxfield (<em>Collection → Download</em>)
-      </span>
-    </div>
-
-    <div id="addError" class="error-msg"></div>
-    </div><!-- /pb-add-col -->
+  <!-- One control strip (§7.3). The search row and the view toolbar were two
+       stacked boxes; the Add form and the collections list were two more.
+       What is left above the cards is this row and the chips under it. -->
+  <div class="toolbar">
+    <input id="searchInput" type="text" class="search-input" placeholder="Search by card name…" oninput="scheduleRender()">
+    <span id="resultInfo" class="result-info"></span>
+    <div id="colViewMount"></div>
+    <div id="colSortMount"></div>
+    <div id="colColumnsMount"></div>
+    <button class="btn-secondary" onclick="openDrawer('addColDrawer')" title="Add a collection">+ Add</button>
+    <button class="btn-secondary deck-drawer-btn" onclick="openDrawer('deckDrawer')" title="Deck comparison">Deck</button>
   </div>
 
-  <!-- Saved collections -->
-  <div class="section" id="collectionsPanel" style="display:none">
-    <div class="section-title collapsible" onclick="toggleSection('collections')">
-      Collections
-      <svg class="chevron" id="chv-collections" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-    <div class="section-body" id="pb-collections">
-      <div class="collections-list" id="collectionsList"></div>
-    </div>
-  </div>
-
-  <!-- Search + view toggle -->
-  <div class="section">
-    <div class="search-row">
-      <input id="searchInput" type="text" class="search-input" placeholder="Search by card name…" oninput="scheduleRender()">
-      <span id="resultInfo" class="result-info"></span>
-      <div id="colViewMount" style="flex-shrink:0"></div>
-    </div>
-    <div class="view-toolbar">
-      <div id="colSortMount"></div>
-      <div id="colColumnsMount" style="margin-left:auto"></div>
-    </div>
-  </div>
+  <!-- One chip per loaded collection, rendered by renderCollections() -->
+  <div class="chip-row" id="collectionsChips" style="display:none"></div>
 
   <!-- Results -->
   <div class="section">
@@ -267,7 +223,7 @@
             </tr>
           </thead>
           <tbody id="resultsBody">
-            <tr><td colspan="99" class="empty-state">Add a collection above to get started.</td></tr>
+            <tr><td colspan="99" class="empty-state">No collections yet — add one with “+ Add” in the toolbar.</td></tr>
           </tbody>
         </table>
       </div>
@@ -280,10 +236,14 @@
 
 </div><!-- /main-col -->
 
-<!-- Deck sidebar -->
-<div class="deck-col">
+<!-- Deck comparison. A column beside the results on a wide window; the same
+     panel, opened from the toolbar as a drawer, below 1280px. -->
+<div class="deck-col" data-drawer id="deckDrawer">
   <div class="section deck-section" id="deckPanel">
-    <div class="section-title">Deck</div>
+    <div class="deck-hdr">
+      <div class="section-title">Deck</div>
+      <button class="drawer-close deck-drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+    </div>
     <div id="deckEmpty">
       <button class="deck-upload-btn" onclick="document.getElementById('deckInput').click()">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -308,6 +268,43 @@
 </div>
 
 </div><!-- /page-layout -->
+
+<!-- Add Collection. Loading a collection is done once and then not again for
+     months, so it is behind a button rather than sitting above the cards. -->
+<div class="drawer" data-drawer id="addColDrawer" role="dialog" aria-modal="true" aria-labelledby="addColTitle">
+  <div class="drawer-hdr">
+    <span class="drawer-title" id="addColTitle">Add Collection</span>
+    <button class="drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="add-form">
+      <div class="field">
+        <label>Label (person's name)</label>
+        <input id="nameInput" type="text" class="name-input" placeholder="Tim">
+      </div>
+      <div class="field">
+        <label>Archidekt URL</label>
+        <input id="urlInput" type="text" class="url-input" placeholder="archidekt.com/collection/v2/…">
+      </div>
+      <button class="btn-primary" onclick="addFromUrl()">Load from URL</button>
+    </div>
+
+    <div class="add-divider"><span>or import a CSV file</span></div>
+
+    <div class="add-form">
+      <button class="btn-secondary btn-csv" onclick="openCsvPicker(null)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:var(--space-1)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload CSV file
+      </button>
+      <span class="help-text">
+        Archidekt (<em>Collection → Export → CSV</em>) or Moxfield (<em>Collection → Download</em>)
+      </span>
+    </div>
+
+    <div id="addError" class="error-msg"></div>
+  </div>
+</div>
+
 </div><!-- /tab-collections -->
 
 <!-- Players & Decks tab -->
@@ -946,6 +943,9 @@
 
 <!-- Card image tooltip (list view only) -->
 <div id="cardTooltip"><img id="tooltipImg" alt=""></div>
+
+<!-- One scrim for every drawer — it is what a click outside them lands on -->
+<div id="drawerScrim" class="drawer-scrim" onclick="closeDrawers()"></div>
 
 <!-- RSS Panel -->
 <div id="rssPanel" class="rss-panel">

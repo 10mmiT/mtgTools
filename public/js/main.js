@@ -24,7 +24,10 @@ function initCollapses() {
     collapseState['_pickPoolMigrated'] = true;
     localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
   }
-  ['add-col', 'collections', 'pick-pool'].forEach(applyCollapse);
+  // 'add-col' and 'collections' were the Collections tab's two collapsible
+  // sections; both are gone — the form is a drawer and the list is a chip
+  // row (§9.1), neither of which collapses.
+  ['pick-pool'].forEach(applyCollapse);
 }
 
 function togglePlayerSection(playerId, event) {
@@ -77,6 +80,22 @@ function initSideNav() {
   document.body.classList.add('sidenav-collapsed');
   _labelSideNavToggle(true);
 }
+
+/* ── Mobile header height ──────────────────────────────────────────────
+ * Below 900px the header is sticky at the top of the window, and so is
+ * each tab's toolbar; the toolbar has to stop under the header rather
+ * than behind it. The header's height is its contents' — a logo, a badge
+ * and a button, all of which can change — so it is measured rather than
+ * written down as a number that would quietly stop matching. Above 900px
+ * there is no header (it folds into the sidebar) and the toolbar's own
+ * media query ignores this. */
+function syncHeaderHeight() {
+  const hdr = document.querySelector('header');
+  const h = hdr && getComputedStyle(hdr).display !== 'none' ? hdr.offsetHeight : 0;
+  document.documentElement.style.setProperty('--hdr-h', `${h}px`);
+}
+syncHeaderHeight();
+window.addEventListener('resize', syncHeaderHeight);
 
 // ── Theme ─────────────────────────────────────────────────────────────
 // Five slots, differing by temperature rather than hue: cool dark, warm
@@ -176,6 +195,35 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.sidenav-theme-wrap')) _closeThemeMenu();
 });
 
+// ── Drawers ───────────────────────────────────────────────────────────
+// A drawer is any element marked data-drawer: the Add Collection form, and
+// the deck comparison panel below 1280px. One opens at a time and one scrim
+// sits behind whichever it is, so closing is a single call from three places
+// — the scrim, the ✕ and Escape.
+function openDrawer(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  closeDrawers();
+  el.classList.add('open');
+  document.getElementById('drawerScrim')?.classList.add('open');
+  // Focus the first field so the drawer can be typed into straight away.
+  // Never the close button: opening a drawer to dismiss it is not the task.
+  // The offsetHeight read is what makes it land: a closed drawer is
+  // visibility: hidden, nothing hidden can take focus, and the class above
+  // does not reach layout until something asks for it.
+  const field = el.querySelector('input:not([type=file]), textarea, select');
+  if (field) { void el.offsetHeight; field.focus(); }
+}
+
+function closeDrawers() {
+  document.querySelectorAll('[data-drawer].open').forEach(el => el.classList.remove('open'));
+  document.getElementById('drawerScrim')?.classList.remove('open');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDrawers();
+});
+
 // ── View mode ─────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
@@ -269,6 +317,10 @@ setInterval(refreshState, 30_000);
 // push = whether to add a browser-history entry (false when restoring from
 // a back/forward navigation or on initial load).
 function setTab(tab, push = true) {
+  // A drawer belongs to the tab it is in, but the scrim behind it does not —
+  // hiding the pane would leave the veil over the next tab with nothing
+  // under it to dismiss.
+  closeDrawers();
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.getElementById(`tab-${tab}`).style.display = '';
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));

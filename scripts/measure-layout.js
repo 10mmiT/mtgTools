@@ -6,7 +6,7 @@
  * layout ticket's acceptance criteria are numbers and eyeballing a
  * screenshot cannot produce one.
  *
- * Three questions, one per criterion:
+ * Four questions, one per criterion:
  *
  *   chrome  How much of the window is not content? Everything horizontal
  *           the page spends on itself — the sidebar, the shell's inline
@@ -15,6 +15,10 @@
  *           Must be none.
  *   wide    Do grids and tables actually use what is left? Measured at an
  *           ultrawide window, where a surviving cap would be obvious.
+ *   fold    How far down the window is the first card? The vertical twin
+ *           of chrome: what a tab spends on itself before showing the
+ *           thing it is for. Budgeted per tab, since a tab with no card
+ *           grid has no answer.
  *
  * Sibling of scripts/check-contrast.js: both take a property the redesign
  * claims, measure it against the app as served, and fail if it does not
@@ -47,6 +51,11 @@ const VIEWPORTS = [
 ];
 
 const CHROME_BUDGET = 80;   // px, at 1440 (§8.4 predicts ~78)
+
+/* Vertical chrome, per tab, at 1440. Only the tabs whose tickets state a
+ * number are listed: a budget nobody wrote down is not a budget, and the
+ * other tabs' card grids arrive with issues 14-19. */
+const FOLD_BUDGETS = { collections: 105 };   // §9.1 predicts ~96, criterion says ~100
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -121,6 +130,27 @@ const MEASURE = `(() => {
   });
 })()`;
 
+/* ── The fold ─────────────────────────────────────────────────────────────
+ * Asked in two steps, and after the measurement above, because the first
+ * step changes the page: the criterion is about *card art*, and a tab
+ * whose list view is the default is showing no art at all. So the view
+ * toggle is clicked the way a person would click it, and then the top of
+ * the first card is read off the viewport. A tab with no grid returns
+ * null rather than a number that would mean nothing. */
+const SHOW_GRID = `(() => {
+  const pane = [...document.querySelectorAll('.tab-pane')].find(p => p.style.display !== 'none');
+  const btn = pane && pane.querySelector('.view-btn[data-mode="grid"]');
+  if (btn) btn.click();
+  return String(!!btn);
+})()`;
+
+const FOLD = `(() => {
+  const pane = [...document.querySelectorAll('.tab-pane')].find(p => p.style.display !== 'none');
+  const card = pane && pane.querySelector('.grid-card, .card-grid > *');
+  if (!card) return 'null';
+  return String(Math.round(card.getBoundingClientRect().top));
+})()`;
+
 async function measureView(session, context, url, viewport) {
   await session.send('browsingContext.navigate', { context, url: 'about:blank', wait: 'complete' });
   await session.send('browsingContext.setViewport', {
@@ -134,7 +164,21 @@ async function measureView(session, context, url, viewport) {
     expression: MEASURE, target: { context }, awaitPromise: false,
   });
   if (res.type === 'exception') throw new Error(res.exceptionDetails.text);
-  return JSON.parse(res.result.value);
+  const m = JSON.parse(res.result.value);
+
+  const shown = await session.send('script.evaluate', {
+    expression: SHOW_GRID, target: { context }, awaitPromise: false,
+  });
+  if (shown.type !== 'exception' && shown.result.value === 'true') {
+    await session.waitForNetworkIdle();
+    await sleep(600);   // the grid renders placeholders, then the images
+  }
+  const fold = await session.send('script.evaluate', {
+    expression: FOLD, target: { context }, awaitPromise: false,
+  });
+  m.fold = fold.type === 'exception' || fold.result.value === 'null'
+    ? null : Number(fold.result.value);
+  return m;
 }
 
 async function main() {
@@ -200,6 +244,13 @@ async function main() {
         if (viewport.width === 1440 && m.chrome >= CHROME_BUDGET) {
           failures.push(`${tab} @ ${viewport.name}: ${m.chrome}px of chrome, budget is ${CHROME_BUDGET}`);
         }
+        if (viewport.width === 1440 && FOLD_BUDGETS[tab] != null) {
+          if (m.fold == null) {
+            failures.push(`${tab} @ ${viewport.name}: no card grid found to measure the fold against`);
+          } else if (m.fold > FOLD_BUDGETS[tab]) {
+            failures.push(`${tab} @ ${viewport.name}: first card at ${m.fold}px, budget is ${FOLD_BUDGETS[tab]}`);
+          }
+        }
         for (const p of overrun) {
           failures.push(`${tab} @ ${viewport.name}: ${p.selector} is ${p.width}px, measure is ${m.measure}`);
         }
@@ -215,14 +266,15 @@ async function main() {
     console.log(JSON.stringify({ rows, failures }, null, 2));
   } else {
     const pad = (s, n) => String(s).padEnd(n);
-    console.log(`${pad('tab', 13)}${pad('window', 11)}${pad('chrome', 9)}${pad('content', 9)}${pad('widest grid', 13)}prose ≤ measure`);
+    console.log(`${pad('tab', 13)}${pad('window', 11)}${pad('chrome', 9)}${pad('content', 9)}${pad('widest grid', 13)}${pad('fold', 8)}prose ≤ measure`);
     for (const r of rows) {
       const proseNote = r.prose.length
         ? `${Math.max(...r.prose.map(p => p.width))} ≤ ${r.measure}${r.overrun.length ? '  ✗' : ''}`
         : '—';
       console.log(
         pad(r.tab, 13) + pad(`${r.windowWidth}px`, 11) + pad(`${r.chrome}px`, 9) +
-        pad(`${r.contentWidth}px`, 9) + pad(r.widest == null ? '—' : `${r.widest}px`, 13) + proseNote);
+        pad(`${r.contentWidth}px`, 9) + pad(r.widest == null ? '—' : `${r.widest}px`, 13) +
+        pad(r.fold == null ? '—' : `${r.fold}px`, 8) + proseNote);
     }
   }
 
@@ -231,7 +283,7 @@ async function main() {
     for (const f of failures) console.error(`  ${f}`);
     process.exitCode = 1;
   } else {
-    console.log('\nlayout: chrome within budget, no prose past the measure');
+    console.log('\nlayout: chrome and fold within budget, no prose past the measure');
   }
 }
 

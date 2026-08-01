@@ -345,7 +345,7 @@ This is a review aid, not an automated assertion: nothing compares the images. U
 
 ### Layout measurement
 
-Two of the layout rules are numbers, and a screenshot cannot produce a number, so `npm run measure:layout` measures them in the running app. It reuses the harness above — same open-mode server, same headless Firefox — and reports one line per tab per window:
+Three of the layout rules are numbers, and a screenshot cannot produce a number, so `npm run measure:layout` measures them in the running app. It reuses the harness above — same open-mode server, same headless Firefox — and reports one line per tab per window:
 
 ```bash
 npm run measure:layout -- --data .scratch/ui-redesign/capture-data/available.db
@@ -354,8 +354,9 @@ npm run measure:layout -- --data .scratch/ui-redesign/capture-data/available.db
 - **Horizontal chrome** — everything the page spends on itself rather than on content: the sidebar plus the shell's inline padding. Budget is 80px at a 1440px window; it currently measures 78.
 - **The reading measure** — no line of running text may be wider than `--measure`. What is measured is the rendered *line box*, via a `Range`, not the container: a short sentence centred in a full-width table cell is not a long line. The measure itself is read from a probe element rather than assumed, since `72ch` depends on the typeface in use.
 - **Grid width** — the widest grid or table on the page, reported rather than asserted. It is there to be read at the 2560px window, where a width cap that had crept back in would show up as a number that stopped growing.
+- **The fold** — how far down the window the first card sits: the vertical twin of chrome, what a tab spends on itself before showing the thing it is for. The tab's view toggle is clicked to grid first, since the criterion is about card *art* and a list view has none. Budgeted per tab in `FOLD_BUDGETS` — only Collections so far, at 105px, where it measures 102.
 
-It exits non-zero if the chrome budget is blown or any line of prose runs past the measure, so it can be wired into CI later; it is not part of `npm test`, which needs neither a browser nor a populated database.
+It exits non-zero if the chrome or fold budget is blown or any line of prose runs past the measure, so it can be wired into CI later; it is not part of `npm test`, which needs neither a browser nor a populated database.
 
 ## Tech Stack & Credits
 

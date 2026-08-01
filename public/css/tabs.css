@@ -1,35 +1,15 @@
 /* Tabs — rules owned by a single tab.
    File 5 of 5 in load order; later files may override earlier ones. */
 
-/* ── Collections list ────────────────────────────────────────────────── */
-.collections-list { display: flex; flex-direction: column; gap: var(--space-2); }
-
-.col-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
-.col-dot { width: 10px; height: 10px; border-radius: var(--radius-full); flex-shrink: 0; }
-.col-info { flex: 1; min-width: 0; }
-.col-name { font-weight: 600; font-size: var(--text-base); }
-
-.col-meta {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  margin-top: var(--space-1);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.progress-bar { height: 3px; background: var(--border); border-radius: var(--radius-sm); margin-top: var(--space-1); overflow: hidden; }
-.progress-fill { height: 100%; border-radius: var(--radius-sm); transition: width .4s ease; }
+/* ── Collections ───────────────────────────────────────────────────────
+   The list of collection rows is gone: one collection is a .chip in the
+   row under the toolbar (components.css), which is the whole of what
+   this tab now says about them before the cards start. The row's own
+   classes — .col-row, .col-dot, .col-info, .col-name, .col-meta, the
+   progress bar and the three status badges — went with it, since nothing
+   else in the app used them. Status is a colour on the chip's count now,
+   and the progress the bar drew is the count itself: it reads
+   "1,240 / 5,600" while the pages come in. */
 
 .badge {
   display: inline-block;
@@ -40,12 +20,6 @@
   text-transform: uppercase;
   letter-spacing: .4px;
 }
-.badge-loading { background: var(--warning-soft); color: var(--warning); }
-.badge-loaded  { background: var(--success-soft); color: var(--success); }
-.badge-error   { background: var(--danger-soft); color: var(--danger); }
-.badge-source  { background: var(--primary-lt); color: var(--primary-tx); }
-
-.col-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
 
 /* ── Players tab ──────────────────────────────────────────────────────── */
 .players-add-bar {
@@ -246,19 +220,57 @@
 }
 .deck-tile-edit input { font-size: var(--text-sm); padding: var(--space-1) var(--space-2); }
 
-/* ── Deck sidebar (collections tab) ──────────────────────────────────── */
+/* ── Deck comparison (collections tab) ───────────────────────────────────
+   Two shapes, and the narrow one is the base: below 1280px this is a
+   drawer from the right edge, opened by the toolbar's Deck button, so a
+   1280-wide laptop spends none of its width on a panel that is empty
+   until someone loads a deck. It is the .drawer geometry, written here
+   rather than shared by class, because the same element has to undo all
+   of it at the wide breakpoint below. */
 .deck-col {
-  width: 272px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 4.5rem;
-  max-height: calc(100vh - 5.5rem);
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  width: min(320px, 92vw);
+  z-index: 25;
   display: flex;
   flex-direction: column;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  transform: translateX(100%);
+  visibility: hidden;
+  /* The delay is in the closing direction only — see .drawer. */
+  transition: transform .2s, visibility 0s .2s;
+}
+.deck-col.open { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+
+.deck-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+
+/* On a wide window it is what it always was: a column beside the results,
+   sticky under the top of the viewport, and no drawer chrome. */
+@media (width >= 1280px) {
+  .deck-col {
+    position: sticky;
+    top: 4.5rem;
+    right: auto;
+    height: auto;
+    max-height: calc(100vh - 5.5rem);
+    width: 272px;
+    flex-shrink: 0;
+    z-index: auto;
+    background: transparent;
+    border-left: none;
+    transform: none;
+    visibility: visible;
+  }
+  .deck-drawer-btn, .deck-drawer-close { display: none; }
 }
 
 /* ── Deck panel ──────────────────────────────────────────────────────── */
-.deck-section { display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: var(--space-4); }
+/* Fills whichever of the two shapes it is in, so it carries no rhythm of
+   its own — the drawer's bottom edge is the drawer's, not a margin's. */
+.deck-section { display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: var(--space-4); margin-bottom: 0; }
 
 .deck-upload-btn {
   width: 100%;
@@ -488,8 +500,9 @@
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (width < 900px) {
-  .deck-col { width: 100%; position: static; max-height: none; }
-  .deck-list { max-height: 260px; }
+  /* The deck panel used to stack full-width under the results here. It is a
+     drawer at this width now (see .deck-col above), which is full height, so
+     the list scrolls to fill it rather than being capped at 260px. */
   .deck-tiles-grid { grid-template-columns: 1fr; }
 }
 @media (width < 640px) {
@@ -1425,9 +1438,6 @@
   min-width: 0;
   overflow: hidden;
 }
-
-/* Subtle hover on collection rows */
-.col-row:hover { background: var(--surface-2); }
 
 /* ── Deck Builder ────────────────────────────────────────────────────────── */
 

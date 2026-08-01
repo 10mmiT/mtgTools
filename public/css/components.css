@@ -58,8 +58,13 @@
 }
 .btn-remove:hover:not(:disabled) { background: var(--danger-soft); }
 
-/* ── Form ────────────────────────────────────────────────────────────── */
-.add-form { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; }
+/* ── Form ──────────────────────────────────────────────────────────────
+   The Add Collection form is a column rather than a row of fixed-width
+   fields: its only home is the drawer (§9.1), which is 380px wide, so a
+   340px URL field beside a 200px label field has nowhere to go. The
+   phone-width override that used to stack it is gone with it — one
+   layout now, at every width. */
+.add-form { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-3); }
 .field { display: flex; flex-direction: column; gap: var(--space-1); }
 
 .field label {
@@ -68,8 +73,7 @@
   color: var(--text-muted);
 }
 
-.url-input { width: 340px; }
-.name-input { width: 200px; }
+.url-input, .name-input { width: 100%; }
 
 .add-divider {
   display: flex;
@@ -84,6 +88,174 @@
 .btn-csv { flex-shrink: 0; }
 
 .error-msg { color: var(--danger); font-size: var(--text-sm); margin-top: var(--space-2); display: none; }
+
+/* ── Toolbar (§7.3) ────────────────────────────────────────────────────
+   One control strip per tab, replacing the stack of boxes a tab used to
+   open with. Everything that acts on the results lives on this row —
+   search, count, view, sort, columns — and anything that does not goes
+   behind a button on it.
+
+   Order is fixed left to right: search → count → spacer → view → sort →
+   columns → actions. The spacer is the result count itself (.result-info
+   is flex: 1), so there is no empty element in the markup whose only job
+   is to push.
+
+   It sticks: a grid of eleven thousand cards is scrolled, and the search
+   that filters it should not be a page-scroll away. --bg rather than a
+   surface, because it is the page's own furniture and not a card. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  /* One step tighter than §7.3's snippet, which is --space-2. The controls
+     are 36px tall on their own, so the padding is the whole of what the
+     strip costs above the cards, and the criterion this tab is measured
+     against is that number. */
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+}
+.toolbar > * { flex-shrink: 0; }
+.toolbar .search-input { flex: 1 1 200px; }
+
+/* The count is the spacer, so it takes the room left over — but it must
+   not take a second line for it. "12,788 cards (showing first 500)" is
+   the longest it gets; below that it ellipsises rather than wrapping and
+   making the whole strip taller. */
+.toolbar .result-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Below the nav breakpoint the mobile header is sticky at the top of the
+   window and opaque, so a toolbar sticking to 0 would slide under it. Its
+   height is content-driven, so it is measured at boot into --hdr-h
+   (js/main.js) rather than guessed at as a sum of scale steps. */
+@media (width < 900px) {
+  .toolbar { top: var(--hdr-h, 0px); }
+}
+
+/* On a phone the strip wraps to four rows. Two cheap steps back: the gap
+   drops a step, and "Sort" loses its label — the control it labels is a
+   dropdown reading "Name", which says what it is. */
+@media (width < 640px) {
+  .toolbar { gap: var(--space-2); }
+  .toolbar .sort-control-lbl { display: none; }
+}
+
+/* ── Chip row ──────────────────────────────────────────────────────────
+   A chip is one selected or loaded thing — a collection, later a player
+   — reduced to its name, its one number and its ⋯ menu. The row does not
+   wrap: it is the second and last thing above the cards, so it has to
+   cost one line whatever is in it, and a seventh collection scrolls
+   sideways rather than pushing the grid down. The kebab menus inside it
+   are fixed-positioned when open (sortui.js), so nothing is clipped by
+   that overflow. */
+.chip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  max-width: 320px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.chip-dot { width: 8px; height: 8px; border-radius: var(--radius-full); flex-shrink: 0; }
+.chip-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-count { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Status is the count's colour, not a badge beside it: "1,240 / 5,600" in
+   --warning already says loading, and a count that failed says so in
+   --danger with the reason on the chip's tooltip. */
+.chip--busy  .chip-count { color: var(--warning); }
+.chip--error .chip-count { color: var(--danger); }
+.chip--error { border-color: var(--danger); }
+
+/* ── Drawer ────────────────────────────────────────────────────────────
+   The place for a task that is performed rarely but needs room when it
+   is: adding a collection (§9.1), and the deck comparison below 1280px.
+   Pinned to the right edge, so it has one visible edge and takes a
+   hairline rather than a shadow — the same reasoning as .rss-panel.
+
+   visibility, not just the transform: a closed drawer is off-screen but
+   would still be focusable, so tabbing through the toolbar would walk
+   into a form nobody opened. Its transition is a delay rather than a
+   duration, and only in the closing direction — a visibility *duration*
+   holds the old value for its whole length, which would leave the drawer
+   unfocusable for the 200ms after it opens, so opening it and typing
+   would lose the first characters. */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  width: min(380px, 92vw);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform .2s, visibility 0s .2s;
+}
+.drawer.open { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+
+.drawer-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.drawer-title { flex: 1; font-size: var(--text-md); font-weight: 700; }
+.drawer-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.drawer-close:hover { background: var(--surface-2); color: var(--text); }
+.drawer-body { flex: 1; overflow-y: auto; padding: var(--space-4); }
+
+/* One scrim behind whichever drawer is open. --scrim is the same veil the
+   card modal draws over the page. */
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  background: var(--scrim);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .2s, visibility 0s .2s;
+}
+.drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity .2s, visibility 0s; }
 
 /* ── Search bar ──────────────────────────────────────────────────────── */
 .search-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
@@ -266,13 +438,6 @@ td { padding: var(--space-2) var(--space-3); }
 .ac-item { padding: var(--space-2) var(--space-3); font-size: var(--text-base); cursor: pointer; }
 .ac-item:hover { background: var(--surface-2); }
 @media (width < 640px) {
-  /* Collections — Add Collection form: stack fields + full-width buttons */
-  .add-form { flex-direction: column; align-items: stretch; }
-  .field { width: 100%; }
-  .url-input, .name-input { width: 100%; }
-  .add-form .btn-primary,
-  .add-form .btn-secondary { width: 100%; }
-
   /* View toggles always on the right in search rows */
   .search-row .view-toggle { margin-left: auto; flex-shrink: 0; }
 

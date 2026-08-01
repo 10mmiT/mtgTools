@@ -527,6 +527,15 @@ Order, left to right: **search input → result count → spacer → view toggle
 → sort → columns → `⋯` overflow.** Anything that isn't one of those goes in the `⋯` menu or a
 drawer. (Card-size control is from [ui.md](ui.md) §3 — see §15.4.)
 
+> **Delivered** (issue 13) with three changes. The block padding is `--space-1`, not
+> `--space-2`: the controls are 36px tall on their own, so the padding is the whole of what
+> the strip costs above the cards, and §9.1's fold is the number the tab is measured
+> against. There is no separate spacer element — the result count is `flex: 1` and does the
+> pushing, ellipsising rather than wrapping so the strip stays one row. And `top: 0` holds
+> only above 900px: below it the mobile header is sticky and opaque, so the toolbar stops at
+> `--hdr-h`, which `js/main.js` measures off that header rather than restating as a constant
+> that would drift.
+
 ### 7.4 Buttons
 
 | Class | Treatment |
@@ -706,6 +715,13 @@ toolbar → results. Cards start roughly 400px down the page.
 - Results grid becomes `.content-wide`.
 
 **Result:** one toolbar + one chip row before cards. Chrome above the fold: ~400px → ~96px.
+
+> **Delivered** (issue 13) at 102px, measured by `scripts/measure-layout.js` rather than
+> eyeballed. Two notes. The chip row does not wrap — it scrolls sideways, because it is the
+> last thing above the cards and has to cost one line whatever is in it. And the row's status
+> badges and progress bar are gone rather than moved: the count *is* the progress
+> ("1,240 / 5,600" while pages arrive), its colour is the status, and the source and update
+> time sit on the chip's tooltip.
 
 ### 9.2 Scryfall Search — *1 section, 2 toolbars*
 
