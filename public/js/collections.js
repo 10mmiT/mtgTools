@@ -502,7 +502,7 @@ function renderResults() {
     const capped = isMobile && !_mobileShowAll && rows.length > MOBILE_CAP;
     if (capped) {
       moreEl.style.display = '';
-      moreEl.innerHTML = `<button class="btn-secondary" style="width:100%;padding:.6rem;font-size:.85rem"
+      moreEl.innerHTML = `<button class="btn-secondary" style="width:100%;padding:.6rem;font-size:var(--text-base)"
         onclick="_mobileShowAll=true;renderResults()">Show all ${rows.length.toLocaleString()} cards ↓</button>`;
     } else {
       moreEl.style.display = 'none';

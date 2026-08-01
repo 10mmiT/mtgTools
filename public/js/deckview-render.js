@@ -293,7 +293,7 @@ function _dbGridTile(card, canEdit) {
       <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
            style="flex:1;margin-bottom:0">${esc(card.card_name)}</a>
-        ${card.qty > 1 ? `<span style="font-size:.72rem;font-weight:700;color:var(--muted)">×${card.qty}</span>` : ''}
+        ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--muted)">×${card.qty}</span>` : ''}
         ${price}
       </div>
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
@@ -330,11 +330,11 @@ function _dbGridTileXL(card, canEdit) {
       <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
            style="flex:1;margin-bottom:0">${esc(card.card_name)}</a>
-        ${card.qty > 1 ? `<span style="font-size:.72rem;font-weight:700;color:var(--muted)">×${card.qty}</span>` : ''}
+        ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--muted)">×${card.qty}</span>` : ''}
         ${price}
       </div>
       ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:.7rem;color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
+      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;
@@ -395,7 +395,7 @@ function dbRenderStats() {
   }
   const pipHtml = ['W','U','B','R','G']
     .filter(c => pipCount[c] > 0)
-    .map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost" title="${c}"></i><span style="font-size:.75rem">${pipCount[c]}</span>`)
+    .map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost" title="${c}"></i><span style="font-size:var(--text-xs)">${pipCount[c]}</span>`)
     .join(' ');
 
   // Mana curve (CMC 0–7+)

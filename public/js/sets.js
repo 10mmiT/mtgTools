@@ -22,7 +22,7 @@ async function initSetBrowser() {
       .sort((a, b) => (b.released_at || '').localeCompare(a.released_at || ''));
   } catch (e) {
     document.getElementById('setList').innerHTML =
-      `<span style="color:var(--danger);font-size:.82rem">Failed to load sets: ${esc(e.message)}</span>`;
+      `<span style="color:var(--danger);font-size:var(--text-sm)">Failed to load sets: ${esc(e.message)}</span>`;
     return;
   }
   renderSetList();
@@ -156,7 +156,7 @@ function renderSetCardList(card) {
       <div class="sf-name-row">
         <a class="sf-card-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}">${esc(card.name)}</a>
         ${mana ? `<span class="sf-mana">${renderMana(mana)}</span>` : ''}
-        <span style="font-size:.68rem;color:var(--border)">#${card.collector_number || '?'}</span>
+        <span style="font-size:var(--text-2xs);color:var(--border)">#${card.collector_number || '?'}</span>
         ${price}
         ${wantBtnHtml(card.name)}
       </div>
@@ -212,7 +212,7 @@ function renderSetCardXL(card) {
         ${wantBtnHtml(card.name)}
       </div>
       ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:.7rem;color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
+      ${type ? `<div style="font-size:var(--text-2xs);color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

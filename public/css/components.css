@@ -7,7 +7,7 @@
   color: var(--primary-fg);
   border-radius: 8px;
   padding: .55rem 1.2rem;
-  font-size: .9rem;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 .btn-primary:hover:not(:disabled) { background: var(--primary-dk); }
@@ -18,7 +18,7 @@
   border: 1.5px solid var(--border);
   border-radius: 8px;
   padding: .55rem 1.2rem;
-  font-size: .9rem;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 .btn-secondary:hover:not(:disabled) { border-color: var(--primary); }
@@ -29,7 +29,7 @@
   border: 1.5px solid var(--border);
   border-radius: 8px;
   padding: .45rem 1rem;
-  font-size: .85rem;
+  font-size: var(--text-base);
   font-weight: 600;
   cursor: pointer;
   transition: border-color .15s, color .15s;
@@ -42,7 +42,7 @@
   border: 1.5px solid var(--primary);
   border-radius: 6px;
   padding: .25rem .65rem;
-  font-size: .75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 .btn-update:hover:not(:disabled) { background: var(--primary-lt); }
@@ -53,7 +53,7 @@
   border: 1.5px solid var(--danger);
   border-radius: 6px;
   padding: .25rem .65rem;
-  font-size: .75rem;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 .btn-remove:hover:not(:disabled) { background: var(--danger-lt); }
@@ -63,10 +63,8 @@
 .field { display: flex; flex-direction: column; gap: .3rem; }
 
 .field label {
-  font-size: .72rem;
+  font-size: var(--text-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .5px;
   color: var(--muted);
 }
 
@@ -79,18 +77,18 @@
   gap: .75rem;
   margin: .9rem 0;
   color: var(--muted);
-  font-size: .78rem;
+  font-size: var(--text-xs);
 }
 .add-divider::before, .add-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
 .btn-csv { flex-shrink: 0; }
 
-.error-msg { color: var(--danger); font-size: .82rem; margin-top: .5rem; display: none; }
+.error-msg { color: var(--danger); font-size: var(--text-sm); margin-top: .5rem; display: none; }
 
 /* ── Search bar ──────────────────────────────────────────────────────── */
 .search-row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
 .search-input { flex: 1; min-width: 200px; max-width: 480px; }
-.result-info { font-size: .8rem; color: var(--muted); flex: 1; min-width: 80px; }
+.result-info { font-size: var(--text-sm); color: var(--muted); flex: 1; min-width: 80px; }
 
 /* ── View toggle ─────────────────────────────────────────────────────── */
 .view-toggle {
@@ -104,7 +102,7 @@
   background: transparent;
   color: var(--muted);
   padding: .35rem .8rem;
-  font-size: .8rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -118,7 +116,7 @@
 /* ── Results table ───────────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto; }
 
-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
 
 /* Allow collections results table to scroll horizontally with many columns */
 .table-wrap { display: block; width: 100%; overflow-x: auto; }
@@ -130,10 +128,8 @@ thead th {
   color: var(--muted);
   padding: .55rem .75rem;
   text-align: left;
-  font-size: .72rem;
+  font-size: var(--text-xs);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -151,14 +147,14 @@ td { padding: .45rem .75rem; }
 .td-name { font-weight: 500; }
 .card-link { color: var(--text); text-decoration: none; }
 .card-link:hover { color: var(--primary); text-decoration: underline; }
-.td-type { color: var(--muted); font-size: .82rem; }
-.td-mana { font-family: 'Courier New', monospace; font-size: .8rem; color: var(--muted); }
+.td-type { color: var(--muted); font-size: var(--text-sm); }
+.td-mana { font-family: 'Courier New', monospace; font-size: var(--text-sm); color: var(--muted); }
 .td-qty  { text-align: center; font-weight: 600; }
 .qty-zero { color: var(--border); font-weight: 400; }
 .qty-some { color: var(--success); }
 .td-total { text-align: center; font-weight: 700; color: var(--primary); }
 
-.empty-state { text-align: center; padding: 2.5rem; color: var(--muted); font-size: .9rem; }
+.empty-state { text-align: center; padding: 2.5rem; color: var(--muted); font-size: var(--text-base); }
 
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .card-grid {
@@ -207,7 +203,7 @@ td { padding: .45rem .75rem; }
 .grid-footer { padding: .45rem .5rem .55rem; }
 
 .grid-name {
-  font-size: .72rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -221,7 +217,7 @@ td { padding: .45rem .75rem; }
   display: inline-flex;
   align-items: center;
   gap: .2rem;
-  font-size: .65rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   padding: 1px 5px 1px 4px;
   border-radius: 10px;
@@ -250,7 +246,7 @@ td { padding: .45rem .75rem; }
   border-radius: 0 0 8px 8px; box-shadow: var(--shadow);
   z-index: 200; max-height: 220px; overflow-y: auto;
 }
-.ac-item { padding: .4rem .75rem; font-size: .85rem; cursor: pointer; }
+.ac-item { padding: .4rem .75rem; font-size: var(--text-base); cursor: pointer; }
 .ac-item:hover { background: var(--card-2); }
 @media (max-width: 640px) {
   /* Collections — Add Collection form: stack fields + full-width buttons */
@@ -276,7 +272,7 @@ td { padding: .45rem .75rem; }
   border: 1.5px solid var(--primary);
   background: transparent;
   color: var(--primary);
-  font-size: .85rem;
+  font-size: var(--text-base);
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -299,7 +295,7 @@ td { padding: .45rem .75rem; }
   transform: translateX(-50%) translateY(1rem);
   background: var(--success);
   color: var(--success-fg);
-  font-size: .875rem;
+  font-size: var(--text-base);
   font-weight: 600;
   padding: .65rem 1.25rem;
   border-radius: 9px;
@@ -332,7 +328,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   background: var(--card-2);
   border: 1.5px solid var(--border);
   color: var(--accent, var(--primary));
-  font-size: 1.1rem;
+  font-size: var(--text-md);
   font-weight: 700;
   line-height: 1;
   display: flex;
@@ -387,10 +383,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 /* Clear the mobile-only header (hidden on desktop, see header { display:none } above) */
 @media (max-width: 860px) { .rss-panel-hdr { padding-top: 60px; } }
 .rss-panel-hdr-title {
-  font-size: .82rem;
+  font-size: var(--text-sm);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
   color: var(--muted);
   flex: 1;
 }
@@ -401,7 +395,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   cursor: pointer;
   padding: .2rem .4rem;
   border-radius: 5px;
-  font-size: .85rem;
+  font-size: var(--text-base);
   font-family: inherit;
   transition: background .12s, color .12s;
 }
@@ -431,7 +425,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 
 .rss-feed-tag {
-  font-size: .68rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .4px;
@@ -447,13 +441,13 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 
 .rss-item-date {
-  font-size: .72rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 .rss-item-title {
   display: block;
-  font-size: .83rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text);
   text-decoration: none;
@@ -463,7 +457,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .rss-item-title:hover { color: var(--primary); }
 
 .rss-item-desc {
-  font-size: .78rem;
+  font-size: var(--text-xs);
   color: var(--muted);
   line-height: 1.4;
   display: -webkit-box;
@@ -474,7 +468,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 
 .rss-status {
-  font-size: .82rem;
+  font-size: var(--text-sm);
   color: var(--muted);
   padding: 1rem 0;
   text-align: center;
@@ -488,7 +482,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   color: color-mix(in srgb, var(--primary-fg) 90%, transparent);
   border-radius: 7px;
   padding: .3rem .6rem;
-  font-size: .8rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   font-family: inherit;
   display: flex;
@@ -514,15 +508,13 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   flex-shrink: 0;
 }
 .sort-control-lbl {
-  font-size: .72rem;
+  font-size: var(--text-xs);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
   color: var(--muted);
 }
 .sort-select {
   padding: .4rem 1.8rem .4rem .6rem !important;
-  font-size: .82rem !important;
+  font-size: var(--text-sm) !important;
   background-position: right .45rem center;
 }
 .sort-dir-btn {
@@ -532,7 +524,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   border-radius: 8px;
   width: 32px;
   height: 32px;
-  font-size: 1rem;
+  font-size: var(--text-md);
   font-weight: 700;
   flex-shrink: 0;
   transition: background .12s, border-color .12s;
@@ -549,7 +541,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   color: var(--text);
   border-radius: 8px;
   padding: .4rem .7rem;
-  font-size: .82rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   font-family: inherit;
   transition: border-color .12s;
@@ -575,7 +567,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   gap: .55rem;
   padding: .45rem .55rem;
   border-radius: 6px;
-  font-size: .85rem;
+  font-size: var(--text-base);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -585,9 +577,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
    used as a plain action row (e.g. the deck builder's "More" menu). */
 button.col-menu-item { width: 100%; background: none; border: none; font: inherit; color: var(--text); text-align: left; }
 
-.td-meta { font-size: .82rem; color: var(--muted); white-space: nowrap; }
+.td-meta { font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
 .td-meta .ms { vertical-align: -1px; }
-.rarity-tag { font-size: .72rem; font-weight: 700; }
+.rarity-tag { font-size: var(--text-xs); font-weight: 700; }
 .rarity-tag.r-common   { color: var(--muted); }
 /* Uncommon is silver; --mc-c (colourless) is the themed grey that already
    carries that hue, so rarity stays on the same mana palette as the rest. */
@@ -660,7 +652,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   background: none;
   border: none;
   color: var(--muted);
-  font-size: 1.75rem;
+  font-size: var(--text-xl);
   line-height: 1;
   cursor: pointer;
   padding: 0 .25rem;
@@ -712,8 +704,8 @@ a:focus-visible, [tabindex]:focus-visible {
   border: none;
   background: none;
   color: var(--muted);
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-size: var(--text-md);
+  font-weight: 700;
   line-height: 1;
   padding: .25rem .5rem;
   border-radius: 6px;

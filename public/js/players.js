@@ -308,7 +308,7 @@ function renderPlayers() {
   const isAdmin = currentUser?.role === 'admin';
 
   if (!state.players.length) {
-    list.innerHTML = `<div style="color:var(--muted);font-size:.9rem;text-align:center;padding:3rem 1rem">
+    list.innerHTML = `<div style="color:var(--muted);font-size:var(--text-base);text-align:center;padding:3rem 1rem">
       No players yet — add one above to get started.
     </div>`;
     return;
@@ -326,8 +326,8 @@ function renderPlayers() {
           <input type="text" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
                  onkeydown="if(event.key==='Enter')saveEditDeck('${player.id}','${d.id}')">
           <div style="display:flex;gap:.4rem;margin-top:.1rem">
-            <button class="btn-primary"   style="flex:1;padding:.35rem .6rem;font-size:.82rem" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
-            <button class="btn-secondary" style="padding:.35rem .6rem;font-size:.82rem"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
+            <button class="btn-primary"   style="flex:1;padding:.35rem .6rem;font-size:var(--text-sm)" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
+            <button class="btn-secondary" style="padding:.35rem .6rem;font-size:var(--text-sm)"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
           </div>
         </div>`;
       }
@@ -384,13 +384,13 @@ function renderPlayers() {
         <input type="text" name="deckurl"   placeholder="Archidekt URL (optional)" style="flex:1.5;min-width:200px"
                onkeydown="if(event.key==='Enter')confirmAddDeck('${player.id}')">
         <div class="form-btns">
-          <button class="btn-primary"   style="padding:.35rem .7rem;font-size:.82rem" onclick="confirmAddDeck('${player.id}')">Add</button>
-          <button class="btn-secondary" style="padding:.35rem .7rem;font-size:.82rem" onclick="document.getElementById('adf_${player.id}').classList.remove('open')">Cancel</button>
+          <button class="btn-primary"   style="padding:.35rem .7rem;font-size:var(--text-sm)" onclick="confirmAddDeck('${player.id}')">Add</button>
+          <button class="btn-secondary" style="padding:.35rem .7rem;font-size:var(--text-sm)" onclick="document.getElementById('adf_${player.id}').classList.remove('open')">Cancel</button>
         </div>
       </div>` : ''}
       <div class="deck-tiles-grid ${pCollapsed ? 'closed' : ''}" id="pb-player-${player.id}"
            style="${pCollapsed ? 'display:none' : ''}">${tilesHTML ||
-        `<div style="color:var(--muted);font-size:.85rem;font-style:italic;padding:.5rem 0">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
+        `<div style="color:var(--muted);font-size:var(--text-base);font-style:italic;padding:.5rem 0">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
       }</div>
     </div>`;
   }).join('');

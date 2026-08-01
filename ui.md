@@ -9,7 +9,10 @@
   `tokens.css`, `base.css`, `layout.css`, `components.css`, `tabs.css`. Colours
   live in `tokens.css` and nowhere else. There are 5 themes
   (Dark/Light/High-Contrast/Sepia/Forest); any new UI MUST work in all 5 and use
-  existing CSS variables, not hardcoded colors.
+  existing CSS variables, not hardcoded colors. Font sizes come from the seven
+  `--text-*` steps in the same file — a raw `font-size` is a bug — weights are
+  limited to 400/500/600/700, and `text-transform: uppercase` is only for badges
+  at `--text-2xs`.
 - Card images/metadata come through the server Scryfall cache/proxy
   (`scryfall.js` helpers) — the browser never calls Scryfall directly. Reuse the
   existing image cache helpers; do not add new external requests.

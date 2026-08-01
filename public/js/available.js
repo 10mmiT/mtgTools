@@ -157,7 +157,7 @@ function availRenderBestDays() {
   const el = document.getElementById('availBestDays');
   if (!el) return;
   if (!ranked.length) {
-    el.innerHTML = '<p style="color:var(--muted);font-size:.875rem">No availability marked yet — be the first!</p>';
+    el.innerHTML = '<p style="color:var(--muted);font-size:var(--text-base)">No availability marked yet — be the first!</p>';
     return;
   }
   el.innerHTML = ranked.map(([date, names]) => {

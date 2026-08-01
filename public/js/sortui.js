@@ -184,7 +184,7 @@ function mountViewToggle(containerId, modes, getCur, pick) {
   const host = document.getElementById(containerId);
   if (!host) return;
   host.innerHTML = `<div class="view-toggle">${modes.map(m =>
-    `<button class="view-btn${getCur() === m ? ' active' : ''}" data-mode="${m}" title="${_VT_TITLES[m]}"${m === 'xl' ? ' style="font-size:.72rem;font-weight:700"' : ''}>${_VT_ICONS[m]}</button>`
+    `<button class="view-btn${getCur() === m ? ' active' : ''}" data-mode="${m}" title="${_VT_TITLES[m]}"${m === 'xl' ? ' style="font-size:var(--text-xs);font-weight:700"' : ''}>${_VT_ICONS[m]}</button>`
   ).join('')}</div>`;
   const sync = () => host.querySelectorAll('.view-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.mode === getCur()));

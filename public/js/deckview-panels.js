@@ -324,7 +324,7 @@ function _dbRenderEdhrec() {
 
   el.innerHTML = `
     ${sections || '<div class="empty-state" style="padding:1rem">No recommendations found</div>'}
-    <div style="font-size:.72rem;color:var(--muted);text-align:center;padding:.75rem 0">
+    <div style="font-size:var(--text-xs);color:var(--muted);text-align:center;padding:.75rem 0">
       Recommendations powered by <a href="https://edhrec.com" target="_blank" rel="noopener" style="color:inherit">EDHREC</a>
     </div>`;
 }

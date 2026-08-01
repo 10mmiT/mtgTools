@@ -294,7 +294,7 @@
           <div class="deck-name" id="deckName"></div>
           <div class="deck-stats" id="deckStats"></div>
         </div>
-        <button class="btn-remove" style="padding:.2rem .5rem;font-size:.7rem;flex-shrink:0" onclick="clearDeck()">✕</button>
+        <button class="btn-remove" style="padding:.2rem .5rem;font-size:var(--text-2xs);flex-shrink:0" onclick="clearDeck()">✕</button>
       </div>
       <button class="deck-filter-row" id="deckFilterBtn" onclick="toggleDeckFilter()">
         <span>Filter results by deck</span>
@@ -367,7 +367,7 @@
       <div id="setViewMount" style="flex-shrink:0;margin-left:auto"></div>
     </div>
     <div id="setList" class="set-list">
-      <span style="font-size:.82rem;color:var(--muted)">Loading sets…</span>
+      <span style="font-size:var(--text-sm);color:var(--muted)">Loading sets…</span>
     </div>
     <div id="setInfoBar" class="set-info-bar" style="display:none"></div>
     <div class="view-toolbar" id="setSortBar" style="display:none">
@@ -452,7 +452,7 @@
 
       <!-- Best days -->
       <div class="panel">
-        <div class="panel-title" style="font-size:.95rem;font-weight:700">Best upcoming days</div>
+        <div class="panel-title" style="font-size:var(--text-md);font-weight:700">Best upcoming days</div>
         <div class="panel-body" id="pb-avail-best" style="padding:.875rem 1rem">
           <div id="availBestDays"></div>
         </div>
@@ -548,7 +548,7 @@
       </div>
     </div>
 
-    <button class="btn-secondary" style="font-size:.8rem;padding:.4rem .9rem" onclick="landsReset()">Reset all</button>
+    <button class="btn-secondary" style="font-size:var(--text-sm);padding:.4rem .9rem" onclick="landsReset()">Reset all</button>
   </div>
 
   <!-- Right column: results -->
@@ -614,7 +614,7 @@
   <div class="panel" style="margin-bottom:1rem">
     <div class="panel-title" style="margin-bottom:.75rem">
       Pending Account Requests
-      <span id="adminReqBadge" style="display:none;background:var(--primary);color:var(--primary-fg);font-size:.7rem;padding:.15rem .5rem;border-radius:999px;margin-left:.5rem;font-weight:700;vertical-align:middle"></span>
+      <span id="adminReqBadge" style="display:none;background:var(--primary);color:var(--primary-fg);font-size:var(--text-2xs);padding:.15rem .5rem;border-radius:999px;margin-left:.5rem;font-weight:700;vertical-align:middle"></span>
     </div>
     <div class="table-wrap">
       <table>
@@ -820,7 +820,7 @@
   <!-- New Deck modal -->
   <div id="dbNewDeckOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideNewDeck()">
     <div class="card-modal-box" style="max-width:420px;padding:1.5rem">
-      <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem">New Deck</div>
+      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:1rem">New Deck</div>
       <div style="margin-bottom:.75rem">
         <label class="section-label" style="display:block;margin-bottom:.3rem">Player</label>
         <select id="dbNewDeckPlayer" style="width:100%"></select>
@@ -848,12 +848,12 @@
   <!-- Import text modal -->
   <div id="dbImportTextOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideImportText()">
     <div class="card-modal-box" style="max-width:500px;padding:1.5rem">
-      <div style="font-size:1.05rem;font-weight:800;margin-bottom:.5rem">Paste Deck List</div>
+      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:.5rem">Paste Deck List</div>
       <div class="section-label" style="margin-bottom:.75rem">
         One card per line. <code>1 Sol Ring</code> or <code>1x Sol Ring</code> or <code>Sol Ring</code>.
         Lines starting with <code>//</code> or <code>#</code> set the category.
       </div>
-      <textarea id="dbImportTextArea" rows="12" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:.85rem"
+      <textarea id="dbImportTextArea" rows="12" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:var(--text-base)"
                 placeholder="1 Sol Ring&#10;1x Birds of Paradise&#10;// Creatures&#10;1 Avacyn, Angel of Hope"></textarea>
       <div style="display:flex;gap:.5rem;margin-top:.75rem">
         <button class="btn-primary" onclick="dbImportText()">Import</button>
@@ -865,7 +865,7 @@
   <!-- Move card modal -->
   <div id="dbMoveCardOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
     <div class="card-modal-box" style="max-width:460px;padding:1.5rem">
-      <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem" id="dbMoveCardTitle">Move Card</div>
+      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:1rem" id="dbMoveCardTitle">Move Card</div>
       <div id="dbMoveCatList" style="display:flex;flex-direction:column;gap:.35rem"></div>
       <div style="display:flex;gap:.4rem;margin-top:.75rem">
         <input type="text" id="dbMoveNewCatInput" placeholder="New category…" style="flex:1;min-width:0;box-sizing:border-box"
@@ -879,7 +879,7 @@
   <!-- Rename category modal -->
   <div id="dbRenameCatOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideRenameCat()">
     <div class="card-modal-box" style="max-width:360px;padding:1.5rem">
-      <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem">Rename Category</div>
+      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:1rem">Rename Category</div>
       <input type="text" id="dbRenameCatInput" style="width:100%;box-sizing:border-box;margin-bottom:1rem"
              onkeydown="if(event.key==='Enter')dbConfirmRenameCat()">
       <div style="display:flex;gap:.5rem">
@@ -892,7 +892,7 @@
   <!-- Manage Categories modal -->
   <div id="dbCategoriesOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideCategoriesModal()">
     <div class="card-modal-box" style="max-width:420px;padding:1.5rem">
-      <div style="font-size:1.05rem;font-weight:800;margin-bottom:1rem">Manage Categories</div>
+      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:1rem">Manage Categories</div>
       <div id="dbCategoriesModalList" class="db-catmodal-list"></div>
       <div id="dbCategoriesModalAddRow" style="display:flex;gap:.4rem;margin-top:1rem">
         <input type="text" id="dbModalNewCatInput" placeholder="New category name…" style="flex:1;box-sizing:border-box"
@@ -913,21 +913,21 @@
 <!-- Change Password modal -->
 <div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--scrim);align-items:center;justify-content:center">
   <div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:1.5rem;width:calc(100% - 2rem);max-width:340px;box-shadow:var(--shadow-modal)">
-    <div style="font-size:1.05rem;font-weight:700;margin-bottom:1.1rem">Change Password</div>
+    <div style="font-size:var(--text-md);font-weight:700;margin-bottom:1.1rem">Change Password</div>
     <div style="margin-bottom:.65rem">
-      <label style="font-size:.8rem;color:var(--muted);margin-bottom:.3rem;display:block">Current password</label>
+      <label style="font-size:var(--text-sm);color:var(--muted);margin-bottom:.3rem;display:block">Current password</label>
       <input type="password" id="cpCurrentPw" style="width:100%;box-sizing:border-box" placeholder="Current password">
     </div>
     <div style="margin-bottom:.65rem">
-      <label style="font-size:.8rem;color:var(--muted);margin-bottom:.3rem;display:block">New password</label>
+      <label style="font-size:var(--text-sm);color:var(--muted);margin-bottom:.3rem;display:block">New password</label>
       <input type="password" id="cpNewPw" style="width:100%;box-sizing:border-box" placeholder="New password (min 6 chars)">
     </div>
     <div style="margin-bottom:.9rem">
-      <label style="font-size:.8rem;color:var(--muted);margin-bottom:.3rem;display:block">Confirm new password</label>
+      <label style="font-size:var(--text-sm);color:var(--muted);margin-bottom:.3rem;display:block">Confirm new password</label>
       <input type="password" id="cpConfirmPw" style="width:100%;box-sizing:border-box" placeholder="Confirm new password"
              onkeydown="if(event.key==='Enter')submitChangePassword()">
     </div>
-    <div id="cpError" style="color:var(--danger);font-size:.82rem;margin-bottom:.6rem;display:none"></div>
+    <div id="cpError" style="color:var(--danger);font-size:var(--text-sm);margin-bottom:.6rem;display:none"></div>
     <div style="display:flex;gap:.5rem;justify-content:flex-end">
       <button class="btn-secondary" style="padding:.45rem .9rem" onclick="closeChangePassword()">Cancel</button>
       <button class="btn-primary"   style="padding:.45rem .9rem" id="cpSubmitBtn" onclick="submitChangePassword()">Save</button>

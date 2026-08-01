@@ -253,7 +253,7 @@ function renderPickResults() {
   el.innerHTML = `
     <div class="pick-results-bar">
       <span class="pick-results-label">Tonight's picks</span>
-      <button class="btn-secondary" style="padding:.35rem .85rem;font-size:.82rem" onclick="pickRoll()">↺ Re-roll all</button>
+      <button class="btn-secondary" style="padding:.35rem .85rem;font-size:var(--text-sm)" onclick="pickRoll()">↺ Re-roll all</button>
     </div>
     <div class="pick-results-grid">${tiles}</div>`;
 }

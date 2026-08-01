@@ -37,7 +37,7 @@ function _adminRequestRow(r) {
   const date = new Date(r.requested_at + 'Z').toLocaleDateString();
   return `<tr id="admin-req-row-${r.id}">
     <td class="td-name">${esc(r.username)}</td>
-    <td style="font-size:.8rem;color:var(--muted)">${date}</td>
+    <td style="font-size:var(--text-sm);color:var(--muted)">${date}</td>
     <td class="admin-actions">
       <button class="btn-update" onclick="adminExpandApprove(${r.id},'${jsAttr(r.username)}')">Approve</button>
       <button class="btn-remove" onclick="adminDenyRequest(${r.id},'${jsAttr(r.username)}')">Deny</button>
@@ -56,15 +56,15 @@ function adminExpandApprove(id, username) {
     <td class="td-name">${esc(username)}</td>
     <td colspan="2">
       <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">
-        <select id="req-role-${id}" style="font-size:.8rem;padding:.28rem .4rem;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit">
+        <select id="req-role-${id}" style="font-size:var(--text-sm);padding:.28rem .4rem;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit">
           <option value="player">Player</option>
           <option value="admin">Admin</option>
         </select>
-        <select id="req-player-${id}" style="font-size:.8rem;padding:.28rem .4rem;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit;max-width:160px">
+        <select id="req-player-${id}" style="font-size:var(--text-sm);padding:.28rem .4rem;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit;max-width:160px">
           ${playerOpts}
         </select>
         <button class="btn-update" onclick="adminConfirmApprove(${id})">Confirm</button>
-        <button class="btn-secondary" style="padding:.25rem .6rem;font-size:.75rem" onclick="adminLoadRequests()">Cancel</button>
+        <button class="btn-secondary" style="padding:.25rem .6rem;font-size:var(--text-xs)" onclick="adminLoadRequests()">Cancel</button>
       </div>
     </td>`;
 }
@@ -157,19 +157,19 @@ function adminEditUser(username) {
   row.innerHTML = `
     <td class="td-name">${esc(username)}</td>
     <td>
-      <select id="edit-role-${esc(username)}" style="font-size:.8rem;padding:.25rem .4rem;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit">
+      <select id="edit-role-${esc(username)}" style="font-size:var(--text-sm);padding:.25rem .4rem;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit">
         ${roleOpts}
       </select>
     </td>
     <td>
-      <select id="edit-player-${esc(username)}" style="font-size:.8rem;padding:.25rem .4rem;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit;max-width:160px">
+      <select id="edit-player-${esc(username)}" style="font-size:var(--text-sm);padding:.25rem .4rem;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit;max-width:160px">
         ${playerOpts}
       </select>
     </td>
     <td class="admin-actions" style="white-space:nowrap;display:flex;gap:.35rem;flex-wrap:wrap">
-      <input type="password" id="edit-pw-${esc(username)}" placeholder="New password (optional)" style="font-size:.78rem;padding:.28rem .5rem;width:175px;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit;outline:none">
+      <input type="password" id="edit-pw-${esc(username)}" placeholder="New password (optional)" style="font-size:var(--text-xs);padding:.28rem .5rem;width:175px;background:var(--card-2);color:var(--text);border:1.5px solid var(--border);border-radius:6px;font-family:inherit;outline:none">
       <button class="btn-update" onclick="adminSaveUser('${jsAttr(username)}')">Save</button>
-      <button class="btn-secondary" style="padding:.25rem .6rem;font-size:.75rem" onclick="adminLoadUsers()">Cancel</button>
+      <button class="btn-secondary" style="padding:.25rem .6rem;font-size:var(--text-xs)" onclick="adminLoadUsers()">Cancel</button>
     </td>`;
 
   // Pre-populate values by re-fetching users list
