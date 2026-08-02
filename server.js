@@ -84,6 +84,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const { router: stateRouter } = require('./routes/state');
 app.use('/api', stateRouter);
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api', require('./routes/prefs'));
 app.use('/api', require('./routes/proxy'));
 app.use('/api', require('./routes/rss'));
 app.use('/api', require('./routes/decks'));

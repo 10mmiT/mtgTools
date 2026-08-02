@@ -41,6 +41,7 @@ function resetDb() {
     DELETE FROM availability;
     DELETE FROM deck_cards;
     DELETE FROM deck_categories;
+    DELETE FROM user_prefs;
   `);
   // Re-seed admin from env
   const bcrypt = require('bcryptjs');
@@ -567,6 +568,144 @@ describe('GET /api/sets', () => {
     assert.equal(typeof res.body.index.sets, 'number');
     assert.equal(typeof res.body.index.indexed, 'number');
     assert.ok(res.body.index.sets >= res.body.index.indexed);
+  });
+});
+
+// ── User preferences ──────────────────────────────────────────────────────────
+// Appearance stops being per-browser and starts belonging to a person, so what
+// is worth asserting is that it comes back on a different session, that it is
+// only ever the caller's own, and that it does not outlive the account.
+describe('User preferences: /api/prefs', () => {
+  const bcrypt = require('bcryptjs');
+
+  function addUser(username, password) {
+    dbModule.db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)')
+      .run(username, bcrypt.hashSync(password, 10), 'player');
+  }
+
+  beforeEach(() => {
+    resetDb();
+    addUser('alice', 'apw');
+    addUser('bob',   'bpw');
+  });
+
+  test('requires auth', async () => {
+    assert.equal((await request.get('/api/prefs')).status, 401);
+    assert.equal((await request.put('/api/prefs').send({ theme: 'light' })).status, 401);
+  });
+
+  test('a user who has never set anything gets the defaults', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    const res    = await request.get('/api/prefs').set('Cookie', cookie);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.theme, 'dark');
+    assert.equal(res.body.playmatKind, 'none');
+    assert.equal(res.body.playmatRef, null);
+    assert.equal(res.body.playmatUrl, null);
+    assert.equal(res.body.stored, true, 'with accounts, the server is the record');
+  });
+
+  test('a theme set on one device is there on the next sign-in', async () => {
+    const first = await loginAs('alice', 'apw');
+    const set   = await request.put('/api/prefs').set('Cookie', first).send({ theme: 'sepia' });
+    assert.equal(set.status, 200);
+    assert.equal(set.body.theme, 'sepia');
+
+    // A second session is the other device: same user, a cookie that has never
+    // seen the first one, and no browser storage in the picture at all.
+    const second = await loginAs('alice', 'apw');
+    assert.notEqual(second, first);
+    const res = await request.get('/api/prefs').set('Cookie', second);
+    assert.equal(res.body.theme, 'sepia');
+  });
+
+  test('an unknown theme is rejected', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    const res    = await request.put('/api/prefs').set('Cookie', cookie).send({ theme: 'neon' });
+    assert.equal(res.status, 400);
+    // and nothing was written
+    assert.equal((await request.get('/api/prefs').set('Cookie', cookie)).body.theme, 'dark');
+  });
+
+  test('the retired theme id is stored as the one it was renamed to', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    const res    = await request.put('/api/prefs').set('Cookie', cookie).send({ theme: 'forest' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.theme, 'dusk');
+  });
+
+  test('an invalid playmat kind is rejected', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    const res    = await request.put('/api/prefs').set('Cookie', cookie)
+      .send({ playmatKind: 'billboard' });
+    assert.equal(res.status, 400);
+    assert.equal((await request.get('/api/prefs').set('Cookie', cookie)).body.playmatKind, 'none');
+  });
+
+  test('a body carrying only the theme leaves the playmat alone', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    await request.put('/api/prefs').set('Cookie', cookie).send({
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+    });
+    const res = await request.put('/api/prefs').set('Cookie', cookie).send({ theme: 'light' });
+    assert.equal(res.body.theme, 'light');
+    assert.equal(res.body.playmatKind, 'scryfall');
+    assert.equal(res.body.playmatRef, 'abc-123');
+  });
+
+  test('clearing the playmat clears what it pointed at', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    await request.put('/api/prefs').set('Cookie', cookie).send({
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+    });
+    const res = await request.put('/api/prefs').set('Cookie', cookie).send({ playmatKind: 'none' });
+    assert.equal(res.body.playmatRef, null);
+    assert.equal(res.body.playmatUrl, null);
+  });
+
+  test('one user cannot read or modify another user\'s preferences', async () => {
+    const aliceCookie = await loginAs('alice', 'apw');
+    const bobCookie   = await loginAs('bob',   'bpw');
+    await request.put('/api/prefs').set('Cookie', aliceCookie).send({ theme: 'sepia' });
+    await request.put('/api/prefs').set('Cookie', bobCookie).send({ theme: 'contrast' });
+
+    // Each reads their own — there is no path parameter to name someone else's
+    // with, which is what makes this structural rather than a check to forget.
+    assert.equal((await request.get('/api/prefs').set('Cookie', aliceCookie)).body.theme, 'sepia');
+    assert.equal((await request.get('/api/prefs').set('Cookie', bobCookie)).body.theme, 'contrast');
+
+    // Bob writing again does not reach Alice's row, whatever he puts in the body.
+    await request.put('/api/prefs').set('Cookie', bobCookie)
+      .send({ theme: 'light', username: 'alice', user_id: 'alice' });
+    assert.equal((await request.get('/api/prefs').set('Cookie', aliceCookie)).body.theme, 'sepia');
+  });
+
+  test('an admin\'s preferences are their own, not everyone\'s', async () => {
+    const adminCookie = await loginAs('admin', 'testpass');
+    const aliceCookie = await loginAs('alice', 'apw');
+    await request.put('/api/prefs').set('Cookie', adminCookie).send({ theme: 'contrast' });
+    assert.equal((await request.get('/api/prefs').set('Cookie', aliceCookie)).body.theme, 'dark');
+  });
+
+  test('deleting a user removes their preferences', async () => {
+    const aliceCookie = await loginAs('alice', 'apw');
+    await request.put('/api/prefs').set('Cookie', aliceCookie).send({ theme: 'sepia' });
+    assert.equal(dbModule.db.prepare('SELECT COUNT(*) AS n FROM user_prefs WHERE username = ?')
+      .get('alice').n, 1);
+
+    const adminCookie = await loginAs('admin', 'testpass');
+    const del = await request.delete('/api/admin/users/alice').set('Cookie', adminCookie);
+    assert.equal(del.status, 200);
+    assert.equal(dbModule.db.prepare('SELECT COUNT(*) AS n FROM user_prefs WHERE username = ?')
+      .get('alice').n, 0, 'the preference row goes with the account');
+
+    // And an account created again under the same name starts from the
+    // defaults rather than inheriting the deleted user's appearance.
+    const create = await request.post('/api/admin/users').set('Cookie', adminCookie)
+      .send({ username: 'alice', password: 'apw2' });
+    assert.equal(create.status, 200);
+    const cookie = await loginAs('alice', 'apw2');
+    assert.equal((await request.get('/api/prefs').set('Cookie', cookie)).body.theme, 'dark');
   });
 });
 

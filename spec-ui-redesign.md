@@ -299,14 +299,17 @@ The single rule that produces the "recede" effect:
 
   ```sql
   CREATE TABLE IF NOT EXISTS user_prefs (
-    user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    theme         TEXT    NOT NULL DEFAULT 'dark',
-    playmat_kind  TEXT    NOT NULL DEFAULT 'none',   -- none | scryfall | preset | upload
-    playmat_ref   TEXT,                              -- card id | preset id | filename
-    playmat_url   TEXT,                              -- resolved image URL
-    updated_at    INTEGER NOT NULL
+    username     TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
+    theme        TEXT    NOT NULL DEFAULT 'dark',
+    playmat_kind TEXT    NOT NULL DEFAULT 'none',   -- none | scryfall | preset | upload
+    playmat_ref  TEXT,                              -- card id | preset id | filename
+    playmat_url  TEXT,                              -- resolved image URL
+    updated_at   INTEGER NOT NULL
   );
   ```
+
+  The key is the username, which is what identifies a user in this application — the user
+  record has no separate integer id.
 
   This follows the existing create-if-not-exists migration convention used elsewhere in the
   application's schema.

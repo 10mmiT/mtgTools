@@ -158,6 +158,49 @@ async function loadFromStorage() {
   } catch {}
 }
 
+// ── Appearance preferences (server DB with localStorage fallback) ─────────
+// The same shape as the storage above, for the same reason: a preference that
+// lives only in a browser has to be set again on every device. What differs is
+// which side wins. State is the server's and the browser is the fallback;
+// appearance is painted before the fetch can land, so the browser paints first
+// and the server corrects it — see initTheme/syncPrefs in main.js.
+//
+// `stored` says whether the server is keeping any of this. It is false in open
+// mode, where there are no accounts, and false whenever the request fails; in
+// both cases localStorage is the whole record.
+const prefs = { ...{ theme: null, playmatKind: 'none', playmatRef: null, playmatUrl: null }, stored: false };
+
+async function loadPrefs() {
+  try {
+    const res = await fetch('/api/prefs');
+    if (res.ok) { Object.assign(prefs, await res.json()); return prefs; }
+    console.warn(`[prefs] server returned ${res.status} — using local preferences`);
+  } catch (e) {
+    console.warn(`[prefs] load failed (${e.message}) — using local preferences`);
+  }
+  prefs.stored = false;
+  return prefs;
+}
+
+// Takes a patch, not the whole record: the server merges it onto what is
+// already there, so setting a theme cannot clear a playmat.
+async function savePrefs(patch) {
+  Object.assign(prefs, patch);
+  try {
+    const res = await fetch('/api/prefs', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(patch),
+    });
+    if (res.ok) { Object.assign(prefs, await res.json()); return prefs; }
+    console.warn(`[prefs] server rejected (${res.status}) — kept locally only`);
+  } catch (e) {
+    console.warn(`[prefs] save failed (${e.message}) — kept locally only`);
+  }
+  prefs.stored = false;
+  return prefs;
+}
+
 // ── Granular deck save (3.2) ──────────────────────────────────────────
 async function savePlayerDecks(playerId) {
   const player = state.players.find(p => p.id === playerId);

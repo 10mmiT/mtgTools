@@ -102,6 +102,23 @@ db.exec(`
     PRIMARY KEY (deck_id, name)
   );
   CREATE INDEX IF NOT EXISTS idx_deck_categories_deck ON deck_categories(deck_id);
+  -- Appearance, per person rather than per browser. Keyed by username because
+  -- that is what identifies a user here: the users table has no integer id,
+  -- and a session carries the name, not a row number. Deleting a user takes
+  -- their preferences with them — foreign_keys is ON above, so the cascade is
+  -- real rather than decorative.
+  --
+  -- A separate table and not columns on users: preferences have their own
+  -- lifetime and their own concern. playmat_* is written by the playmat work
+  -- that follows; the row is created the first time anything is set.
+  CREATE TABLE IF NOT EXISTS user_prefs (
+    username     TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
+    theme        TEXT    NOT NULL DEFAULT 'dark',
+    playmat_kind TEXT    NOT NULL DEFAULT 'none',   -- none | scryfall | preset | upload
+    playmat_ref  TEXT,                              -- card id | preset id | filename
+    playmat_url  TEXT,                              -- resolved image URL
+    updated_at   INTEGER NOT NULL
+  );
 `);
 
 // ── Schema migrations ────────────────────────────────────────────────────────

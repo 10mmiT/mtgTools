@@ -990,14 +990,18 @@ automatic `localStorage` fallback ([state.js:18](public/js/state.js#L18),
 
 ```sql
 CREATE TABLE IF NOT EXISTS user_prefs (
-  user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  theme         TEXT    NOT NULL DEFAULT 'dark',
-  playmat_kind  TEXT    NOT NULL DEFAULT 'none',   -- none | scryfall | preset | upload
-  playmat_ref   TEXT,                              -- scryfall id | preset id | filename
-  playmat_url   TEXT,                              -- resolved image URL (scryfall/preset)
-  updated_at    INTEGER NOT NULL
+  username     TEXT PRIMARY KEY REFERENCES users(username) ON DELETE CASCADE,
+  theme        TEXT    NOT NULL DEFAULT 'dark',
+  playmat_kind TEXT    NOT NULL DEFAULT 'none',   -- none | scryfall | preset | upload
+  playmat_ref  TEXT,                              -- scryfall id | preset id | filename
+  playmat_url  TEXT,                              -- resolved image URL (scryfall/preset)
+  updated_at   INTEGER NOT NULL
 );
 ```
+
+Keyed by `username`, not by a `user_id INTEGER` as this document first wrote it: the `users`
+table in [available-db.js](available-db.js) has no integer id — `username` is its primary key,
+and it is what a session carries. `foreign_keys` is ON, so the cascade is real.
 
 Follows the existing `CREATE TABLE IF NOT EXISTS` migration style in
 [available-db.js](available-db.js). No column is added to `users`; prefs are a separate concern

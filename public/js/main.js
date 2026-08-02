@@ -98,6 +98,11 @@ const _canonicalTheme = id => THEME_ALIASES[id] || id;
 
 function _themeLabel(id) { return THEMES.find(t => t.id === id)?.label || id; }
 
+// applyTheme paints and remembers *in this browser*; it does not tell the
+// server. The server is told by _pickTheme() below, which is what an explicit
+// choice goes through — boot applies a theme too, and a boot that wrote back
+// would overwrite the stored preference with the local one on every load,
+// which is the exact opposite of following a user between devices.
 function applyTheme(rawId) {
   // Canonicalising here rather than in initTheme means the retired id is
   // also rewritten in storage, so the mapping is paid once per user.
@@ -122,13 +127,44 @@ function _themeFromUrl() {
   return THEMES.some(t => t.id === id) ? id : null;
 }
 
+// The theme is a person's, not a browser's: it is stored per user on the
+// server (/api/prefs) so it follows them to the next device. Boot is in two
+// halves because of that. This half runs before the session is even known and
+// paints the first frame from localStorage — waiting for the fetch would show
+// the wrong theme for as long as it takes, on every load. syncPrefs() below is
+// the second half, and corrects the guess if the server disagrees.
+let _urlTheme = null;
+
 function initTheme() {
-  applyTheme(_themeFromUrl() || localStorage.getItem('mtgtools_theme') || 'dark');
+  _urlTheme = _themeFromUrl();
+  applyTheme(_urlTheme || localStorage.getItem('mtgtools_theme') || 'dark');
+}
+
+/* Second half of boot, once there is a session to read a preference for.
+ *
+ * A `?theme=` parameter still wins, and is now written through to the server
+ * as well as the browser. That matters more than it did: the link is the way
+ * to recover from a stored theme that has made the app unreadable, and a
+ * stored theme that follows you between devices is one you cannot escape by
+ * clearing site data. */
+async function syncPrefs() {
+  const p = await loadPrefs();
+  if (_urlTheme) { if (p.stored) savePrefs({ theme: _urlTheme }); return; }
+  if (p.stored && p.theme) applyTheme(p.theme);
+}
+
+// An explicit choice: paint it, remember it here, and tell the server. Read
+// back off the element rather than trusting the argument, so a retired id is
+// stored under the name it was canonicalised to.
+function _pickTheme(id) {
+  applyTheme(id);
+  _urlTheme = null;   // a pick supersedes whatever link opened the page
+  savePrefs({ theme: document.documentElement.dataset.theme });
 }
 
 // Direct pick (desktop sidebar dropdown)
 function setTheme(id) {
-  applyTheme(id);
+  _pickTheme(id);
   _closeThemeMenu();
 }
 
@@ -137,7 +173,7 @@ function setTheme(id) {
 function toggleTheme() {
   const cur = document.documentElement.dataset.theme;
   const idx = THEMES.findIndex(t => t.id === cur);
-  applyTheme(THEMES[(idx + 1) % THEMES.length].id);
+  _pickTheme(THEMES[(idx + 1) % THEMES.length].id);
 }
 
 function toggleThemeMenu(e) {
@@ -515,6 +551,7 @@ if (document.readyState === 'loading') {
 initTheme();
 initSideNav();
 authInit().then(() => {
+  syncPrefs();   // not awaited: appearance is already painted, this only corrects it
   loadFromStorage().then(() => {
     _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load
     renderPlayers();
