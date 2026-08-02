@@ -42,9 +42,19 @@
   `.section-title`: sentence case, no bar, no letterspacing.
 - There are exactly three breakpoints — 640, 900 and 1280 — written as range
   queries, `(width < 900px)` / `(width >= 900px)`. Any other number in an
-  `@media` rule is a bug. 900 is where the nav switches between the bottom bar
-  and the sidebar, and where a card switches between the full-page tab and the
-  modal. JS reads the same numbers from `BP_SM`/`BP_MD` in `state.js`.
+  `@media` rule is a bug. 900 is where the nav switches between the sidebar and
+  the mobile nav — which is a dropdown at the *top* of the page, `.mob-nav`,
+  whatever the redesign document's "bottom bar ↔ sidebar" says; the app has
+  never had a bottom bar — and where a card switches between the full-page tab
+  and the modal. JS reads the same numbers from `BP_SM`/`BP_MD` in `state.js`.
+- Below 900px every control is at least 44×44 — a finger, not a pointer. A new
+  control either **grows** to that on a phone (if it stands on its own in a
+  strip) or keeps its painted box and **pads** the hit area out with a centred
+  `::after` (if it sits in dense content and growing would pull that content
+  apart). Both lists are in the touch-target rule in `components.css`; add to
+  whichever fits and say which. `npm run measure:mobile` checks the result by
+  hit-testing rather than by reading boxes, so it sees pads — and catches a pad
+  something is painted over, or one a neighbour has swallowed.
 - Card images/metadata come through the server Scryfall cache/proxy
   (`scryfall.js` helpers) — the browser never calls Scryfall directly. Reuse the
   existing image cache helpers; do not add new external requests.

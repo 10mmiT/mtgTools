@@ -150,9 +150,20 @@
 /* Below the nav breakpoint the mobile header is sticky at the top of the
    window and opaque, so a toolbar sticking to 0 would slide under it. Its
    height is content-driven, so it is measured at boot into --hdr-h
-   (js/main.js) rather than guessed at as a sum of scale steps. */
+   (js/main.js) rather than guessed at as a sum of scale steps.
+
+   And it leaves a step of room under itself. A sticky strip is painted
+   over whatever scrolls beneath it, and on a phone what is immediately
+   beneath it is a 44px tap target whose top half is empty space around a
+   line of text (see the touch-target rule further down). Sitting flush on
+   the first row means the strip eats the top of that target, which makes
+   the first result in a list the hardest one to hit — the opposite of what
+   a list should do. */
 @media (width < 900px) {
-  .toolbar { top: var(--hdr-h, 0px); }
+  .toolbar {
+    top: var(--hdr-h, 0px);
+    margin-bottom: var(--space-2);
+  }
 }
 
 /* On a phone the strip wraps to four rows. Two cheap steps back: the gap
@@ -849,13 +860,99 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 .rarity-tag.r-mythic   { color: var(--mc-r); }
 .rarity-tag.r-special, .rarity-tag.r-bonus { color: var(--mc-gold); }
 
-/* ── Phase 5.2 Mobile UI pass ────────────────────────────────────────────── */
+/* ── The phone: one touch-target rule (§14.7) ─────────────────────────────
+   Below the nav breakpoint the app is driven by a finger rather than a
+   pointer, and a finger covers about 44px. Every control has to be at
+   least that in both directions.
+
+   *How* a control gets there is a design decision rather than a detail,
+   and the app makes it two different ways:
+
+   **Grow it.** A control standing on its own in a strip — the view
+   toggle, the sort direction, a kebab, the mana-base steppers — is easier
+   to see as well as easier to hit when it is bigger, so on a phone it
+   simply is bigger. Nothing has to move around it either: every one of
+   them sits in a row the height rule below had already made 44 tall, so
+   what changes is the width.
+
+   **Pad it.** A control set into dense content — the ✕ on a chip, a card
+   name in a table row — cannot grow without pulling that content apart,
+   so it keeps the box it paints and gains an invisible one around it.
+   The pad carries no fill, no border and no shadow, so it is not a
+   surface and §7.3's elevation rule has nothing to say about it.
+
+   Which of the two lists a control belongs in is the only thing here
+   worth arguing about. Whether it worked is not an argument at all:
+   scripts/measure-mobile.js hit-tests every control at 390px rather than
+   reading its box, so a padded target and a grown one look the same to
+   it, and a pad that something is painted over — or that a neighbour's
+   pad has swallowed — fails. */
 @media (width < 900px) {
-  /* Touch target minimum 44px for interactive elements */
+  /* Grown: the height every control shares. Inputs are in this list now;
+     they were the one control vocabulary left at their desktop 38px, which
+     is under the minimum by six pixels on every form in the app.
+     Checkboxes are excluded because a 44px checkbox is a design decision
+     and not a touch target; the app has two, and both are padded from
+     their label instead (see .db-ci-toggle in tabs.css). */
   button, .btn-primary, .btn-secondary, .btn-danger,
-  .mob-nav-item, .tab-btn, select {
+  .mob-nav-item, .tab-btn, .col-menu-item,
+  select, textarea,
+  input:not([type="checkbox"]):not([type="radio"]) {
     min-height: 44px;
   }
+
+  /* Grown: the width, for the controls that are square or nearly so. Not
+     applied to `button` wholesale — .chip-close and the row actions inside
+     a deck row are deliberately narrow, and widening them would burst the
+     chip and the row they sit in. Those are padded instead. */
+  .view-btn, .sort-dir-btn, .col-menu-btn, .kebab-btn, .stepper-btn,
+  .rss-panel-hdr button {
+    min-width: 44px;
+  }
+
+  /* Padded: the box stays, an invisible 44 square is centred on it. Sized
+     as max(own, 44) on each axis, so a wide-but-short target — a card name
+     in a table row — keeps its full width and gains only the height it
+     was missing. */
+  .chip-close, .card-link {
+    position: relative;
+  }
+  /* And a card name long enough to wrap needs to be one box before it can
+     be padded at all. An inline box split across two lines is two
+     fragments, and the pad hangs off the first of them, which leaves the
+     middle of the name — exactly where a thumb lands — belonging to the
+     table cell behind it. inline-block makes it a single box without
+     changing where the name wraps. */
+  .card-link { display: inline-block; }
+  .chip-close::after, .card-link::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    min-width: 44px;
+    height: 100%;
+    min-height: 44px;
+  }
+
+  /* A padded target in a table needs a row tall enough to hold the pad, or
+     the pads of two card names in successive rows overlap and the wrong
+     card opens.
+
+     A height on the *row* is the one form of this that says 44 and means
+     it. It is a minimum: a short row is lifted to exactly 44, and a row
+     whose cell holds something taller — an Edit button in Admin, a card
+     name wrapped to two lines — still grows past it. The two obvious
+     alternatives both miss. Extra padding derives the height from a line
+     box, which lands on 42 or 43 depending on the name and pays for the
+     miss again on every tall row. The same height on the *cell* stops
+     being a minimum and starts being a cap: Admin's rows went to 45 with a
+     44px button inside them, spilling over the dividers.
+
+     Dense tables stay dense across, which is the axis they are dense
+     on. */
+  tr { height: 44px; }
 
   /* Overflowing tables/card lists: allow horizontal scroll within the container */
   .table-wrap, .col-table-wrap {

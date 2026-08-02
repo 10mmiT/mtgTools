@@ -125,7 +125,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Feed data is fetched server-side and cached for 10 minutes; supports HTTP redirects
 
 ### General
-- **5 themes** — Dark, Light, High Contrast, Sepia, and Forest. Desktop picks via a dropdown in the sidebar (with a checkmark on the active theme); mobile cycles through them with a single tap. Preference saved in the browser. A `?theme=` URL parameter (`/?theme=light`, ids: `dark`, `light`, `contrast`, `sepia`, `forest`) overrides and replaces the saved preference — handy for sharing a link in a specific theme, or for recovering from an unreadable stored one; an unknown id is ignored
+- **5 themes** — Dark, Light, High Contrast, Sepia, and Dusk. Desktop picks via a dropdown in the sidebar (with a checkmark on the active theme); mobile cycles through them with a single tap. **The choice is saved to your account**, so it follows you to any device you sign in on; the browser keeps a copy too, which is what paints the first frame and what remembers the theme in open mode (no `ADMIN_PASSWORD`), where there are no accounts. A `?theme=` URL parameter (`/?theme=light`, ids: `dark`, `light`, `contrast`, `sepia`, `dusk`) overrides and replaces the saved preference — handy for sharing a link in a specific theme, or for recovering from an unreadable stored one; an unknown id is ignored
 - **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows — independent of the 5 UI themes above, since mana symbol colours represent the game, not the chrome
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - **Minimal-UI conventions across all tabs**: one shared List/Grid/XL(/Pile) view toggle component, shared Sort and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
@@ -257,6 +257,7 @@ mtgtools/
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
+│   ├── measure-mobile.js  # Mobile measurement — sideways scroll, 44px touch targets
 │   ├── check-contrast.js  # Contrast measurement — every fg/bg pair, all five themes
 │   └── lint-tokens.js     # Token-contract linter (colour, type, spacing,
 │                          # radius, elevation, !important)
@@ -378,6 +379,23 @@ npm run measure:layout -- --data .scratch/ui-redesign/capture-data/available.db
 - **The fold** — how far down the window the first card sits: the vertical twin of chrome, what a tab spends on itself before showing the thing it is for. The tab's view toggle is clicked to grid first, since the criterion is about card *art* and a list view has none. Budgeted per tab in `FOLD_BUDGETS`: Collections 105px (measures 102), Want Lists 105px (measures 94), Scryfall Search and Set Browser 70px (both measure 60), Pick Night 150px (measures 133 — a strip, the players row, and the results' own bar). Three of those show nothing until asked, so `FOLD_PREP` asks — a query typed and entered, a set tile clicked, an evening's decks picked — which means measuring the first two needs Scryfall reachable, as the Set Browser always has. Pick Night's "card" is a commander-art tile rather than a card image; the question the fold asks is how far down the thing the tab is *for* sits, and there that is the picked deck.
 
 It exits non-zero if the chrome or fold budget is blown or any line of prose runs past the measure, so it can be wired into CI later; it is not part of `npm test`, which needs neither a browser nor a populated database.
+
+### Mobile measurement
+
+Two of the mobile rules are numbers as well, and `npm run measure:mobile` asks them at a 390×844 window — same open-mode server and headless Firefox as the two scripts above.
+
+```bash
+npm run measure:mobile -- --data .scratch/ui-redesign/capture-data/state.json
+```
+
+- **Sideways scroll** — a phone has no horizontal scrollbar to warn you, so a pane one pixel too wide reads as a page that drifts under the thumb. The budget is zero. When it is blown the elements sticking out past the right edge are named, innermost first, since an overflowing child drags its parents out with it and reporting the whole chain buries the one element that is actually too wide. A wide table is excused: it is *supposed* to scroll, and the walk up the ancestors stops at the first container that scrolls on purpose.
+- **Touch targets** — every control at least 44×44. What is measured is the area a finger can land on, not the box the control paints, because on a phone those are deliberately not the same thing: a ✕ set into a dense table keeps its small painted box and gains an invisible pad around it (see the touch-target rule in `components.css`). So the size is found the way a tap finds it — `elementFromPoint`, bisecting outwards from the centre until the answer changes. That also catches the two failures a bounding rect cannot see at all: a target with something painted over it, and two neighbours whose pads overlap so that one swallows the other's edge. Inline links inside running prose are excluded; they cannot be 44px tall without breaking the line box they live in.
+
+One pixel of slack is allowed on the target size, and it is the ruler's rather than the design's: Firefox snaps the far edge of a hit region down to a whole pixel, so a control laid out on a fractional boundary hit-tests up to a pixel narrower than the 44 its computed style says it is.
+
+Three views have no tab of their own and are measured as extra passes, listed in `EXTRA_VIEWS`. The Deck Builder's search drawer and the RSS panel are full-height surfaces on a phone carrying controls nothing else does, and each is scoped to itself — the page behind an open drawer is unreachable by design, and counting its controls as unhittable would report the drawer working as a fault. Collections' list view is there for the opposite reason: a tab is measured as it arrives, and Collections arrives as a grid of card art, so its table — the densest in the app — was not being looked at at all. Otherwise the sweep still sees each tab in its default view, so a control that appears only after switching views is not covered; add it to `EXTRA_VIEWS` with a `PREP` step that opens it.
+
+It exits non-zero on either count. Like `measure:layout` it needs a browser and a populated database, so it is not part of `npm test`.
 
 ## Tech Stack & Credits
 

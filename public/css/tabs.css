@@ -1477,20 +1477,85 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .card-detail-imgcol { position: static; max-width: 280px; margin: 0 auto; }
 }
 
-/* ── Phase 5.2 Mobile UI pass ────────────────────────────────────────────── */
+/* ── The phone, per tab ───────────────────────────────────────────────────
+   The rule itself, and the reasoning behind grow-or-pad, is stated once in
+   components.css beside the shared control vocabulary. What is left here
+   is the controls only one tab has. */
 @media (width < 900px) {
   /* Deck comparison table: prevent narrow columns from squashing text */
   .deck-compare table {
     min-width: 480px;
   }
 
-  /* Nav availability arrows: ensure 44px tap target */
-  .avail-nav-btn, .cal-nav button, .cal-nav-btn {
+  /* Grown. The month and week arrows on Available@. This rule used to name
+     .avail-nav-btn, .cal-nav button and .cal-nav-btn — three classes, none
+     of which the app has ever put in its markup, so it had been a 44px
+     guarantee that guaranteed nothing since it was written. The arrows are
+     .nav-btn, and they measure 32 wide without it. */
+  .nav-btn {
     min-width: 44px;
     min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* Grown. The ✕ that drops a want is the only control in its cell, and
+     the matrix scrolls sideways in its own container, so it can have the
+     width. The builder's category buttons and its drawer close are the
+     same case a tab over. */
+  .want-rm { min-width: 44px; min-height: 44px; }
+  .db-cat-btn, .db-search-close { min-width: 44px; }
+
+  /* Grown. A whole row of the week list is the tap target for a day. */
+  .avail-week-row { min-height: 44px; }
+
+  /* A pad needs somewhere to go, and a deck tile clips to its own rounded
+     corners, so "View ↗" in the top row had nothing above it to pad into.
+     The row is opened up to hold the pad rather than letting it spill out
+     of the tile. Centred, because a pad hangs equally either side of what
+     it pads.
+
+     Which the tile then has to have room for. Its overlay is positioned
+     absolutely against a 160px minimum, so the tile's height is fixed
+     whatever is in it and the three rows are laid out inside a box that
+     cannot grow: a taller top row pushes Compare and Build out through
+     the overflow:hidden. On a phone the overlay goes back into flow, so
+     the tile is as tall as its contents and 160px is a floor rather than
+     a ceiling. That also settles a tile whose commander line wraps to two
+     lines, which was clipping the same row before any of this. */
+  .deck-tile-top { min-height: 44px; align-items: center; }
+  .deck-tile-overlay { position: relative; }
+
+  /* Padded. "View ↗" sits in the corner of a deck tile, over commander
+     artwork, and a category heading folds its pile — neither can take
+     44px of box without covering the thing it labels. */
+  .deck-tile-link, .dv-section-title.db-collapsible {
+    position: relative;
+  }
+  .deck-tile-link::after, .dv-section-title.db-collapsible::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    min-width: 44px;
+    height: 100%;
+    min-height: 44px;
+  }
+
+  /* Padded, from the other side. The colour-identity toggle in the
+     builder's search drawer is 14px of browser widget with its label
+     beside it rather than around it. A checkbox is a replaced element and
+     renders no ::after of its own, so the pad is the *label's*, stretched
+     over the whole row — which is the behaviour you want anyway: on a
+     phone the row is the switch. */
+  .db-ci-toggle { position: relative; min-height: 44px; }
+  .db-ci-toggle label::before {
+    content: '';
+    position: absolute;
+    inset: 0;
   }
 
   /* Week calendar availability grid: handle names overflow */
@@ -1952,6 +2017,22 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   /* Border, not shadow — see .rss-panel for the reasoning. */
 }
 .db-search-panel.open { transform: translateX(0); }
+
+/* Half the window is a desktop answer. min(50vw, 95vw) reads as "half the
+   screen, and never more than nearly all of it" — sensible at 1440, where
+   half is 720px of search results. At 390 it is 195px, and a 195px drawer
+   renders the Scryfall query box as the word "Scryfall" with nowhere left
+   to type. On a phone a drawer takes the screen and leaves a sliver of the
+   mat showing behind it, which is what the RSS panel's fixed 310px already
+   amounts to at this width.
+
+   Here rather than in the phone block above, because that block sits
+   earlier in the file and this rule is no more specific than the one it
+   overrides — an @media wrapper adds no specificity, so the override has
+   to win on source order. */
+@media (width < 900px) {
+  .db-search-panel { width: 92vw; }
+}
 
 .db-search-panel-hdr {
   display: flex;
