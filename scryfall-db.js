@@ -10,6 +10,7 @@ const Database = require('better-sqlite3');
 const path     = require('path');
 const fs       = require('fs');
 const readline = require('readline');
+const zlib     = require('zlib');
 const { Readable } = require('stream');
 
 const dataDir = path.dirname(process.env.DATA_FILE || path.join(__dirname, 'data', 'state.json'));
@@ -97,9 +98,22 @@ const _getMeta = db.prepare('SELECT value FROM meta WHERE key = ?');
 function getMeta(key) { return _getMeta.get(key)?.value ?? null; }
 
 // ── Bulk download + import ────────────────────────────────────────────────────
-// Scryfall bulk files are a JSON array with one card object per line, so we
-// stream line-by-line instead of JSON.parse-ing a ~150MB string (which would
-// spike memory well past what a small container has).
+// Scryfall bulk files are one card object per line, so we stream line-by-line
+// instead of JSON.parse-ing a ~150MB string (which would spike memory well
+// past what a small container has).
+//
+// They are now gzipped JSONL and the index entry names them
+// `jsonl_download_uri` / `compressed_size`. It used to be an uncompressed JSON
+// array under `download_uri` / `size`, and when those two fields disappeared
+// this function started failing every day with "Failed to parse URL from
+// undefined" — silently, because the failure is caught and logged and the app
+// carries on serving whatever was last imported. Both spellings are read now,
+// the older one as a fallback rather than as the expectation, and a missing
+// URI is its own error message rather than one from `fetch`.
+//
+// The line loop needs no change for JSONL: it already skipped the `[` / `]`
+// delimiters and trailing commas an array put there, and a file with neither
+// simply never exercises those two lines.
 async function refreshBulk(force = false) {
   if (_refreshing) return { skipped: 'already refreshing' };
   _refreshing = true;
@@ -115,11 +129,27 @@ async function refreshBulk(force = false) {
       return { upToDate: true };
     }
 
-    console.log(`[scryfall-db] downloading ${BULK_TYPE} (${Math.round((entry.size || 0) / 1e6)} MB)…`);
-    const res = await fetch(entry.download_uri, { headers: { 'User-Agent': 'MTGTools/1.0' } });
+    const url   = entry.jsonl_download_uri || entry.download_uri;
+    const bytes = entry.compressed_size ?? entry.size ?? 0;
+    if (!url) throw new Error(`bulk index entry has no download URI — fields: ${Object.keys(entry).join(', ')}`);
+
+    console.log(`[scryfall-db] downloading ${BULK_TYPE} (${Math.round(bytes / 1e6)} MB)…`);
+    const res = await fetch(url, { headers: { 'User-Agent': 'MTGTools/1.0' } });
     if (!res.ok || !res.body) throw new Error(`bulk download HTTP ${res.status}`);
 
-    const rl = readline.createInterface({ input: Readable.fromWeb(res.body), crlfDelay: Infinity });
+    // The file is served as application/gzip with no Content-Encoding header,
+    // so fetch hands over the compressed bytes and we unpack them ourselves.
+    // pipe() does not forward errors upstream-to-down, hence the explicit
+    // hand-off: without it a truncated download would hang the loop below
+    // rather than fail it.
+    let input = Readable.fromWeb(res.body);
+    if (/\.gz(\?|$)/.test(url)) {
+      const gunzip = zlib.createGunzip();
+      input.on('error', e => gunzip.destroy(e));
+      input = input.pipe(gunzip);
+    }
+
+    const rl = readline.createInterface({ input, crlfDelay: Infinity });
     let batch = [], imported = 0, failed = 0;
     const insertBatch = db.transaction(rows => { for (const r of rows) _upsert.run(...r); });
 

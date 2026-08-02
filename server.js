@@ -91,15 +91,22 @@ app.use('/api', require('./routes/cards'));
 app.use('/api', require('./routes/sets'));
 app.use('/api', require('./routes/scryfall-proxy'));
 
-// ── Scryfall bulk-data cache (background download + daily refresh) ────────────
-const scrydb = require('./scryfall-db');
-scrydb.init();
-
-// ── Set index (background fill + daily refresh) ───────────────────────────────
-// What is in each set, for the Set Browser's owned counts. Shares scryfall.db
-// and the shared Scryfall queue, so it paces itself behind live requests.
+// ── Background jobs against Scryfall ──────────────────────────────────────────
+// The bulk-data cache (a daily oracle_cards download) and the set index (what
+// is in each set, for the Set Browser's owned counts). Both share scryfall.db
+// and the one rate-limited queue, so they pace themselves behind live
+// requests.
+//
+// MTGTOOLS_NO_BACKGROUND=1 skips both. The test suite sets it: requiring this
+// file is how the tests get an app, and neither job has anything to do with
+// what they assert — without the switch every `npm test` starts a 24MB
+// download it then abandons.
+const scrydb   = require('./scryfall-db');
 const setIndex = require('./set-index');
-setIndex.init();
+if (process.env.MTGTOOLS_NO_BACKGROUND !== '1') {
+  scrydb.init();
+  setIndex.init();
+}
 
 // ── Available@ calendar routes ─────────────────────────────────────────────────
 app.use('/available', require('./routes/available'));

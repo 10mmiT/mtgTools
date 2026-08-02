@@ -18,6 +18,9 @@ process.env.DATA_FILE      = path.join(tmpDir, 'state.json');
 process.env.ADMIN_PASSWORD = 'testpass';
 process.env.PORT           = '0'; // random port
 process.env.AUTH_RATE_LIMIT_MAX = '1000'; // don't trip the login limiter in tests
+// No bulk download, no set-index sweep: the suite asserts nothing about
+// either, and both would reach out to Scryfall on every run.
+process.env.MTGTOOLS_NO_BACKGROUND = '1';
 
 // Patch available-db to use a temp SQLite file so tests don't touch production data
 const dbPath = path.join(tmpDir, 'test.db');
