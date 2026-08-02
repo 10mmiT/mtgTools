@@ -288,8 +288,12 @@ The single rule that produces the "recede" effect:
   bundled preset**, or **an uploaded image**.
 - Card art is sourced through the **existing Scryfall proxy and client-side image cache**. No
   new external network calls are introduced. The card picker reuses the existing want-list
-  autocomplete component. The **art crop** is used rather than the full card image, because it
-  is the artwork without frame or text box — which is precisely what a playmat is.
+  autocomplete component — which meant extracting that component from the want list into the
+  shared UI helpers, so that there is one implementation with two callers rather than two. The
+  **art crop** is used rather than the full card image, because it is the artwork without frame
+  or text box — which is precisely what a playmat is. The stored reference is the card's
+  **name**: it is what identifies a card everywhere else in this application, and it is what
+  the picker must print back to say which card the mat is.
 - Preferences are stored **per user on the server**, with automatic fallback to browser storage.
   The client persistence module already implements exactly this pattern (server database with
   local fallback); **it is reused rather than duplicated**. Theme selection moves into the same
@@ -330,12 +334,17 @@ The single rule that produces the "recede" effect:
   toolbar and the sidebar remain **fully opaque** and are never made translucent.
 - **The veil is always on and is not user-adjustable.** Card artwork has no controlled range of
   brightness — a bright Plains and a black Swamp require opposite treatments — so a fixed
-  per-theme veil is what makes arbitrary artwork safe on every theme.
+  per-theme veil is what makes arbitrary artwork safe on every theme. Each theme's veil is
+  **measured rather than chosen**: the contrast checker composites it over both white and black
+  and holds the text colours to their floors against both, and each theme carries the lowest
+  value that clears them, because everything above it is artwork nobody can see.
 - **Attachment**: fixed on desktop, scrolling on mobile, because fixed attachment causes severe
   scroll stuttering on mobile browsers.
 - **Mobile default is off**, since the image costs bandwidth and paint time for something almost
-  entirely hidden behind a full-width grid; a user can enable it explicitly. The reduced-data
-  preference is respected.
+  entirely hidden behind a full-width grid; a user can enable it explicitly, on that device.
+  That opt-in is the one appearance preference kept per browser rather than per person: it is a
+  statement about a data plan, not about taste. The reduced-data preference is respected, and
+  overrides the opt-in rather than the other way round.
 - **Open mode**: when the application runs without an administrator password there are no user
   accounts, so preferences persist to browser storage, card art and presets work, and **upload is
   disabled with a visible explanation** rather than a hidden control.

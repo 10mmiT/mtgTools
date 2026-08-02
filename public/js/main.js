@@ -26,7 +26,7 @@ function togglePlayerSection(playerId, event) {
 function toggleSideNav() {
   const nav = document.getElementById('sideNav');
   if (!nav) return;
-  _closeThemeMenu(); // its position depends on the sidebar width
+  closeAppearance(); // its position depends on the sidebar width
   const collapsed = nav.classList.toggle('collapsed');
   document.body.classList.toggle('sidenav-collapsed', collapsed);
   localStorage.setItem('mtgtools_sidenav', collapsed ? '1' : '0');
@@ -96,8 +96,6 @@ const THEME_ALIASES = { forest: 'dusk' };
 
 const _canonicalTheme = id => THEME_ALIASES[id] || id;
 
-function _themeLabel(id) { return THEMES.find(t => t.id === id)?.label || id; }
-
 // applyTheme paints and remembers *in this browser*; it does not tell the
 // server. The server is told by _pickTheme() below, which is what an explicit
 // choice goes through — boot applies a theme too, and a boot that wrote back
@@ -109,11 +107,9 @@ function applyTheme(rawId) {
   const id = _canonicalTheme(rawId);
   document.documentElement.dataset.theme = id;
   localStorage.setItem('mtgtools_theme', id);
-  const label = _themeLabel(id);
-  const lbl = document.getElementById('mobNavThemeLabel');
-  if (lbl) lbl.textContent = label;
-  const sideLbl = document.getElementById('sidenavThemeLabel');
-  if (sideLbl) sideLbl.textContent = label;
+  // The two buttons that used to be labelled with the theme's name now say
+  // "Appearance" and open a picker that ticks the current theme instead —
+  // which is the same fact, told once, in the place it can be changed.
   document.querySelectorAll('.theme-pick-item').forEach(el =>
     el.classList.toggle('active', el.dataset.theme === id));
 }
@@ -149,6 +145,9 @@ function initTheme() {
  * clearing site data. */
 async function syncPrefs() {
   const p = await loadPrefs();
+  // The playmat's half of the same correction, and it runs either way: a
+  // ?theme= link overrides the theme, not the mat.
+  syncPlaymat();
   if (_urlTheme) { if (p.stored) savePrefs({ theme: _urlTheme }); return; }
   if (p.stored && p.theme) applyTheme(p.theme);
 }
@@ -162,52 +161,61 @@ function _pickTheme(id) {
   savePrefs({ theme: document.documentElement.dataset.theme });
 }
 
-// Direct pick (desktop sidebar dropdown)
-function setTheme(id) {
-  _pickTheme(id);
-  _closeThemeMenu();
-}
+// A pick from the Appearance popover, which stays open: the point of putting
+// the themes beside the playmat is being able to see one over the other, and
+// a menu that shut on every pick would make comparing them a chore.
+function setTheme(id) { _pickTheme(id); }
 
-// Cycle to the next theme (mobile dropdown + mobile header button, where a
-// full picker dropdown doesn't fit as naturally as it does in the sidebar)
-function toggleTheme() {
-  const cur = document.documentElement.dataset.theme;
-  const idx = THEMES.findIndex(t => t.id === cur);
-  _pickTheme(THEMES[(idx + 1) % THEMES.length].id);
-}
-
-function toggleThemeMenu(e) {
+// ── Appearance popover (§10.7) ────────────────────────────────────────
+// Theme, playmat, and the playmat's per-device switch, in one menu opened
+// from the sidebar on a desktop and from the nav dropdown on a phone.
+//
+// It is always positioned against the button that opened it rather than
+// living inside one of them. The theme menu already had to do this in its
+// most common case — a collapsed sidebar is a 46px-wide overflow:hidden
+// scroll container, and an absolutely-positioned menu is clipped inside it —
+// so making it the only case removes a branch rather than adding one.
+function toggleAppearance(e) {
   e?.stopPropagation();
-  const menu = document.getElementById('themePickMenu');
+  const menu = document.getElementById('appearanceMenu');
   if (!menu) return;
-  const opening = !menu.classList.contains('open');
-  if (!opening) { _closeThemeMenu(); return; }
-  menu.classList.add('open');
+  if (menu.classList.contains('open')) { closeAppearance(); return; }
 
-  // When the sidebar is collapsed it's a 46px-wide scroll container with
-  // overflow hidden — an absolutely-positioned menu gets clipped inside it.
-  // Escape by fixing the menu to the viewport, to the right of the button.
-  const nav = document.getElementById('sideNav');
-  const btn = document.getElementById('sidenavThemeBtn');
-  if (nav?.classList.contains('collapsed') && btn) {
-    const r = btn.getBoundingClientRect();
-    menu.style.position = 'fixed';
-    menu.style.left     = (r.right + 8) + 'px';
-    menu.style.right    = 'auto';
-    menu.style.top      = 'auto';
-    menu.style.bottom   = Math.max(8, window.innerHeight - r.bottom) + 'px';
+  // Opened from the phone's nav dropdown, the anchor is the dropdown's own
+  // button: the menu below it is about to close, and a menu positioned
+  // against a row inside it would be left pointing at nothing.
+  const trigger = e?.currentTarget;
+  const anchor  = trigger?.closest('#mobNav') ? document.getElementById('mobNavBtn') : trigger;
+  const r = anchor?.getBoundingClientRect();
+  closeMobNav();
+  menu.classList.add('open');
+  if (!r) return;
+
+  menu.style.position = 'fixed';
+  if (window.innerWidth >= BP_MD) {
+    // Beside the sidebar button, bottom-aligned with it: the button sits at
+    // the foot of the nav, with nothing below it to drop into.
+    menu.style.left   = (r.right + 8) + 'px';
+    menu.style.right  = 'auto';
+    menu.style.top    = 'auto';
+    menu.style.bottom = Math.max(8, window.innerHeight - r.bottom) + 'px';
+  } else {
+    menu.style.top    = (r.bottom + 6) + 'px';
+    menu.style.right  = Math.max(8, window.innerWidth - r.right) + 'px';
+    menu.style.left   = 'auto';
+    menu.style.bottom = 'auto';
   }
 }
 
-function _closeThemeMenu() {
-  const menu = document.getElementById('themePickMenu');
+function closeAppearance() {
+  const menu = document.getElementById('appearanceMenu');
   if (!menu) return;
   menu.classList.remove('open');
   menu.style.position = menu.style.left = menu.style.right = menu.style.top = menu.style.bottom = '';
 }
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('.sidenav-theme-wrap')) _closeThemeMenu();
+  if (!e.target.closest('#appearanceMenu, .appearance-trigger')) closeAppearance();
 });
 
 // ── Drawers ───────────────────────────────────────────────────────────
@@ -236,7 +244,7 @@ function closeDrawers() {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeDrawers();
+  if (e.key === 'Escape') { closeDrawers(); closeAppearance(); }
 });
 
 // ── View mode ─────────────────────────────────────────────────────────
@@ -550,6 +558,8 @@ if (document.readyState === 'loading') {
 // ── Init ──────────────────────────────────────────────────────────────
 initTheme();
 initSideNav();
+initPlaymatPicker();  // the mat itself was applied in <head>; this is its picker
+initWantField();      // the other card field in static markup; see mountCardAutocomplete
 authInit().then(() => {
   syncPrefs();   // not awaited: appearance is already painted, this only corrects it
   loadFromStorage().then(() => {

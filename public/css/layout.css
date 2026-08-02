@@ -1,6 +1,70 @@
 /* Layout — page shell, header, navigation, sections.
    File 3 of 5 in load order; later files may override earlier ones. */
 
+/* ── Playmat (§8.5, §10.6) ──────────────────────────────────────────────
+   Two fixed full-viewport layers behind everything: the art of a card the
+   user picked, and a theme-tuned veil over it. They are pseudo-elements of
+   the body at negative z-index, which puts them above the page background
+   (--bg propagates to the canvas, which paints below every layer) and below
+   every piece of content, with nothing in the markup to keep in sync.
+
+   The image arrives as --playmat-src, set inline on <html> by js/playmat.js
+   before the body is parsed. Nothing else is needed to switch the feature
+   off: with the variable unset, background-image resolves to none, both
+   layers are display:none, and a user without a playmat pays nothing for it.
+
+   The veil is not optional and not user-adjustable. Card art has no
+   controlled range of brightness — a Plains and a Swamp want opposite
+   treatments — so one fixed --scrim per theme is what makes *arbitrary* art
+   safe. scripts/check-contrast.js measures every text token against that
+   veil composited over both white and black art, which is the whole
+   promise; it is a test, not a hope.
+
+   Data surfaces are unaffected by design: tables, forms, the toolbar and
+   the sidebar all carry an opaque fill already, so art shows through the
+   gutters of a card grid and never behind a column of card names. */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+}
+html[data-playmat] body::before,
+html[data-playmat] body::after { display: block; }
+
+body::before {
+  z-index: -2;
+  background-image: var(--playmat-src, none);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+body::after { z-index: -1; background: var(--scrim); }
+
+@media (width < 900px) {
+  /* Off by default on a phone. The image costs bandwidth and paint time for
+     something a full-width card grid almost entirely covers, and display:none
+     is what stops the browser fetching it at all — a JS guard would still
+     have downloaded it. The opt-in is per device rather than per user: it is
+     a statement about this data plan, not about taste.
+
+     `fixed` attachment goes with it. It stutters badly when scrolled on
+     mobile browsers, which is exactly where the long scrolling lists are. */
+  html[data-playmat]:not([data-playmat-mobile]) body::before,
+  html[data-playmat]:not([data-playmat-mobile]) body::after { display: none; }
+  body::before { background-attachment: scroll; }
+}
+
+@media (prefers-reduced-data: reduce) {
+  /* Asked for less data, given less data — a background is the most
+     skippable thing the app loads. Last in the file so it wins over the
+     opt-in above: enabling the mat on a phone is not a way around this. */
+  html[data-playmat] body::before,
+  html[data-playmat] body::after { display: none; }
+}
+
 /* ── Header ─────────────────────────────────────────────────────────────
    Desktop folds the header's contents into the left sidebar (see
    .sidenav-brand / .sidenav-user-row / #sidenav* buttons below), so the
@@ -208,13 +272,11 @@ header {
      state in the nav (§4.7). */
   #sidenavRssBtn.rss-open { color: var(--accent, var(--primary)); }
 
-  /* Theme picker — opens upward since its button sits near the bottom of the
-     sidebar, with little room below it for a menu to drop down into. */
-  .sidenav-theme-wrap { position: relative; width: 100%; }
-  #themePickMenu.theme-pick-menu { left: .5rem; right: auto; bottom: calc(100% + 5px); top: auto; min-width: 170px; }
-  .theme-pick-item.active { color: var(--accent, var(--primary)); font-weight: 700; }
-  .theme-pick-item.active::after { content: '✓'; margin-left: auto; }
-  .tab-bar.collapsed #themePickMenu.theme-pick-menu { left: 0; }
+  /* The Appearance button is a nav row like any other; the popover it opens
+     is at body level and positions itself (see toggleAppearance), so nothing
+     about it is the sidebar's business any more — the wrapper, the upward
+     drop and the collapsed-sidebar offset that used to be here are all gone
+     with it. */
 
   /* EXEMPT-BEGIN from the spacing scale. Push content right to clear the
      fixed sidebar. These two are the sidebar's own measured width, not
@@ -405,14 +467,12 @@ header {
    still persists across the breakpoint; it simply has nothing to act on
    until the window is wide enough to show a sidebar again.
 
-   **The playmat image** (§10.6) is the one that has to be answered where
-   it is built rather than here. The app has no background image today —
-   issues 22 and 23 add it — and the decision those tickets carry is that
-   it is off by default below 900px and attachment:scroll when it is on,
-   because a fixed, full-bleed image costs bandwidth on mobile data and
-   stutters when scrolled on mobile Safari. There is nothing to switch off
-   here yet, and a rule guarding a token that is still a flat colour would
-   be a rule that guards nothing. */
+   **The playmat image** (§10.6) is answered at the top of this file, with
+   the layers it switches off, rather than here: off by default below 900px
+   and attachment:scroll when a user turns it on, because a fixed full-bleed
+   image costs bandwidth on mobile data and stutters when scrolled on mobile
+   browsers. It sits beside the rules it cancels because that is the only
+   way to read the default and its exception as one decision. */
 @media (width < 900px) {
   .page-layout { flex-direction: column; }
   .main-col { width: 100%; }  /* prevent content from sizing the column instead of the viewport */

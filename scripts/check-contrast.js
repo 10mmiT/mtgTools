@@ -18,9 +18,16 @@
  *   node scripts/check-contrast.js --all      # every pair, every theme
  *   node scripts/check-contrast.js --theme contrast --all
  *
- * What it cannot see: text over card artwork (the backdrop is an image, and
- * those sites carry the documented over-art exemption), and anything whose
- * colour is set from data at runtime beyond the eight player colours.
+ * What it cannot see: text drawn directly on card artwork (deck tiles, grid
+ * badges — the backdrop is an image, and those sites carry the documented
+ * over-art exemption), and anything whose colour is set from data at runtime
+ * beyond the eight player colours.
+ *
+ * The playmat is the one image it *can* see, because the veil over it is a
+ * known colour at a known alpha and the art beneath it is bounded: no
+ * artwork is brighter than white or darker than black. Compositing the veil
+ * over both is what turns "text stays legible over any card art" from a
+ * hope into a measurement — see the playmat pairs below.
  */
 
 const fs   = require('node:fs');
@@ -196,6 +203,39 @@ function pairs(palette) {
     add('ui', '--primary-fg', player, 'initials on a player dot');
   }
 
+  /* Over the playmat (§8.5). A user may set the art of any card as the page
+   * background, and the app has no say in what that art looks like — so the
+   * two extremes stand in for all of it, and every text token is measured
+   * against the veil composited over each. Passing both means passing every
+   * image in between, which is the guarantee the veil exists to give.
+   *
+   * This is the reason --scrim is per theme rather than one value: the veil
+   * that makes a Plains safe on the dark themes is not the one that makes a
+   * Swamp safe on the light ones.
+   *
+   * Two tokens that are measured on every other surface are deliberately
+   * absent here, and both omissions are load-bearing:
+   *
+   * --text-subtle is placeholder and disabled text, and every one of its
+   * uses in the stylesheet is inside an opaque fill — a form control, a
+   * search row, a set tile, a toggle knob — so no art ever gets behind it.
+   *
+   * --border is the hairline, and it is the one pair the veil provably
+   * cannot satisfy. On the light themes the veiled backdrop passes straight
+   * through the hairline's own lightness on its way from the art to --bg:
+   * over black art it reads 1.22:1 at .84 alpha, 1.02:1 at .92, and does not
+   * recover to its 1.15 floor before .99, by which point there is no artwork
+   * left to see. The floors it is caught between are not both about the same
+   * thing: text must be legible at every point along its run, while a
+   * hairline over art is a divider between two things that are both lying on
+   * the mat, with the art itself doing most of the separating. So the veil
+   * is tuned to the text, and the hairline is left to the art. */
+  for (const [art, backdrop] of [['#ffffff', 'the brightest art'], ['#000000', 'the darkest art']]) {
+    const veil = { token: '--scrim', over: art };
+    add('body', '--text',       veil, `body text over the playmat, ${backdrop}`);
+    add('ui',   '--text-muted', veil, `labels over the playmat, ${backdrop}`);
+  }
+
   // Non-text: the hairline has to be findable, and the focused-input border
   // is a UI component boundary.
   add('chrome', '--border', '--surface-1', 'hairline divider');
@@ -205,12 +245,21 @@ function pairs(palette) {
   return out.map(p => ({ ...p, palette }));
 }
 
-const resolve = (palette, spec) =>
-  typeof spec === 'string'
-    ? colourOf(palette, spec)
-    : mix(colourOf(palette, spec.token), colourOf(palette, spec.over), spec.pct);
+/* A pair's side is a token, or a mix of one over another. `over` is a token
+ * name, or a literal colour for the two the palette cannot name — white and
+ * black art under the playmat's veil. `pct` is the mix, defaulting to the
+ * token's own alpha, which is what a veil carries and no other token does. */
+const resolve = (palette, spec) => {
+  if (typeof spec === 'string') return colourOf(palette, spec);
+  const fg = colourOf(palette, spec.token);
+  const bg = spec.over.startsWith('--') ? colourOf(palette, spec.over) : parseColour(spec.over);
+  return mix(fg, bg, spec.pct ?? (fg.a ?? 1) * 100);
+};
 
-const label = spec => (typeof spec === 'string' ? spec : `${spec.pct}% ${spec.token} on ${spec.over}`);
+const label = spec =>
+  typeof spec === 'string'
+    ? spec
+    : `${spec.pct === undefined ? '' : `${spec.pct}% `}${spec.token} on ${spec.over}`;
 
 // ── The check ─────────────────────────────────────────────────────────
 

@@ -247,7 +247,13 @@
   --danger-soft:  #2e1614;
   --danger-fg:    #2a0f0c;
 
-  --scrim: rgb(14 16 19 / .82); /* veil between playmat and content */
+  /* The veil between the playmat and the content, and the one alpha in the
+     file that is measured rather than chosen: issue 22 puts arbitrary card
+     art behind the page, so scripts/check-contrast.js composites this token
+     over white and over black and holds the text tokens to their floors
+     against both. Each theme's value is the lowest that clears them — the
+     art is the point, so no theme pays more alpha than its own ink needs. */
+  --scrim: rgb(14 16 19 / .86);
   --mat:   #171b20;             /* Deck Builder felt surface */
 
   /* Overlay shadows. Flat surfaces get a hairline instead — there is
@@ -317,7 +323,7 @@ html[data-theme="dusk"] {
   --danger-soft:  #2e1815;
   --danger-fg:    #2a100c;
 
-  --scrim: rgb(18 16 16 / .82);
+  --scrim: rgb(18 16 16 / .86);
   --mat:   #1c1815;
 
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
@@ -380,7 +386,7 @@ html[data-theme="light"] {
   --danger-soft:  #fbe6e4;
   --danger-fg:    #ffffff;
 
-  --scrim: rgb(245 246 248 / .84);
+  --scrim: rgb(245 246 248 / .92);
   --mat:   #e9ecf1;
 
   /* Light themes carry roughly half the shadow alpha. */
@@ -445,7 +451,7 @@ html[data-theme="sepia"] {
   --danger-soft:  #f7e3de;
   --danger-fg:    #fffdf8;
 
-  --scrim: rgb(247 243 236 / .84);
+  --scrim: rgb(247 243 236 / .92);
   --mat:   #ece4d6;
 
   /* Half alpha like the other light theme, warmed to match the paper. */
@@ -513,7 +519,11 @@ html[data-theme="contrast"] {
   --danger-soft:  #2b100c;
   --danger-fg:    #000000;
 
-  --scrim: rgb(0 0 0 / .90);   /* strongest scrim — legibility first */
+  /* Pure black, and .90 rather than the .86 the other dark themes measure
+     down to: this palette's floors are AAA, and a veil is the cheapest place
+     to buy the headroom. The light themes need .92 — their ink is darker
+     than their page, so it is dark art that costs them, and it costs more. */
+  --scrim: rgb(0 0 0 / .90);
   --mat:   #0f0f0f;
 
   /* Each of these leads with a hairline ring, which no other palette needs.

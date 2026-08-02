@@ -168,6 +168,62 @@ function mountColumnMenu(containerId, view, colDefs, apply) {
   document.addEventListener('click', () => menu.classList.remove('open'));
 }
 
+// ── Shared card-name autocomplete ───────────────────────────────────────────
+// The Want List had the only "type a card name" field in the app, with its
+// debounce, its dropdown and its outside-click listener written into wants.js.
+// The playmat picker is the second, and two copies of that is how they drift
+// apart — so the component moved here, beside the other mount* helpers, and
+// the Want List is now one of its callers rather than its owner.
+//
+// The markup is the caller's: an .autocomplete-wrap holding the input and an
+// empty .ac-dropdown, which is what the existing styles expect. Returns a
+// handle so a caller can close the dropdown from elsewhere (the Want List
+// closes it when a card is added by pressing Enter).
+function mountCardAutocomplete(inputId, dropId, onPick, opts = {}) {
+  const input = document.getElementById(inputId);
+  const drop  = document.getElementById(dropId);
+  if (!input || !drop) return null;
+  const { minChars = 2, delay = 280, limit = 8, commander = false } = opts;
+
+  let timer = null;
+  const close = () => { drop.style.display = 'none'; };
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < minChars) { close(); return; }
+    timer = setTimeout(async () => {
+      try {
+        const names = (await cardAutocomplete(q, { commander })).slice(0, limit);
+        // The field may have moved on while the request was in flight — two
+        // more keystrokes and a slower answer would otherwise overwrite the
+        // newer suggestions with older ones.
+        if (input.value.trim() !== q) return;
+        if (!names.length) { close(); return; }
+        // Elements rather than a string of HTML: a card name with an
+        // apostrophe then needs no escaping to survive being put in an
+        // onclick, which is the only reason the old version reached for
+        // jsAttr() — and Urza's Saga is not an edge case here.
+        drop.innerHTML = '';
+        for (const name of names) {
+          const item = document.createElement('div');
+          item.className   = 'ac-item';
+          item.textContent = name;
+          item.addEventListener('click', () => { close(); onPick(name); });
+          drop.appendChild(item);
+        }
+        drop.style.display = 'block';
+      } catch { close(); }
+    }, delay);
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.autocomplete-wrap')) close();
+  });
+
+  return { close };
+}
+
 // ── Shared view toggle (List / Grid / XL / Pile) ────────────────────────────
 // One component for every tab's view switcher, so the same icons appear in the
 // same order everywhere. `getCur` returns the current mode; `pick` sets it

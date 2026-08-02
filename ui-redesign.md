@@ -687,23 +687,49 @@ z-index  content
 ```
 
 ```css
-body::before {
-  content: ''; position: fixed; inset: 0; z-index: -2;
-  background-image: var(--playmat-image, none);
-  background-size: cover; background-position: center;
-}
+body::before,
 body::after {
-  content: ''; position: fixed; inset: 0; z-index: -1;
-  background: var(--scrim);
-  display: var(--playmat-scrim-display, none);
+  content: ''; position: fixed; inset: 0; display: none; pointer-events: none;
 }
+html[data-playmat] body::before,
+html[data-playmat] body::after { display: block; }
+
+body::before {
+  z-index: -2;
+  background-image: var(--playmat-src, none);
+  background-size: cover; background-position: center; background-attachment: fixed;
+}
+body::after { z-index: -1; background: var(--scrim); }
 ```
 
-`--playmat-image` is set inline on `<html>` at boot from the user's preference. When unset,
-both layers are inert and `--bg` shows through — zero cost for users without a playmat.
+As built, and two departures from what this section first wrote:
+
+The variable is `--playmat-src`, and the switch is a `data-playmat` attribute rather than a
+second variable holding a `display` value. Both are set inline on `<html>` at boot from the
+user's preference, by [playmat.js](public/js/playmat.js). One attribute switching both layers
+is what lets the mobile and reduced-data defaults be *media queries* — a variable set inline
+on `<html>` beats any stylesheet rule, so a media query could not have cancelled it without
+`!important`, which the token contract forbids.
+
+`display: none` rather than an unset background is also what stops the browser fetching the
+image at all, which is the whole point of the mobile default. A script guarding the same
+decision would have downloaded it first.
 
 **The scrim is not optional and not user-adjustable.** Card art has no controlled value range;
-the scrim is what makes arbitrary art safe on every theme.
+the scrim is what makes arbitrary art safe on every theme. Its alpha per theme is no longer a
+chosen number: [check-contrast.js](scripts/check-contrast.js) composites the veil over white
+and over black — no artwork is brighter or darker than those — and holds `--text` and
+`--text-muted` to their floors against both. Each theme carries the lowest alpha that clears
+them, since every point above it is artwork the user cannot see: `.86` on the dark themes,
+`.90` on high contrast, `.92` on the light ones, where dark art is what costs. Issue 22 raised
+all four from the `.82`/`.84` the repaint chose by eye.
+
+The hairline is deliberately not held to that floor, and the reason is worth recording: on the
+light themes the veiled backdrop passes straight *through* `--border`'s own lightness on its
+way from the art to `--bg`, reading 1.22:1 at `.84` and 1.02:1 at `.92`, and not recovering to
+its 1.15 floor before `.99` — by which point there is no artwork left. Text must be legible at
+every point along its run; a hairline over the mat divides two things that are both lying on
+it, and the art does most of that work itself. So the veil is tuned to the text.
 
 ---
 
@@ -1040,21 +1066,58 @@ autocomplete component) whose result stores the card's `art_crop` URL in `playma
 `art_crop` rather than `normal`: it's the art without frame or text box, which is exactly a
 playmat.
 
+"Reusing the Want List autocomplete" meant extracting it: the debounce, the dropdown and the
+outside-click listener lived inside [wants.js](public/js/wants.js), and are now
+`mountCardAutocomplete()` in [sortui.js](public/js/sortui.js) beside the other `mount*`
+components, with the Want List as one of its two callers.
+
+`playmat_ref` holds the card's **name**, not the Scryfall id this document's schema comment
+names. A name is this application's identifier for a card — every cache in
+[scryfall.js](public/js/scryfall.js) is keyed by it, the picker searches by it, and the popover
+has to print it back. An id would have to be resolved to a name over the network on every load
+to say which card the mat is.
+
+The URL is checked before it becomes CSS: only Scryfall's image CDN over https, or the app's
+own `/playmat/` route, are accepted — a `playmat_url` is written into a `url()`, and the two
+origins the app can produce one from are the two it will render.
+
 ### 10.6 Rendering and mobile
 
-- Applied via `--playmat-image` set on `<html>` at boot, before first paint, to avoid a flash
+- Applied via `--playmat-src` set on `<html>` at boot, before first paint, to avoid a flash.
+  [playmat.js](public/js/playmat.js) is the one script loaded in `<head>` rather than at the
+  foot of the body, and above the stylesheet links, since a script after a `<link>` waits for
+  that sheet — one of which comes off a CDN
 - `background-attachment: fixed` on desktop; **`scroll` on mobile** — `fixed` causes severe
   scroll jank on mobile Safari
 - **Off by default on mobile** (<900px): costs bandwidth and paint time for something almost
-  entirely hidden behind a full-width grid. Users can enable it explicitly
-- Respects `prefers-reduced-data: reduce` — playmat suppressed
-- The scrim (§8.5) is always on when a playmat is set
+  entirely hidden behind a full-width grid. Users can enable it explicitly. That opt-in is the
+  one preference here kept **per browser** rather than per user (`mtgtools_playmat_mobile`):
+  it is a statement about this device's data plan, not about taste, and a phone should not
+  inherit the answer given on a desktop
+- Respects `prefers-reduced-data: reduce` — playmat suppressed, and that rule comes last in
+  the file, so enabling the mat on a phone is not a way around it
+- The scrim (§8.5) is always on when a playmat is set, and off when one is not: over `--bg`
+  it would only flatten every theme by a percent for nothing
 
 ### 10.7 UI
 
 Playmat picker lives in the sidebar next to the theme picker, in a shared **Appearance** popover:
 theme selection, playmat source, hover-lift toggle ([ui.md](ui.md) §1), card-size control, and a
 Remove action.
+
+As built by issue 22 it carries the theme list, the current mat with its Remove action, the card
+field, and the per-device mobile switch; the hover-lift and card-size controls belong to the
+tickets that introduce them. The popover markup sits at **body level**, not in the sidebar: the
+mobile nav opens the same one, and the sidebar is `display: none` below 900px. It is positioned
+in script against whichever button opened it, which the theme menu already had to do in its
+common case — a collapsed sidebar is a 46px `overflow: hidden` scroll container that clips an
+absolutely-positioned menu — so making it the only case removed a branch.
+
+The sidebar and mobile buttons are both labelled "Appearance" rather than with the current
+theme's name, and the phone's theme control is no longer a button that cycled to a theme it
+could not name. The picker ticks the current theme instead, which is the same fact told once,
+in the place it can be changed. Picking a theme leaves the popover **open**: the point of
+putting themes beside the playmat is being able to see one over the other.
 
 ### 10.8 Open mode
 

@@ -1,5 +1,4 @@
 // ── Want List ─────────────────────────────────────────────────────────────
-let wantAcTimer  = null;
 let wantView     = 'list'; // 'list' | 'grid' | 'xl'
 let wantCardData = new Map(); // card name → Scryfall card object
 let _wantFetching = false;
@@ -17,6 +16,16 @@ const WANT_COLUMNS = [
   { key: 'price',  label: 'Price',             default: true },
   { key: 'owned',  label: 'In Collections',    default: true },
 ];
+/* The card field is mounted at boot, not with the controls below. Those are
+ * the rendered list's — sorting nothing is not a control — and are mounted
+ * from renderWantList, which returns early when nobody wants anything yet.
+ * The add field is in the toolbar either way, and an empty want list is
+ * exactly when someone reaches for it. */
+function initWantField() {
+  wantAc = mountCardAutocomplete('wantCardInput', 'wantAcDrop',
+    name => { document.getElementById('wantCardInput').value = name; });
+}
+
 let _wantControlsMounted = false;
 function initWantControls() {
   mountSortControl('wantSortMount', 'wants', WANT_SORT_FIELDS, renderWantList, { field: 'wanted', dir: -1 });
@@ -67,33 +76,12 @@ async function fetchWantCardData(names) {
 }
 
 // ── Autocomplete ──────────────────────────────────────────────────────────
-function wantAcInput() {
-  clearTimeout(wantAcTimer);
-  const q = document.getElementById('wantCardInput').value.trim();
-  if (q.length < 2) { closeAc(); return; }
-  wantAcTimer = setTimeout(async () => {
-    try {
-      const drop = document.getElementById('wantAcDrop');
-      const names = (await cardAutocomplete(q)).slice(0, 8);
-      if (!names.length) { closeAc(); return; }
-      drop.innerHTML = names.map(n =>
-        `<div class="ac-item" onclick="pickAc('${jsAttr(n)}')">${esc(n)}</div>`).join('');
-      drop.style.display = 'block';
-    } catch { closeAc(); }
-  }, 280);
-}
-
-function pickAc(name) {
-  document.getElementById('wantCardInput').value = name;
-  closeAc();
-}
-
-function closeAc() {
-  const d = document.getElementById('wantAcDrop');
-  if (d) d.style.display = 'none';
-}
-
-document.addEventListener('click', e => { if (!e.target.closest('.autocomplete-wrap')) closeAc(); });
+// The debounce, the dropdown and the outside-click listener that used to live
+// here are mountCardAutocomplete() in sortui.js now — the playmat picker is
+// the second field that needs them, and one implementation is what keeps the
+// two behaving alike. What is left is this field's own answer to a pick:
+// put the name in the box, so that + Add has something to add.
+let wantAc = null;
 
 // ── CSV import ────────────────────────────────────────────────────────────
 function parseWantCSV(text) {
@@ -156,7 +144,7 @@ async function addWant() {
     const player = state.players.find(p => p.id === playerId);
     if (player) { if (!player.wantList) player.wantList = []; if (!player.wantList.includes(cardName)) player.wantList.push(cardName); }
     document.getElementById('wantCardInput').value = '';
-    closeAc();
+    wantAc?.close();
     renderWantList();
   } catch (e) { alert(`Could not add to wants: ${e.message}`); }
 }

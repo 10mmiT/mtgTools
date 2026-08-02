@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MTG Tools</title>
   <link rel="icon" type="image/svg+xml" href="mtgtools.svg">
+  <!-- The one script not loaded at the end of <body>. The playmat is a
+       background, and a background applied after first paint is one the user
+       watches appear; this sets it on <html> on the way past. It is above the
+       stylesheets because a script after a <link> waits for that sheet to
+       load, and the mana font comes off a CDN. -->
+  <script src="js/playmat.js"></script>
   <!-- Load order is cascade order: later files may override earlier ones. -->
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
@@ -68,19 +74,14 @@
 
   <hr class="sidenav-divider">
   <div class="sidenav-user-row" id="sidenavUserBadge" style="display:none"></div>
-  <div class="sidenav-theme-wrap">
-    <button class="tab-btn" id="sidenavThemeBtn" onclick="toggleThemeMenu(event)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-      <span class="tab-btn-label" id="sidenavThemeLabel">Dark</span>
-    </button>
-    <div class="col-menu theme-pick-menu" id="themePickMenu">
-      <button class="col-menu-item theme-pick-item" data-theme="dark" onclick="setTheme('dark')">Dark</button>
-      <button class="col-menu-item theme-pick-item" data-theme="light" onclick="setTheme('light')">Light</button>
-      <button class="col-menu-item theme-pick-item" data-theme="contrast" onclick="setTheme('contrast')">High Contrast</button>
-      <button class="col-menu-item theme-pick-item" data-theme="sepia" onclick="setTheme('sepia')">Sepia</button>
-      <button class="col-menu-item theme-pick-item" data-theme="dusk" onclick="setTheme('dusk')">Dusk</button>
-    </div>
-  </div>
+  <!-- The theme picker's button, now opening the whole Appearance popover
+       (§10.7). The popover itself is at the foot of this file, outside the
+       sidebar: the mobile menu opens the same one, and the sidebar is
+       display:none on a phone. -->
+  <button class="tab-btn appearance-trigger" id="sidenavAppearanceBtn" onclick="toggleAppearance(event)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    <span class="tab-btn-label">Appearance</span>
+  </button>
   <button class="tab-btn" id="sidenavRssBtn" onclick="toggleRssPanel()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1" fill="currentColor"/></svg>
     <span class="tab-btn-label">RSS Feeds</span>
@@ -172,9 +173,13 @@
     <hr class="mob-nav-divider">
     <div class="mob-nav-meta" id="mobNavUser"></div>
 
-    <button class="mob-nav-item" onclick="toggleTheme()">
+    <!-- The same popover the sidebar opens. It replaces a button that cycled
+         to the next theme and could not say what the next one was — a phone
+         now gets the picker, and with it the playmat and the switch that
+         turns it on for this device. -->
+    <button class="mob-nav-item appearance-trigger" onclick="toggleAppearance(event)">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-      <span id="mobNavThemeLabel">Light mode</span>
+      Appearance
     </button>
 
     <button class="mob-nav-item" id="mob-changepw-btn" style="display:none" onclick="openChangePassword();closeMobNav()">
@@ -398,7 +403,7 @@
     </select>
     <div class="autocomplete-wrap want-add-field">
       <input id="wantCardInput" type="text" style="width:100%" placeholder="Card name…"
-             oninput="wantAcInput()" onkeydown="if(event.key==='Enter')addWant()">
+             onkeydown="if(event.key==='Enter')addWant()">
       <div id="wantAcDrop" class="ac-dropdown"></div>
     </div>
     <button class="btn-primary" onclick="addWant()">+ Add</button>
@@ -974,6 +979,35 @@
 
 <!-- One scrim for every drawer — it is what a click outside them lands on -->
 <div id="drawerScrim" class="drawer-scrim" onclick="closeDrawers()"></div>
+
+<!-- Appearance (§10.7) — one popover for everything about how the app looks.
+     It sits here rather than in the sidebar because both the sidebar and the
+     mobile menu open it, and a menu owned by the sidebar cannot be opened
+     from a phone, where the sidebar does not exist. Positioned against
+     whichever button opened it; see toggleAppearance() in js/main.js. -->
+<div class="col-menu appearance-menu" id="appearanceMenu">
+  <div class="db-more-section-label">Theme</div>
+  <button class="col-menu-item theme-pick-item" data-theme="dark" onclick="setTheme('dark')">Dark</button>
+  <button class="col-menu-item theme-pick-item" data-theme="light" onclick="setTheme('light')">Light</button>
+  <button class="col-menu-item theme-pick-item" data-theme="contrast" onclick="setTheme('contrast')">High Contrast</button>
+  <button class="col-menu-item theme-pick-item" data-theme="sepia" onclick="setTheme('sepia')">Sepia</button>
+  <button class="col-menu-item theme-pick-item" data-theme="dusk" onclick="setTheme('dusk')">Dusk</button>
+
+  <div class="db-more-divider"></div>
+  <div class="db-more-section-label">Playmat</div>
+  <div class="playmat-current" id="playmatCurrent">None — the page keeps its plain background.</div>
+  <div class="autocomplete-wrap playmat-field">
+    <input id="playmatCardInput" type="text" placeholder="Card name…">
+    <div id="playmatAcDrop" class="ac-dropdown"></div>
+  </div>
+  <!-- Shown only below the mobile breakpoint, by a media query: the default
+       it overrides is itself a media query, so the control appears exactly
+       where it has something to do. -->
+  <label class="col-menu-item playmat-mobile-row">
+    <input type="checkbox" id="playmatMobileToggle" onchange="togglePlaymatOnMobile(this.checked)">
+    <span>Show it on this phone</span>
+  </label>
+</div>
 
 <!-- RSS Panel -->
 <div id="rssPanel" class="rss-panel">
