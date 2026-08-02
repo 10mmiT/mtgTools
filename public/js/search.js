@@ -1,12 +1,33 @@
 // ── Scryfall Search ───────────────────────────────────────────────────────
-const sfState = { query: '', nextPage: null, loading: false, timer: null, cards: [] };
+// Searching happens on Enter or the Search button, never while typing: a
+// Scryfall query is only valid once it is finished, and every keystroke of
+// `t:creature c:r` is either a different search or a syntax error. The
+// debounce that used to sit here was already unreachable — nothing had called
+// it since the input stopped having an `oninput` — and is deleted rather than
+// left as an invitation.
+const sfState = { query: '', nextPage: null, loading: false, cards: [] };
 let sfViewSize = 'list'; // 'list' | 'grid' | 'xl'
+
+/* What the results area says before anyone has searched, and again when the
+ * query is cleared. It carries the syntax examples that used to occupy a
+ * permanent second row of the toolbar — in front of the person who has not
+ * searched yet, and gone for everyone else. */
+const SF_EMPTY = `<div class="empty-state">
+  Search Scryfall’s whole catalogue — the full query syntax works.
+  <div class="help-text sf-syntax">
+    <code>t:creature c:r</code> · <code>cmc=3</code> · <code>"exact name"</code> ·
+    <code>o:draw</code> · <code>r:mythic</code>
+  </div>
+</div>`;
 
 const SF_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 
 function initScryfallSort() {
   mountSortControl('sfSortMount', 'scryfall', SF_SORT_FIELDS, sfRender);
   mountViewToggle('sfViewMount', ['list', 'grid', 'xl'], () => sfViewSize, setSfSize);
+  // The tab is hidden until this runs, so the empty state is painted here
+  // rather than written into index.html as a second copy of the same markup.
+  if (!sfState.cards.length) document.getElementById('sfResults').innerHTML = SF_EMPTY;
 }
 
 function setSfSize(size) {
@@ -14,16 +35,12 @@ function setSfSize(size) {
   sfRender();
 }
 
-function sfDebounce() {
-  clearTimeout(sfState.timer);
-  sfState.timer = setTimeout(doScryfallSearch, 380);
-}
-
 async function doScryfallSearch() {
   const query = document.getElementById('sfInput').value.trim();
   if (!query) {
-    document.getElementById('sfResults').innerHTML = '';
+    document.getElementById('sfResults').innerHTML = SF_EMPTY;
     document.getElementById('sfInfo').textContent = '';
+    sfState.cards    = [];
     sfState.nextPage = null;
     return;
   }

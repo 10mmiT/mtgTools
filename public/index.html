@@ -323,23 +323,23 @@
 
 <!-- Scryfall Search tab -->
 <div id="tab-scryfall" class="tab-pane" style="display:none">
-  <div class="section">
-    <div class="search-row">
-      <input id="sfInput" type="text" class="search-input"
-             placeholder="Search Scryfall… (e.g. t:creature c:red cmc=3)"
-             onkeydown="if(event.key==='Enter')doScryfallSearch()"
-             style="max-width:none;flex:1">
-      <button class="btn-primary" style="flex-shrink:0;padding:var(--space-2) var(--space-4)" onclick="doScryfallSearch()">Search</button>
-      <span id="sfInfo" class="result-info" style="flex-shrink:0"></span>
-      <div id="sfViewMount" style="flex-shrink:0"></div>
-    </div>
-    <div class="view-toolbar">
-      <div id="sfSortMount"></div>
-      <div class="help-text" style="margin:0 0 0 auto">
-        Tip: <code>t:creature c:r</code> · <code>cmc=3</code> · <code>"exact name"</code>
-      </div>
-    </div>
+
+  <!-- One control strip (§7.3), where the search row and the view toolbar
+       were two stacked boxes. The syntax tip that shared the second row is
+       in the empty state below, which is what someone who needs it is
+       looking at. -->
+  <div class="toolbar">
+    <input id="sfInput" type="text" class="search-input"
+           placeholder="Search Scryfall… (e.g. t:creature c:red cmc=3)"
+           onkeydown="if(event.key==='Enter')doScryfallSearch()">
+    <button class="btn-primary" onclick="doScryfallSearch()">Search</button>
+    <span id="sfInfo" class="result-info"></span>
+    <div id="sfViewMount"></div>
+    <div id="sfSortMount"></div>
   </div>
+
+  <!-- Painted by initScryfallSort() when the tab is opened: the empty state
+       carries the syntax tip, and one copy of it lives in search.js. -->
   <div id="sfResults"></div>
 </div>
 
@@ -353,27 +353,31 @@
   </div>
 </div>
 
-<!-- Set Browser tab -->
-<div id="tab-sets" class="tab-pane" style="display:none">
-  <div class="section">
-    <div class="search-row" style="flex-wrap:wrap;gap:var(--space-2)">
-      <input id="setSearchInput" type="text" class="search-input" placeholder="Filter sets…" oninput="filterSets()" style="max-width:280px">
-      <select id="setFilterSel" style="flex-shrink:0" title="Filter by ownership" onchange="setSetFilter(this.value)">
-        <option value="all">Owned: All</option>
-        <option value="owned">Owned only</option>
-        <option value="unowned">Unowned only</option>
-      </select>
-      <div id="setViewMount" style="flex-shrink:0;margin-left:auto"></div>
-    </div>
-    <div id="setList" class="set-list">
-      <span style="font-size:var(--text-sm);color:var(--text-muted)">Loading sets…</span>
-    </div>
-    <div id="setInfoBar" class="set-info-bar" style="display:none"></div>
-    <div class="view-toolbar" id="setSortBar" style="display:none">
-      <div id="setSortMount"></div>
-    </div>
+<!-- Set Browser tab.
+     Two shapes, one strip. Picking a set is the tab's landing view — a grid
+     of set tiles — and choosing one replaces it with that set's cards, the
+     set itself becoming a chip on the toolbar whose ✕ goes back. The
+     controls that act on cards (ownership, view, sort) only exist in the
+     second shape; the filter that narrows the tiles only in the first. -->
+<div id="tab-sets" class="tab-pane" style="display:none" data-set-mode="picker">
+  <div class="toolbar">
+    <input id="setSearchInput" type="text" class="search-input sets-when-picker"
+           placeholder="Filter sets…" oninput="filterSets()">
+    <div class="chip-row sets-when-cards" id="setChipRow"></div>
+    <span id="setInfo" class="result-info"></span>
+    <select id="setFilterSel" class="sets-when-cards" title="Filter by ownership" onchange="setSetFilter(this.value)">
+      <option value="all">Owned: All</option>
+      <option value="owned">Owned only</option>
+      <option value="unowned">Unowned only</option>
+    </select>
+    <div id="setViewMount" class="sets-when-cards"></div>
+    <div id="setSortMount" class="sets-when-cards"></div>
   </div>
-  <div id="setCards"></div>
+
+  <div id="setPicker" class="sets-when-picker">
+    <div class="empty-state">Loading sets…</div>
+  </div>
+  <div id="setCards" class="sets-when-cards"></div>
 </div>
 
 <!-- Want Lists tab -->

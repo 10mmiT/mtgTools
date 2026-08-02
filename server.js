@@ -88,11 +88,18 @@ app.use('/api', require('./routes/proxy'));
 app.use('/api', require('./routes/rss'));
 app.use('/api', require('./routes/decks'));
 app.use('/api', require('./routes/cards'));
+app.use('/api', require('./routes/sets'));
 app.use('/api', require('./routes/scryfall-proxy'));
 
 // ── Scryfall bulk-data cache (background download + daily refresh) ────────────
 const scrydb = require('./scryfall-db');
 scrydb.init();
+
+// ── Set index (background fill + daily refresh) ───────────────────────────────
+// What is in each set, for the Set Browser's owned counts. Shares scryfall.db
+// and the shared Scryfall queue, so it paces itself behind live requests.
+const setIndex = require('./set-index');
+setIndex.init();
 
 // ── Available@ calendar routes ─────────────────────────────────────────────────
 app.use('/available', require('./routes/available'));
@@ -104,6 +111,7 @@ let server;
 
 function shutdown(signal) {
   console.log(`\n[server] Received ${signal} — shutting down gracefully`);
+  setIndex.stop();   // let the sweep finish its current set and stand down
   if (server) {
     server.close(() => {
       console.log('[server] HTTP server closed');

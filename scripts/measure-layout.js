@@ -54,8 +54,33 @@ const CHROME_BUDGET = 80;   // px, at 1440 (§8.4 predicts ~78)
 
 /* Vertical chrome, per tab, at 1440. Only the tabs whose tickets state a
  * number are listed: a budget nobody wrote down is not a budget, and the
- * other tabs' card grids arrive with issues 14-19. */
-const FOLD_BUDGETS = { collections: 105 };   // §9.1 predicts ~96, criterion says ~100
+ * remaining tabs' card grids arrive with issues 15-19. */
+const FOLD_BUDGETS = {
+  collections: 105,   // §9.1 predicts ~96, criterion says ~100
+  scryfall:    70,    // §9.2 — one strip and nothing else above the results
+  sets:        70,    // §9.3 — the same strip, with the set as a chip on it
+};
+
+/* Two of those tabs show nothing until asked, and a fold measured against an
+ * empty page is not a measurement. So they are asked, the way a person would:
+ * a query typed and entered, a set tile clicked. A tab absent from here needs
+ * no preparation; one whose step finds nothing to click reports no fold,
+ * which fails its budget rather than passing it quietly. */
+const FOLD_PREP = {
+  scryfall: `(() => {
+    const input = document.getElementById('sfInput');
+    if (!input) return 'false';
+    input.value = 't:creature c:r';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    return 'true';
+  })()`,
+  sets: `(() => {
+    const tile = document.querySelector('#setPicker .set-tile');
+    if (!tile) return 'false';
+    tile.click();
+    return 'true';
+  })()`,
+};
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -144,14 +169,18 @@ const SHOW_GRID = `(() => {
   return String(!!btn);
 })()`;
 
+/* .sf-grid is beside .card-grid here because the app has two card grids: the
+ * Collections one and the one the Scryfall, Set Browser, Want List and Deck
+ * Builder views share. §7.7 describes them as one component and they are not
+ * one yet; until they are, the fold has to know both names. */
 const FOLD = `(() => {
   const pane = [...document.querySelectorAll('.tab-pane')].find(p => p.style.display !== 'none');
-  const card = pane && pane.querySelector('.grid-card, .card-grid > *');
+  const card = pane && pane.querySelector('.grid-card, .card-grid > *, .sf-grid > *, .sf-grid-xl > *');
   if (!card) return 'null';
   return String(Math.round(card.getBoundingClientRect().top));
 })()`;
 
-async function measureView(session, context, url, viewport) {
+async function measureView(session, context, url, viewport, tab) {
   await session.send('browsingContext.navigate', { context, url: 'about:blank', wait: 'complete' });
   await session.send('browsingContext.setViewport', {
     context, viewport: { width: viewport.width, height: viewport.height },
@@ -165,6 +194,14 @@ async function measureView(session, context, url, viewport) {
   });
   if (res.type === 'exception') throw new Error(res.exceptionDetails.text);
   const m = JSON.parse(res.result.value);
+
+  if (FOLD_PREP[tab]) {
+    await session.send('script.evaluate', {
+      expression: FOLD_PREP[tab], target: { context }, awaitPromise: false,
+    });
+    await session.waitForNetworkIdle({ timeoutMs: 45_000 });
+    await sleep(1200);   // the results render, then their images arrive
+  }
 
   const shown = await session.send('script.evaluate', {
     expression: SHOW_GRID, target: { context }, awaitPromise: false,
@@ -235,7 +272,7 @@ async function main() {
         // The card tab is empty until a card is opened, and an empty card
         // tab has no prose to measure.
         const hash = tab === 'card' ? `card=${encodeURIComponent(card)}` : tab;
-        const m = await measureView(session, context, `${base}/#${hash}`, viewport);
+        const m = await measureView(session, context, `${base}/#${hash}`, viewport, tab);
         if (m.error) { failures.push(`${tab} @ ${viewport.name}: ${m.error}`); continue; }
 
         const overrun = m.prose.filter(p => p.width > m.measure + 1);

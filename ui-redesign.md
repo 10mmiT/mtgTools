@@ -728,11 +728,33 @@ toolbar → results. Cards start roughly 400px down the page.
 Merge the search row and view toolbar into one `.toolbar`. Results `.content-wide`. The
 list/grid/XL/pile toggle uses §7.7 sizes. Remove the section box around results.
 
+> **Delivered** (issue 14) at a 60px fold, measured. Two notes. The tip line that shared the
+> second row — the query-syntax examples — is in the results empty state now rather than in
+> the `⋯` menu §7.3 would send it to: it is for the person who has not searched yet, and
+> that is precisely who is looking at the empty state. And the box "around results" was
+> already gone: what wrapped this tab was a `.section` around the two control rows, and
+> `.section` stopped being a box in issue 10. Deleting it is the merge.
+
 ### 9.3 Set Browser — *1 section, 2 toolbars*
 
 Same merge as Scryfall. The set picker becomes a `.content-wide` grid of set tiles (code +
 name + owned count), replacing the current list. Ownership dropdown and sort join the toolbar.
 The "N of M owned" figure sits in the toolbar as the result count.
+
+> **Delivered** (issue 14) at a 60px fold. **The picker is the tab's landing view**, not a
+> band above the results: 120 tiles cannot sit permanently above a card grid the way a 220px
+> scrolling box of pills could. Choosing a set replaces the tiles with its cards and puts the
+> set on the toolbar as a `.chip` whose ✕ goes back — so the strip has two shapes, and the
+> controls that act on cards (ownership, view, sort) exist only in the second.
+>
+> **The owned count needed a server to answer it.** Nothing in the app knew which cards are
+> in a set: a collection is names and quantities, and the bulk cache is `oracle_cards`, one
+> entry per name. `set-index.js` keeps the inverse — one row per (set, card name), filled by
+> a background sweep of Scryfall's search API and thereafter permanent, since a released set
+> does not change. Until the sweep reaches a set its tile says how big the set is instead,
+> and the toolbar count says how far the sweep has got. The two sides of the number are
+> computed independently — the tile from the index, the toolbar from the cards Scryfall
+> returns — and a check asserts they agree.
 
 ### 9.4 Want Lists — *1 section, 1 title, 1 toolbar*
 

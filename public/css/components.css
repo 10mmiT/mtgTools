@@ -167,6 +167,10 @@
   scrollbar-width: none;
 }
 .chip-row::-webkit-scrollbar { display: none; }
+/* A chip row that is *on* the strip rather than under it — the Set Browser's
+   selected set — is one of its controls, so it drops the row's own top
+   margin and lines up with the rest. */
+.toolbar .chip-row { margin-top: 0; }
 
 .chip {
   display: inline-flex;
@@ -183,6 +187,21 @@
 .chip-dot { width: 8px; height: 8px; border-radius: var(--radius-full); flex-shrink: 0; }
 .chip-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip-count { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* A chip standing for a chosen thing rather than a loaded one: the Set
+   Browser's selected set (§9.3). The code identifies it in three letters
+   where the name is the readable form, and the ✕ is what dismisses the
+   selection — the same shape as .drawer-close, at chip scale. */
+.chip-code {
+  font-size: var(--text-2xs); font-weight: 700; letter-spacing: .4px;
+  color: var(--primary-tx); flex-shrink: 0;
+}
+.chip-close {
+  background: transparent; border: none; color: var(--text-muted);
+  font-family: inherit; font-size: var(--text-xs); line-height: 1;
+  padding: var(--space-1); border-radius: var(--radius-full); flex-shrink: 0;
+}
+.chip-close:hover { background: var(--surface-3); color: var(--text); }
 
 /* Status is the count's colour, not a badge beside it: "1,240 / 5,600" in
    --warning already says loading, and a count that failed says so in

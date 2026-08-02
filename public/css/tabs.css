@@ -360,6 +360,12 @@
 /* ── Scryfall search results ──────────────────────────────────────────── */
 .sf-results { display: flex; flex-direction: column; gap: var(--space-2); }
 
+/* The query-syntax examples. They were a second row of the tab's toolbar,
+   which spent a permanent line on a hint; they are part of the empty state
+   now, in front of the person who has not searched yet and gone for
+   everyone else. */
+.sf-syntax { margin-top: var(--space-2); }
+
 .sf-card {
   display: flex;
   gap: var(--space-3);
@@ -444,29 +450,67 @@
 .sf-card-lg-name:hover { color: var(--primary); }
 .sf-card-lg-badges { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 
-/* ── Set browser ─────────────────────────────────────────────────────── */
-.set-list {
-  display: flex; flex-wrap: wrap; gap: var(--space-1);
-  margin-top: var(--space-3); max-height: 220px; overflow-y: auto;
-}
-.set-pill {
-  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-3); font-size: var(--text-xs); cursor: pointer; font-family: inherit;
-  color: var(--text); display: flex; align-items: center; gap: var(--space-2);
-  white-space: nowrap; transition: border-color .15s;
-}
-.set-pill:hover { border-color: var(--primary); }
-.set-pill.active { border-color: var(--primary); background: var(--primary-lt); color: var(--primary-tx); }
-.set-pill-code { font-weight: 700; font-size: var(--text-2xs); text-transform: uppercase; }
-.set-pill-year { font-size: var(--text-2xs); color: var(--text-muted); }
-.active .set-pill-year { color: var(--primary-tx); opacity: .7; }
+/* ── Set browser ─────────────────────────────────────────────────────────
+   The tab has two shapes and one strip (§9.3): a picker until a set is
+   chosen, that set's cards afterwards. Which controls exist is the mode's
+   business, not each control's, so it is one rule here rather than a
+   display toggle written from four places in sets.js. */
+[data-set-mode="picker"] .sets-when-cards,
+[data-set-mode="cards"]  .sets-when-picker { display: none; }
 
-.set-info-bar {
-  display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
-  font-size: var(--text-sm); color: var(--text-muted); padding: var(--space-3) 0 var(--space-1);
-  border-top: 1px solid var(--border); margin-top: var(--space-3);
+/* The pills the picker used to be were a 220px scrolling box of names, and
+   the box was the only thing saying where the list ended. A tile can hold
+   the one number the pill could not: how much of the set is already
+   owned. */
+.set-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
-.set-info-bar strong { color: var(--text); }
+.set-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: stretch;
+  text-align: left;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color .15s;
+}
+.set-tile:hover { border-color: var(--primary); }
+
+.set-tile-hdr { display: flex; align-items: baseline; gap: var(--space-2); }
+.set-tile-code {
+  font-size: var(--text-sm); font-weight: 700; letter-spacing: .4px;
+  color: var(--primary-tx); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.set-tile-year { font-size: var(--text-2xs); color: var(--text-subtle); flex-shrink: 0; }
+.set-tile-name {
+  font-size: var(--text-sm);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* The owned figure is the tile's point, so it carries the weight — and it
+   is the same idea as the collection chip's count (§9.1): the fraction is
+   the progress bar, so there is no bar. */
+.set-tile-owned { font-size: var(--text-xs); color: var(--text-muted); }
+.set-tile-owned strong { color: var(--success); font-weight: 700; }
+/* A set the server's index has not reached yet. It says what it does know
+   — how big the set is — in the muted weight, rather than showing a zero
+   that would read as "you own none of it". */
+.set-tile-pending { color: var(--text-subtle); font-style: italic; }
+
+/* Two tiles across a phone rather than one very wide one — the same step
+   .card-grid takes at this width. */
+@media (width < 640px) {
+  .set-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
 
 /* ── Want list ────────────────────────────────────────────────────────── */
 .want-add-bar {

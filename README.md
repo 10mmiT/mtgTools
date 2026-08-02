@@ -61,11 +61,11 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Ctrl/Cmd-clicking a card anywhere still opens it on Scryfall in a new tab
 
 ### Set Browser tab
-- Browse every non-digital MTG set (expansions, Commander, Masters, etc.)
+- Opens on a grid of **set tiles** — every non-digital MTG set (expansions, Commander, Masters, etc.), each showing its code, year, and **how many of its cards you already own**
 - Filter sets by name or code
-- Click a set to load all its cards with collection ownership and Cardmarket price shown inline
+- Click a tile to load that set's cards, with collection ownership and Cardmarket price shown inline; the set becomes a chip on the toolbar whose ✕ goes back to the tiles
 - Ownership dropdown to show all cards, only owned, or only unowned
-- Shows how many cards from the set are owned across all collections
+- The "N of M owned" figure is the toolbar's result count
 - **Sort** by set collector number (default), name, mana value, color, power, toughness, rarity, type, or price
 - **List**, **Grid**, and **XL** view toggle
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
@@ -234,6 +234,8 @@ mtgtools/
 ├── server.js          # Express entry point — wires up middleware, routes, and /healthz
 ├── available-db.js    # SQLite setup (all persistent app data)
 ├── scryfall-db.js     # Scryfall bulk-data cache — daily oracle_cards download into SQLite
+├── scryfall-queue.js  # One rate-limited Scryfall queue for the whole process (~9 req/s, Retry-After)
+├── set-index.js       # What is in each set — background-filled, for the Set Browser's owned counts
 ├── middleware/
 │   └── auth.js        # Session auth helpers (requireAuth, requireAdmin)
 ├── routes/
@@ -244,6 +246,7 @@ mtgtools/
 │   ├── scryfall-proxy.js # Live Scryfall proxy — shared rate-limit queue, Retry-After handling, 10-min GET cache
 │   ├── proxy.js       # Archidekt/Moxfield collection + deck proxy, EDHREC proxy
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
+│   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
 ├── test/
 │   ├── server.test.js # Integration tests (node:test + supertest)
@@ -292,7 +295,20 @@ mtgtools/
     ├── available.db   # All persistent app data: collections, players, decks,
     │                  # want lists, availability calendar, user accounts (SQLite)
     └── scryfall.db    # Local Scryfall bulk-data cache (~35k cards, refreshed daily)
+                       # plus the set index — what is in each set, for owned counts
 ```
+
+## The set index
+
+The Set Browser's tiles say how many of a set's cards you own before you open it, and nothing in the app could answer that. A collection is card names and quantities — Archidekt and Moxfield both report an edition per row and the importer drops it, and even if it did not, you would only learn about the printings someone happens to own. The bulk cache is Scryfall's `oracle_cards` file: one entry per card *name*, so it knows which set a name came from but not which names a set contains.
+
+So `set-index.js` keeps that the other way round: two tables in `scryfall.db`, one row per set and one per (set, card name). It is filled by a background sweep through Scryfall's search API — roughly 1,400 paged requests for the ~315 browsable sets, a few minutes at the shared queue's pace — and then it is effectively permanent, because a released set does not change. A set that does change, a spoiler-season set growing week by week, is re-indexed when Scryfall's `card_count` for it moves.
+
+The sweep is sequential on purpose: one request in the shared queue at a time, so a search someone is waiting for never queues behind more than the job already in flight. Until it reaches a set, that set's tile shows how big it is instead of how much of it you own, and the toolbar's count says how far the sweep has got.
+
+`GET /api/sets` answers the whole picker in one request — the set list, filtered and sorted, with each set's card count and owned count. "Owned" means what it has always meant on that tab: a card counts if any collection holds a card of that name, whichever printing. Both sides ask Scryfall the same `unique=cards` question, so a tile reading "176 / 286 owned" opens onto 286 cards with 176 ownership badges.
+
+Deleting `scryfall.db` costs nothing but the refill.
 
 ## Testing
 
@@ -339,7 +355,7 @@ It starts its own copy of the server in open mode (no login needed) and drives t
 
 Runs are deterministic: capturing twice with no changes gives byte-identical PNGs, so `sha256sum` is a fair way to confirm that a change left unrelated views alone.
 
-**With two exceptions.** The **Set Browser**'s list comes from the live Scryfall API rather than the local snapshot, so its ordering can shift between runs that are hours apart, producing large diffs on all ten `sets--*` views that have nothing to do with your change. **Available@** draws a calendar around today, so any pair of captures that straddles midnight differs on the highlighted day and the "best upcoming days" list. Capture the before and after close together, or discount those tabs. If a diff looks far too big for what you changed, check the maximum per-channel delta before assuming the worst: a restyle moves pixels a little across a wide area, whereas reordered content moves a few pixels a lot.
+**With two exceptions.** The **Set Browser**'s tiles are only as complete as the set index in the `scryfall.db` you point it at — a snapshot whose index is half filled shows "262 cards" where a filled one shows "41 / 262 owned", and a new set announced between two runs adds a tile at the front. Let the index finish before capturing anything you intend to compare. **Available@** draws a calendar around today, so any pair of captures that straddles midnight differs on the highlighted day and the "best upcoming days" list. Capture the before and after close together, or discount those tabs. If a diff looks far too big for what you changed, check the maximum per-channel delta before assuming the worst: a restyle moves pixels a little across a wide area, whereas reordered content moves a few pixels a lot.
 
 This is a review aid, not an automated assertion: nothing compares the images. Useful flags — `--tabs`, `--themes`, `--viewports` to narrow a run, `--url` to point at an already-running app, `--help` for the rest.
 
@@ -354,7 +370,7 @@ npm run measure:layout -- --data .scratch/ui-redesign/capture-data/available.db
 - **Horizontal chrome** — everything the page spends on itself rather than on content: the sidebar plus the shell's inline padding. Budget is 80px at a 1440px window; it currently measures 78.
 - **The reading measure** — no line of running text may be wider than `--measure`. What is measured is the rendered *line box*, via a `Range`, not the container: a short sentence centred in a full-width table cell is not a long line. The measure itself is read from a probe element rather than assumed, since `72ch` depends on the typeface in use.
 - **Grid width** — the widest grid or table on the page, reported rather than asserted. It is there to be read at the 2560px window, where a width cap that had crept back in would show up as a number that stopped growing.
-- **The fold** — how far down the window the first card sits: the vertical twin of chrome, what a tab spends on itself before showing the thing it is for. The tab's view toggle is clicked to grid first, since the criterion is about card *art* and a list view has none. Budgeted per tab in `FOLD_BUDGETS` — only Collections so far, at 105px, where it measures 102.
+- **The fold** — how far down the window the first card sits: the vertical twin of chrome, what a tab spends on itself before showing the thing it is for. The tab's view toggle is clicked to grid first, since the criterion is about card *art* and a list view has none. Budgeted per tab in `FOLD_BUDGETS`: Collections 105px (measures 102), Scryfall Search and Set Browser 70px (both measure 60). Those two show nothing until asked, so `FOLD_PREP` asks — a query typed and entered, a set tile clicked — which means measuring them needs Scryfall reachable, as the Set Browser always has.
 
 It exits non-zero if the chrome or fold budget is blown or any line of prose runs past the measure, so it can be wired into CI later; it is not part of `npm test`, which needs neither a browser nor a populated database.
 

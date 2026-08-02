@@ -451,6 +451,86 @@ describe('Account request → approve flow', () => {
   });
 });
 
+// ── Set Browser data ──────────────────────────────────────────────────────────
+// The endpoint behind the set tiles. Its whole job is a join the browser
+// cannot do — a collection knows card names, the index knows which set holds
+// which name — so the join is what is tested, with both sides seeded by hand.
+describe('GET /api/sets', () => {
+  const setIndex = require('../set-index');
+  const scrydb   = require('../scryfall-db').db;
+
+  before(() => {
+    // Stand the background sweep down first: it writes to the same two tables
+    // and would race the fixture. The fixture's set codes are not real ones,
+    // so a set-list refresh that is already in flight cannot touch them.
+    setIndex.stop();
+    scrydb.exec(`DELETE FROM sets WHERE code IN ('tst', 'unx');
+                 DELETE FROM set_cards WHERE code IN ('tst', 'unx');`);
+    scrydb.prepare(`INSERT INTO sets (code, name, released_at, set_type, card_count, indexed, indexed_of)
+                    VALUES (?, ?, ?, 'expansion', ?, ?, ?)`)
+      .run('tst', 'Test Set', '2020-01-01', 3, 3, 3);
+    scrydb.prepare(`INSERT INTO sets (code, name, released_at, set_type, card_count, indexed, indexed_of)
+                    VALUES (?, ?, ?, 'expansion', ?, NULL, NULL)`)
+      .run('unx', 'Unindexed Set', '2019-01-01', 40);
+    const addCard = scrydb.prepare('INSERT OR IGNORE INTO set_cards (code, name) VALUES (?, ?)');
+    for (const n of ['Sol Ring', 'Llanowar Elves', 'Black Lotus']) addCard.run('tst', n);
+  });
+
+  beforeEach(() => {
+    resetDb();
+    // One collection holding two of Test Set's three cards. "llanowar elves"
+    // is lower-case on purpose: a hand-rolled CSV writes names how it likes,
+    // and the index matches them case-insensitively.
+    dbModule.db.prepare(`
+      INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
+      VALUES ('csv:1', 'Tim', 'csv-archidekt', NULL, '#a855f7', ?, 2, 2, NULL)
+    `).run(JSON.stringify({
+      'Sol Ring':       { name: 'Sol Ring', qty: 1 },
+      'llanowar elves': { name: 'llanowar elves', qty: 4 },
+    }));
+  });
+
+  test('requires auth', async () => {
+    const res = await request.get('/api/sets');
+    assert.equal(res.status, 401);
+  });
+
+  test('counts a set\'s owned cards from the collections', async () => {
+    const cookie = await loginAs('admin', 'testpass');
+    const res    = await request.get('/api/sets').set('Cookie', cookie);
+    assert.equal(res.status, 200);
+    const set = res.body.sets.find(s => s.code === 'tst');
+    assert.ok(set, 'the seeded set is in the list');
+    assert.equal(set.indexed, true);
+    assert.equal(set.cards, 3);
+    assert.equal(set.owned, 2);   // Sol Ring + llanowar elves; not Black Lotus
+  });
+
+  test('a set the index has not reached reports no owned figure', async () => {
+    const cookie = await loginAs('admin', 'testpass');
+    const res    = await request.get('/api/sets').set('Cookie', cookie);
+    const set    = res.body.sets.find(s => s.code === 'unx');
+    assert.equal(set.indexed, false);
+    assert.equal(set.owned, null);   // null, not 0 — nothing known is not none owned
+    assert.equal(set.cards, 40);     // Scryfall's printing count, as a stand-in
+  });
+
+  test('owning nothing is zero rather than missing', async () => {
+    dbModule.db.exec("DELETE FROM collections");
+    const cookie = await loginAs('admin', 'testpass');
+    const res    = await request.get('/api/sets').set('Cookie', cookie);
+    assert.equal(res.body.sets.find(s => s.code === 'tst').owned, 0);
+  });
+
+  test('reports how far the index has got', async () => {
+    const cookie = await loginAs('admin', 'testpass');
+    const res    = await request.get('/api/sets').set('Cookie', cookie);
+    assert.equal(typeof res.body.index.sets, 'number');
+    assert.equal(typeof res.body.index.indexed, 'number');
+    assert.ok(res.body.index.sets >= res.body.index.indexed);
+  });
+});
+
 // ── Cleanup ────────────────────────────────────────────────────────────────────
 after((_, done) => {
   const srv = getServer();
