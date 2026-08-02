@@ -378,6 +378,42 @@ describe('POST /api/state - non-admin permission rules', () => {
     assert.equal(res3.status, 200);
   });
 
+  /* The player palette moved from a stored hex to a stored slot (--player-N).
+     Both forms name the same colour, so a client that has migrated is not
+     editing the players it re-sends — which is the whole risk of the move:
+     this guard compares every *other* player value-by-value, so if the two
+     spellings compared unequal, the first save after an upgrade would be
+     refused for everyone but an admin. */
+  test('a player re-sent as a slot instead of a legacy hex is not a change', async () => {
+    const { v4: uuidv4 } = require('uuid');
+    const db = dbModule.db;
+    const otherId = uuidv4();
+    const cur = JSON.parse(db.prepare("SELECT value_json FROM app_state WHERE key='state'").get().value_json);
+    // '#06b6d4' is index 1 of the palette the server used to assign from.
+    cur.players.push({ id: otherId, name: 'Other', color: '#06b6d4', decks: [], wantList: ['Sol Ring'] });
+    db.prepare("UPDATE app_state SET value_json = ? WHERE key='state'").run(JSON.stringify(cur));
+
+    const res = await request
+      .post('/api/state')
+      .set('Cookie', playerCookie)
+      .send({ players: [
+        { id: playerId, name: 'P1', colorIdx: 0, decks: [], wantList: ['Lightning Bolt'] },
+        { id: otherId, name: 'Other', colorIdx: 1, decks: [], wantList: ['Sol Ring'] },
+      ], version: 0 });
+    assert.equal(res.status, 200);
+
+    // The other player's colour is still theirs to choose, though: a
+    // different slot is a different value and is refused like any other.
+    const res2 = await request
+      .post('/api/state')
+      .set('Cookie', playerCookie)
+      .send({ players: [
+        { id: playerId, name: 'P1', colorIdx: 0, decks: [], wantList: ['Lightning Bolt'] },
+        { id: otherId, name: 'Other', colorIdx: 5, decks: [], wantList: ['Sol Ring'] },
+      ], version: res.body.version });
+    assert.equal(res2.status, 403);
+  });
+
   test('admin can post anything', async () => {
     const { v4: uuidv4 } = require('uuid');
     const res = await request

@@ -1,12 +1,45 @@
 // ── Constants ─────────────────────────────────────────────────────────────
 const STORAGE_KEY    = 'mtgtools_v3';
-// NOT exempt from the token rule, just not this ticket's to move: these are
-// defaults written into stored collection/player records, so replacing them
-// with var(--player-N) means migrating rows that already hold a hex value.
-// Ticket 15 owns moving the per-player palette across. Mirrored in
-// routes/state.js, which assigns the same defaults server-side.
+// NOT exempt from the token rule, just not this ticket's to move: a default
+// written into stored collection records, so replacing it means migrating
+// rows that already hold a hex value — and there is no --collection-N token
+// to move it onto. The player palette that stood beside it has moved; see
+// PLAYER_SLOTS below.
 const COLORS         = ['#a855f7','#3b82f6','#10b981','#f59e0b','#ec4899','#0ea5e9','#6366f1','#ef4444'];
-const PLAYER_COLORS  = ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d399','#fbbf24','#60a5fa'];
+
+// ── Player colour (§5.6, --player-0…7) ────────────────────────────────────
+// A player's colour is a *slot*, not a value: which of the eight it has is
+// the player's, what that slot looks like is the theme's. That is the whole
+// point of the move — the old hex palette was written for the dark theme and
+// nothing repainted it, so a light-theme chip was neon on white.
+//
+// The slot lives in the record as `colorIdx`. Records written before this
+// change hold a hex instead, and it says the same thing: the palette was
+// assigned by position, so a stored colour's index in it *is* the slot.
+// Hence one derivation, used everywhere, which reads either form.
+const PLAYER_SLOTS = 8;
+// Read-only. The colours no longer paint anything; the list is how a record
+// written before the move says which slot it has.
+const LEGACY_PLAYER_COLORS =
+  ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d399','#fbbf24','#60a5fa'];
+
+function playerSlot(player) {
+  if (Number.isInteger(player?.colorIdx))
+    return ((player.colorIdx % PLAYER_SLOTS) + PLAYER_SLOTS) % PLAYER_SLOTS;
+  const legacy = LEGACY_PLAYER_COLORS.indexOf(player?.color);
+  if (legacy >= 0) return legacy;
+  // Neither form: a record with no colour at all, or one holding a hex from
+  // some other palette. Anything but a constant — a shared default would put
+  // every such player on slot 0 and make them indistinguishable.
+  let h = 0;
+  for (const ch of String(player?.id || '')) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(h) % PLAYER_SLOTS;
+}
+
+// The value to put in CSS. Interpolated into style="" attributes across four
+// tabs, so it returns the var() reference rather than a resolved colour —
+// resolving it here would freeze the theme in place at render time.
+function playerColor(player) { return `var(--player-${playerSlot(player)})`; }
 
 // Breakpoints — the JS half of the three in css/tokens.css (--bp-sm/md/lg).
 // Compare with < and >= so a boundary width lands on the same side here as it
@@ -30,7 +63,9 @@ let pendingCsvName = null;
 function stateToJSON() {
   return {
     players: state.players.map(p => ({
-      id: p.id, name: p.name, color: p.color,
+      // colorIdx and not color: the hex is dropped on the first save after
+      // the palette move, having already been read for the slot it encoded.
+      id: p.id, name: p.name, colorIdx: playerSlot(p),
       wantList: p.wantList || [],
       decks: p.decks.map(d => ({
         id: d.id, source: d.source, deckId: d.deckId || null, url: d.url || '',
@@ -54,7 +89,7 @@ function hydrateState(raw) {
   }));
 
   state.players = (data.players || []).map(p => ({
-    id: p.id, name: p.name, color: p.color || PLAYER_COLORS[0],
+    id: p.id, name: p.name, colorIdx: playerSlot(p),
     wantList: p.wantList || [],
     decks: (p.decks || []).map((d, i) => ({
       id: d.id || (d.deckId ? `arch_${d.deckId}` : `legacy_${p.id}_${i}`),

@@ -59,13 +59,16 @@ const FOLD_BUDGETS = {
   collections: 105,   // §9.1 predicts ~96, criterion says ~100
   scryfall:    70,    // §9.2 — one strip and nothing else above the results
   sets:        70,    // §9.3 — the same strip, with the set as a chip on it
+  wants:       105,   // §9.4 — the strip plus the player filter row, as Collections
+  pick:        150,   // §9.7 — the strip, the players row, and the results' own bar
 };
 
-/* Two of those tabs show nothing until asked, and a fold measured against an
+/* Three of those tabs show nothing until asked, and a fold measured against an
  * empty page is not a measurement. So they are asked, the way a person would:
- * a query typed and entered, a set tile clicked. A tab absent from here needs
- * no preparation; one whose step finds nothing to click reports no fold,
- * which fails its budget rather than passing it quietly. */
+ * a query typed and entered, a set tile clicked, an evening's decks picked. A
+ * tab absent from here needs no preparation; one whose step finds nothing to
+ * click reports no fold, which fails its budget rather than passing it
+ * quietly. */
 const FOLD_PREP = {
   scryfall: `(() => {
     const input = document.getElementById('sfInput');
@@ -78,6 +81,26 @@ const FOLD_PREP = {
     const tile = document.querySelector('#setPicker .set-tile');
     if (!tile) return 'false';
     tile.click();
+    return 'true';
+  })()`,
+  /* Pick Night's pool is opt-in and starts empty, so an evening has to be set
+   * up before there is anything to measure: four decks into the pool, two
+   * players chosen, roll. Each click re-renders the row it was in, which is
+   * why every one of them re-queries rather than walking a NodeList captured
+   * before the first click — those nodes are detached by the time the second
+   * click lands. */
+  pick: `(() => {
+    const click = (sel, i) => {
+      const el = document.querySelectorAll(sel)[i];
+      if (!el) return false;
+      el.click();
+      return true;
+    };
+    for (let i = 0; i < 4; i++) if (!click('#pickPoolDeckList .pick-pool-chip', i)) return 'false';
+    for (let i = 0; i < 2; i++) if (!click('#pickPlayersList .chip--select', i)) return 'false';
+    const roll = document.getElementById('pickRollBtn');
+    if (!roll || roll.disabled) return 'false';
+    roll.click();
     return 'true';
   })()`,
 };
@@ -172,10 +195,15 @@ const SHOW_GRID = `(() => {
 /* .sf-grid is beside .card-grid here because the app has two card grids: the
  * Collections one and the one the Scryfall, Set Browser, Want List and Deck
  * Builder views share. §7.7 describes them as one component and they are not
- * one yet; until they are, the fold has to know both names. */
+ * one yet; until they are, the fold has to know both names.
+ *
+ * .pick-results-grid is a third thing and not a card grid at all — its tiles
+ * are commander art rather than card images — but the question the fold asks
+ * is "how far down is the thing this tab is for", and on Pick Night that is
+ * the picked deck. */
 const FOLD = `(() => {
   const pane = [...document.querySelectorAll('.tab-pane')].find(p => p.style.display !== 'none');
-  const card = pane && pane.querySelector('.grid-card, .card-grid > *, .sf-grid > *, .sf-grid-xl > *');
+  const card = pane && pane.querySelector('.grid-card, .card-grid > *, .sf-grid > *, .sf-grid-xl > *, .pick-results-grid > *');
   if (!card) return 'null';
   return String(Math.round(card.getBoundingClientRect().top));
 })()`;

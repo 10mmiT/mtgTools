@@ -15,20 +15,12 @@ function applyCollapse(id) {
   if (chv)  chv.classList.toggle('closed', closed);
 }
 
-function initCollapses() {
-  // Deck Pool starts open: the pool is opt-in (no decks selected by default),
-  // so it needs to be visible for the user to pick decks into it. The old code
-  // force-stored pick-pool as collapsed for everyone — undo that once.
-  if (!collapseState['_pickPoolMigrated']) {
-    collapseState['pick-pool'] = false;
-    collapseState['_pickPoolMigrated'] = true;
-    localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
-  }
-  // 'add-col' and 'collections' were the Collections tab's two collapsible
-  // sections; both are gone — the form is a drawer and the list is a chip
-  // row (§9.1), neither of which collapses.
-  ['pick-pool'].forEach(applyCollapse);
-}
+// initCollapses() was here. Every section it restored at boot has since
+// stopped being a collapsible: Collections' add form is a drawer and its list
+// a chip row (§9.1), and Pick Night's deck pool is a drawer (§9.7). The one
+// collapsible left in the app — Admin's Create User — is opened and closed
+// within a visit and has never been restored across one. toggleSection() and
+// applyCollapse() above are what it still uses.
 
 function togglePlayerSection(playerId, event) {
   // Don't collapse when clicking the action buttons
@@ -538,7 +530,6 @@ initSideNav();
 authInit().then(() => {
   loadFromStorage().then(() => {
     _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load
-    initCollapses();
     renderPlayers();
     renderCollections();
     mountViewToggle('colViewMount', ['list', 'grid'], () => viewMode, setViewMode);

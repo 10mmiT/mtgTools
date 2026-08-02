@@ -182,9 +182,16 @@ function pairs(palette) {
   // Player chips: the name is drawn in the player's colour on a 20% wash of
   // the same colour (.p0-.p7 in tabs.css), and the avatar dot draws initials
   // in --primary-fg over a full-strength fill.
+  /* The four things a player's slot colour does, as issue 15 left them. The
+   * first two are the colour used as ink: the Want List's tick and its column
+   * rule, and the pool's player headings. The third is the one that changed
+   * shape — a selected chip is --text over the slot colour at 18%, not the
+   * slot colour used as its own label, which is what made the old light-theme
+   * chips unreadable. The last is unchanged. */
   for (const player of PLAYERS) {
-    add('ui', player, { token: player, over: '--surface-1', pct: 20 }, 'player chip label');
-    add('ui', player, { token: player, over: '--bg', pct: 20 }, 'player chip on the page');
+    add('ui', player, '--surface-1', 'want-list tick, player column rule');
+    add('ui', player, '--bg', 'player heading on the page');
+    add('ui', '--text', { token: player, over: '--surface-2', pct: 18 }, 'label on a selected player chip');
     add('ui', '--primary-fg', player, 'initials on a player dot');
   }
 

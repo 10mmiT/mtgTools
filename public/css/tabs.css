@@ -512,10 +512,16 @@
   .set-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }
 
-/* ── Want list ────────────────────────────────────────────────────────── */
-.want-add-bar {
-  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
-}
+/* ── Want list ──────────────────────────────────────────────────────────
+   The add bar is gone: its select, its card field and its + Add button are
+   three controls on the tab's one strip now (§9.4), so what is left here is
+   what the results are made of.
+
+   The card field is the strip's stretchy control, the way the search input
+   is on the other tabs — .toolbar's own rule names .search-input, and this
+   input is wrapped in the autocomplete positioning box rather than being
+   one. */
+.toolbar .want-add-field { flex: 1 1 180px; min-width: 0; }
 
 .want-check {
   display: inline-flex; align-items: center; gap: var(--space-1);
@@ -578,18 +584,11 @@
   /* Deck View URL wrapper: remove min-width so it stacks cleanly */
   .dv-url-field { min-width: 0 !important; width: 100%; }
 
-  /* Wants — row 1: player select; row 2: card input + Add; row 3: Import CSV + view toggle.
-     (A single auto/1fr/auto row squeezed the card input to ~25px at 390px wide.) */
-  .want-add-bar {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--space-2);
-  }
-  .want-add-bar > select          { grid-column: 1 / -1; grid-row: 1; width: 100%; min-width: 0; }
-  .want-add-bar > .autocomplete-wrap { grid-column: 1; grid-row: 2; min-width: 0; }
-  .want-add-bar > .btn-primary    { grid-column: 2; grid-row: 2; }
-  .want-add-bar > .btn-secondary  { grid-column: 1; grid-row: 3; justify-self: start; }
-  .want-add-bar > .view-toggle    { grid-column: 2; grid-row: 3; justify-self: end; margin-left: 0; }
+  /* Wants — the card field takes the whole of its row on a phone rather than
+     sharing it with the player select, which needs the width to show a name.
+     The old grid that placed all five controls by hand went with .want-add-bar;
+     the strip wraps them itself now. */
+  .toolbar .want-add-field { flex: 1 1 100%; }
 
   .avail-month-cal { display: none; }
   .avail-week-cal  { display: block; }
@@ -980,63 +979,12 @@
   line-height: 1.5;
 }
 
-/* ── Pick Night ─────────────────────────────────────────────────────────── */
-.pick-players-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-
-.pick-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-full);
-  border: 2px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: var(--text-base);
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color .15s, background .15s, color .15s;
-}
-.pick-chip:hover { border-color: var(--pc, var(--primary)); color: var(--text); }
-.pick-chip-on {
-  border-color: var(--pc, var(--primary));
-  background: color-mix(in srgb, var(--pc, var(--primary)) 15%, var(--surface-2));
-  color: var(--text);
-}
-
-.pick-chip-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: var(--radius-full);
-  flex-shrink: 0;
-}
-.pick-chip-check { flex-shrink: 0; }
-
-.pick-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.pick-pool-info {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  flex: 1;
-  min-width: 120px;
-}
-
-.pick-empty {
-  font-size: var(--text-base);
-  color: var(--text-muted);
-  margin: 0 0 var(--space-2);
-}
+/* ── Pick Night ───────────────────────────────────────────────────────────
+   Who is playing was .pick-players-list of .pick-chips; it is a .chip-row of
+   .chip--selects now (§9.7). That component was this one, generalised — the
+   Want List's player filter had been borrowing .pick-chip across tabs — so
+   what was here is in components.css beside the chip it belongs to, and the
+   status line and the button row went onto the strip. */
 
 /* Results */
 .pick-results-bar {
@@ -1051,9 +999,19 @@
   color: var(--text);
 }
 
+/* Sized to be looked at rather than scanned (§9.7): seeing the deck you have
+   been dealt *is* this tab's output. 180px → 260, and auto-fit rather than
+   auto-fill, which is the half of it that matters — there are never more than
+   six results, so auto-fill's empty tracks would hold four picks at the
+   minimum width across a 1440px window and leave a third of the row blank.
+   With auto-fit the same four fill it.
+
+   §9.7 says .card-grid--xl. That token is 220px for a *card*, which is
+   portrait; these are landscape art tiles, so the same intent is a wider
+   number here. */
 .pick-results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: var(--space-4);
 }
 
@@ -1077,6 +1035,7 @@
   width: 10px;
   height: 10px;
   border-radius: var(--radius-full);
+  background: var(--pc, var(--primary));
   flex-shrink: 0;
 }
 .pick-result-name {
@@ -1084,6 +1043,13 @@
   font-weight: 700;
   color: var(--text);
 }
+
+/* The one display size the redesign allows (§9.7): the deck name on a result
+   tile, and nowhere else. A tile in this grid is the answer to the only
+   question the tab asks, so it says it at --text-xl where the same tile on
+   the Players & Decks tab says it at --text-md. */
+.pick-result-card .deck-tile { min-height: 200px; }
+.pick-result-card .deck-tile-name { font-size: var(--text-xl); line-height: var(--leading-tight); }
 
 /* EXEMPT-BEGIN from the colour rule. Both of these sit inside a
    .deck-tile-overlay, over commander artwork, so they take the same

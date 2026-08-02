@@ -6,9 +6,23 @@ const { db }  = require('../available-db');
 const { getSession, requireAuth, requirePlayerAccess } = require('../middleware/auth');
 
 const DATA_FILE    = process.env.DATA_FILE || require('path').join(__dirname, '..', 'data', 'state.json');
-// Kept in step with public/js/state.js. Deferred to ticket 15 along with the
-// rest of the per-player palette — see the note there.
-const PLAYER_COLORS = ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d399','#fbbf24','#60a5fa'];
+// A player's colour is one of eight theme-defined slots (--player-0…7); see
+// the note in public/js/state.js, whose playerSlot() this mirrors. Records
+// written before the move hold a hex from the list below instead of a slot,
+// and its index is the slot, so both forms read the same.
+const PLAYER_SLOTS = 8;
+const LEGACY_PLAYER_COLORS =
+  ['#f97316','#06b6d4','#84cc16','#e879f9','#fb7185','#34d399','#fbbf24','#60a5fa'];
+
+function playerSlot(player) {
+  if (Number.isInteger(player?.colorIdx))
+    return ((player.colorIdx % PLAYER_SLOTS) + PLAYER_SLOTS) % PLAYER_SLOTS;
+  const legacy = LEGACY_PLAYER_COLORS.indexOf(player?.color);
+  if (legacy >= 0) return legacy;
+  let h = 0;
+  for (const ch of String(player?.id || '')) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(h) % PLAYER_SLOTS;
+}
 
 const router = express.Router();
 
@@ -63,9 +77,13 @@ function normalizeDeck(d = {}) {
     cardCount: d.cardCount || null, bracket: d.bracket ?? null, deckUrl: d.deckUrl || '',
   };
 }
+// The colour is compared as the slot, not as whichever form the record spells
+// it in. Otherwise the first save after the palette move — which sends slots
+// where the stored record holds hexes — would read as a non-admin editing
+// every other player, and be refused.
 function normalizePlayer(p = {}) {
   return {
-    id: p.id, name: p.name || '', color: p.color || '',
+    id: p.id, name: p.name || '', colorIdx: playerSlot(p),
     wantList: p.wantList || [], decks: (p.decks || []).map(normalizeDeck),
   };
 }
@@ -75,7 +93,7 @@ function createLinkedPlayer(username) {
   const players  = appState.players || [];
   const playerId = uuidv4();
   const name     = username.charAt(0).toUpperCase() + username.slice(1);
-  players.push({ id: playerId, name, color: PLAYER_COLORS[players.length % PLAYER_COLORS.length], wantList: [], decks: [] });
+  players.push({ id: playerId, name, colorIdx: players.length % PLAYER_SLOTS, wantList: [], decks: [] });
   appState.players = players;
   writeState(appState);
   return playerId;

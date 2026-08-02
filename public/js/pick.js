@@ -23,9 +23,10 @@ function renderPickSetup() {
   const players = state.players;
 
   if (!players.length) {
-    listEl.innerHTML = '<p class="pick-empty">No players yet — add some in the Players &amp; Decks tab first.</p>';
-    if (infoEl) infoEl.textContent = '';
+    listEl.innerHTML = '';
+    if (infoEl) infoEl.textContent = 'No players yet';
     if (btn)    btn.disabled = true;
+    renderPickEmpty(0, false);
     return;
   }
 
@@ -36,12 +37,12 @@ function renderPickSetup() {
 
   listEl.innerHTML = players.map(p => {
     const on = pickSelected.has(p.id);
-    return `<button class="pick-chip${on ? ' pick-chip-on' : ''}"
-        style="--pc:${p.color}"
+    return `<button class="chip chip--select" aria-pressed="${on}"
+        style="--pc:${playerColor(p)}"
         onclick="pickTogglePlayer('${p.id}')">
-      <span class="pick-chip-dot" style="background:${p.color}"></span>
-      ${esc(p.name)}
-      ${on ? `<svg class="pick-chip-check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
+      <span class="chip-dot"></span>
+      <span class="chip-label">${esc(p.name)}</span>
+      ${on ? `<svg class="chip-check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
     </button>`;
   }).join('');
 
@@ -52,7 +53,7 @@ function renderPickSetup() {
 
   if (n < 2)              status = 'Select 2–6 players';
   else if (n > 6)         status = 'Maximum 6 players';
-  else if (!allDecks.length)    status = 'No decks in pool — select decks in the Deck Pool above';
+  else if (!allDecks.length)    status = 'No decks in pool — choose some under “Deck Pool”';
   else if (allDecks.length < n) status = `Not enough decks — need ${n}, only ${allDecks.length} in pool`;
   else { status = `${allDecks.length} deck${allDecks.length !== 1 ? 's' : ''} in pool · ${n} player${n !== 1 ? 's' : ''} selected`; canRoll = true; }
 
@@ -62,6 +63,26 @@ function renderPickSetup() {
   // Sync exclude-own toggle (checkbox item inside the options "⋯" menu)
   const exCheck = document.getElementById('pickExcludeOwnCheck');
   if (exCheck) exCheck.textContent = pickExcludeOwn ? '☑' : '☐';
+
+  renderPickEmpty(allDecks.length, canRoll);
+}
+
+/* Before the first roll the tab is a strip, a row of chips and — with the pool
+ * now behind a button — nothing else. So the results area says what it is
+ * waiting for, in the terms of whichever step is outstanding: an empty pool is
+ * a different problem from an unchosen table, and the strip's status line is a
+ * count rather than an instruction. */
+function renderPickEmpty(poolSize, ready) {
+  const el = document.getElementById('pickResults');
+  if (!el || pickResults) return;
+  const line = !state.players.length
+    ? 'Add players and their decks on the Players &amp; Decks tab, and tonight’s draw can happen here.'
+    : !poolSize
+      ? 'Open <strong>Deck Pool</strong> and choose which decks are in tonight’s draw.'
+      : ready
+        ? 'Ready — <strong>Pick Decks</strong> deals one to each of them.'
+        : 'Choose who’s playing tonight.';
+  el.innerHTML = `<div class="empty-state">${line}</div>`;
 }
 
 function pickTogglePlayer(playerId) {
@@ -95,9 +116,11 @@ function renderPickPool() {
   const el = document.getElementById('pickPoolDeckList');
   if (!el) return;
   const players = state.players;
+  const btn     = document.getElementById('pickPoolBtn');
 
   if (!players.length) {
-    el.innerHTML = '<p class="pick-empty">No decks yet — add some in the Players &amp; Decks tab first.</p>';
+    el.innerHTML = '<div class="empty-state">No decks yet — add some in the Players &amp; Decks tab first.</div>';
+    if (btn) btn.textContent = 'Deck Pool';
     return;
   }
 
@@ -105,14 +128,15 @@ function renderPickPool() {
   for (const p of players) for (const d of (p.decks || [])) allDecks.push({ p, d });
   const inPool = allDecks.filter(({ d }) => pickIncludedDeckIds.has(d.id)).length;
 
-  const titleEl = document.getElementById('pickPoolTitle');
-  if (titleEl) titleEl.textContent = `Deck Pool — ${inPool} of ${allDecks.length} decks selected`;
+  // The count is on the button that opens the drawer, not inside it: it is
+  // the one thing about the pool worth knowing without opening it.
+  if (btn) btn.textContent = `Deck Pool · ${inPool} / ${allDecks.length}`;
 
   el.innerHTML = players.map(p => {
     const decks = p.decks || [];
     if (!decks.length) return '';
     return `<div class="pick-pool-group">
-      <div class="pick-pool-player" style="color:${p.color};cursor:pointer" title="Toggle all of ${esc(p.name)}'s decks"
+      <div class="pick-pool-player" style="color:${playerColor(p)};cursor:pointer" title="Toggle all of ${esc(p.name)}'s decks"
            onclick="pickTogglePlayerDecks('${p.id}')">${esc(p.name)}</div>
       <div class="pick-pool-chips">${decks.map(d => {
         const off = !pickIncludedDeckIds.has(d.id);
@@ -184,8 +208,11 @@ function pickRoll() {
 
   pickResults = results;
   renderPickResults();
-  setTimeout(() => document.getElementById('pickResults')
-    ?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  // No scrollIntoView here any more. It existed because the results were
+  // below two stacked boxes and started off-screen; they are the first thing
+  // under the strip now, so scrolling to them would only move a page that is
+  // already showing the answer — and "Re-roll all" calls this from inside
+  // the results themselves.
 }
 
 function pickRerollOne(idx) {
@@ -219,7 +246,7 @@ function renderPickResults() {
     const cmdLine = d.commander
       ? `<div class="pick-deck-commander">${esc(d.commander)}</div>` : '';
     const ownerTag = owner.id !== player.id
-      ? `<span class="pick-owner-tag" style="--oc:${owner.color}">${esc(owner.name)}'s deck</span>`
+      ? `<span class="pick-owner-tag" style="--oc:${playerColor(owner)}">${esc(owner.name)}'s deck</span>`
       : '';
     const viewLink = d.deckUrl
       ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener">View ↗</a>`
@@ -228,8 +255,8 @@ function renderPickResults() {
       ? `<span class="badge-bracket">Bracket ${d.bracket}</span>` : '';
 
     return `<div class="pick-result-card">
-      <div class="pick-result-player" style="--pc:${player.color}">
-        <span class="pick-result-dot" style="background:${player.color}"></span>
+      <div class="pick-result-player" style="--pc:${playerColor(player)}">
+        <span class="pick-result-dot"></span>
         <span class="pick-result-name">${esc(player.name)}</span>
       </div>
       <div class="deck-tile" style="${bg};border-radius:0 0 var(--radius-md) var(--radius-md);cursor:default">

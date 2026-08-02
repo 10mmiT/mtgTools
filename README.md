@@ -30,7 +30,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Right-side **Deck Comparison** panel: load a deck and see which cards you own, with a toggle to filter the table to deck cards only
 
 ### Players & Decks tab
-- Add players via the **+ Add Player** button (admin only); each gets a unique colour
+- Add players via the **+ Add Player** button (admin only); each gets one of eight identity colours, repainted per theme so a player's chip is legible on all five (the record stores which of the eight, not a colour value)
 - Add decks to players — enter a deck name and commander name; the commander's card art (fetched from Scryfall) becomes the tile background
 - Optionally link an Archidekt URL to load the full card list for comparison
 - Any URL can be saved as a "View ↗" link on the tile
@@ -75,7 +75,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Admins can create a new player straight from the player dropdown ("+ New player…")
 - Import (CSV: qty,name or name-only) and Export (CSV / printable PDF checklist) share one "⋯" menu in the toolbar
 - **List view**: combined table across all players — who wants each card, Cardmarket price, and whether anyone already owns it
-- **Player filter**: chip row (All / per-player) above the results to narrow down to a single player's list; defaults to showing everyone
+- **Player filter**: chip row under the toolbar (All / per-player, each with its card count) to narrow down to a single player's list; defaults to showing everyone, and the toolbar's count says what the filter has done ("12 of 85 cards")
 - **Sort** by most-wanted (default), player (groups cards by which player(s) want them), name, mana value, color, power, toughness, rarity, type, or price
 - **Columns menu** to show/hide optional columns: Mana Value, Color, Type, Rarity, Power/Toughness, Price, In Collections
 - **Grid / XL views**: card images with Cardmarket price, coloured player-initial dots (tap your own dot to remove), and ownership badges
@@ -109,11 +109,11 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Distributes basic lands proportionally by pip count using the largest-remainder method so the numbers always add up exactly
 
 ### Pick Night tab
-- Select 2–6 players from the Players & Decks list for tonight's game
-- **Deck Pool** panel: the pool is opt-in — no decks are selected by default. Click individual decks to add them to the draw, or click a player's name to toggle all of their decks at once
+- Select 2–6 players for tonight's game from the chip row under the toolbar
+- **Deck Pool** drawer, opened from the toolbar button, which carries the count (`Deck Pool · 12 / 63`): the pool is opt-in — no decks are selected by default. Click individual decks to add them to the draw, or click a player's name to toggle all of their decks at once
 - **Exclude own decks** (in the options "⋯" menu) so players won't be assigned one of their own decks
 - Click **Pick Decks** to randomly assign one unique deck per player; up to 200 shuffle attempts ensure the constraints are always satisfied
-- Results shown as player-labelled commander-art tiles
+- Results shown as large player-labelled commander-art tiles — the deck name is the one place in the app that uses the display type size
 - **↺ Re-roll** per player (locks everyone else's pick) or **↺ Re-roll all** to start fresh
 
 ### RSS Feed panel
@@ -131,7 +131,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Scryfall traffic is centralised and cached**: the server keeps a daily copy of Scryfall's bulk card data in SQLite and serves card images/metadata/autocomplete locally; the few remaining live calls (full-text search, card detail, set browsing) go through a server-side proxy with a shared rate-limit queue and a 10-minute response cache — the browser never talks to api.scryfall.com directly
 - Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥900px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
-- Collapsible panels throughout (Add Collection, Collections, each player section, Deck Pool, Admin's Create User) — rarely-used forms start collapsed and remember your toggle
+- Rarely-used panels live in slide-over **drawers** opened from the tab's toolbar (Add Collection, Deck Comparison below 1280px, Deck Pool); each player section and Admin's Create User still collapse in place
 - Per-user login system with player-linked accounts and an admin role
 - **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content, with account actions (user badge, theme picker, RSS, change password, sign out) anchored to the bottom; click Collapse to shrink to icon-only mode — state persists across reloads. There's no top header on desktop — it's mobile-only
 - **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown plus a slim header (logo + RSS); all forms stack to full-width; inputs use a 16px font to avoid iOS zoom-on-focus; view toggles are right-aligned across all tabs
@@ -371,7 +371,7 @@ npm run measure:layout -- --data .scratch/ui-redesign/capture-data/available.db
 - **Horizontal chrome** — everything the page spends on itself rather than on content: the sidebar plus the shell's inline padding. Budget is 80px at a 1440px window; it currently measures 78.
 - **The reading measure** — no line of running text may be wider than `--measure`. What is measured is the rendered *line box*, via a `Range`, not the container: a short sentence centred in a full-width table cell is not a long line. The measure itself is read from a probe element rather than assumed, since `72ch` depends on the typeface in use.
 - **Grid width** — the widest grid or table on the page, reported rather than asserted. It is there to be read at the 2560px window, where a width cap that had crept back in would show up as a number that stopped growing.
-- **The fold** — how far down the window the first card sits: the vertical twin of chrome, what a tab spends on itself before showing the thing it is for. The tab's view toggle is clicked to grid first, since the criterion is about card *art* and a list view has none. Budgeted per tab in `FOLD_BUDGETS`: Collections 105px (measures 102), Scryfall Search and Set Browser 70px (both measure 60). Those two show nothing until asked, so `FOLD_PREP` asks — a query typed and entered, a set tile clicked — which means measuring them needs Scryfall reachable, as the Set Browser always has.
+- **The fold** — how far down the window the first card sits: the vertical twin of chrome, what a tab spends on itself before showing the thing it is for. The tab's view toggle is clicked to grid first, since the criterion is about card *art* and a list view has none. Budgeted per tab in `FOLD_BUDGETS`: Collections 105px (measures 102), Want Lists 105px (measures 94), Scryfall Search and Set Browser 70px (both measure 60), Pick Night 150px (measures 133 — a strip, the players row, and the results' own bar). Three of those show nothing until asked, so `FOLD_PREP` asks — a query typed and entered, a set tile clicked, an evening's decks picked — which means measuring the first two needs Scryfall reachable, as the Set Browser always has. Pick Night's "card" is a commander-art tile rather than a card image; the question the fold asks is how far down the thing the tab is *for* sits, and there that is the picked deck.
 
 It exits non-zero if the chrome or fold budget is blown or any line of prose runs past the measure, so it can be wired into CI later; it is not part of `npm test`, which needs neither a browser nor a populated database.
 

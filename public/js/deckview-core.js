@@ -1,7 +1,7 @@
 // ── Deck Builder ──────────────────────────────────────────────────────────────
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let dbDeck      = null;      // {id, playerId, playerName, playerColor, name, commander, commanderImg}
+let dbDeck      = null;      // {id, playerId, playerName, name, commander, commanderImg}
 let dbCards     = [];        // [{card_name, qty, category, position}]
 let dbCats      = [];        // [{name, position}]
 let dbCardData  = new Map(); // card name → Scryfall card object
@@ -165,7 +165,7 @@ async function dbSelectDeck(value) {
   }
   const stableId = deck.id;  // always use this, not the raw split value
 
-  dbDeck = { id: stableId, playerId, playerName: player.name, playerColor: player.color,
+  dbDeck = { id: stableId, playerId, playerName: player.name,
              name: deck.name, commander: deck.commander || '', commanderImg: deck.commanderImg || null };
   dbEdhrecData = null; _dbEdhrecLoaded = false;
 

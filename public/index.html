@@ -382,39 +382,41 @@
 
 <!-- Want Lists tab -->
 <div id="tab-wants" class="tab-pane" style="display:none">
-  <div class="section section--boxed">
 
-    <!-- Add card to want list -->
-    <div class="section-title" style="margin-bottom:var(--space-3)">Add to Want List</div>
-    <div class="want-add-bar">
-      <select id="wantPlayerSel" style="flex-shrink:0" onchange="wantPlayerSelChange(this)">
-        <option value="">Select player…</option>
-      </select>
-      <div class="autocomplete-wrap">
-        <input id="wantCardInput" type="text" style="width:100%" placeholder="Card name…"
-               oninput="wantAcInput()" onkeydown="if(event.key==='Enter')addWant()">
-        <div id="wantAcDrop" class="ac-dropdown"></div>
-      </div>
-      <button class="btn-primary" style="padding:var(--space-2) var(--space-4);flex-shrink:0" onclick="addWant()">+ Add</button>
-      <div id="wantViewMount" style="margin-left:auto;flex-shrink:0"></div>
+  <!-- One control strip (§7.3), where the add bar and the view toolbar were
+       two rows inside a box. Adding a card is the tab's whole purpose and is
+       done often, so it stays on the strip rather than going to a drawer the
+       way the Collections add form did. -->
+  <div class="toolbar">
+    <select id="wantPlayerSel" onchange="wantPlayerSelChange(this)">
+      <option value="">Select player…</option>
+    </select>
+    <div class="autocomplete-wrap want-add-field">
+      <input id="wantCardInput" type="text" style="width:100%" placeholder="Card name…"
+             oninput="wantAcInput()" onkeydown="if(event.key==='Enter')addWant()">
+      <div id="wantAcDrop" class="ac-dropdown"></div>
     </div>
-    <div class="view-toolbar">
-      <div id="wantSortMount"></div>
-      <div id="wantColumnsMount" style="margin-left:auto"></div>
-      <div class="col-menu-wrap">
-        <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Import / export want list">⋯</button>
-        <div class="col-menu" id="wantExportMenu">
-          <div class="db-more-section-label">Import</div>
-          <button class="col-menu-item" style="width:100%;background:none;border:none;font:inherit;color:var(--text);text-align:left;cursor:pointer" onclick="document.getElementById('wantExportMenu').classList.remove('open');document.getElementById('wantCsvInput').click()">⬆ Import CSV</button>
-          <div class="db-more-divider"></div>
-          <div class="db-more-section-label">Export</div>
-          <button class="col-menu-item" style="width:100%;background:none;border:none;font:inherit;color:var(--text);text-align:left;cursor:pointer" onclick="wantExportCsv()">⬇ Download CSV</button>
-          <button class="col-menu-item" style="width:100%;background:none;border:none;font:inherit;color:var(--text);text-align:left;cursor:pointer" onclick="wantExportPdf()">⬇ Download PDF (checklist)</button>
-        </div>
+    <button class="btn-primary" onclick="addWant()">+ Add</button>
+    <span id="wantInfo" class="result-info"></span>
+    <div id="wantViewMount"></div>
+    <div id="wantSortMount"></div>
+    <div id="wantColumnsMount"></div>
+    <div class="col-menu-wrap">
+      <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Import / export want list">⋯</button>
+      <div class="col-menu" id="wantExportMenu">
+        <div class="db-more-section-label">Import</div>
+        <button class="col-menu-item" onclick="document.getElementById('wantExportMenu').classList.remove('open');document.getElementById('wantCsvInput').click()">⬆ Import CSV</button>
+        <div class="db-more-divider"></div>
+        <div class="db-more-section-label">Export</div>
+        <button class="col-menu-item" onclick="wantExportCsv()">⬇ Download CSV</button>
+        <button class="col-menu-item" onclick="wantExportPdf()">⬇ Download PDF (checklist)</button>
       </div>
     </div>
-    <div id="wantFilterMount"></div>
   </div>
+
+  <!-- One chip per player with a want, rendered by renderWantList() -->
+  <div class="chip-row" id="wantFilterMount"></div>
+
   <div id="wantResults"></div>
 </div>
 
@@ -572,41 +574,45 @@
 <!-- Pick Night tab -->
 <div id="tab-pick" class="tab-pane" style="display:none">
 
-  <!-- Deck Pool panel (collapsed by default) -->
-  <div class="section">
-    <div class="section-title collapsible" onclick="toggleSection('pick-pool')">
-      <span id="pickPoolTitle">Deck Pool</span>
-      <svg class="chevron" id="chv-pick-pool" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  <!-- One control strip (§9.7), where the deck pool and the setup panel were
+       two stacked boxes. Who is playing is the row of chips below it — that
+       is the choosing, and it is one line — while the pool, which is every
+       deck in the group and is set once an evening, is a drawer. -->
+  <div class="toolbar">
+    <button class="btn-secondary" id="pickPoolBtn" onclick="openDrawer('pickPoolDrawer')" title="Choose which decks are in the draw">Deck Pool</button>
+    <div class="col-menu-wrap kebab-wrap">
+      <button class="kebab-btn" title="Options" onclick="toggleKebab(event)">⋯</button>
+      <div class="col-menu">
+        <button class="col-menu-item" id="pickExcludeOwnBtn" onclick="event.stopPropagation();pickToggleExcludeOwn()"
+                title="Players won't be assigned their own decks">
+          <span id="pickExcludeOwnCheck">☐</span> Exclude own decks
+        </button>
+      </div>
     </div>
-    <div class="section-body" id="pb-pick-pool">
-      <div id="pickPoolDeckList"></div>
-    </div>
+    <span id="pickPoolInfo" class="result-info">Select 2–6 players</span>
+    <button class="btn-primary" id="pickRollBtn" onclick="pickRoll()" disabled>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:var(--space-1)"><rect x="2" y="2" width="20" height="20" rx="4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="16" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="16" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
+      Pick Decks
+    </button>
   </div>
 
-  <!-- Setup panel -->
-  <div class="section section--boxed">
-    <div class="section-title" style="margin-bottom:var(--space-3)">Who's playing tonight?</div>
-    <div id="pickPlayersList" class="pick-players-list"></div>
-    <div class="pick-controls">
-      <div class="col-menu-wrap kebab-wrap">
-        <button class="kebab-btn" title="Options" onclick="toggleKebab(event)">⋯</button>
-        <div class="col-menu">
-          <button class="col-menu-item" id="pickExcludeOwnBtn" onclick="event.stopPropagation();pickToggleExcludeOwn()"
-                  title="Players won't be assigned their own decks">
-            <span id="pickExcludeOwnCheck">☐</span> Exclude own decks
-          </button>
-        </div>
-      </div>
-      <span id="pickPoolInfo" class="pick-pool-info">Select 2–6 players</span>
-      <button class="btn-primary" id="pickRollBtn" onclick="pickRoll()" disabled style="padding:var(--space-2) var(--space-5)">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:var(--space-1)"><rect x="2" y="2" width="20" height="20" rx="4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="16" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="16" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
-        Pick Decks
-      </button>
-    </div>
-  </div>
+  <!-- Who's playing tonight — one chip per player, rendered by renderPickSetup() -->
+  <div class="chip-row" id="pickPlayersList"></div>
 
   <!-- Results -->
   <div id="pickResults"></div>
+
+  <!-- The pool is every deck the group owns, grouped by player: a long list,
+       consulted at the start of an evening and then not again. -->
+  <div class="drawer" data-drawer id="pickPoolDrawer" role="dialog" aria-modal="true" aria-labelledby="pickPoolTitle">
+    <div class="drawer-hdr">
+      <span class="drawer-title" id="pickPoolTitle">Deck Pool</span>
+      <button class="drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div id="pickPoolDeckList"></div>
+    </div>
+  </div>
 
 </div><!-- /tab-pick -->
 

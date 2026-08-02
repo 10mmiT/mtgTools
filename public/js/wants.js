@@ -214,24 +214,6 @@ async function renderWantList() {
 
   if (!_wantControlsMounted) initWantControls();
 
-  // ── Player filter chips ───────────────────────────────────────────────
-  const filterMount = document.getElementById('wantFilterMount');
-  if (filterMount && activePlayers.length > 1) {
-    filterMount.innerHTML = `<div style="display:flex;gap:var(--space-1);flex-wrap:wrap;align-items:center;padding:var(--space-2) 0 0">
-      <span class="section-label" style="flex-shrink:0">Filter:</span>
-      <button class="pick-chip ${!wantFilterPlayer ? 'pick-chip-on' : ''}"
-        onclick="setWantFilterPlayer('')" style="--pc:var(--primary)">All</button>
-      ${activePlayers.map(p =>
-        `<button class="pick-chip ${wantFilterPlayer === p.id ? 'pick-chip-on' : ''}"
-          style="--pc:${p.color}" onclick="setWantFilterPlayer('${jsAttr(p.id)}')">
-          <span class="pick-chip-dot" style="background:${p.color}"></span>${esc(p.name)}
-        </button>`
-      ).join('')}
-    </div>`;
-  } else if (filterMount) {
-    filterMount.innerHTML = '';
-  }
-
   // Sort by the chosen field ("Most Wanted" = count of players wanting it)
   const { field, dir } = getSort('wants', { field: 'wanted', dir: -1 });
   const rows = [...allWants.entries()];
@@ -258,11 +240,49 @@ async function renderWantList() {
   _wantExportRows    = visibleRows;
   _wantExportPlayers = activePlayers;
 
+  // ── Player filter chips (§9.4) ────────────────────────────────────────
+  // The one place in the app where the per-player palette has to hold up as
+  // *text* on every theme, which is why the chip carries the colour at 18%
+  // behind --text rather than as the label's own colour. Each chip's count
+  // is that player's whole list, not the filtered view — it is what you are
+  // choosing between, so it cannot depend on what is already chosen.
+  const filterMount = document.getElementById('wantFilterMount');
+  if (filterMount && activePlayers.length > 1) {
+    filterMount.innerHTML = `
+      <button class="chip chip--select" aria-pressed="${!wantFilterPlayer}"
+        onclick="setWantFilterPlayer('')">
+        <span class="chip-label">All</span>
+        <span class="chip-count">${rows.length}</span>
+      </button>
+      ${activePlayers.map(p =>
+        `<button class="chip chip--select" aria-pressed="${wantFilterPlayer === p.id}"
+          style="--pc:${playerColor(p)}" onclick="setWantFilterPlayer('${jsAttr(p.id)}')">
+          <span class="chip-dot"></span>
+          <span class="chip-label">${esc(p.name)}</span>
+          <span class="chip-count">${(p.wantList || []).length}</span>
+        </button>`
+      ).join('')}`;
+  } else if (filterMount) {
+    filterMount.innerHTML = '';
+  }
+
+  // The strip's count, and the spacer that pushes the view controls to its
+  // right end (§7.3). It says what the filter has done as well as how much
+  // there is, because the chip that did it scrolls out of sight with the
+  // rest of the page and the strip does not.
+  const infoEl = document.getElementById('wantInfo');
+  if (infoEl) {
+    const n = visibleRows.length;
+    infoEl.textContent = n === rows.length
+      ? `${n} card${n === 1 ? '' : 's'}`
+      : `${n} of ${rows.length} cards`;
+  }
+
   // ── List (table) view ─────────────────────────────────────────────────
   if (wantView === 'list') {
     const vc = getCols('wants', WANT_COLUMNS);
     const colHeaders = activePlayers.map(p =>
-      `<th style="border-bottom:3px solid ${p.color};white-space:nowrap">${esc(p.name)}</th>`
+      `<th style="border-bottom:3px solid ${playerColor(p)};white-space:nowrap">${esc(p.name)}</th>`
     ).join('');
 
     let metaHead = '';
@@ -278,7 +298,7 @@ async function renderWantList() {
         if (!wanterIds.has(p.id)) return `<td style="text-align:center;color:var(--border)">—</td>`;
         const canEdit = isMyPlayer(p.id);
         return `<td style="text-align:center">
-          <span class="want-check" style="color:${p.color}">✓
+          <span class="want-check" style="color:${playerColor(p)}">✓
             ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${jsAttr(cardName)}')" title="Remove">✕</button>` : ''}
           </span>
         </td>`;
@@ -359,7 +379,7 @@ async function renderWantList() {
       .map(p => {
         const initial = esc(p.name.charAt(0).toUpperCase());
         const canEdit = isMyPlayer(p.id);
-        return `<span class="want-dot" style="background:${p.color};cursor:${canEdit?'pointer':'default'}" title="${esc(p.name)}"
+        return `<span class="want-dot" style="background:${playerColor(p)};cursor:${canEdit?'pointer':'default'}" title="${esc(p.name)}"
           ${canEdit ? `onclick="removeWant('${p.id}','${jsAttr(cardName)}')"` : ''}
         >${initial}</span>`;
       }).join('');

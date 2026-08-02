@@ -69,16 +69,27 @@ test('a palette that fails its floor is caught', () => {
 test('the contrast theme is held to a higher floor than the others', () => {
   const src = read('public/css/tokens.css');
 
-  // 5.4:1 muted text — AA everywhere, but under the contrast theme's AAA
-  // body floor only if the role is right, so this checks the body floor
-  // specifically: --text at 5.4:1 passes on dark and fails on contrast.
+  /* Muted body text — AA on both themes' header, but under the contrast
+     theme's AAA body floor: 5.4:1 on dark's header, 6.7:1 on contrast's.
+     Passing one and failing the other is the whole assertion.
+
+     It probes --hdr-fg rather than --text, which has one pair per theme
+     against a backdrop of the theme's own choosing. --text lands on six
+     backdrops of differing lightness — the lightest being a selected player
+     chip, which is --text over that player's colour at 18% (issue 15) — so
+     dimming it puts the fixture in a band bounded by the *lightest* of them
+     while the floor being tested is about the darkest. That band is empty:
+     a value dim enough to fail contrast's 7:1 already fails 4.5:1 on the
+     chip, in both themes at once, and the result says nothing about floors. */
   const dim = value => src
-    .replace(/(\n  --text:\s*)#e7eaee/, `$1${value}`)
-    .replace(/(\n  --text:\s*)#ffffff/, `$1${value}`);
+    .replace(/(\n  --hdr-fg:\s*)#e7eaee/, `$1${value}`)
+    .replace(/(\n  --hdr-fg:\s*)#ffffff/, `$1${value}`);
 
   const failures = check(dim('#8a929e'));
   assert.deepStrictEqual([...new Set(failures.map(f => f.theme))], ['contrast'],
     'the same colour that satisfies the dark theme must fail the contrast one');
+  assert.ok(failures.every(f => f.role === 'body'),
+    'and it must fail on the body floor, which is the one that differs');
 });
 
 // ── The rename ────────────────────────────────────────────────────────

@@ -419,6 +419,13 @@ html[data-theme="contrast"] {
   have **zero per-theme overrides** — they are dark-theme values shown on every theme. They
   become `--player-0…7` tokens, defined per theme. Chip backgrounds use
   `color-mix(in srgb, var(--player-N) 18%, transparent)` rather than a hardcoded `33` alpha suffix.
+
+  > **Delivered in two halves.** Issue 09 defined the tokens per theme; issue 15 moved the app
+  > onto them, which was the harder half — the colours are not in the stylesheet at all but in
+  > the *data*, one hex per player record, so a player's colour had to become a slot the theme
+  > paints (`playerSlot()` in [state.js](public/js/state.js), mirrored server-side). The mix is
+  > over `--surface-2` rather than `transparent`: a chip on the page and a chip on a section
+  > would otherwise be two different colours.
 - **`--success` and `--warning` did not exist.** The raw `#10b981` (owned/found) and `#fbbf24`
   (warning) values scattered through the sheet become tokens.
 - **~89 theme-blind declarations** (45 hex + 44 `rgba()` outside the theme blocks) are converted,
@@ -762,6 +769,31 @@ Player filter chip row stays but adopts the chip component (§7.9 soft backgroun
 Import/Export `⋯` menu stays in the toolbar. Table gets §7.6 treatment — this is a
 prose-dense table, so the opaque surface rule matters most here.
 
+> **Delivered** (issue 15) at a 94px fold, from 229. Four notes.
+>
+> **The add controls stayed on the strip.** Collections' add form went to a drawer because
+> loading a collection is done once and then not for months; adding a card to a want list is
+> what this tab is *for*. So the player select, the card field and `+ Add` are three of the
+> strip's eight controls rather than a button that opens a form.
+>
+> **The chip carries the player's colour at 18% behind `--text`**, not as the label's own
+> colour. That is what makes the criterion "legible on all five themes" hold by construction
+> rather than by luck: of the forty label/fill pairs — eight slots on five themes — the worst
+> is 8.99:1 against a 4.5 floor.
+>
+> **The palette moved from a stored hex to a stored slot.** `--player-0…7` were defined per
+> theme by issue 09 and used by nothing — the app was still painting from an eight-hex list
+> written for the dark theme, which is exactly why a light-theme chip was neon on white. A
+> player's record holds `colorIdx` now; records written before the move hold a hex, and its
+> index in the old list *is* the slot, so one derivation reads either form. `normalizePlayer`
+> on the server derives it too, because the non-admin write guard compares every other player
+> value-by-value and would otherwise refuse the first save after an upgrade.
+>
+> **§7.6's opaque container went on `.table-wrap`**, so it is every table in the app and not
+> just this one — Collections' and Admin's tables are the same component and the same §8.5
+> requirement applies to them. Sections stopped being boxes in issue 10 and grid cards have no
+> surface at all; a table is the one thing in the app that is only text.
+
 ### 9.5 Deck Builder — *already full-width*
 
 `.db-full-width` → `.content-wide`; pane returns inside the normal shell. `.db-topbar` adopts
@@ -785,6 +817,27 @@ The desktop modal switch moves from 1024px to `--bp-md` (900px).
 Merge to one toolbar (player select + pick button). Results grid `.content-wide`, using
 `.card-grid--xl` since the result is the point. The picked-deck reveal is the one place a
 larger display size (`--text-xl`) is warranted.
+
+> **Delivered** (issue 15) at a 133px fold. Three notes.
+>
+> **"Player select" stayed a chip row**, not a `<select>`. Choosing two to six people is a
+> multiple selection, and it is the same control the Want List filters by — one component now
+> (`.chip--select`), where `.pick-chip` had been written here and borrowed across tabs.
+>
+> **The deck pool is a drawer**, the second use of issue 13's component: sixty-three decks
+> grouped by player is a long list, consulted at the start of an evening and then not again.
+> Its count is on the button that opens it — `Deck Pool · 12 / 63` — since that is the one
+> thing about the pool worth knowing without opening it.
+>
+> **The results area is not empty before the first roll.** With the pool behind a button, a
+> tab that had been a page of deck names became a strip, a row of chips and nothing, so the
+> results area says which step is outstanding — an empty pool and an unchosen table are
+> different problems, and the strip's status line is a count rather than an instruction.
+>
+> On the grid: `.card-grid--xl`'s 220px is a *card* width, and these are landscape art tiles,
+> so the same intent is 260px here — and `auto-fit` rather than `auto-fill`, which matters
+> more than the number. There are never more than six results, and auto-fill's empty tracks
+> would hold four picks at the minimum width and leave a third of a 1440px row blank.
 
 ### 9.8 Available@ — *3 sections, 1 title*
 

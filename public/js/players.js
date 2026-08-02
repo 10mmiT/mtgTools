@@ -50,7 +50,7 @@ function addPlayerByName(name) {
   state.players.push({
     id:       (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `p_${Date.now()}`,
     name,
-    color:    PLAYER_COLORS[state.players.length % PLAYER_COLORS.length],
+    colorIdx: state.players.length % PLAYER_SLOTS,
     decks:    [],
     wantList: [],
   });
@@ -370,7 +370,7 @@ function renderPlayers() {
 
     const pCollapsed = !!collapseState[`player-${player.id}`];
     return `<div class="player-section">
-      <div class="player-header" style="--pc:${player.color}" onclick="togglePlayerSection('${player.id}', event)">
+      <div class="player-header" style="--pc:${playerColor(player)}" onclick="togglePlayerSection('${player.id}', event)">
         <span class="player-name-lbl">${esc(player.name)}</span>
         ${canEdit ? `<button class="btn-player-add-deck" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
         ${isAdmin ? kebabMenuHtml([

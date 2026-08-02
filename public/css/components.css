@@ -210,6 +210,35 @@
 .chip--error .chip-count { color: var(--danger); }
 .chip--error { border-color: var(--danger); }
 
+/* A chip that is a *choice* rather than a statement: the Want List's player
+   filter and Pick Night's who's-playing row (§9.4, §9.7). These were two
+   copies of one control — .pick-chip, written for Pick Night and borrowed by
+   the Want List — so they are one now.
+
+   --pc is the player's slot colour, set inline. Selection is carried by the
+   fill, the border colour and the text colour — nothing that changes the
+   chip's metrics. Neither a thicker border nor a heavier label: either one
+   moves every chip after it along the row as you click through them. */
+.chip--select {
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  cursor: pointer;
+  padding-right: var(--space-3);
+  transition: border-color .15s, background .15s, color .15s;
+}
+.chip--select:hover { border-color: var(--pc, var(--primary)); color: var(--text); }
+.chip--select[aria-pressed="true"] {
+  border-color: var(--pc, var(--primary));
+  background: color-mix(in srgb, var(--pc, var(--primary)) 18%, var(--surface-2));
+  color: var(--text);
+}
+/* The dot is the player's colour at full strength and the only thing on the
+   chip that is; the fill above is the same hue at 18%, which is what keeps
+   the label legible on all five themes rather than the colour deciding it. */
+.chip--select .chip-dot { background: var(--pc, var(--primary)); }
+.chip-check { flex-shrink: 0; }
+
 /* ── Drawer ────────────────────────────────────────────────────────────
    The place for a task that is performed rarely but needs room when it
    is: adding a collection (§9.1), and the deck comparison below 1280px.
@@ -304,13 +333,27 @@
 .view-btn.active { background: var(--primary); color: var(--primary-fg); }
 .view-btn:hover:not(.active) { background: var(--surface-2); color: var(--text); }
 
-/* ── Results table ───────────────────────────────────────────────────── */
-.table-wrap { overflow-x: auto; }
+/* ── Results table (§7.6) ─────────────────────────────────────────────
+   The container is the box, not the section around it. Sections stopped
+   being boxes in issue 10 and grid cards have no surface at all — the
+   card image is the object — but a table is the one thing in the app
+   that is *only* text, and dense text needs a surface under it to be a
+   table rather than a page of words. It is also the surface §8.5 requires
+   to stay opaque once the playmat is behind it: art may show through the
+   gutters of a card grid, never through a column of card names.
+
+   It scrolls horizontally on its own, which is what a Want List with
+   eight player columns needs. */
+.table-wrap {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
 
 table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
-
-/* Allow collections results table to scroll horizontally with many columns */
-.table-wrap { display: block; width: 100%; overflow-x: auto; }
 #resultsTable { width: max-content; min-width: 100%; }
 #resultsTable thead th { white-space: nowrap; }
 
@@ -331,6 +374,9 @@ thead th.sorted-asc::after  { content: ' ↑'; color: var(--primary); }
 thead th.sorted-desc::after { content: ' ↓'; color: var(--primary); }
 
 tbody tr { border-bottom: 1px solid var(--border); }
+/* The container draws the last line now, so the last row does not draw a
+   second one a pixel inside it. */
+tbody tr:last-child { border-bottom: none; }
 tbody tr:hover { background: var(--surface-2); }
 
 td { padding: var(--space-2) var(--space-3); }
