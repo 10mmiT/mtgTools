@@ -21,69 +21,62 @@
   letter-spacing: .4px;
 }
 
-/* ── Players tab ──────────────────────────────────────────────────────── */
-.players-add-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  margin-bottom: var(--space-4);
-}
+/* ── Players tab ────────────────────────────────────────────────────────
+   The tab is its strip and its artwork (§9.9). A player used to be a
+   --surface-1 box with a --surface-2 header bar inside it, which put a
+   fill, two hairlines and --space-4 of padding between the window and
+   tiles whose whole point is the art on them. A player is a heading and
+   a grid now — the same grouping the rest of the app gets from §7.1 —
+   so the tiles run the full width of the pane. */
 
-.player-section {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  margin-bottom: var(--space-4);
+/* The form is the one control on the strip that is four controls, so it
+   overrides the strip's `flex-shrink: 0` and can wrap inside itself. Both
+   min-widths are load-bearing on a phone: an input's intrinsic minimum is
+   about twenty characters wide, which is more than a 390px window has left
+   after the label and the two buttons. */
+.players-add-form {
+  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+  flex: 1 1 auto; min-width: 0;
 }
+.players-name-input { flex: 1 1 160px; min-width: 0; max-width: 280px; }
+
+.player-section { margin-bottom: var(--space-5); }
+
 .player-header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-2);
-  border-left: 4px solid var(--pc, var(--primary));
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+/* The row collapses the player's decks, and the chevron is what says so.
+   The name used to turn --primary on hover, which is a near-white on the
+   dark themes and all but invisible against --text; the affordance is the
+   control, not a tint on the heading. */
+.player-header:hover .chevron { color: var(--text); }
+/* The player's own colour, which used to be a 4px rule down the left of
+   the header bar. With the bar gone that rule would be an accent stripe
+   beside a heading, which §4.7 spent the redesign deleting — so it is
+   the dot every other tab hands a player's colour to. */
+.player-dot {
+  width: 10px; height: 10px; flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--pc, var(--primary));
 }
 .player-name-lbl { font-weight: 700; font-size: var(--text-md); flex: 1; }
-
-.btn-player-add-deck {
-  background: var(--primary-lt);
-  color: var(--primary-tx);
-  border: 1.5px solid var(--primary);
-  border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-}
-.btn-player-add-deck:hover { background: var(--primary); color: var(--primary-fg); }
-
-.btn-player-remove {
-  background: transparent;
-  color: var(--text-muted);
-  border: none;
-  font-size: var(--text-base);
-  cursor: pointer;
-  padding: var(--space-1);
-  font-family: inherit;
-}
-.btn-player-remove:hover { color: var(--danger); }
 
 .add-deck-form {
   display: none;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
   flex-wrap: wrap;
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 .add-deck-form.open { display: flex; }
 .add-deck-form input { flex: 1; min-width: 240px; font-size: var(--text-base); }
@@ -92,9 +85,15 @@
 /* ── Deck tiles grid ──────────────────────────────────────────────────── */
 .deck-tiles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4) var(--space-4);
+  padding-top: var(--space-3);
+}
+.player-no-decks {
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  font-style: italic;
+  padding: var(--space-2) 0;
 }
 
 .deck-tile {
@@ -120,7 +119,7 @@
 .deck-tile-overlay {
   position: absolute;
   inset: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -159,7 +158,15 @@
 
 .deck-tile-bottom { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 
+/* The card count. On Pick Night's wide result tiles it is still the bottom
+   row's spacer, which is what pushes "↺ Re-roll" to the right; on a 260px
+   deck tile there is no room to spare on that row, so it is a line in the
+   middle instead (.deck-tile-meta) and the kebab does the pushing. Three
+   controls and a count wanted 275px of a 234px row, and flex wraps before
+   it shrinks, so half the tiles were carrying a second row holding one ⋯. */
 .deck-tile-count { font-size: var(--text-xs); color: rgba(255,255,255,.45); flex: 1; }
+.deck-tile-meta  { font-size: var(--text-xs); color: rgba(255,255,255,.45); }
+.deck-tiles-grid .deck-tile-bottom .col-menu-wrap { margin-left: auto; }
 
 .btn-load-tile {
   background: rgba(255,255,255,.12);
@@ -353,9 +360,6 @@
 .deck-col-qty { font-weight: 700; font-size: var(--text-xs); min-width: 18px; text-align: right; flex-shrink: 0; }
 .cq-found   { color: var(--success); }
 .cq-missing { color: var(--border); }
-
-.player-header { cursor: pointer; user-select: none; }
-.player-header:hover .player-name-lbl { color: var(--primary); }
 
 /* ── Scryfall search results ──────────────────────────────────────────── */
 .sf-results { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -566,16 +570,13 @@
   textarea,
   select { font-size: var(--text-md); }
 
-  /* Admin create-user form — override inline width:180px */
-  .admin-create-form { flex-direction: column; align-items: stretch; }
-  .admin-create-form input,
-  .admin-create-form select { width: 100% !important; max-width: 100% !important; box-sizing: border-box; }
-
   /* All search inputs fill their row */
   #sfInput, #searchInput, #setSearchInput { width: 100%; flex: none; max-width: 100% !important; }
 
-  /* Players add-player input full width */
-  #playerNameInput { max-width: 100% !important; }
+  /* Players add-player input full width. Same story: the 280px cap it
+     overrides is a class rather than an inline style now, so equal
+     specificity and source order settle it. */
+  .players-name-input { max-width: 100%; }
 
   /* Available@ name field takes the whole of its row on a phone rather than
      sharing it with the hint, which wraps under it. */
@@ -772,14 +773,67 @@
 .best-day-count { font-size: var(--text-sm); color: var(--text-muted); }
 .best-day-names { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 
-/* ── Admin panel ─────────────────────────────────────────────────────────── */
+/* ── Admin panel (§9.11) ─────────────────────────────────────────────────
+   Three plain sections, deliberately low-density: two tables of data at the
+   full width, and between them one form at the reading measure. Its fields
+   are sized to what goes in them — a username, a password, a role — rather
+   than to the column they sit in, which is what "a readable width rather
+   than stretched" means for a form of four short fields. */
 .admin-create-form {
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
   align-items: flex-end;
 }
+.admin-create-form .admin-field { width: 180px; }
+
+/* On a phone the form is one field per row. This lives beside the rule it
+   overrides rather than in the responsive section above, which is where it
+   used to be — and being earlier in the file than the rule it fights, its
+   `align-items: stretch` lost to `flex-end` and left every field pushed to
+   the right edge of the column. Two !important on the widths had hidden
+   half of that; the alignment had no such cover, and the boxed section was
+   shut by default, so nobody had seen it. */
+@media (width < 640px) {
+  .admin-create-form { flex-direction: column; align-items: stretch; }
+  .admin-create-form .admin-field,
+  .admin-create-form select { width: 100%; max-width: 100%; box-sizing: border-box; }
+}
+
 .admin-actions { display: flex; gap: var(--space-2); align-items: center; }
+
+/* The two inline edit forms — approving a request, editing a user — happen
+   inside a table row, so their controls come down one step from the app's
+   standard control to sit in a --text-sm row without setting its height.
+   Each of them used to carry the whole of base.css's control treatment as
+   an inline style, restating the fill, the hairline, the radius and the
+   font family that the element already had. */
+.admin-inline-form { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.admin-inline-ctl {
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  max-width: 160px;
+}
+/* Selects keep the room the chevron is drawn in (base.css), which the
+   inline padding these replace had taken back — a long player name ran
+   under the arrow. */
+select.admin-inline-ctl { padding-right: var(--space-6); }
+.admin-inline-pw { width: 180px; max-width: none; font-size: var(--text-xs); }
+.admin-actions-edit { flex-wrap: wrap; gap: var(--space-1); }
+.admin-req-date { font-size: var(--text-sm); color: var(--text-muted); }
+
+/* The pending-request count, on the heading it qualifies. */
+.section-title-badge {
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
 
 .badge-admin  { background: var(--warning-soft); color: var(--warning); }
 .badge-player { background: var(--primary-lt); color: var(--primary-tx); }
@@ -2058,5 +2112,3 @@
   pointer-events: none;
   z-index: 9999;
 }
-/* Reveal-style add-player form (Players tab) */
-.players-add-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; flex: 1; }

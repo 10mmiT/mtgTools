@@ -1,26 +1,13 @@
-// ── Collapsible sections ────────────────────────────────────────────────
+// ── Collapsible player sections ─────────────────────────────────────────
+// The generic collapse machinery — initCollapses(), toggleSection(),
+// applyCollapse() and the .section-body / .section-title.collapsible pair
+// they drove — is gone with the last section that used it. Collections' add
+// form became a drawer and its list a chip row (§9.1), Pick Night's deck
+// pool became a drawer (§9.7), and Admin's Create User is a plain open form
+// on a page of plain sections (§9.11). What is left is one collapsible that
+// is not a section: a player's row of decks, which is a person's whole
+// shelf and is worth folding away.
 const collapseState = JSON.parse(localStorage.getItem('mtgtools_collapse') || '{}');
-
-function toggleSection(id) {
-  collapseState[id] = !collapseState[id];
-  localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
-  applyCollapse(id);
-}
-
-function applyCollapse(id) {
-  const body = document.getElementById(`pb-${id}`);
-  const chv  = document.getElementById(`chv-${id}`);
-  const closed = !!collapseState[id];
-  if (body) body.classList.toggle('closed', closed);
-  if (chv)  chv.classList.toggle('closed', closed);
-}
-
-// initCollapses() was here. Every section it restored at boot has since
-// stopped being a collapsible: Collections' add form is a drawer and its list
-// a chip row (§9.1), and Pick Night's deck pool is a drawer (§9.7). The one
-// collapsible left in the app — Admin's Create User — is opened and closed
-// within a visit and has never been restored across one. toggleSection() and
-// applyCollapse() above are what it still uses.
 
 function togglePlayerSection(playerId, event) {
   // Don't collapse when clicking the action buttons

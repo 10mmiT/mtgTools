@@ -107,11 +107,9 @@ function readScales(source) {
  *                and a `.mob-nav-item:hover` rule that beat them on
  *                specificity — a `-danger` modifier at equal specificity
  *                removes all six.
- *   layout.css   .section-body.closed fights an inline `display` set by the
- *                section collapse script; moving that to a class removes it.
  *   components.css  three of these override a base control rule inside a
  *                media query, one hides the card modal below 900px.
- *   tabs.css     five width overrides on mobile, all fighting the same
+ *   tabs.css     two width overrides on mobile, both fighting the same
  *                desktop `max-width` on form controls. */
 const IMPORTANT_ALLOWLIST = [
   { file: 'public/css/layout.css', selector: '.sidenav-danger', count: 1 },
@@ -120,19 +118,19 @@ const IMPORTANT_ALLOWLIST = [
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger', count: 1 },
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger:hover', count: 1 },
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger svg', count: 1 },
-  { file: 'public/css/layout.css', selector: '.section-body.closed', count: 1 },
   { file: 'public/css/components.css', selector: '.sort-select', count: 2 },
   { file: 'public/css/components.css', selector: '.cards-grid', count: 1 },
   { file: 'public/css/components.css', selector: '.card-modal-overlay', count: 1 },
-  { file: 'public/css/tabs.css', selector: '.admin-create-form input, .admin-create-form select', count: 2 },
   { file: 'public/css/tabs.css', selector: '#sfInput, #searchInput, #setSearchInput', count: 1 },
-  { file: 'public/css/tabs.css', selector: '#playerNameInput', count: 1 },
   { file: 'public/css/tabs.css', selector: '.dv-url-field', count: 1 },
 ];
-/* 14 rules, 16 declarations, on 15 source lines. The spec's audit said
- * fifteen, which is the line count — .sort-select spends two lines on one
- * rule, and the admin form packs two onto one line. The number to watch
- * down to zero is the 16. */
+/* 11 rules, 12 declarations. It started at 14 and 16; ticket 19 retired
+ * four of them, each in the way this list asks for — not by re-scoping but
+ * by removing what they were fighting. Three were mobile width overrides
+ * beating an inline `width` on a form control, and the fix was to make the
+ * desktop width a class the media query can match at equal specificity.
+ * The fourth, .section-body.closed, went with the last collapsible section
+ * in the app. The number to watch down to zero is the 12. */
 
 /* ── Elevation allowlist ─────────────────────────────────────────────────
  * The elevation rule is "a surface gets either a border or a shadow, never

@@ -54,6 +54,12 @@
 }
 .btn-update:hover:not(:disabled) { background: var(--primary-lt); }
 
+/* §7.4's smaller size, for a button inside a --text-sm table row — where
+   .btn-update and .btn-remove already live, and where a full-size
+   .btn-secondary beside them would set the row's height. It was written
+   inline at each of the sites that needed it. */
+.btn-sm { padding: var(--space-1) var(--space-2); font-size: var(--text-xs); }
+
 .btn-remove {
   background: transparent;
   color: var(--danger);

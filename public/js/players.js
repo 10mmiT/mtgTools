@@ -307,10 +307,18 @@ function renderPlayers() {
 
   const isAdmin = currentUser?.role === 'admin';
 
+  // The strip's count, in the slot every other tab gives its result count.
+  const info = document.getElementById('playersInfo');
+  if (info) {
+    const nPlayers = state.players.length;
+    const nDecks   = state.players.reduce((n, p) => n + (p.decks || []).length, 0);
+    info.textContent = nPlayers
+      ? `${nPlayers} player${nPlayers !== 1 ? 's' : ''} · ${nDecks} deck${nDecks !== 1 ? 's' : ''}`
+      : '';
+  }
+
   if (!state.players.length) {
-    list.innerHTML = `<div style="color:var(--text-muted);font-size:var(--text-base);text-align:center;padding:var(--space-6) var(--space-4)">
-      No players yet — add one above to get started.
-    </div>`;
+    list.innerHTML = '<div class="empty-state">No players yet — add one above to get started.</div>';
     return;
   }
 
@@ -339,7 +347,11 @@ function renderPlayers() {
       const bracketBadge = d.bracket != null ? `<span class="badge-bracket">Bracket ${d.bracket}</span>` : '';
       const viewLink     = d.deckUrl
         ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener">View ↗</a>` : '';
-      const countInfo    = d.cardCount ? `${d.cardCount} cards` : '';
+      // The count sits with the name and the commander rather than on the
+      // action row: it is something the deck *is*, not something to do to
+      // it, and on a 260px tile the row it used to share has only enough
+      // width for the three controls.
+      const countInfo    = d.cardCount ? `<div class="deck-tile-meta">${d.cardCount} cards</div>` : '';
       const cmdLine      = d.commander
         ? `<div class="deck-tile-commander">Commander: ${esc(d.commander)}</div>` : '';
 
@@ -353,9 +365,9 @@ function renderPlayers() {
           <div class="deck-tile-middle">
             <div class="deck-tile-name ${nameClass}">${esc(d.name)}</div>
             ${cmdLine}
+            ${countInfo}
           </div>
           <div class="deck-tile-bottom">
-            <span class="deck-tile-count">${countInfo}</span>
             <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
             <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
             ${canEdit ? kebabMenuHtml([
@@ -371,8 +383,9 @@ function renderPlayers() {
     const pCollapsed = !!collapseState[`player-${player.id}`];
     return `<div class="player-section">
       <div class="player-header" style="--pc:${playerColor(player)}" onclick="togglePlayerSection('${player.id}', event)">
+        <span class="player-dot"></span>
         <span class="player-name-lbl">${esc(player.name)}</span>
-        ${canEdit ? `<button class="btn-player-add-deck" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
+        ${canEdit ? `<button class="btn-secondary" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
         ${isAdmin ? kebabMenuHtml([
           { label: 'Remove player', onclick: `removePlayer('${player.id}')`, danger: true },
         ], { title: 'Player actions' }) : ''}
@@ -390,7 +403,7 @@ function renderPlayers() {
       </div>` : ''}
       <div class="deck-tiles-grid ${pCollapsed ? 'closed' : ''}" id="pb-player-${player.id}"
            style="${pCollapsed ? 'display:none' : ''}">${tilesHTML ||
-        `<div style="color:var(--text-muted);font-size:var(--text-base);font-style:italic;padding:var(--space-2) 0">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
+        `<div class="player-no-decks">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
       }</div>
     </div>`;
   }).join('');

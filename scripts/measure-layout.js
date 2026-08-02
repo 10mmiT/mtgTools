@@ -163,7 +163,11 @@ const MEASURE = `(() => {
       width: Math.round(widestLine(el)),
     }));
 
-  const WIDE = ['.card-grid', '.cards-grid', '.table-wrap', 'table'];
+  // .deck-tiles-grid is a grid of commander art rather than of card images,
+  // but the question this column asks — does the widest thing on the tab
+  // take what the window gives it — is the same one, and on Players & Decks
+  // it is the only thing that can answer it.
+  const WIDE = ['.card-grid', '.cards-grid', '.deck-tiles-grid', '.table-wrap', 'table'];
   const wide = [...document.querySelectorAll(WIDE.join(','))]
     .filter(visible)
     .map(el => Math.round(el.getBoundingClientRect().width));

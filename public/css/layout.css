@@ -377,18 +377,13 @@ header {
   .mob-nav-item-danger svg { color: var(--danger) !important; }
 }
 
-/* ── Collapsible sections ──────────────────────────────────────────────── */
-.section-title.collapsible {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0;
-  user-select: none;
-}
-.section-title.collapsible:hover { color: var(--text); }
-.section-body { padding-top: var(--space-3); }
-.section-body.closed { display: none !important; }
+/* ── Collapsible ────────────────────────────────────────────────────────
+   .section-title.collapsible, .section-body and .section-body.closed were
+   here. Nothing in the app is a collapsible section any more — Collections'
+   add form is a drawer, Pick Night's deck pool is a drawer, and Admin's
+   Create User is a plain open form (§9.11) — so the three rules are gone,
+   and with them the !important the last of them needed to beat an inline
+   display. The chevron stays: a player's row of decks still folds. */
 .chevron { color: var(--text-muted); transition: transform .18s; flex-shrink: 0; }
 .chevron.closed { transform: rotate(-90deg); }
 

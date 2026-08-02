@@ -889,6 +889,33 @@ tile grid `minmax(300px)` → `minmax(260px)` with `--space-3` gutters and `.con
 radius to `--radius-md`; the `rgba(99,102,241,.45)` hover on `.btn-dv-tile` becomes a neutral
 white-alpha since the indigo belongs to no palette.
 
+> **Delivered** (issue 19), and two of the four sentences above had already happened: the
+> radius was `--radius-md` and the indigo became white-alpha in issue 10, which found the
+> same thing this ticket would have — `--primary` is near-white on the dark themes now, so a
+> white wash under white text over artwork is the one thing that cannot be the fix.
+>
+> **`.content-wide` had nothing to hold on to until the boxes came off.** The shell is the
+> wide behaviour (issue 12), so the tiles were already inside it — and inside a
+> `--surface-1` player box, a `--surface-2` header bar and `--space-4` of grid padding, on a
+> tab whose §9.9 heading is "art tiles". A player is a heading and a grid now, the §7.1
+> grouping everything else in the app got, and the tile row is the pane: 1350px at a 1440
+> window and 2470px at 2560, up from 1316, and five tiles across where there were four.
+>
+> **The add-player box is the tab's strip**, the same move Available@ made in issue 18 — one
+> control, so the one control is the whole strip — with a count of players and decks in the
+> `.result-info` slot every other tab gives its count.
+>
+> **The player's colour is a dot.** It was a 4px rule down the left of the header bar, which
+> without the bar is an accent stripe beside a heading — the thing §4.7 spent the redesign
+> deleting. The dot is where every other tab puts a player's colour.
+>
+> **The card count moved off the action row**, which is the one thing here that is not
+> cosmetic. Three controls and "100 cards" want 275px of a 234px row, and flex wraps before
+> it shrinks, so half the tiles carried a second row holding a single `⋯`. The count is a
+> line under the commander now — what the deck *is* rather than something to do to it — and
+> every tile's action row is the same three controls. Pick Night's result tiles are wide
+> enough to keep theirs where it was, and are byte-identical after this.
+
 ### 9.10 Mana Base — *4 sections, 5 titles*
 
 Second-worst chrome ratio. The five titled sections collapse to two `.content-wide` columns
@@ -913,6 +940,37 @@ this is the one place mana colour is data, not chrome, so it stays saturated.
 All forms `.content-prose`. The three sections become one page with `.section-title` headings.
 User and request tables get §7.6 treatment. Admin is intentionally low-density and
 text-forward; it does not need to be dense.
+
+> **Delivered** (issue 19). The measurable half was already true — issue 12 put
+> `.content-prose` on the Create User form and issue 15 put §7.6's opaque surface on every
+> `.table-wrap` in the app — so what was left was the word *plain*. Create User was a
+> `.section--boxed` collapsible, shut by default: the last box on the page and the last
+> collapsible in the app. It is an open form under a heading, and the three sections are
+> three headings in sentence case over two full-width tables and one form at 727px, the
+> measure exactly.
+>
+> **The collapse machinery went with it.** `toggleSection()`, `applyCollapse()`,
+> `.section-title.collapsible`, `.section-body` and `.section-body.closed` — the last of
+> which was one of the sixteen `!important` on the linter's ratchet, fighting an inline
+> `display` that no longer exists.
+>
+> **Three more came off the ratchet the way its comment asks for** — not by re-scoping but
+> by removing what they were fighting. Both mobile width overrides were beating an inline
+> `width` on a form control; the widths are `.admin-field` and `.players-name-input` now, so
+> the media query matches them at equal specificity and wins on source order. 16 → 12.
+>
+> **And the alignment they had been half-hiding.** The admin form's mobile rule lived in the
+> responsive section *above* the rule it overrides, so its `align-items: stretch` lost to
+> `flex-end` and every field sat against the right edge of the column. Two `!important` on
+> the widths had covered half of it; the alignment had no such cover, and the boxed section
+> was shut by default, so nothing had ever shown it. The rule lives beside the one it
+> overrides now.
+>
+> The two inline edit forms — approving a request, editing a user — carried the whole of
+> base.css's control treatment as an inline style at each of four sites, restating the fill,
+> the hairline, the radius and the font family the element already had. They are
+> `.admin-inline-ctl`, one step down in size for a table row, and selects keep the room the
+> chevron is drawn in, which the inline padding had taken back.
 
 ---
 

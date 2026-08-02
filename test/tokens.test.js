@@ -180,8 +180,8 @@ test('the allowlists are a ratchet that only shrinks', () => {
    * ticket watches down to zero. If either total moves, it must move down,
    * and this assertion is what has to be edited to record it. */
   const important = IMPORTANT_ALLOWLIST.reduce((n, e) => n + e.count, 0);
-  assert.strictEqual(IMPORTANT_ALLOWLIST.length, 14, '14 rules use !important');
-  assert.strictEqual(important, 16, '16 !important declarations, targeting zero');
+  assert.strictEqual(IMPORTANT_ALLOWLIST.length, 11, '11 rules use !important');
+  assert.strictEqual(important, 12, '12 !important declarations, targeting zero');
   assert.strictEqual(ELEVATION_ALLOWLIST.length, 0,
     'the elevation allowlist reached zero in ticket 10 and stays there');
 });

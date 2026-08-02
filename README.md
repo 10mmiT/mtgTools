@@ -38,6 +38,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Each deck tile shows two primary actions — **Compare** (sends the deck to the Collections tab comparison panel) and **Build** (opens it in the Deck Builder) — with Edit and Remove tucked into a per-tile "⋯" menu; removing a deck asks for confirmation
 - Removing a player lives in a "⋯" menu on the player header (admin only)
 - Edit any deck in-place (name, commander, link)
+- The tab is one control strip — **+ Add Player** and a count of players and decks — over full-width rows of art tiles; each player is a heading carrying their identity colour, which folds their decks away when clicked
 - All deck metadata and commander art URLs persist across restarts
 
 ### Scryfall Search tab
@@ -132,7 +133,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Scryfall traffic is centralised and cached**: the server keeps a daily copy of Scryfall's bulk card data in SQLite and serves card images/metadata/autocomplete locally; the few remaining live calls (full-text search, card detail, set browsing) go through a server-side proxy with a shared rate-limit queue and a 10-minute response cache — the browser never talks to api.scryfall.com directly
 - Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥900px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
-- Rarely-used panels live in slide-over **drawers** opened from the tab's toolbar (Add Collection, Deck Comparison below 1280px, Deck Pool); each player section and Admin's Create User still collapse in place
+- Rarely-used panels live in slide-over **drawers** opened from the tab's toolbar (Add Collection, Deck Comparison below 1280px, Deck Pool); the one thing left that collapses in place is a player's row of deck tiles, folded from the player's own header
 - Per-user login system with player-linked accounts and an admin role
 - **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content, with account actions (user badge, theme picker, RSS, change password, sign out) anchored to the bottom; click Collapse to shrink to icon-only mode — state persists across reloads. There's no top header on desktop — it's mobile-only
 - **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown plus a slim header (logo + RSS); all forms stack to full-width; inputs use a 16px font to avoid iOS zoom-on-focus; view toggles are right-aligned across all tabs

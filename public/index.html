@@ -309,14 +309,19 @@
 
 <!-- Players & Decks tab -->
 <div id="tab-players" class="tab-pane" style="display:none">
-  <div class="players-add-bar" id="addPlayerBar">
-    <button class="btn-secondary" id="addPlayerRevealBtn" style="padding:var(--space-2) var(--space-4);flex-shrink:0" onclick="openAddPlayer()">+ Add Player</button>
+  <!-- One control strip (§7.3). Adding a player was a box of its own above
+       the tiles — a fill, a hairline and --space-4 of padding around a
+       button. This tab has no search and no view toggle, so the one control
+       it has is the whole strip, in the shape every other tab's is. -->
+  <div class="toolbar" id="addPlayerBar">
+    <button class="btn-secondary" id="addPlayerRevealBtn" onclick="openAddPlayer()">+ Add Player</button>
     <div class="players-add-form" id="addPlayerForm" style="display:none">
-      <span class="section-label">Add Player</span>
-      <input type="text" id="playerNameInput" style="flex:1;min-width:160px;max-width:280px" placeholder="Player name…">
-      <button class="btn-primary" style="padding:var(--space-2) var(--space-4);flex-shrink:0" onclick="confirmAddPlayer()">Add</button>
-      <button class="btn-secondary" style="padding:var(--space-2) var(--space-4);flex-shrink:0" onclick="closeAddPlayer()">Cancel</button>
+      <label class="section-label" for="playerNameInput">Add player</label>
+      <input type="text" id="playerNameInput" class="players-name-input" placeholder="Player name…">
+      <button class="btn-primary" onclick="confirmAddPlayer()">Add</button>
+      <button class="btn-secondary" onclick="closeAddPlayer()">Cancel</button>
     </div>
+    <span class="result-info" id="playersInfo"></span>
   </div>
   <div id="playersList"></div>
 </div><!-- /tab-players -->
@@ -616,14 +621,16 @@
 
 </div><!-- /tab-pick -->
 
-<!-- Admin tab -->
+<!-- Admin tab — one page of plain sections (§9.11). It is the app's one
+     deliberately low-density screen: three headings, two data tables at the
+     full width and one form at the reading measure. -->
 <div id="tab-admin" class="tab-pane" style="display:none">
 
   <!-- Pending account requests -->
   <div class="section">
-    <div class="section-title" style="margin-bottom:var(--space-3)">
-      Pending Account Requests
-      <span id="adminReqBadge" style="display:none;background:var(--primary);color:var(--primary-fg);font-size:var(--text-2xs);padding:var(--space-1) var(--space-2);border-radius:var(--radius-full);margin-left:var(--space-2);font-weight:700;vertical-align:middle"></span>
+    <div class="section-title">
+      Pending account requests
+      <span id="adminReqBadge" class="section-title-badge" style="display:none"></span>
     </div>
     <div class="table-wrap">
       <table>
@@ -638,21 +645,22 @@
   </div>
 
   <!-- Create user. A form, so it takes the reading measure; the two user
-       tables above and below it are data and stay full width (§8.3). -->
-  <div class="section section--boxed content-prose">
-    <div class="section-title collapsible" onclick="toggleSection('admin-create')">
-      Create User Account
-      <svg class="chevron" id="chv-admin-create" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-    <div class="section-body" id="pb-admin-create">
+       tables above and below it are data and stay full width (§8.3).
+
+       It was a boxed collapsible, shut by default — the last collapsible in
+       the app, and the box the last thing on this page drawing a fill. A
+       page of plain sections has nowhere to put a lid, and the form is four
+       fields on a screen with room to spare, so it is simply open. -->
+  <div class="section content-prose">
+    <div class="section-title">Create user account</div>
     <form onsubmit="adminCreateUser(event)" class="admin-create-form">
       <div class="field">
         <label>Username</label>
-        <input type="text" id="newUsername" autocapitalize="none" placeholder="username" required style="width:180px">
+        <input type="text" id="newUsername" class="admin-field" autocapitalize="none" placeholder="username" required>
       </div>
       <div class="field">
         <label>Password</label>
-        <input type="password" id="newPassword" placeholder="password" required style="width:180px">
+        <input type="password" id="newPassword" class="admin-field" placeholder="password" required>
       </div>
       <div class="field">
         <label>Role</label>
@@ -662,22 +670,19 @@
         </select>
       </div>
       <div class="field">
-        <label>Linked Player</label>
-        <select id="newPlayerId" style="max-width:200px">
+        <label>Linked player</label>
+        <select id="newPlayerId" class="admin-field">
           <option value="">— No linked player —</option>
         </select>
       </div>
-      <div style="display:flex;flex-direction:column;justify-content:flex-end">
-        <button type="submit" class="btn-primary" style="padding:var(--space-2) var(--space-4)">Create</button>
-      </div>
+      <button type="submit" class="btn-primary">Create</button>
     </form>
-    <div class="error-msg" id="adminCreateError" style="margin-top:var(--space-2)"></div>
-    </div><!-- /pb-admin-create -->
+    <div class="error-msg" id="adminCreateError"></div>
   </div>
 
   <!-- Users table -->
   <div class="section">
-    <div class="section-title" style="margin-bottom:var(--space-3)">All Users</div>
+    <div class="section-title">All users</div>
     <div class="table-wrap">
       <table>
         <thead>

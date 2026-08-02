@@ -1,14 +1,6 @@
 // ── Admin Panel ───────────────────────────────────────────────────────────────
-let _adminInited = false;
 
 async function initAdmin() {
-  if (!_adminInited) {
-    _adminInited = true;
-    // Approving requests is the common path; manual creation is rare —
-    // collapse the create-user panel by default (user's toggle persists).
-    if (collapseState['admin-create'] === undefined) collapseState['admin-create'] = true;
-  }
-  applyCollapse('admin-create');
   await Promise.all([adminLoadUsers(), adminLoadRequests()]);
 }
 
@@ -37,7 +29,7 @@ function _adminRequestRow(r) {
   const date = new Date(r.requested_at + 'Z').toLocaleDateString();
   return `<tr id="admin-req-row-${r.id}">
     <td class="td-name">${esc(r.username)}</td>
-    <td style="font-size:var(--text-sm);color:var(--text-muted)">${date}</td>
+    <td class="admin-req-date">${date}</td>
     <td class="admin-actions">
       <button class="btn-update" onclick="adminExpandApprove(${r.id},'${jsAttr(r.username)}')">Approve</button>
       <button class="btn-remove" onclick="adminDenyRequest(${r.id},'${jsAttr(r.username)}')">Deny</button>
@@ -55,16 +47,16 @@ function adminExpandApprove(id, username) {
   row.innerHTML = `
     <td class="td-name">${esc(username)}</td>
     <td colspan="2">
-      <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center">
-        <select id="req-role-${id}" style="font-size:var(--text-sm);padding:var(--space-1) var(--space-2);background:var(--surface-2);color:var(--text);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:inherit">
+      <div class="admin-inline-form">
+        <select id="req-role-${id}" class="admin-inline-ctl">
           <option value="player">Player</option>
           <option value="admin">Admin</option>
         </select>
-        <select id="req-player-${id}" style="font-size:var(--text-sm);padding:var(--space-1) var(--space-2);background:var(--surface-2);color:var(--text);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;max-width:160px">
+        <select id="req-player-${id}" class="admin-inline-ctl">
           ${playerOpts}
         </select>
         <button class="btn-update" onclick="adminConfirmApprove(${id})">Confirm</button>
-        <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-xs)" onclick="adminLoadRequests()">Cancel</button>
+        <button class="btn-secondary btn-sm" onclick="adminLoadRequests()">Cancel</button>
       </div>
     </td>`;
 }
@@ -157,19 +149,19 @@ function adminEditUser(username) {
   row.innerHTML = `
     <td class="td-name">${esc(username)}</td>
     <td>
-      <select id="edit-role-${esc(username)}" style="font-size:var(--text-sm);padding:var(--space-1) var(--space-2);background:var(--surface-2);color:var(--text);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:inherit">
+      <select id="edit-role-${esc(username)}" class="admin-inline-ctl">
         ${roleOpts}
       </select>
     </td>
     <td>
-      <select id="edit-player-${esc(username)}" style="font-size:var(--text-sm);padding:var(--space-1) var(--space-2);background:var(--surface-2);color:var(--text);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;max-width:160px">
+      <select id="edit-player-${esc(username)}" class="admin-inline-ctl">
         ${playerOpts}
       </select>
     </td>
-    <td class="admin-actions" style="white-space:nowrap;display:flex;gap:var(--space-1);flex-wrap:wrap">
-      <input type="password" id="edit-pw-${esc(username)}" placeholder="New password (optional)" style="font-size:var(--text-xs);padding:var(--space-1) var(--space-2);width:175px;background:var(--surface-2);color:var(--text);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;outline:none">
+    <td class="admin-actions admin-actions-edit">
+      <input type="password" id="edit-pw-${esc(username)}" class="admin-inline-ctl admin-inline-pw" placeholder="New password (optional)">
       <button class="btn-update" onclick="adminSaveUser('${jsAttr(username)}')">Save</button>
-      <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-xs)" onclick="adminLoadUsers()">Cancel</button>
+      <button class="btn-secondary btn-sm" onclick="adminLoadUsers()">Cancel</button>
     </td>`;
 
   // Pre-populate values by re-fetching users list
