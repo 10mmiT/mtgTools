@@ -180,8 +180,9 @@ function pairs(palette) {
   }
 
   // Player chips: the name is drawn in the player's colour on a 20% wash of
-  // the same colour (.p0-.p7 in tabs.css), and the avatar dot draws initials
-  // in --primary-fg over a full-strength fill.
+  // the same colour (.name-tag in tabs.css, which issue 18 gave the slot
+  // rather than an index of its own), and the avatar dot draws initials in
+  // --primary-fg over a full-strength fill.
   /* The four things a player's slot colour does, as issue 15 left them. The
    * first two are the colour used as ink: the Want List's tick and its column
    * rule, and the pool's player headings. The third is the one that changed

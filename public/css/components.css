@@ -23,6 +23,26 @@
 }
 .btn-secondary:hover:not(:disabled) { border-color: var(--primary); }
 
+/* The fourth of §7.4's four treatments, and the last to be written: two
+   rules in this file already named .btn-danger — the 44px touch target and
+   the press feedback — against a class no stylesheet defined and no element
+   wore. Available@'s "Remove me" was the treatment, spelled out under a name
+   of its own; it is this now. A soft fill and the label in --danger, which
+   §7.9 reserves for exactly this: the destructive action. */
+.btn-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+/* The hover is the one the button already had. A stronger fill mixed from
+   --danger would be a colour nothing measures — check-contrast.js walks the
+   label against --danger-soft, which is a token — and brightness moves the
+   label with the fill rather than closing the gap between them. */
+.btn-danger:hover:not(:disabled) { filter: brightness(1.1); }
+
 .btn-update {
   background: transparent;
   color: var(--primary);

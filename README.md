@@ -9,9 +9,10 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Available@ tab
 - Shared group availability calendar — mark which days you're free
-- Logged-in players are identified automatically via their linked player — no name entry needed. The "Who are you?" bar only appears for admins and in open (no-login) mode, where it's remembered in the browser
+- Logged-in players are identified automatically via their linked player — no name entry needed. The "Who are you?" bar is a toolbar item at the top of the tab, and only appears for admins and in open (no-login) mode, where it's remembered in the browser
 - Click any future day to toggle your availability
-- "Best upcoming days" panel ranks days by how many people are free
+- Each name on the calendar is drawn in that player's own identity colour — the same one their chip wears on Players, Want Lists and Pick Night (a name with no player record, which open mode allows, gets a stable colour of its own)
+- "Best upcoming days" column ranks days by how many people are free
 - On mobile, the calendar switches to a compact week-list (Mon–Sun) with prev/next week navigation
 - All availability data persists across restarts
 

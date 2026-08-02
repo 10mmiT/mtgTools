@@ -577,9 +577,9 @@
   /* Players add-player input full width */
   #playerNameInput { max-width: 100% !important; }
 
-  /* Available@ name input stretches to fill */
-  .avail-name-bar { flex-wrap: wrap; }
-  .avail-name-bar input { width: 100%; }
+  /* Available@ name field takes the whole of its row on a phone rather than
+     sharing it with the hint, which wraps under it. */
+  .toolbar .avail-name-input { flex: 1 1 100%; }
 
   /* Deck View URL wrapper: remove min-width so it stacks cleanly */
   .dv-url-field { min-width: 0 !important; width: 100%; }
@@ -648,42 +648,30 @@
   font-style: italic;
 }
 
-/* ── Available@ embedded calendar ───────────────────────────────────── */
+/* ── Available@ embedded calendar ─────────────────────────────────────
+   The calendar and the ranking are two columns above 900px and one below
+   (§9.8). The ranking column is fixed rather than a fraction: it is a
+   list of dates and names, and a share of an ultrawide window would set
+   "Wednesday, August 5" against half a metre of empty row. What the
+   window gains goes to the calendar, where the cells use it. */
 .avail-layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: var(--space-4);
   align-items: start;
 }
 @media (width < 900px) { .avail-layout { grid-template-columns: 1fr; } }
 
-.avail-name-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-4);
-}
-.avail-name-bar label { font-size: var(--text-base); white-space: nowrap; flex-shrink: 0; }
-.avail-name-bar input { flex: 1; min-width: 140px; }
-.avail-name-bar input.shake { animation: avail-shake .35s; }
+/* The name field on the strip. It takes the room left over the way a
+   search input does on every other tab, but stops short of the whole
+   row — this is a person's name, not a query. */
+.toolbar .avail-name-input { flex: 0 1 260px; min-width: 140px; }
+.avail-name-input.shake { animation: avail-shake .35s; }
 @keyframes avail-shake {
   0%,100% { transform: translateX(0); }
   20%,60%  { transform: translateX(-5px); }
   40%,80%  { transform: translateX(5px); }
 }
-.avail-name-hint { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.5; }
-.avail-remove-btn {
-  border: none;
-  background: var(--danger-soft);
-  color: var(--danger);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-base);
-  font-weight: 600;
-  cursor: pointer;
-}
-.avail-remove-btn:hover { filter: brightness(1.1); }
 
 .cal-header {
   display: flex;
@@ -747,6 +735,15 @@
 .cal-cell.clickable:not(.past) .day-num { color: var(--text); }
 .day-names { display: flex; flex-direction: column; gap: var(--space-1); }
 
+/* One person's name, on a day. The colour is the player's own slot, handed
+   in as --player the way every other tab hands one to a chip, a dot or a
+   column rule (js/state.js, §5.6) — the text is the slot colour and the
+   chip is a 20% wash of the same, so a theme repaints all eight by
+   changing --player-0…7 alone.
+
+   This used to be eight .pN classes here and an index the tab worked out
+   for itself, which is why the same person could be green on Available@
+   and orange everywhere else. */
 .name-tag {
   display: inline-block;
   font-size: var(--text-2xs);
@@ -757,23 +754,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-}
-/* Per-player chips. Each .pN names one categorical token; the shared rule
-   below derives both the text and the 20%-alpha chip fill from it, so a
-   theme repaints all eight by changing --player-0…7 alone. These had no
-   theme variants at all before — light themes got dark-theme colours. */
-.p0, .p1, .p2, .p3, .p4, .p5, .p6, .p7 {
   background: color-mix(in srgb, var(--player) 20%, transparent);
   color: var(--player);
 }
-.p0 { --player: var(--player-0); }
-.p1 { --player: var(--player-1); }
-.p2 { --player: var(--player-2); }
-.p3 { --player: var(--player-3); }
-.p4 { --player: var(--player-4); }
-.p5 { --player: var(--player-5); }
-.p6 { --player: var(--player-6); }
-.p7 { --player: var(--player-7); }
 
 .best-day {
   display: flex;
@@ -801,24 +784,53 @@
 .badge-admin  { background: var(--warning-soft); color: var(--warning); }
 .badge-player { background: var(--primary-lt); color: var(--primary-tx); }
 
-/* ── Mana Base Calculator ─────────────────────────────────────────────── */
+/* ── Mana Base Calculator ─────────────────────────────────────────────
+   Two columns of plain sections (§9.10): what you have on the left, what
+   to run on the right.
+
+   The pair is capped rather than spread across the window. This tab is a
+   form, and §8.3 gives forms the reading behaviour rather than the wide
+   one — uncapped, an ultrawide monitor put the six pip fields against
+   one edge and the answer they produce against the other, a metre apart
+   with nothing in between. The cap is what the two columns need: the pip
+   row, which is the widest thing on the left at about 860px, plus the
+   results column and the gap. */
 .lands-layout {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: var(--space-4);
   align-items: start;
+  max-width: 1240px;
 }
-@media (width < 900px) { .lands-layout { grid-template-columns: 1fr; } }
+@media (width < 900px) { .lands-layout { grid-template-columns: 1fr; max-width: none; } }
 
-.lands-inputs-col { display: flex; flex-direction: column; gap: var(--space-4); }
+.lands-inputs-col { display: flex; flex-direction: column; }
+/* The button is as wide as its label. A stretched "Reset all" running the
+   length of the column reads as the tab's primary action, which it is not. */
+.lands-reset { align-self: flex-start; }
 
-.lands-num-input { 
+/* The answer follows the inputs down the page while they are being
+   entered — but only while it is a column beside them. Stacked below 900px
+   it is the end of the page, with nothing left to scroll past. */
+@media (width >= 900px) {
+  .lands-results-col .section { position: sticky; top: var(--space-4); }
+}
+
+.lands-num-input {
   width: 80px;
   padding: var(--space-2) var(--space-3);
   flex-shrink: 0;
 }
 
+/* A number and its unit — "24 lands (recommended: 24)". The two wide
+   fields are the ones with a word after them rather than a label above. */
+.lands-field-row { display: flex; align-items: center; gap: var(--space-2); }
+.lands-field-row .lands-num-input { width: 110px; }
+
+.lands-presets { width: fit-content; margin-bottom: var(--space-3); }
+
 .lands-hint { font-size: var(--text-sm); color: var(--text-muted); }
+.lands-rec-hint { opacity: .7; }
 /* The three explanatory paragraphs on this tab, and the one place in the app
    where a real paragraph sits directly in a column that the width work
    widened — so it takes the reading measure (§8.3) rather than running the
@@ -916,8 +928,11 @@
 }
 .lands-stat-highlight .lands-stat-lbl { color: var(--primary-tx); opacity: .7; }
 
-/* Result rows */
+/* Result rows. The gap above them is theirs rather than an inline margin on
+   the element, and only when there are any — empty, the div is followed by
+   the empty state, which brings its own space. */
 .lands-result-rows { display: flex; flex-direction: column; gap: var(--space-2); }
+.lands-result-rows:not(:empty) { margin-top: var(--space-4); }
 
 .lands-row {
   display: flex;

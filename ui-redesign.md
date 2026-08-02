@@ -555,6 +555,11 @@ drawer. (Card-size control is from [ui.md](ui.md) §3 — see §15.4.)
 Sizes: `--text-sm`, `padding: var(--space-2) var(--space-3)`, icon-only buttons square at the
 same height. Minimum touch target **44×44px** on mobile.
 
+> **`.btn-danger` delivered** (issue 18). Two rules in components.css already named it — the
+> 44px touch target and the press feedback — against a class no stylesheet defined and no
+> element wore, so both were quietly matching nothing. Available@'s "Remove me" was the
+> treatment written out under a name of its own; it is the class now.
+
 ### 7.5 Focus
 
 One rule, applied globally — this is where `--accent` earns its keep:
@@ -861,6 +866,21 @@ column below. The "Who are you?" bar (admin/open-mode only) becomes a toolbar it
 section. Availability dots use `--player-N`. Week-list mobile view keeps its behaviour, restyled
 to §7.6 density.
 
+> **Delivered** (issue 18). The bar is the tab's `.toolbar` rather than an item on someone
+> else's — this tab has no search, count or view toggle, so the strip it earns is the one
+> field it has. The calendar grid starts 104px down the window, from 210.
+>
+> "Availability dots use `--player-N`" was half true and the wrong half: the tags already
+> named those tokens, through eight `.pN` classes, but the *N* was the name's position in a
+> sorted list rather than the player's own slot. One person was one colour here and another
+> on the four tabs that read `playerColor()`, and adding a name early in the alphabet
+> repainted everybody. The slot is looked up per §5.6 now, with a hash of the name for the
+> open-mode names that have no player record, and the eight classes are gone — `.name-tag`
+> takes `--player` the way every other tab hands a colour to a chip.
+>
+> The ranking column is a fixed 320px rather than a fraction: what the window gains goes to
+> the calendar cells, which use it, and not to the row a date and four names sit on.
+
 ### 9.9 Players & Decks — *0 sections, art tiles*
 
 Deck tiles already use commander art as background — they are the model the rest of the app is
@@ -874,6 +894,19 @@ white-alpha since the indigo belongs to no palette.
 Second-worst chrome ratio. The five titled sections collapse to two `.content-wide` columns
 with `.section-title` headings and no boxes. Charts inherit `--mc-*` for colour identity —
 this is the one place mana colour is data, not chrome, so it stays saturated.
+
+> **Delivered** (issue 18), and three of the four sentences above had already happened by
+> the time it was picked up: §7.1 took the boxes off every section in the app, issue 04 put
+> the charts on `--mc-*`, and the two columns were the tab's own layout. What was left was
+> the fifth heading — "Total Lands" was a title floating inside the deck-size section,
+> held off it by an inline margin, and is a section of its own now, so the five headings
+> are five sections — and the width.
+>
+> **`.content-wide` is the one instruction here that was wrong.** A calculator is a form,
+> and §8.3 gives forms the reading behaviour: uncapped, a 2560px window put the six pip
+> fields at one edge and the answer they produce at the other, 1318px apart with nothing in
+> between. The layout is capped at 1240px — the pip row, the results column and the gap —
+> which leaves 76px between the last field and the answer at any width above it.
 
 ### 9.11 Admin — *3 sections, 3 titles, 1 toolbar*
 

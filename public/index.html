@@ -422,45 +422,40 @@
 
 <!-- Available@ tab (shown first / by default) -->
 <div id="tab-available" class="tab-pane">
-  <div id="availLoading" style="text-align:center;padding:var(--space-6) var(--space-4);color:var(--text-muted)">Loading calendar…</div>
+  <div id="availLoading" class="empty-state">Loading calendar…</div>
   <div id="availApp" style="display:none">
 
-    <!-- Name bar (admin / open-mode only — players are identified by their linked player) -->
-    <div class="section section--boxed" id="availNamePanel">
-      <div class="section-body" id="pb-avail-name">
-        <div class="avail-name-bar">
-          <label for="availNameInput">Who are you?</label>
-          <input type="text" id="availNameInput" placeholder="Your name" maxlength="80"
-                 oninput="availOnNameChange(this.value)">
-          <span class="avail-name-hint" id="availNameHint">Enter your name to mark your availability</span>
-          <button class="avail-remove-btn" id="availRemoveBtn" style="display:none"
-                  onclick="availRemoveSelf()">Remove me</button>
-        </div>
-      </div>
+    <!-- One control strip (§9.8). Who you are was a boxed section of its own
+         above the calendar; it is one field, it is shown only to admins and in
+         open mode, and every other tab puts its one field on a strip. -->
+    <div class="toolbar" id="availNameBar">
+      <label class="section-label" for="availNameInput">Who are you?</label>
+      <input type="text" id="availNameInput" class="avail-name-input" placeholder="Your name" maxlength="80"
+             oninput="availOnNameChange(this.value)">
+      <span class="result-info" id="availNameHint">Enter your name to mark your availability</span>
+      <button class="btn-danger" id="availRemoveBtn" style="display:none"
+              onclick="availRemoveSelf()">Remove me</button>
     </div>
 
     <div class="avail-layout">
-      <!-- Calendar -->
-      <div class="section section--boxed">
-        <div class="section-body" id="pb-avail-cal">
-          <div class="avail-month-cal">
-            <div class="cal-header">
-              <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()">&#8249;</button>
-              <span class="month-title" id="availMonthTitle"></span>
-              <button class="nav-btn" onclick="availNextMonth()">&#8250;</button>
-            </div>
-            <div class="cal-grid" id="availCalGrid"></div>
+      <!-- Calendar. Its heading is the month, which the header already
+           carries — a "Calendar" title above a calendar says nothing. -->
+      <div class="section">
+        <div class="avail-month-cal">
+          <div class="cal-header">
+            <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()">&#8249;</button>
+            <span class="month-title" id="availMonthTitle"></span>
+            <button class="nav-btn" onclick="availNextMonth()">&#8250;</button>
           </div>
-          <div class="avail-week-cal" id="availWeekCal"></div>
+          <div class="cal-grid" id="availCalGrid"></div>
         </div>
+        <div class="avail-week-cal" id="availWeekCal"></div>
       </div>
 
       <!-- Best days -->
-      <div class="section section--boxed">
-        <div class="section-title" style="font-size:var(--text-md);font-weight:700">Best upcoming days</div>
-        <div class="section-body" id="pb-avail-best">
-          <div id="availBestDays"></div>
-        </div>
+      <div class="section">
+        <div class="section-title">Best upcoming days</div>
+        <div id="availBestDays"></div>
       </div>
     </div>
 
@@ -471,27 +466,32 @@
 <div id="tab-lands" class="tab-pane" style="display:none">
 <div class="lands-layout">
 
-  <!-- Left column: inputs -->
+  <!-- Left column: inputs. One section per heading (§9.10) — "Total Lands"
+       used to be a second title floating inside the deck-size section, held
+       off it by an inline margin. -->
   <div class="lands-inputs-col">
 
     <!-- Deck size -->
     <div class="section">
       <div class="section-title">Deck Size</div>
-      <div class="view-toggle" style="width:fit-content;margin-bottom:var(--space-3)">
+      <div class="view-toggle lands-presets">
         <button class="view-btn land-preset-btn" data-size="40">40 <span class="preset-sub">Limited</span></button>
         <button class="view-btn land-preset-btn active" data-size="60">60 <span class="preset-sub">Constructed</span></button>
         <button class="view-btn land-preset-btn" data-size="100">100 <span class="preset-sub">Commander</span></button>
       </div>
-      <div style="display:flex;align-items:center;gap:var(--space-2)">
-        <input type="number" id="landsCustomSize" class="lands-num-input" placeholder="Custom…" min="1" max="500" style="width:110px" oninput="landsOnCustomSize(this.value)">
+      <div class="lands-field-row">
+        <input type="number" id="landsCustomSize" class="lands-num-input" placeholder="Custom…" min="1" max="500" oninput="landsOnCustomSize(this.value)">
         <span class="lands-hint">cards</span>
       </div>
+    </div>
 
-      <div class="section-title" style="margin-top:var(--space-4)">Total Lands</div>
+    <!-- Total lands -->
+    <div class="section">
+      <div class="section-title">Total Lands</div>
       <p class="lands-sub">Override how many lands to run. Leave blank to use the recommended amount for your deck size.</p>
-      <div style="display:flex;align-items:center;gap:var(--space-2)">
-        <input type="number" id="landsCount" class="lands-num-input" placeholder="24" min="0" max="500" style="width:110px">
-        <span class="lands-hint">lands <span id="landsRecHint" style="opacity:.7"></span></span>
+      <div class="lands-field-row">
+        <input type="number" id="landsCount" class="lands-num-input" placeholder="24" min="0" max="500">
+        <span class="lands-hint">lands <span id="landsRecHint" class="lands-rec-hint"></span></span>
       </div>
     </div>
 
@@ -553,15 +553,15 @@
       </div>
     </div>
 
-    <button class="btn-secondary" style="font-size:var(--text-sm);padding:var(--space-2) var(--space-4)" onclick="landsReset()">Reset all</button>
+    <button class="btn-secondary lands-reset" onclick="landsReset()">Reset all</button>
   </div>
 
   <!-- Right column: results -->
   <div class="lands-results-col">
-    <div class="section" style="position:sticky;top:4.5rem">
+    <div class="section">
       <div class="section-title">Recommended Mana Base</div>
       <div id="landsSummaryCards" class="lands-summary-cards"></div>
-      <div id="landsResultRows" class="lands-result-rows" style="margin-top:var(--space-4)"></div>
+      <div id="landsResultRows" class="lands-result-rows"></div>
       <div id="landsEmptyState" class="lands-empty-state">
         Set your deck size and enter pip counts to see recommendations.
       </div>

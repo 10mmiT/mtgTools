@@ -23,10 +23,34 @@ function availToISO(y, m, d) {
 const availTodayISO  = (() => { const n = new Date(); return availToISO(n.getFullYear(), n.getMonth(), n.getDate()); })();
 const availTodayDate = new Date(availTodayISO + 'T00:00:00');
 
+// ── Colour (§5.6) ────────────────────────────────────────────────────────────
+// A name on this calendar is a person, and a person has one colour across the
+// app: the slot on their player record, which is what their chip on Players,
+// their tick on the Want List and their heading on Pick Night are all drawn
+// from. This tab used to number names by their position in a sorted list
+// instead, so the same person was one colour here and another everywhere else
+// — and everyone's colour shifted the moment a name earlier in the alphabet
+// marked a day.
+//
+// Open mode lets anyone type any name, so a name with no player record falls
+// back to a hash of the name itself: stable for that person, on every device,
+// which position in a list is not. The hash is playerSlot()'s own fallback,
+// over the name rather than over an id these entries do not have.
+function availSlot(name) {
+  const key    = String(name || '').trim().toLowerCase();
+  const player = state.players.find(p => String(p.name || '').trim().toLowerCase() === key);
+  if (player) return playerSlot(player);
+  let h = 0;
+  for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(h) % PLAYER_SLOTS;
+}
+
 function availBuildColorMap() {
-  const names = [...new Set(availCalData.availability.map(a => a.person_name))].sort();
+  const names = [...new Set(availCalData.availability.map(a => a.person_name))];
   availColorMap = {};
-  names.forEach((n, i) => { availColorMap[n] = i % 8; });
+  // The var() reference, not a resolved colour — the tags are rendered once
+  // and must repaint with the theme, exactly as playerColor() does elsewhere.
+  for (const n of names) availColorMap[n] = `var(--player-${availSlot(n)})`;
 }
 
 function availBuildLookup() {
@@ -83,7 +107,7 @@ function availRenderWeekView() {
     const myDay = availName && names.includes(availName);
 
     const tags  = names.map(n =>
-      `<span class="name-tag p${availColorMap[n] ?? 0}">${esc(n)}</span>`
+      `<span class="name-tag" style="--player:${availColorMap[n] ?? 'var(--player-0)'}">${esc(n)}</span>`
     ).join('');
 
     const cls   = 'avail-week-row'
@@ -135,7 +159,7 @@ function availRenderCalendar() {
     const names   = lookup[iso] || [];
     const myDay   = availName && names.includes(availName) ? ' my-day' : '';
     const namesHtml = names.map(n =>
-      `<span class="name-tag p${availColorMap[n] ?? 0}">${esc(n)}</span>`
+      `<span class="name-tag" style="--player:${availColorMap[n] ?? 'var(--player-0)'}">${esc(n)}</span>`
     ).join('');
     const click = !past ? `onclick="availToggleDay('${iso}')"` : '';
     html += `<div class="${cls}${myDay}" ${click}>
@@ -157,14 +181,14 @@ function availRenderBestDays() {
   const el = document.getElementById('availBestDays');
   if (!el) return;
   if (!ranked.length) {
-    el.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-base)">No availability marked yet — be the first!</p>';
+    el.innerHTML = '<div class="empty-state">No availability marked yet — be the first!</div>';
     return;
   }
   el.innerHTML = ranked.map(([date, names]) => {
     const dt    = new Date(date + 'T00:00:00');
     const label = dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     const tags  = names.map(n =>
-      `<span class="name-tag p${availColorMap[n] ?? 0}">${esc(n)}</span>`
+      `<span class="name-tag" style="--player:${availColorMap[n] ?? 'var(--player-0)'}">${esc(n)}</span>`
     ).join('');
     return `<div class="best-day">
       <div class="best-day-info">
@@ -182,7 +206,7 @@ function availOnNameChange(val) {
   const removeBtn = document.getElementById('availRemoveBtn');
   const nameHint  = document.getElementById('availNameHint');
   const hasEntries = availName && availCalData?.availability.some(a => a.person_name === availName);
-  if (removeBtn) removeBtn.style.display = hasEntries ? 'inline-block' : 'none';
+  if (removeBtn) removeBtn.style.display = hasEntries ? '' : 'none';
   if (nameHint) nameHint.textContent = availName
     ? 'Click a day to toggle your availability'
     : 'Enter your name to mark your availability';
@@ -247,7 +271,7 @@ function availInitUI() {
   document.getElementById('availApp').style.display     = '';
 
   // Logged-in non-admin users are identified by their linked player, so the
-  // "Who are you?" bar is pointless for them — hide the whole panel. It stays
+  // "Who are you?" bar is pointless for them — hide the whole strip. It stays
   // visible for admins (who may manage other people's availability) and in
   // open/guest mode (where the name input is the only way to identify anyone).
   const openMode = currentUser?.username === 'guest';
@@ -261,8 +285,8 @@ function availInitUI() {
     else { unlinked = true; availName = ''; } // no linked player — can't mark days
   }
 
-  const namePanel = document.getElementById('availNamePanel');
-  if (namePanel) namePanel.style.display = (isPinned && !unlinked) ? 'none' : '';
+  const nameBar = document.getElementById('availNameBar');
+  if (nameBar) nameBar.style.display = (isPinned && !unlinked) ? 'none' : '';
 
   const nameInp = document.getElementById('availNameInput');
   if (nameInp) {
@@ -279,7 +303,7 @@ function availInitUI() {
     const hint = document.getElementById('availNameHint');
     if (hint) hint.textContent = 'Your account is not linked to a player. Ask an admin to link it.';
     if (nameInp) nameInp.style.display = 'none';
-    const lbl = document.querySelector('#availNamePanel .avail-name-bar label');
+    const lbl = document.querySelector('#availNameBar label');
     if (lbl) lbl.style.display = 'none';
   }
 
