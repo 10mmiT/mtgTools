@@ -358,6 +358,8 @@ Runs are deterministic: capturing twice with no changes gives byte-identical PNG
 
 **With two exceptions.** The **Set Browser**'s tiles are only as complete as the set index in the `scryfall.db` you point it at — a snapshot whose index is half filled shows "262 cards" where a filled one shows "41 / 262 owned", and a new set announced between two runs adds a tile at the front. Let the index finish before capturing anything you intend to compare. **Available@** draws a calendar around today, so any pair of captures that straddles midnight differs on the highlighted day and the "best upcoming days" list. Capture the before and after close together, or discount those tabs. If a diff looks far too big for what you changed, check the maximum per-channel delta before assuming the worst: a restyle moves pixels a little across a wide area, whereas reordered content moves a few pixels a lot.
 
+**A card detail is a third case, for a different reason.** `--tabs 'card=Sol Ring'` captures an open card, and that view is three live Scryfall requests deep — the card, then its rulings and its printings. They share one server-side queue with the set-index sweep, which is ~1,400 paged requests and draws 429s with a 60-second `Retry-After`; while it is running, a card lookup can queue behind a minute of penalty and the shot is of "Loading…". Capture card views against a server whose index has already finished, and raise `--settle` if they still come out mid-load.
+
 This is a review aid, not an automated assertion: nothing compares the images. Useful flags — `--tabs`, `--themes`, `--viewports` to narrow a run, `--url` to point at an already-running app, `--help` for the rest.
 
 ### Layout measurement

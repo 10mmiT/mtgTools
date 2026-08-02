@@ -209,14 +209,27 @@ function cardFaceBlock(f) {
     </div>`;
 }
 
+// Legality is a status, so it is drawn in the status colours (§7.9): legal is
+// success, restricted is warning, banned is danger, and a format the card was
+// simply never printed for is none of those — it is the absent case, and
+// colouring five greyed formats red on a typical card would say "error" seven
+// times a page. The two loud states also say the word, since a badge whose
+// meaning is carried by hue alone is unreadable to anyone who cannot see it.
+const LEGAL_STATUS = {
+  legal:      { cls: 'leg-legal',      note: '' },
+  restricted: { cls: 'leg-restricted', note: 'restricted' },
+  banned:     { cls: 'leg-banned',     note: 'banned' },
+};
+const LEGAL_NONE = { cls: 'leg-none', note: '' };
+
 function cardLegalitiesHtml(legalities) {
   if (!legalities) return '';
   const formats = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'commander', 'pauper'];
   const pills = formats.map(fmt => {
-    const ok = legalities[fmt] === 'legal';
-    const restricted = legalities[fmt] === 'restricted';
-    const cls = ok ? 'leg-ok' : restricted ? 'leg-restricted' : 'leg-no';
-    return `<span class="card-legal ${cls}">${fmt}</span>`;
+    const status = legalities[fmt] || 'not_legal';
+    const { cls, note } = LEGAL_STATUS[status] || LEGAL_NONE;
+    const label = note ? `${fmt} · ${note}` : fmt;
+    return `<span class="card-legal ${cls}" title="${esc(fmt)}: ${esc(status.replace('_', ' '))}">${esc(label)}</span>`;
   }).join('');
   return `<div class="card-legalities">${pills}</div>`;
 }
@@ -234,11 +247,13 @@ async function loadRulings(card, seq, sectionId = 'cardDetail-rulings') {
     el.innerHTML = `<div class="section-title">Rulings</div><div class="help-text">No rulings for this card.</div>`;
     return;
   }
+  // A dated list, not a two-column table (§9.6): the date belongs to the
+  // ruling rather than beside it, and a date column would take a fifth of the
+  // measure away from the only part anyone reads.
   el.innerHTML = `<div class="section-title">Rulings (${rulings.length})</div>` +
-    rulings.map(r => `<div class="card-ruling">
-      <span class="card-ruling-date">${esc((r.published_at || '').slice(0, 10))}</span>
-      <span class="card-ruling-text">${cardOracleHtml(r.comment)}</span>
-    </div>`).join('');
+    `<dl class="card-rulings">` + rulings.map(r => `
+      <dt class="card-ruling-date">${esc((r.published_at || '').slice(0, 10))}</dt>
+      <dd class="card-ruling-text">${cardOracleHtml(r.comment)}</dd>`).join('') + `</dl>`;
 }
 
 async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
@@ -261,6 +276,8 @@ async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
     </button>`;
   }).join('');
 
+  // The app's own card grid (§9.6), so the gallery is sized like every other
+  // grid of card images rather than by a number written for this tab alone.
   el.innerHTML = `<div class="section-title">Other Printings &amp; Alt-Art (${prints.length})</div>
-    <div class="card-prints-grid">${tiles}</div>`;
+    <div class="card-grid">${tiles}</div>`;
 }

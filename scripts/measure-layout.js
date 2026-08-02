@@ -200,10 +200,16 @@ const SHOW_GRID = `(() => {
  * .pick-results-grid is a third thing and not a card grid at all — its tiles
  * are commander art rather than card images — but the question the fold asks
  * is "how far down is the thing this tab is for", and on Pick Night that is
- * the picked deck. */
+ * the picked deck.
+ *
+ * .card-detail-img is here for the same reason. The card tab's only grid is
+ * the printings gallery at the *bottom* of the page, so without it that tab
+ * reported how far down its footnote sits rather than how far down the card
+ * is. The image is the first of these in the document, and document order is
+ * what querySelector answers with. */
 const FOLD = `(() => {
   const pane = [...document.querySelectorAll('.tab-pane')].find(p => p.style.display !== 'none');
-  const card = pane && pane.querySelector('.grid-card, .card-grid > *, .sf-grid > *, .sf-grid-xl > *, .pick-results-grid > *');
+  const card = pane && pane.querySelector('.card-detail-img, .grid-card, .card-grid > *, .sf-grid > *, .sf-grid-xl > *, .pick-results-grid > *');
   if (!card) return 'null';
   return String(Math.round(card.getBoundingClientRect().top));
 })()`;
