@@ -698,64 +698,72 @@
 </div><!-- /tab-admin -->
 
 <!-- Deck Builder tab. It used to be rendered outside the shell to escape the
-     1400px cap; the shell has no cap now, so it is an ordinary pane again. -->
-<div id="tab-deckview" class="tab-pane db-pane" style="display:none">
+     1400px cap; the shell has no cap now, so it is an ordinary pane again.
 
-  <!-- Top bar -->
-  <div class="db-topbar">
+     Two shapes, one strip (§7.3, §9.5) — the Set Browser's arrangement. Three
+     rows became this one: the deck picker, the view/sort/filter row and the
+     add-card row. Until a deck is chosen the picker is all there is; choosing
+     one brings the controls that act on cards, which is what
+     [data-db-mode] switches. -->
+<div id="tab-deckview" class="tab-pane db-pane" data-db-mode="none" style="display:none">
+
+  <div class="toolbar">
     <select id="dbDeckSel" class="db-deck-sel" onchange="dbSelectDeck(this.value)">
       <option value="">— Select a deck —</option>
     </select>
-    <button class="btn-secondary" style="flex-shrink:0" onclick="dbShowNewDeck()">+ New Deck</button>
-    <div class="db-topbar-right">
-      <button class="btn-outline" onclick="dbOpenSearchPanel()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:var(--space-1)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search / EDHREC
-      </button>
-      <div class="col-menu-wrap">
-        <button class="col-menu-btn" onclick="dbToggleMoreMenu(event)">More ▾</button>
-        <div id="dbMoreMenu" class="col-menu db-more-menu">
-          <div class="db-more-section-label">Deck</div>
-          <button class="col-menu-item" id="dbCategoriesBtn" style="display:none" onclick="dbCloseMoreMenu();dbShowCategoriesModal()">Categories</button>
-          <button class="col-menu-item" onclick="dbCloseMoreMenu();dbLoadForComparison()">Compare</button>
-          <div class="db-more-divider"></div>
-          <div class="db-more-section-label">Import</div>
-          <button class="col-menu-item" onclick="dbCloseMoreMenu();document.getElementById('dbCsvInput').click()">Import CSV</button>
-          <button class="col-menu-item" onclick="dbCloseMoreMenu();dbShowImportText()">Paste List</button>
-          <div class="db-more-divider"></div>
-          <div class="db-more-section-label">Export</div>
-          <button class="col-menu-item" onclick="dbCloseMoreMenu();dbExportClipboard()">Copy to clipboard</button>
-          <button class="col-menu-item" onclick="dbCloseMoreMenu();dbExportCsv()">Download CSV</button>
-          <button class="col-menu-item" onclick="dbCloseMoreMenu();dbExportTxt()">Download .txt</button>
-          <div class="db-more-divider"></div>
-          <button class="col-menu-item db-menu-danger" id="dbDeleteDeckBtn" style="display:none" onclick="dbCloseMoreMenu();dbDeleteDeck()">Delete Deck</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- Toolbar (shown when a deck is loaded) -->
-  <div class="db-deck-toolbar" id="dbDeckToolbar" style="display:none">
-    <div id="dbSortMount"></div>
-    <div class="autocomplete-wrap" style="position:relative;flex:1;min-width:160px;max-width:320px">
-      <input type="text" id="dbOracleSearchInput" placeholder="Search name or oracle text…"
-             oninput="dbSetOracleFilter(this.value)">
-    </div>
-    <div id="dbViewMount" style="margin-left:auto"></div>
-    <div class="db-scale-wrap" id="dbScaleWrap" style="display:none">
-      <label>Size</label>
-      <input type="range" class="db-scale-slider" id="dbScaleSlider" min="80" max="300" step="10" value="150" oninput="dbSetScale(this.value)">
-    </div>
-    <span id="dbSaveStatus" class="db-save-status"></span>
-  </div>
-
-  <!-- Add-card quick input (shown when a deck is loaded) -->
-  <div class="db-add-card-row" id="dbAddCardRow" style="display:none">
-    <div class="autocomplete-wrap" style="position:relative;flex:1">
+    <!-- Adding a card is what this tab is for and is done constantly, so it
+         stays on the strip rather than going behind the ⋯ — the same call
+         §9.4 made for the Want List's add field. -->
+    <div class="autocomplete-wrap db-add-field db-when-deck">
       <input type="text" id="dbAddCardInput" placeholder="Add a card…"
              oninput="dbAddAcInput()" onkeydown="if(event.key==='Enter'){closeDbAddAc();dbAddCard()}">
       <div id="dbAddAcDrop" class="ac-dropdown" style="display:none"></div>
     </div>
-    <button class="btn-primary" style="flex-shrink:0" onclick="dbAddCard()">Add</button>
+    <button class="btn-primary db-when-deck" onclick="dbAddCard()">Add</button>
+
+    <input type="text" id="dbOracleSearchInput" class="search-input db-when-deck"
+           placeholder="Search name or oracle text…" oninput="dbSetOracleFilter(this.value)">
+
+    <!-- The strip's spacer, where every other tab puts its result count. A
+         deck's counts are on the stats bar; what this tab has to say about
+         the state of its data is whether the last edit is saved. -->
+    <span id="dbSaveStatus" class="db-save-status result-info"></span>
+
+    <div id="dbViewMount" class="db-when-deck"></div>
+    <div class="db-scale-wrap db-when-deck" id="dbScaleWrap" style="display:none">
+      <label for="dbScaleSlider">Size</label>
+      <input type="range" class="db-scale-slider" id="dbScaleSlider" min="80" max="300" step="10" value="150" oninput="dbSetScale(this.value)">
+    </div>
+    <div id="dbSortMount" class="db-when-deck"></div>
+
+    <button class="btn-secondary db-when-deck" onclick="dbOpenSearchPanel()" title="Search Scryfall / EDHREC">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
+
+    <!-- Everything that is neither a control on the cards nor done often.
+         Only "New deck" survives without a deck loaded: the rest act on one,
+         and each already returns early without one. -->
+    <div class="col-menu-wrap">
+      <button class="col-menu-btn" onclick="dbToggleMoreMenu(event)" title="Deck actions, import and export">⋯</button>
+      <div id="dbMoreMenu" class="col-menu db-more-menu">
+        <div class="db-more-section-label">Deck</div>
+        <button class="col-menu-item" onclick="dbCloseMoreMenu();dbShowNewDeck()">New deck…</button>
+        <button class="col-menu-item db-when-deck" id="dbCategoriesBtn" onclick="dbCloseMoreMenu();dbShowCategoriesModal()">Categories</button>
+        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbLoadForComparison()">Compare</button>
+        <div class="db-more-divider db-when-deck"></div>
+        <div class="db-more-section-label db-when-deck">Import</div>
+        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();document.getElementById('dbCsvInput').click()">Import CSV</button>
+        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbShowImportText()">Paste List</button>
+        <div class="db-more-divider db-when-deck"></div>
+        <div class="db-more-section-label db-when-deck">Export</div>
+        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbExportClipboard()">Copy to clipboard</button>
+        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbExportCsv()">Download CSV</button>
+        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbExportTxt()">Download .txt</button>
+        <div class="db-more-divider db-when-deck"></div>
+        <button class="col-menu-item db-menu-danger db-when-deck" id="dbDeleteDeckBtn" style="display:none" onclick="dbCloseMoreMenu();dbDeleteDeck()">Delete Deck</button>
+      </div>
+    </div>
   </div>
 
   <!-- Bulk actions (shown when one or more cards are selected) -->
@@ -765,20 +773,25 @@
     <button class="btn-secondary" onclick="dbClearSelection()">Clear selection</button>
   </div>
 
-  <!-- Deck content (full width, categories + cards) -->
-  <div id="dbDeckContent">
-    <div class="empty-state" style="padding:var(--space-6) var(--space-4)">Select a deck or create a new one</div>
+  <!-- The mat: the surface the cards sit on, on its own per-theme token
+       (§15.3). Issue 24 makes it the user's playmat image when they have
+       set one. -->
+  <div id="dbDeckContent" class="db-mat">
+    <div class="empty-state">
+      Select a deck above to start building.
+      <div class="db-empty-action"><button class="btn-secondary" onclick="dbShowNewDeck()">+ New deck</button></div>
+    </div>
   </div>
 
   <!-- Add category row -->
-  <div class="db-add-cat-row" id="dbAddCatRow" style="display:none">
+  <div class="db-add-cat-row db-when-deck" id="dbAddCatRow">
     <input type="text" id="dbNewCatInput" placeholder="New category name…"
            onkeydown="if(event.key==='Enter')dbAddCategory()" style="flex:1">
     <button class="btn-secondary" onclick="dbAddCategory()">+ Category</button>
   </div>
 
   <!-- Stats bar -->
-  <div class="db-stats-bar" id="dbStatsBar" style="display:none">
+  <div class="db-stats-bar db-when-deck" id="dbStatsBar">
     <span id="dbStatCards" class="db-stat-item"></span>
     <span class="db-stat-sep">·</span>
     <span id="dbStatLands" class="db-stat-item"></span>

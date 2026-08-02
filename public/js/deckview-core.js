@@ -32,9 +32,15 @@ const DB_DEFAULT_CATS = [
 ];
 const DB_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 
+// The empty mat, taken from the markup at boot rather than written out a
+// second time here: putting a deck down has to land on the same thing a cold
+// load shows, and one sentence in two files is one sentence to drift.
+let _dbEmptyMat = '';
+
 // ── Initialization ────────────────────────────────────────────────────────────
 function initDeckBuilder() {
   if (!_dbInitDone) {
+    _dbEmptyMat = document.getElementById('dbDeckContent').innerHTML;
     document.getElementById('dbCsvInput').addEventListener('change', _dbHandleCsvImport);
     document.addEventListener('click', e => {
       if (!e.target.closest('#dbMoreMenu') && !e.target.closest('.col-menu-wrap')) dbCloseMoreMenu();
@@ -216,25 +222,25 @@ async function dbSelectDeck(value) {
   }
 }
 
+// The controls that act on a deck's cards are on the one strip with the deck
+// picker, and exist only once there is a deck: one attribute on the pane
+// switches all of them (.db-when-deck in tabs.css), so this stays a statement
+// about which shape the tab is in rather than a list of elements to keep in
+// step with the markup. Deleting a deck is the exception — it also depends on
+// whose deck it is, which no attribute on the pane knows.
+function _dbSetMode(mode) {
+  document.getElementById('tab-deckview')?.setAttribute('data-db-mode', mode);
+}
+
 function _dbShowDeckUI() {
-  document.getElementById('dbDeckToolbar').style.display = '';
-  document.getElementById('dbAddCardRow').style.display  = '';
-  document.getElementById('dbAddCatRow').style.display   = '';
-  document.getElementById('dbStatsBar').style.display    = '';
-  document.getElementById('dbCategoriesBtn').style.display = '';
+  _dbSetMode('deck');
   document.getElementById('dbDeleteDeckBtn').style.display =
     isMyPlayer(dbDeck?.playerId) ? '' : 'none';
 }
 
 function _dbHideDeckUI() {
-  document.getElementById('dbDeckToolbar').style.display = 'none';
-  document.getElementById('dbAddCardRow').style.display  = 'none';
-  document.getElementById('dbAddCatRow').style.display   = 'none';
-  document.getElementById('dbStatsBar').style.display    = 'none';
-  document.getElementById('dbCategoriesBtn').style.display = 'none';
-  document.getElementById('dbDeleteDeckBtn').style.display = 'none';
-  document.getElementById('dbDeckContent').innerHTML =
-    '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Select a deck or create a new one</div>';
+  _dbSetMode('none');
+  document.getElementById('dbDeckContent').innerHTML = _dbEmptyMat;
 }
 
 // ── Delete deck ───────────────────────────────────────────────────────────────

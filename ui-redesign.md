@@ -803,6 +803,21 @@ use `--space-3` gutters.
 > This is the tab [ui.md](ui.md) §2 rebuilds as a top-down playmat with piles. This spec
 > defines the *surface* (`--mat`, §15.3) and the toolbar; ui.md defines the *interaction*.
 
+> **Delivered** (issue 17), with the strip going one step further than the sentence above.
+> `.db-topbar` was one of *three* control rows — the picker, the view/sort/filter row and the
+> add-card row — and adopting `.toolbar` for the first of them alone would have left a bordered
+> sticky strip with two loose rows under it. All three are the one strip, in the Set Browser's
+> two shapes (§9.3): `[data-db-mode]` on the pane, and `.db-when-deck` on everything that acts
+> on a deck's cards. What did not fit the strip's order went behind its `⋯` — New Deck, which
+> is rare, and Search / EDHREC, which is a drawer button reduced to its icon.
+>
+> The save status is the strip's `.result-info`, in the position every other tab gives its
+> result count: a deck's counts are on the stats bar, and what this tab has to say about the
+> state of its data is whether the last edit is saved.
+>
+> **The mat is `#dbDeckContent`**, on `--mat` with a hairline — the one filled box left on the
+> tab, and deliberately so. The token was defined by issue 09 and unused until now.
+
 ### 9.6 Card — *0 sections, prose-heavy*
 
 The **most important `.content-prose` case.** Two-column on ≥900px: card image left (sticky),

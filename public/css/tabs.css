@@ -1152,9 +1152,14 @@
 
 .dv-list { display: flex; flex-direction: column; gap: var(--space-1); }
 
+/* Eight tracks for eight cells. It had seven, so the last one — the move and
+   remove buttons — wrapped onto an implicit second row under the card's name,
+   and every row in the list view was twice as tall as it needed to be. Below
+   640px the row really is two rows, which is what the media query at the end
+   of this block is for. */
 .dv-row {
   display: grid;
-  grid-template-columns: 1.3rem 2.2rem minmax(0,1.5fr) 6.5rem minmax(0,1fr) 3.5rem 9rem;
+  grid-template-columns: 1.3rem 2.2rem minmax(0,1.5fr) 6.5rem minmax(0,1fr) 3.5rem 9rem auto;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
@@ -1483,42 +1488,45 @@
   .db-pane { padding-bottom: 0; }
 }
 
-/* Top bar */
-.db-topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-  flex-wrap: wrap;
+/* The mat — the surface the cards sit on, and the one thing on this tab that
+   is a filled box on purpose (§7.1 took the fill off everything else). It is
+   its own per-theme token rather than a --surface step because issue 24
+   replaces it with the user's playmat image, and a token that means "the
+   table" can carry an image where one that means "a panel" cannot.
+
+   Flat, so a hairline and no shadow. The empty state sits on it too: a table
+   with nothing on it is still the table. */
+.db-mat {
+  background: var(--mat);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  /* Clear of the strip's own hairline: two rules 1px apart read as one thick
+     one, and the strip is furniture above the mat rather than its lid. */
+  margin-top: var(--space-2);
 }
-.db-deck-sel {
-  flex: 1;
-  min-width: 180px;
+/* Someone with no decks at all lands on the empty mat, and the ⋯ menu is a
+   poor place to discover the one action that gets them out of it. */
+.db-empty-action { margin-top: var(--space-3); }
+
+/* Two shapes, one strip: the controls that act on a deck's cards do not
+   exist until a deck is loaded. An attribute on the pane rather than six
+   style.display writes in dbShowDeckUI/dbHideDeckUI, the same way the Set
+   Browser switches between its picker and its cards. */
+[data-db-mode="none"] .db-when-deck { display: none; }
+
+/* Strip members. The picker is this tab's subject, so it leads the strip and
+   is the one thing on it that is always there. */
+.toolbar .db-deck-sel {
+  flex: 1 1 180px;
+  min-width: 140px;
   max-width: 360px;
 }
-.db-topbar-right {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
+/* .autocomplete-wrap is already relative and flexible; what it needs here is
+   to give way — two text fields on one strip, and the picker beside them. */
+.toolbar .db-add-field { flex: 1 1 180px; min-width: 140px; }
+.toolbar .db-add-field input { width: 100%; }
 
-/* Body split layout */
-.db-body {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-  /* Same fixed-stats-bar clearance as .db-full-width above. */
-  margin-bottom: calc(var(--space-6) + var(--space-4));
-}
-
-/* Left panel */
-.db-left-panel {
-  width: 40%;
-  min-width: 260px;
-  flex-shrink: 0;
-}
 .db-left-tabs {
   display: flex;
   gap: 0;
@@ -1544,28 +1552,11 @@
 }
 .db-ltab:hover { color: var(--text); }
 
-/* Right panel */
-.db-right-panel { flex: 1; min-width: 0; }
-
-/* Toolbar above deck list */
-.db-deck-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  flex-wrap: wrap;
-}
+/* The save status is the strip's spacer — .result-info's job on every other
+   tab — so it takes the room left over and ellipsises rather than wrapping. */
 .db-save-status {
   font-size: var(--text-xs);
   color: var(--text-muted);
-  margin-left: var(--space-1);
-}
-
-/* Add-card row */
-.db-add-card-row {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
 }
 
 /* Add-category row */
@@ -1846,12 +1837,10 @@
 .db-curve-bar:hover { opacity: 1; }
 .db-stat-curve-label { font-size: var(--text-xs); color: var(--text-muted); }
 
-/* Mobile: stack panels. Was ~1023px, which overlapped the 861px sidebar rule
-   below — a tablet-width window got a static stats bar and a sidebar offset
-   on it at the same time. Both sit on 900 now, so they cannot disagree. */
+/* Mobile. Was ~1023px, which overlapped the 861px sidebar rule below — a
+   tablet-width window got a static stats bar and a sidebar offset on it at
+   the same time. Both sit on 900 now, so they cannot disagree. */
 @media (width < 900px) {
-  .db-body { flex-direction: column; }
-  .db-left-panel { width: 100%; }
   .db-results { max-height: 40vh; }
   .db-stats-bar { position: static; margin-top: var(--space-3); border-top: 1px solid var(--border); padding-top: var(--space-2); }
   .db-stat-sep-colors, .db-stat-sep-curve { display: none; }
@@ -1956,10 +1945,13 @@
 }
 
 /* ── Pile View ───────────────────────────────────────────────────────────────── */
+/* The category columns' gutter is --space-3 (§9.5): a step tighter than it
+   was, so a wide mat fits another column of piles rather than another lane
+   of mat between them. */
 .db-pile-layout {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: flex-start;
 }
 .db-pile-layout > .dv-section {

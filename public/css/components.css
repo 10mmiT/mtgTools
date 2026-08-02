@@ -23,19 +23,6 @@
 }
 .btn-secondary:hover:not(:disabled) { border-color: var(--primary); }
 
-.btn-outline {
-  background: transparent;
-  color: var(--text);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-base);
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color .15s, color .15s;
-}
-.btn-outline:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
-
 .btn-update {
   background: transparent;
   color: var(--primary);
