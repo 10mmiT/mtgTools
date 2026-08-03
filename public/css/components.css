@@ -951,6 +951,18 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   .playmat-mobile-row { display: flex; }
 }
 
+/* What the motion switch says when the operating system has already answered
+   the question. The same sentence shape, and the same colour, as the playmat's
+   own explanations above — it is answering the same kind of question. */
+.motion-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.motion-note[hidden] { display: none; }
+
 .td-meta { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
 .td-meta .ms { vertical-align: -1px; }
 .rarity-tag { font-size: var(--text-xs); font-weight: 700; }

@@ -274,6 +274,8 @@ mtgtools/
 │   │   ├── components.css # Controls and widgets shared across tabs
 │   │   └── tabs.css       # Rules owned by a single tab
 │   └── js/
+│       ├── playmat.js     # Loaded in <head>: paints the background before first paint, and its picker
+│       ├── motion.js      # Loaded in <head>: resolves the card-motion preference against the OS
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
 │       ├── sortui.js      # Shared UI components: sort control, columns menu, view toggle, "⋯" kebab menus
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches

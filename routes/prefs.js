@@ -17,10 +17,19 @@ const THEMES        = ['dark', 'light', 'contrast', 'sepia', 'dusk'];
 const THEME_ALIASES = { forest: 'dusk' };
 const PLAYMAT_KINDS = ['none', 'scryfall', 'preset', 'upload'];
 
+// Whether cards move. Two values and not a boolean, for the reason the theme
+// is a name: the effective value the client puts on <html> is the preference
+// resolved against the operating system, and 'off' is a word both sides can
+// write down. Validated here for the same reason a theme is — a value no
+// stylesheet matches would otherwise follow the user onto every device.
+const CARD_MOTION = ['on', 'off'];
+
 // What a user who has never set anything has. Also what open mode always
 // reports: with no ADMIN_PASSWORD there are no accounts, so there is nobody to
 // hang a preference on and the browser is the whole record.
-const DEFAULTS = { theme: 'dark', playmatKind: 'none', playmatRef: null, playmatUrl: null };
+const DEFAULTS = {
+  theme: 'dark', playmatKind: 'none', playmatRef: null, playmatUrl: null, cardMotion: 'on',
+};
 
 function rowToPrefs(row) {
   return {
@@ -28,6 +37,10 @@ function rowToPrefs(row) {
     playmatKind: row.playmat_kind,
     playmatRef:  row.playmat_ref,
     playmatUrl:  row.playmat_url,
+    // A row written before the column existed reads back null, which is not a
+    // value the client knows. The default covers it, exactly as it covers a
+    // user who has no row at all.
+    cardMotion:  row.card_motion || DEFAULTS.cardMotion,
   };
 }
 
@@ -38,14 +51,16 @@ function readPrefs(username) {
 
 function writePrefs(username, prefs) {
   db.prepare(`
-    INSERT INTO user_prefs (username, theme, playmat_kind, playmat_ref, playmat_url, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO user_prefs
+      (username, theme, playmat_kind, playmat_ref, playmat_url, card_motion, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(username) DO UPDATE SET
       theme = excluded.theme, playmat_kind = excluded.playmat_kind,
       playmat_ref = excluded.playmat_ref, playmat_url = excluded.playmat_url,
+      card_motion = excluded.card_motion,
       updated_at = excluded.updated_at
   `).run(username, prefs.theme, prefs.playmatKind,
-    prefs.playmatRef, prefs.playmatUrl, Date.now());
+    prefs.playmatRef, prefs.playmatUrl, prefs.cardMotion, Date.now());
 }
 
 // `stored` is the client's answer to "is the server the record?". It is false
@@ -71,9 +86,9 @@ router.get('/prefs', requireAuth, (req, res) => {
 
 // ── PUT /api/prefs ─────────────────────────────────────────────────────────────
 // A patch, despite the verb the spec names it by: a body may carry the theme,
-// the playmat, or both, and what it leaves out is left alone. Sending the whole
-// record for a one-field change would mean the appearance popover could undo a
-// playmat by picking a theme.
+// the playmat, card motion, or any combination, and what it leaves out is left
+// alone. Sending the whole record for a one-field change would mean the
+// appearance popover could undo a playmat by picking a theme.
 router.put('/prefs', requireAuth, express.json(), (req, res) => {
   const body = req.body || {};
   const next = OPEN_MODE ? { ...DEFAULTS } : readPrefs(getSession(req).username);
@@ -83,6 +98,12 @@ router.put('/prefs', requireAuth, express.json(), (req, res) => {
     const theme = THEME_ALIASES[body.theme] || body.theme;
     if (!THEMES.includes(theme)) return res.status(400).json({ error: 'Invalid theme' });
     next.theme = theme;
+  }
+
+  if ('cardMotion' in body) {
+    if (!CARD_MOTION.includes(body.cardMotion))
+      return res.status(400).json({ error: 'Invalid card motion' });
+    next.cardMotion = body.cardMotion;
   }
 
   if ('playmatKind' in body) {

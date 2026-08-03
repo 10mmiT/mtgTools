@@ -164,6 +164,30 @@
      (or 2px) out. One definition now. */
   --sidenav-width: 186px;
   --sidenav-collapsed-width: 46px;
+
+  /* Motion. 1 when cards may move, 0 when they may not — a multiplier a
+     duration is written against (`calc(var(--motion) * 150ms)`), so a rule
+     states its duration once instead of stating it twice and hoping the two
+     stay in step.
+
+     It is derived, not chosen: js/motion.js resolves the person's preference
+     against the operating system's and puts the answer on <html> as
+     data-motion, which the two rules below read. The default here is what the
+     page has for the instant before that script runs, and for the case where
+     it cannot run at all. */
+  --motion: 1;
+}
+
+/* Off because the person asked for it. */
+:root[data-motion='off'] { --motion: 0; }
+
+/* Off because the operating system asks for it — and this rule comes last on
+   purpose. The OS can take motion away and can never give it back, so it has
+   to beat a preference of 'on'; equal specificity and a later line is what
+   makes that true without an !important. It also stands alone if no script
+   ever runs, which is why the override is not resolved in JS only. */
+@media (prefers-reduced-motion: reduce) {
+  :root, :root[data-motion] { --motion: 0; }
 }
 
 /* ── 2. Themes ────────────────────────────────────────────────────────────

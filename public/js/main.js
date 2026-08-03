@@ -145,9 +145,11 @@ function initTheme() {
  * clearing site data. */
 async function syncPrefs() {
   const p = await loadPrefs();
-  // The playmat's half of the same correction, and it runs either way: a
-  // ?theme= link overrides the theme, not the mat.
+  // The playmat's and the card motion's half of the same correction, and both
+  // run either way: a ?theme= link overrides the theme, not the mat and not
+  // whether cards move.
   syncPlaymat();
+  syncCardMotion();
   if (_urlTheme) { if (p.stored) savePrefs({ theme: _urlTheme }); return; }
   if (p.stored && p.theme) applyTheme(p.theme);
 }
@@ -559,6 +561,7 @@ if (document.readyState === 'loading') {
 initTheme();
 initSideNav();
 initPlaymatPicker();  // the mat itself was applied in <head>; this is its picker
+initCardMotionControl();  // likewise: motion was resolved in <head>, this is its switch
 initWantField();      // the other card field in static markup; see mountCardAutocomplete
 authInit().then(() => {
   syncPrefs();   // not awaited: appearance is already painted, this only corrects it

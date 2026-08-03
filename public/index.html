@@ -11,6 +11,10 @@
        stylesheets because a script after a <link> waits for every sheet
        declared before it. -->
   <script src="js/playmat.js"></script>
+  <!-- Beside it, and in <head> for the same reason: a page that paints and
+       then discovers motion is off has already moved. It puts the effective
+       answer on <html>, where the stylesheet below reads it. -->
+  <script src="js/motion.js"></script>
   <!-- Load order is cascade order: later files may override earlier ones. -->
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
@@ -1031,6 +1035,21 @@
     <input type="checkbox" id="playmatMobileToggle" onchange="togglePlaymatOnMobile(this.checked)">
     <span>Show it on this phone</span>
   </label>
+
+  <div class="db-more-divider"></div>
+  <div class="db-more-section-label">Motion</div>
+  <!-- The person's own answer, kept with them like the theme above. The box
+       shows what they chose; the note below shows when their system is
+       overriding it, which the box deliberately does not. -->
+  <label class="col-menu-item">
+    <input type="checkbox" id="cardMotionToggle" checked
+           onchange="setCardMotion(this.checked)">
+    <span>Cards move</span>
+  </label>
+  <p class="motion-note" id="cardMotionNote" hidden>
+    Your system asks for reduced motion, so cards stay still here whatever
+    this says.
+  </p>
 </div>
 
 <!-- RSS Panel -->

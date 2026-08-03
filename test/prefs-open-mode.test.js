@@ -31,6 +31,7 @@ describe('Open mode: /api/prefs', () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.theme, 'dark');
     assert.equal(res.body.playmatKind, 'none');
+    assert.equal(res.body.cardMotion, 'on');
   });
 
   test('the server says it is not the record, so the browser can be', async () => {
@@ -46,8 +47,18 @@ describe('Open mode: /api/prefs', () => {
     assert.equal(res.body.stored, false);
   });
 
+  test('turning card motion off succeeds, and says the browser is the record', async () => {
+    const res = await request.put('/api/prefs').send({ cardMotion: 'off' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.cardMotion, 'off');
+    // The whole reason a client can keep this in localStorage and trust it:
+    // without `stored: false` it could not tell an answer from a shrug.
+    assert.equal(res.body.stored, false);
+  });
+
   test('nothing is written to the database', async () => {
     await request.put('/api/prefs').send({ theme: 'light' });
+    await request.put('/api/prefs').send({ cardMotion: 'off' });
     const n = dbModule.db.prepare('SELECT COUNT(*) AS n FROM user_prefs').get().n;
     assert.equal(n, 0, 'a prefs row would have no user to belong to');
     // And the next read is the defaults again, not the value just sent: the
@@ -58,6 +69,7 @@ describe('Open mode: /api/prefs', () => {
   test('an invalid value is still rejected', async () => {
     assert.equal((await request.put('/api/prefs').send({ theme: 'neon' })).status, 400);
     assert.equal((await request.put('/api/prefs').send({ playmatKind: 'billboard' })).status, 400);
+    assert.equal((await request.put('/api/prefs').send({ cardMotion: 'sometimes' })).status, 400);
   });
 });
 

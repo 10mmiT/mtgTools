@@ -117,6 +117,7 @@ db.exec(`
     playmat_kind TEXT    NOT NULL DEFAULT 'none',   -- none | scryfall | preset | upload
     playmat_ref  TEXT,                              -- card id | preset id | filename
     playmat_url  TEXT,                              -- resolved image URL
+    card_motion  TEXT    NOT NULL DEFAULT 'on',     -- on | off
     updated_at   INTEGER NOT NULL
   );
 `);
@@ -126,6 +127,15 @@ db.exec(`
 try {
   db.exec('ALTER TABLE app_state ADD COLUMN version INTEGER NOT NULL DEFAULT 0');
   console.log('[db] Migrated: added version column to app_state');
+} catch { /* column already exists — ignore */ }
+
+// Whether cards move. Declared in the CREATE above for a database made from
+// now on, and added here for one made before — the default is what everyone
+// who has already set a theme or a playmat gets, which is the same 'on' a new
+// row starts at, so the migration cannot change what anybody sees.
+try {
+  db.exec("ALTER TABLE user_prefs ADD COLUMN card_motion TEXT NOT NULL DEFAULT 'on'");
+  console.log('[db] Migrated: added card_motion column to user_prefs');
 } catch { /* column already exists — ignore */ }
 
 const DEFAULT_CAL_ID = 'default';

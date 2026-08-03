@@ -626,6 +626,7 @@ describe('User preferences: /api/prefs', () => {
     assert.equal(res.body.playmatKind, 'none');
     assert.equal(res.body.playmatRef, null);
     assert.equal(res.body.playmatUrl, null);
+    assert.equal(res.body.cardMotion, 'on', 'cards move until someone says otherwise');
     assert.equal(res.body.stored, true, 'with accounts, the server is the record');
   });
 
@@ -687,11 +688,73 @@ describe('User preferences: /api/prefs', () => {
     assert.equal(res.body.playmatUrl, null);
   });
 
+  // ── Card motion ─────────────────────────────────────────────────────────
+  // The same promises the theme makes, asserted again rather than assumed:
+  // it is a different column, a different validator and a different branch of
+  // the patch, and "it follows the existing shape" is what these check.
+  test('card motion set on one device is there on the next sign-in', async () => {
+    const first = await loginAs('alice', 'apw');
+    const set   = await request.put('/api/prefs').set('Cookie', first).send({ cardMotion: 'off' });
+    assert.equal(set.status, 200);
+    assert.equal(set.body.cardMotion, 'off');
+
+    const second = await loginAs('alice', 'apw');
+    assert.notEqual(second, first);
+    assert.equal((await request.get('/api/prefs').set('Cookie', second)).body.cardMotion, 'off');
+  });
+
+  test('a card motion value that is neither on nor off is rejected', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    for (const bad of ['maybe', true, 1, null, 'ON']) {
+      const res = await request.put('/api/prefs').set('Cookie', cookie).send({ cardMotion: bad });
+      assert.equal(res.status, 400, `${JSON.stringify(bad)} should not be storable`);
+    }
+    // and nothing was written by any of them
+    assert.equal((await request.get('/api/prefs').set('Cookie', cookie)).body.cardMotion, 'on');
+  });
+
+  test('a body carrying only card motion leaves the theme and the playmat alone', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    await request.put('/api/prefs').set('Cookie', cookie).send({
+      theme: 'sepia',
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+    });
+    const res = await request.put('/api/prefs').set('Cookie', cookie).send({ cardMotion: 'off' });
+    assert.equal(res.body.cardMotion, 'off');
+    assert.equal(res.body.theme, 'sepia');
+    assert.equal(res.body.playmatKind, 'scryfall');
+    assert.equal(res.body.playmatRef, 'abc-123');
+  });
+
+  test('setting a theme or a playmat leaves card motion alone', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    await request.put('/api/prefs').set('Cookie', cookie).send({ cardMotion: 'off' });
+
+    const themed = await request.put('/api/prefs').set('Cookie', cookie).send({ theme: 'light' });
+    assert.equal(themed.body.cardMotion, 'off');
+
+    const matted = await request.put('/api/prefs').set('Cookie', cookie).send({
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+    });
+    assert.equal(matted.body.cardMotion, 'off');
+
+    // And clearing the mat, which rewrites the row from a different branch.
+    const cleared = await request.put('/api/prefs').set('Cookie', cookie)
+      .send({ playmatKind: 'none' });
+    assert.equal(cleared.body.cardMotion, 'off');
+    assert.equal((await request.get('/api/prefs').set('Cookie', cookie)).body.cardMotion, 'off');
+  });
+
   test('one user cannot read or modify another user\'s preferences', async () => {
     const aliceCookie = await loginAs('alice', 'apw');
     const bobCookie   = await loginAs('bob',   'bpw');
     await request.put('/api/prefs').set('Cookie', aliceCookie).send({ theme: 'sepia' });
-    await request.put('/api/prefs').set('Cookie', bobCookie).send({ theme: 'contrast' });
+    await request.put('/api/prefs').set('Cookie', bobCookie)
+      .send({ theme: 'contrast', cardMotion: 'off' });
+
+    // Bob turning motion off is Bob's business: Alice's cards still move.
+    assert.equal((await request.get('/api/prefs').set('Cookie', aliceCookie)).body.cardMotion, 'on');
+    assert.equal((await request.get('/api/prefs').set('Cookie', bobCookie)).body.cardMotion, 'off');
 
     // Each reads their own — there is no path parameter to name someone else's
     // with, which is what makes this structural rather than a check to forget.
