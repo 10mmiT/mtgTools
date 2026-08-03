@@ -18,8 +18,12 @@ let setView     = 'list'; // 'list' | 'grid' | 'xl'
 
 const SET_PICKER_LIMIT = 120;   // tiles rendered at once; the filter reaches the rest
 
+let _setSizeSync = null;
 async function initSetBrowser() {
   mountViewToggle('setViewMount', ['list', 'grid', 'xl'], () => setView, setSetView);
+  /* #setCards rather than the grid inside it, which renderSetCards replaces
+     whenever the set, the filter or the view changes. */
+  _setSizeSync = mountSizeControl('setSizeMount', 'sets', 'setCards', () => setView);
   const filterSel = document.getElementById('setFilterSel');
   if (filterSel) filterSel.value = setFilter;
   initSetSort();
@@ -70,6 +74,7 @@ function setSetFilter(f) {
 function setSetView(v) {
   setView = v;
   renderSetCards();
+  _setSizeSync?.();   // each view remembers its own card size
 }
 
 const SET_SORT_FIELDS = ['number', 'name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];

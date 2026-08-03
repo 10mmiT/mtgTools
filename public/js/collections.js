@@ -373,6 +373,7 @@ const COL_COLUMNS = [
 const COL_SORT_FIELDS = ['name', 'qty', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 
 let _colControlsMounted = false;
+let _colSizeSync = null;
 function initCollectionsControls() {
   // Adopt any persisted sort into the collections state
   const s = getSort('collections', { field: state.sort.field || 'name', dir: state.sort.dir || 1 });
@@ -383,8 +384,16 @@ function initCollectionsControls() {
     renderResults();
   });
   mountColumnMenu('colColumnsMount', 'collections', COL_COLUMNS, renderResults);
+  /* The grid is what the size applies to, and it survives its own re-render:
+     renderGridView replaces what is inside #cardGrid, never the element. */
+  _colSizeSync = mountSizeControl('colSizeMount', 'collections', 'cardGrid', () => viewMode);
   _colControlsMounted = true;
 }
+
+/* Called when the view changes; see setViewMode. Null until the first render
+ * has mounted the strip's controls. */
+function syncColSize() { _colSizeSync?.(); }
+
 // Keep the Sort dropdown in sync when a column header is clicked
 function syncColSortControl() {
   const sel = document.querySelector('#colSortMount .sort-select');

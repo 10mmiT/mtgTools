@@ -253,6 +253,11 @@ document.addEventListener('keydown', e => {
 function setViewMode(mode) {
   viewMode = mode;
   renderResults();
+  /* The card size is the grid's, and each view remembers its own — so
+     changing view is what tells the control which size it is showing. It is
+     mounted by the first render, which is why this is asked for afterwards
+     and why it may not be there yet on the very first call. */
+  syncColSize();
 }
 
 // ── Mobile navigation dropdown ────────────────────────────────────────

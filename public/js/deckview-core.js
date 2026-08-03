@@ -16,6 +16,7 @@ let dbCmdAcTimer = null;
 let dbSaveTimer  = null;
 let dbSaving     = false;
 let dbSortMounted = false;
+let _dbSizeSync  = null;     // the shared card-size control, told when the view changes
 let _dbInitDone  = false;
 let _dbMovingCard = null;    // card name being moved between categories
 let _dbBulkMoveMode = false; // true when the move modal is acting on dbSelectedCards instead of _dbMovingCard
@@ -49,15 +50,10 @@ function initDeckBuilder() {
       dbStackClick(e);
     });
 
-    // Restore persisted view and scale
+    // Restore persisted view
     const savedView = localStorage.getItem('dbView');
     if (savedView && ['list','grid','xl','pile'].includes(savedView)) dbView = savedView;
-    const savedScale = localStorage.getItem('dbScale');
-    if (savedScale) {
-      const slider = document.getElementById('dbScaleSlider');
-      if (slider) slider.value = savedScale;
-      document.getElementById('dbDeckContent')?.style.setProperty('--db-card-width', savedScale + 'px');
-    }
+    _dbAdoptLegacyScale();
 
     // Keyboard shortcuts (only when deck builder tab is active and not typing in a field)
     document.addEventListener('keydown', e => {
@@ -110,9 +106,22 @@ function initDeckBuilder() {
   }
   // Mount the shared view toggle (re-mounts with the restored view active)
   mountViewToggle('dbViewMount', ['list', 'grid', 'xl', 'pile'], () => dbView, dbSetView);
-  const scaleWrap = document.getElementById('dbScaleWrap');
-  if (scaleWrap) scaleWrap.style.display = (dbView !== 'list') ? '' : 'none';
+  /* This tab's slider is the shared control now, sizing the mat by the same
+     variable the browsing tabs size their grids by. #dbDeckContent is the
+     element the width is set on, so grids, piles and stacks all inherit it. */
+  _dbSizeSync = mountSizeControl('dbSizeMount', 'deckbuild', 'dbDeckContent', () => dbView);
   dbPopulateDeckSel();
+}
+
+/* The size this tab was left at, from before the control was shared. It was
+ * one number for every view; the shared control keeps one per view, so the
+ * old number seeds all three rather than being dropped on the floor. Run
+ * once — the key is removed, and a browser that never had it does nothing. */
+function _dbAdoptLegacyScale() {
+  const legacy = localStorage.getItem('dbScale');
+  if (!legacy) return;
+  for (const mode of ['grid', 'xl', 'pile']) saveCardSize('deckbuild', mode, legacy);
+  localStorage.removeItem('dbScale');
 }
 
 function dbPopulateDeckSel() {

@@ -22,9 +22,13 @@ const SF_EMPTY = `<div class="empty-state">
 
 const SF_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 
+let _sfSizeSync = null;
 function initScryfallSort() {
   mountSortControl('sfSortMount', 'scryfall', SF_SORT_FIELDS, sfRender);
   mountViewToggle('sfViewMount', ['list', 'grid', 'xl'], () => sfViewSize, setSfSize);
+  /* #sfResults rather than the grid inside it: sfRender replaces the grid on
+     every search, and an inline width set on it would go with it. */
+  _sfSizeSync = mountSizeControl('sfSizeMount', 'scryfall', 'sfResults', () => sfViewSize);
   // The tab is hidden until this runs, so the empty state is painted here
   // rather than written into index.html as a second copy of the same markup.
   if (!sfState.cards.length) document.getElementById('sfResults').innerHTML = SF_EMPTY;
@@ -33,6 +37,7 @@ function initScryfallSort() {
 function setSfSize(size) {
   sfViewSize = size;
   sfRender();
+  _sfSizeSync?.();   // each view remembers its own card size
 }
 
 async function doScryfallSearch() {

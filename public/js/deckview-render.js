@@ -409,7 +409,7 @@ function _dbPileTile(card, canEdit) {
     ${btns}
     <div data-name="${esc(card.card_name)}">
       ${img ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
-              `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md)"></div>`}
+              `<div style="width:var(--card-width,150px);aspect-ratio:5/7;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md)"></div>`}
     </div>
   </div>`;
 }
@@ -476,15 +476,8 @@ function dbSetView(v) {
   dbView = v;
   dbExpandedCat = null;  // a stack fanned out in pile view is settled by leaving it
   localStorage.setItem('dbView', v);
-  const scaleWrap = document.getElementById('dbScaleWrap');
-  if (scaleWrap) scaleWrap.style.display = (v !== 'list') ? '' : 'none';
   dbRender();
-}
-
-function dbSetScale(value) {
-  const n = parseInt(value, 10);
-  document.getElementById('dbDeckContent')?.style.setProperty('--db-card-width', n + 'px');
-  localStorage.setItem('dbScale', n);
+  _dbSizeSync?.();   // the mat's cards, the grid's and the piles' — one size per view
 }
 
 function dbToggleCat(name) {

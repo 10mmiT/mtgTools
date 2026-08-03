@@ -22,6 +22,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Sort** by name, mana value, color (WUBRG order), power, toughness, rarity, type, price, or quantity owned — via the Sort control or by clicking any column header
 - **Columns menu** to show/hide optional columns: Mana Value, Color (as mana pips), Type, Rarity, Power/Toughness, Price (off by default to keep the table clean)
 - Grid view shows full card images with per-collection ownership badges
+- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (image views only; remembered per view)
 - On mobile, defaults to grid view; list view is still available and scrolls horizontally
 - Hover over any card name (list view) for a Scryfall image tooltip
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens it on Scryfall instead)
@@ -47,6 +48,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Quick **+** button on each card to add it to your personal want list in one click
 - **Sort** results by name, mana value, color, power, toughness, rarity, type, or price
 - **List**, **Grid**, and **XL** view toggle — XL uses larger card images
+- **Size** slider beside the view toggle sizes the card art (image views only; remembered per view)
 - Mana costs rendered as proper MTG mana icons
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 - Search on Enter or button click — no auto-search while typing to stay within Scryfall's rate limits
@@ -70,6 +72,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - The "N of M owned" figure is the toolbar's result count
 - **Sort** by set collector number (default), name, mana value, color, power, toughness, rarity, type, or price
 - **List**, **Grid**, and **XL** view toggle
+- **Size** slider beside the view toggle sizes the card art (image views only; remembered per view)
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 
 ### Want Lists tab
@@ -95,7 +98,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Move to…** (single card or bulk) can also **✨ Auto-categorize** — sorts staples into functional categories the way Archidekt's community auto-categories do (Sol Ring → Ramp, Swords to Plowshares → Removal, etc.), falling back to card type — or create a brand-new category and move into it in one step
 - **Drag and drop** a card anywhere onto a category's column (not just its header) to move it there; auto-saves
 - **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price
-- **List**, **Grid**, **XL**, and **Pile** view, with a size slider for Grid/XL/Pile
+- **List**, **Grid**, **XL**, and **Pile** view, with the shared **Size** slider for Grid/XL/Pile (remembered per view, as on the browsing tabs)
 - Quick **Add a card** box with card-name autocomplete (served from the local card database); **Import CSV** or **Paste List** (`1 Sol Ring` / `1x Sol Ring` / `// Category` lines) for bulk add
 - **Search / EDHREC** drawer panel:
   - **Search** tab — Scryfall query search (with an optional commander color-identity filter) to find and add cards, each shown with a thumbnail
@@ -130,6 +133,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - **Minimal-UI conventions across all tabs**: one shared List/Grid/XL(/Pile) view toggle component, shared Sort and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
 - **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck Builder); your sort field/direction and which columns are shown persist per-view in the browser
+- **Card size** on every view that draws card art (Collections, Scryfall Search, Set Browser, Deck Builder): one shared slider on the tab's strip, hidden in list views, remembered per tab *and* per view — a collection scanned at thumbnails leaves your XL view where it was
 - **Scryfall traffic is centralised and cached**: the server keeps a daily copy of Scryfall's bulk card data in SQLite and serves card images/metadata/autocomplete locally; the few remaining live calls (full-text search, card detail, set browsing) go through a server-side proxy with a shared rate-limit queue and a 10-minute response cache — the browser never talks to api.scryfall.com directly
 - Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥900px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
@@ -277,7 +281,7 @@ mtgtools/
 │       ├── playmat.js     # Loaded in <head>: paints the background before first paint, and its picker
 │       ├── motion.js      # Loaded in <head>: resolves the card-motion preference against the OS
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
-│       ├── sortui.js      # Shared UI components: sort control, columns menu, view toggle, "⋯" kebab menus
+│       ├── sortui.js      # Shared UI components: sort control, columns menu, view toggle, card-size control, "⋯" kebab menus
 │       ├── cardlift.js    # Picking a card up: the hover lift, lean and sheen on every card image
 │       ├── cardstack.js   # Drawing a group of cards as a stack: thickness from count, angle from name
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches

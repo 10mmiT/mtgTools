@@ -168,6 +168,111 @@ function mountColumnMenu(containerId, view, colDefs, apply) {
   document.addEventListener('click', () => menu.classList.remove('open'));
 }
 
+// ── Per-view persisted card size ────────────────────────────────────────────
+// How big card artwork is drawn, on the tabs that draw it. A collection of
+// twelve thousand cards is scanned at 80px and a single card is looked at
+// properly at 300px, and which of those you want is a question about the tab
+// you are on and the view you are in — not about the app — so it is stored the
+// way the sort field and the visible columns already are.
+//
+// The Deck Builder built this control first, with its own slider, its own
+// `dbScale` key and its own variable. It is this component now; the tab is a
+// caller like the three browsing tabs, and `--card-width` is one variable the
+// grids, the piles and the stacks all read.
+
+/* The range, shared by every caller so that the control means the same thing
+ * on every tab. 80 is a thumbnail you can scan a set at; 300 is a card you can
+ * read the rules text off. */
+const CARD_SIZE_MIN  = 80;
+const CARD_SIZE_MAX  = 300;
+const CARD_SIZE_STEP = 10;
+
+/* Where a view starts before anyone has chosen. These are the widths the
+ * stylesheet already draws each view at, said here as well because the slider
+ * needs a position on its first render: XL that arrives the same size as Grid
+ * is not an extra-large view, it is the same view with a longer name. */
+const CARD_SIZE_DEFAULTS = { grid: 150, xl: 220, pile: 150 };
+
+const _sizeState = JSON.parse(localStorage.getItem('mtgtools_size') || '{}');
+
+function cardSizeDefault(mode) { return CARD_SIZE_DEFAULTS[mode] || CARD_SIZE_DEFAULTS.grid; }
+
+/* A stored size is a number of pixels within the range, whatever arrives.
+ * localStorage is a string store shared with older versions of this app and
+ * with whatever a person types into a console, and a grid told to lay itself
+ * out at NaN or at 4000 is a broken tab rather than a wrong preference. */
+function clampCardSize(px, mode) {
+  const n = Math.round(Number(px));
+  if (!Number.isFinite(n)) return cardSizeDefault(mode);
+  return Math.min(CARD_SIZE_MAX, Math.max(CARD_SIZE_MIN, n));
+}
+
+/* Per tab *and* per view: `collections:grid` is a different setting from
+ * `collections:xl`, which is a different setting from `sets:grid`. One key
+ * per pair, in one object, in one localStorage entry — the shape the sort and
+ * column preferences already use. */
+function getCardSize(view, mode) {
+  const saved = _sizeState[`${view}:${mode}`];
+  return saved === undefined ? cardSizeDefault(mode) : clampCardSize(saved, mode);
+}
+function saveCardSize(view, mode, px) {
+  _sizeState[`${view}:${mode}`] = clampCardSize(px, mode);
+  localStorage.setItem('mtgtools_size', JSON.stringify(_sizeState));
+}
+
+/* Build + wire a Size control into `containerId`.
+ *
+ *   view      the tab, as the sort and column preferences name it
+ *   targetId  the element the chosen width is set on. It is inherited, so
+ *             this is the container the cards are rendered into rather than
+ *             each grid — the grids are replaced on every render and an
+ *             inline style on one of them would go with it.
+ *   getMode   the tab's current view mode.
+ *
+ * Returns a sync() the tab calls when its view mode changes: the control
+ * belongs to the image views, and each of them remembers its own size.
+ */
+function mountSizeControl(containerId, view, targetId, getMode) {
+  const host = document.getElementById(containerId);
+  if (!host) return () => {};
+  host.innerHTML = `
+    <div class="size-control">
+      <span class="size-control-lbl">Size</span>
+      <input type="range" class="size-slider" aria-label="Card size" title="How big card artwork is drawn"
+             min="${CARD_SIZE_MIN}" max="${CARD_SIZE_MAX}" step="${CARD_SIZE_STEP}">
+    </div>`;
+  const slider = host.querySelector('.size-slider');
+
+  const apply = px => document.getElementById(targetId)?.style.setProperty('--card-width', px + 'px');
+
+  const sync = () => {
+    /* Artwork is what this sizes, so the list view — which has none — does not
+     * carry it. Hidden rather than disabled: a control that cannot do anything
+     * is furniture, and the strip is measured on how little of it there is.
+     *
+     * The whole mount goes, not the control inside it: an emptied host is
+     * still an item in the strip's flex row and would leave a gap where the
+     * slider was. It is a class rather than an inline style because two tabs
+     * hide this mount for a reason of their own — no deck loaded, no set
+     * chosen — and an inline display would overrule them. */
+    const mode = getMode();
+    host.classList.toggle('size-mount-hidden', mode === 'list');
+    if (mode === 'list') return;
+    const px = getCardSize(view, mode);
+    slider.value = px;
+    apply(px);
+  };
+
+  slider.addEventListener('input', () => {
+    const mode = getMode();
+    saveCardSize(view, mode, slider.value);
+    apply(getCardSize(view, mode));
+  });
+
+  sync();
+  return sync;
+}
+
 // ── Shared card-name autocomplete ───────────────────────────────────────────
 // The Want List had the only "type a card name" field in the app, with its
 // debounce, its dropdown and its outside-click listener written into wants.js.

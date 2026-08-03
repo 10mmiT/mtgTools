@@ -213,6 +213,7 @@
     <input id="searchInput" type="text" class="search-input" placeholder="Search by card name…" oninput="scheduleRender()">
     <span id="resultInfo" class="result-info"></span>
     <div id="colViewMount"></div>
+    <div id="colSizeMount"></div>
     <div id="colSortMount"></div>
     <div id="colColumnsMount"></div>
     <button class="btn-secondary" onclick="openDrawer('addColDrawer')" title="Add a collection">+ Add</button>
@@ -351,6 +352,7 @@
     <button class="btn-primary" onclick="doScryfallSearch()">Search</button>
     <span id="sfInfo" class="result-info"></span>
     <div id="sfViewMount"></div>
+    <div id="sfSizeMount"></div>
     <div id="sfSortMount"></div>
   </div>
 
@@ -387,6 +389,7 @@
       <option value="unowned">Unowned only</option>
     </select>
     <div id="setViewMount" class="sets-when-cards"></div>
+    <div id="setSizeMount" class="sets-when-cards"></div>
     <div id="setSortMount" class="sets-when-cards"></div>
   </div>
 
@@ -747,10 +750,7 @@
     <span id="dbSaveStatus" class="db-save-status result-info"></span>
 
     <div id="dbViewMount" class="db-when-deck"></div>
-    <div class="db-scale-wrap db-when-deck" id="dbScaleWrap" style="display:none">
-      <label for="dbScaleSlider">Size</label>
-      <input type="range" class="db-scale-slider" id="dbScaleSlider" min="80" max="300" step="10" value="150" oninput="dbSetScale(this.value)">
-    </div>
+    <div id="dbSizeMount" class="db-when-deck"></div>
     <div id="dbSortMount" class="db-when-deck"></div>
 
     <button class="btn-secondary db-when-deck" onclick="dbOpenSearchPanel()" title="Search Scryfall / EDHREC">

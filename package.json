@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test --test-force-exit test/server.test.js test/prefs-open-mode.test.js test/tokens.test.js test/themes.test.js test/fonts.test.js test/playmat.test.js test/motion.test.js test/cardlift.test.js test/cardstack.test.js test/offline.test.js",
+    "test": "node --test --test-force-exit test/server.test.js test/prefs-open-mode.test.js test/tokens.test.js test/themes.test.js test/fonts.test.js test/playmat.test.js test/motion.test.js test/cardlift.test.js test/cardstack.test.js test/cardsize.test.js test/offline.test.js",
     "lint:tokens": "node scripts/lint-tokens.js",
     "check:contrast": "node scripts/check-contrast.js",
     "measure:layout": "node scripts/measure-layout.js",
