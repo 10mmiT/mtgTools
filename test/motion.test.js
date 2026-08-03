@@ -169,10 +169,31 @@ test('the effective value is a token CSS can multiply a duration by', () => {
     'and the attribute the boot script sets turns it off');
 });
 
+test('the preference is entitled to the cards and not to the interface', () => {
+  // The switch says "Cards move". Someone who unticks it has not asked for a
+  // frozen app, so --motion-ui — every drawer, chevron and colour fade — is
+  // not the preference's to switch off. Only the operating system reaches it.
+  const css = tokens();
+  assert.match(css, /--motion-ui:\s*1/, 'the interface may move by default');
+  const pref = /:root\[data-motion=['"]off['"]\]\s*\{([^}]*)\}/.exec(css);
+  assert.ok(pref, 'the preference rule is there');
+  assert.doesNotMatch(pref[1], /--motion-ui/,
+    'unticking "Cards move" must not still the rest of the app');
+});
+
 test('a system asking for reduced motion is honoured with no script at all', () => {
   const css = tokens();
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*--motion:\s*0/,
     'the page must not move for someone whose OS asked it not to, script or no script');
+});
+
+test('a system asking for reduced motion is asking the whole app, not the cards', () => {
+  const css = tokens();
+  const query = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*\}/.exec(css);
+  assert.ok(query, 'the reduced-motion rule is there');
+  assert.match(query[0], /--motion-ui:\s*0/,
+    'both multipliers go to zero, which is what makes every guarded duration ' +
+    'in the stylesheet collapse to no time at all');
 });
 
 test('the system override outranks a preference of on', () => {

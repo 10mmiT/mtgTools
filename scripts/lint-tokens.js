@@ -13,6 +13,9 @@
  *   radius    a corner not drawn from the three --radius-* steps
  *   shadow    a shadow that is not one of the three overlay shadow tokens,
  *             or a shadow on a surface that also draws a border
+ *   motion    a transition or animation whose duration is not multiplied by
+ *             a motion token, so it would still move for someone who asked
+ *             for less movement
  *   important a use of !important outside the allowlist below
  *
  * Run it with `npm run lint:tokens`; `npm test` runs it too, via
@@ -32,9 +35,9 @@
  * all of them, which is almost never what is wanted.
  *
  * The comment must also say *why*; that is a review matter, not something
- * this script can check. !important is never covered by an exemption
- * comment — it has its own allowlist, so that the count is visible in one
- * place and can be watched down to zero.
+ * this script can check. !important and motion are never covered by an
+ * exemption comment — each has its own allowlist, so that the count is
+ * visible in one place and can be watched down to zero.
  */
 
 'use strict';
@@ -79,11 +82,21 @@ function readScales(source) {
     [...source.matchAll(/^\s*(--shadow-[\w-]+)\s*:/gm)].map(m => m[1])
   );
 
+  /* The motion multipliers are read the same way, and from the whole file
+   * rather than the scale block: they are also declared inside the
+   * reduced-motion media query, and a duration may be written against any of
+   * them. Adding a third — a slower class of movement with its own switch,
+   * say — needs no edit here. */
+  const motion = new Set(
+    [...source.matchAll(/^\s*(--motion[\w-]*)\s*:/gm)].map(m => m[1])
+  );
+
   const scales = {
     text: inScales('--text-'),
     space: inScales('--space-'),
     radius: inScales('--radius-'),
     shadow,
+    motion,
   };
   for (const [name, set] of Object.entries(scales)) {
     if (!set.size) throw new Error(`${TOKEN_FILE}: the ${name} scale is empty`);
@@ -142,6 +155,26 @@ const IMPORTANT_ALLOWLIST = [
  * be added — a new shadow on a bordered surface is a lint failure, and the
  * fix is to decide which of the two the surface is. */
 const ELEVATION_ALLOWLIST = [];
+
+/* ── Motion allowlist ────────────────────────────────────────────────────
+ * The motion rule is "every duration in a transition or an animation is
+ * multiplied by a motion token", so that a person who has asked for less
+ * movement gets a still app rather than a slightly quieter one.
+ *
+ * Empty, and shaped like the !important ratchet above: an entry that is no
+ * longer needed is itself a failure, so the list cannot quietly refill. It
+ * exists for the case a guard genuinely cannot express — a duration that has
+ * to survive the guard because something else waits on it — and an entry has
+ * to say which case it is. The 55 transitions and 3 animations the app
+ * shipped, across five files, came under the guard in one pass without
+ * needing one. */
+const MOTION_ALLOWLIST = [];
+
+const ALLOWLISTS = {
+  important: IMPORTANT_ALLOWLIST,
+  elevation: ELEVATION_ALLOWLIST,
+  motion: MOTION_ALLOWLIST,
+};
 
 /* ── A small CSS parser ──────────────────────────────────────────────────
  * Enough for hand-written CSS with no build step: comments, strings, nested
@@ -369,6 +402,53 @@ const isRing = layer => /^0\s+0\s+0\s+/.test(layer.trim());
 const SPACE_PROPS = /^(padding|margin|gap|row-gap|column-gap)(-(top|right|bottom|left|inline|block)(-(start|end))?)?$/;
 const RADIUS_PROPS = /^border(-(top|bottom)-(left|right))?-radius$/;
 
+/* ── The motion guard ────────────────────────────────────────────────────
+ * A guarded duration is a time multiplied by a motion token:
+ * `calc(var(--motion-ui) * .15s)`, or the same two the other way round. When
+ * the token is 0 the product is 0s, so the rule states its duration once and
+ * the two halves cannot drift apart. This is why the guard is per rule and
+ * not one global `* { transition: none }` override: that recipe needs
+ * !important, which this file bans, and it cannot be checked rule by rule.
+ *
+ * The check is on time *literals*, which is what a stylesheet with no build
+ * step can be read for. A duration hidden behind some other custom property —
+ * `transition: opacity var(--whatever)` — would slip past; tokens.css defines
+ * no duration tokens, and the day it does, that token's own definition is
+ * where the guard belongs. */
+const MOTION_PROPS = /^(transition|animation)(-(duration|delay))?$/;
+const TIME = String.raw`-?\d*\.?\d+m?s`;
+const TIME_RE = new RegExp(`(?<![\\w.])${TIME}\\b`, 'g');
+const GUARDED_TIME_RE = new RegExp(
+  String.raw`calc\(\s*(?:var\(\s*(--motion[\w-]*)\s*\)\s*\*\s*${TIME}` +
+  String.raw`|${TIME}\s*\*\s*var\(\s*(--motion[\w-]*)\s*\))\s*\)`, 'g');
+
+/* The durations in a value that would still run for someone asking for less
+ * movement. Zero is always fine — it is already no time at all — and that is
+ * what lets `visibility 0s <delay>` keep its 0. */
+function unguardedTimes(value, motionTokens) {
+  const bad = [];
+  const rest = value.replace(GUARDED_TIME_RE, (whole, before, after) => {
+    if (!motionTokens.has(before || after)) bad.push(whole);
+    return ' ';
+  });
+  for (const [time] of rest.matchAll(TIME_RE)) {
+    if (parseFloat(time) !== 0) bad.push(time);
+  }
+  return bad;
+}
+
+function checkMotion(decl, ctx, report) {
+  const { prop, value } = decl;
+  if (!MOTION_PROPS.test(prop)) return;
+  const bad = unguardedTimes(value, ctx.scales.motion);
+  if (!bad.length) return;
+  if (ctx.motionExempt) { ctx.motionUsed.add(ctx.selector); return; }
+  report('motion', { file: ctx.file, line: decl.line, selector: ctx.selector },
+    `unguarded ${prop} \`${bad.join(' ')}\` — write it as ` +
+    `calc(var(--motion-ui) * ${bad[0]}), so that it is no time at all ` +
+    'for someone who asked for less movement');
+}
+
 /* ── The checks ──────────────────────────────────────────────────────────*/
 function checkDecl(decl, ctx, report) {
   const { prop, value } = decl;
@@ -396,6 +476,8 @@ function checkDecl(decl, ctx, report) {
     );
     if (bad.length) report('radius', at, `off-scale ${prop} \`${bad.join(' ')}\``);
   }
+
+  checkMotion(decl, ctx, report);
 
   if (prop === 'box-shadow' && value !== 'none' && !ctx.elevationExempt) {
     const bad = shadowLayers(value).filter(layer => {
@@ -430,26 +512,34 @@ function checkElevation(block, ctx, guardedAt) {
 }
 
 /* ── Drivers ─────────────────────────────────────────────────────────────*/
-function lintCss(file, src, scales, report) {
+function lintCss(file, src, scales, report, allow = ALLOWLISTS) {
   const parsed = parseCss(src);
   const exempt = exemptions(parsed, file, report);
   const isExempt = (line, rule) =>
     exempt.some(e => line >= e.from && line <= e.to && (!e.rules || e.rules.has(rule)));
   const isTokenFile = file === TOKEN_FILE;
-  /* Report only what no exemption covering that line has named. */
+  /* Report only what no exemption covering that line has named — except for
+   * the rules that have an allowlist instead, which no comment may excuse. */
   const guarded = (line) => (rule, at, message) => {
-    if (!isExempt(line, rule)) report(rule, at, message);
+    if (rule === 'motion' || !isExempt(line, rule)) report(rule, at, message);
   };
 
   const importantSeen = new Map();
+  const motionAllowed = new Map(
+    allow.motion.filter(e => e.file === file).map(e => [e.selector, e])
+  );
+  const motionUsed = new Set();
 
   for (const block of parsed.blocks) {
     if (!isRule(block)) continue;
     const selector = block.prelude;
-    const elevationExempt = ELEVATION_ALLOWLIST.some(
+    const elevationExempt = allow.elevation.some(
       e => e.file === file && e.selector === selector
     );
-    const ctx = { file, selector, scales, isTokenFile, elevationExempt };
+    const ctx = {
+      file, selector, scales, isTokenFile, elevationExempt,
+      motionExempt: motionAllowed.has(selector), motionUsed,
+    };
 
     for (const decl of block.decls) {
       const bangs = (decl.value.match(/!\s*important/g) || []).length;
@@ -470,7 +560,7 @@ function lintCss(file, src, scales, report) {
 
   // !important: compare against the allowlist, in both directions.
   const allowed = new Map(
-    IMPORTANT_ALLOWLIST.filter(e => e.file === file).map(e => [e.selector, e.count])
+    allow.important.filter(e => e.file === file).map(e => [e.selector, e.count])
   );
   for (const [selector, { count, line }] of importantSeen) {
     const budget = allowed.get(selector) || 0;
@@ -491,6 +581,16 @@ function lintCss(file, src, scales, report) {
         'lower the entry in scripts/lint-tokens.js, or delete it');
     }
   }
+  /* The motion allowlist is the same ratchet. An entry whose rule is guarded
+   * after all is a failure rather than a harmless leftover, because a spent
+   * entry is what lets the next unguarded transition arrive unnoticed. */
+  for (const selector of motionAllowed.keys()) {
+    if (!motionUsed.has(selector)) {
+      report('stale-allowlist', { file, line: 0, selector },
+        'the motion allowlist reserves an exemption here, but every duration ' +
+        'in this rule is guarded — delete the entry in scripts/lint-tokens.js');
+    }
+  }
 }
 
 /* Inline `style=` attributes get the same rules. Declarations that
@@ -501,7 +601,10 @@ function lintInlineStyles(file, src, scales, report) {
 
   for (const m of src.matchAll(/style\s*=\s*(["'])([\s\S]*?)\1/g)) {
     const line = lineOf(m.index);
-    const ctx = { file, selector: 'inline style', scales, isTokenFile: false, elevationExempt: false };
+    const ctx = {
+      file, selector: 'inline style', scales, isTokenFile: false,
+      elevationExempt: false, motionExempt: false, motionUsed: new Set(),
+    };
     for (const part of m[2].split(';')) {
       const colon = part.indexOf(':');
       if (colon === -1) continue;
@@ -514,6 +617,34 @@ function lintInlineStyles(file, src, scales, report) {
         continue;
       }
       checkDecl({ prop, value, line }, ctx, report);
+    }
+  }
+}
+
+/* <style> blocks in the markup, for the motion rule only.
+ *
+ * login.html carries its own small stylesheet — it shares no components with
+ * the app, so it was never worth a sixth file — and that stylesheet is
+ * delivered CSS, which is what the motion promise is made about: "nothing in
+ * the app moves" has to include the way in.
+ *
+ * Only the motion rule reaches here. The value rules have never covered this
+ * page, and switching them all on at once would report things whose fix is a
+ * decision about how the page looks rather than a mechanical edit. That is
+ * worth doing and is not this pass's business. */
+function lintMarkupStyles(file, src, scales, report) {
+  for (const m of src.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) {
+    const offset = src.slice(0, m.index + m[0].indexOf(m[1])).split('\n').length - 1;
+    const parsed = parseCss(m[1]);
+    for (const block of parsed.blocks) {
+      if (!isRule(block)) continue;
+      const ctx = {
+        file, selector: block.prelude, scales,
+        motionExempt: false, motionUsed: new Set(),
+      };
+      for (const decl of block.decls) {
+        checkMotion({ ...decl, line: decl.line + offset }, ctx, report);
+      }
     }
   }
 }
@@ -536,19 +667,27 @@ function lint() {
       .map(f => path.posix.join(JS_DIR, f)),
   ];
   for (const file of inlineFiles) lintInlineStyles(file, read(file), s, report);
+  for (const file of MARKUP_FILES) lintMarkupStyles(file, read(file), s, report);
 
   violations.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
   return violations;
 }
 
-/* Lint a CSS or inline-style source that is not one of the delivered files —
- * how the tests check that each rule actually fires. The file name is not
- * on either allowlist, so nothing is suppressed. */
-function lintSource(src, { inline = false } = {}) {
+/* Lint a CSS, inline-style or markup source that is not one of the delivered
+ * files — how the tests check that each rule actually fires. The file name is
+ * on none of the allowlists, so nothing is suppressed unless the caller asks:
+ * `motionAllow` is a list of selectors to exempt, which is how the ratchet
+ * itself is tested without an entry that would then have to be real. */
+function lintSource(src, { inline = false, markup = false, motionAllow = [] } = {}) {
   const out = [];
   const report = (rule, at, message) => out.push({ rule, ...at, message });
-  const driver = inline ? lintInlineStyles : lintCss;
-  driver('<source>', src, scales(), report);
+  const allow = {
+    ...ALLOWLISTS,
+    motion: motionAllow.map(selector => ({ file: '<source>', selector })),
+  };
+  if (markup) lintMarkupStyles('<source>', src, scales(), report);
+  else if (inline) lintInlineStyles('<source>', src, scales(), report);
+  else lintCss('<source>', src, scales(), report, allow);
   return out;
 }
 
@@ -565,7 +704,10 @@ function format(violations) {
   return lines.join('\n');
 }
 
-module.exports = { lint, lintSource, format, IMPORTANT_ALLOWLIST, ELEVATION_ALLOWLIST };
+module.exports = {
+  lint, lintSource, format,
+  IMPORTANT_ALLOWLIST, ELEVATION_ALLOWLIST, MOTION_ALLOWLIST,
+};
 
 if (require.main === module) {
   const violations = lint();

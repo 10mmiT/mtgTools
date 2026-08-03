@@ -13,7 +13,7 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  transition: background .2s, color .2s;
+  transition: background calc(var(--motion-ui) * .2s), color calc(var(--motion-ui) * .2s);
 }
 
 /* ── Reading measure (§8.3) ───────────────────────────────────────────
@@ -91,7 +91,7 @@ input[type="number"],
 .mc-g { color: var(--mc-g); }
 .mc-c { color: var(--mc-c); }
 /* ── Element defaults ─────────────────────────────────────────────────── */
-button { font-family: inherit; cursor: pointer; border: none; transition: background .15s, opacity .15s; }
+button { font-family: inherit; cursor: pointer; border: none; transition: background calc(var(--motion-ui) * .15s), opacity calc(var(--motion-ui) * .15s); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Form elements ──────────────────────────────────────────────────── */
@@ -114,7 +114,7 @@ select {
   font-size: var(--text-base);
   font-family: inherit;
   color: var(--text);
-  transition: border-color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s);
 }
 input:focus,
 textarea:focus,

@@ -255,7 +255,9 @@
   font-family: inherit;
   cursor: pointer;
   padding-right: var(--space-3);
-  transition: border-color .15s, background .15s, color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s),
+              background   calc(var(--motion-ui) * .15s),
+              color        calc(var(--motion-ui) * .15s);
 }
 .chip--select:hover { border-color: var(--pc, var(--primary)); color: var(--text); }
 .chip--select[aria-pressed="true"] {
@@ -295,9 +297,9 @@
   border-left: 1px solid var(--border);
   transform: translateX(100%);
   visibility: hidden;
-  transition: transform .2s, visibility 0s .2s;
+  transition: transform calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
 }
-.drawer.open { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+.drawer.open { transform: none; visibility: visible; transition: transform calc(var(--motion-ui) * .2s), visibility 0s; }
 
 .drawer-hdr {
   display: flex;
@@ -331,9 +333,9 @@
   background: var(--scrim);
   opacity: 0;
   visibility: hidden;
-  transition: opacity .2s, visibility 0s .2s;
+  transition: opacity calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
 }
-.drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity .2s, visibility 0s; }
+.drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity calc(var(--motion-ui) * .2s), visibility 0s; }
 
 /* ── Search bar ──────────────────────────────────────────────────────── */
 .search-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
@@ -450,7 +452,9 @@ td { padding: var(--space-2) var(--space-3); }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
-  transition: transform .15s, box-shadow .15s, border-color .15s;
+  transition: transform    calc(var(--motion-ui) * .15s),
+              box-shadow   calc(var(--motion-ui) * .15s),
+              border-color calc(var(--motion-ui) * .15s);
 }
 /* A lifted tile is a floating thing, so it trades its hairline for a
    shadow rather than wearing both (§4.5, §15.2). The accent ring and the
@@ -556,7 +560,7 @@ td { padding: var(--space-2) var(--space-3); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background .12s, color .12s;
+  transition: background calc(var(--motion-ui) * .12s), color calc(var(--motion-ui) * .12s);
   padding: 0;
   font-family: inherit;
 }
@@ -578,7 +582,7 @@ td { padding: var(--space-2) var(--space-3); }
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-overlay);
   opacity: 0;
-  transition: opacity .2s, transform .2s;
+  transition: opacity calc(var(--motion-ui) * .2s), transform calc(var(--motion-ui) * .2s);
   pointer-events: none;
   z-index: 2000;
   white-space: nowrap;
@@ -613,7 +617,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   justify-content: center;
   cursor: pointer;
   user-select: none;
-  transition: background .12s, border-color .12s, color .12s;
+  transition: background   calc(var(--motion-ui) * .12s),
+              border-color calc(var(--motion-ui) * .12s),
+              color        calc(var(--motion-ui) * .12s);
 }
 .stepper-btn:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
 .stepper-btn:last-child  { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
@@ -635,7 +641,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: width .2s;
+  transition: width calc(var(--motion-ui) * .2s);
   /* Border, not shadow. A drawer pinned to the edge of the viewport is
      not floating in the middle of the page — it has one visible edge,
      and the hairline is what marks it. The shadow tokens all cast
@@ -674,7 +680,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   border-radius: var(--radius-sm);
   font-size: var(--text-base);
   font-family: inherit;
-  transition: background .12s, color .12s;
+  transition: background calc(var(--motion-ui) * .12s), color calc(var(--motion-ui) * .12s);
 }
 .rss-panel-hdr button:hover { background: var(--surface-2); color: var(--text); }
 
@@ -765,7 +771,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  transition: background .15s;
+  transition: background calc(var(--motion-ui) * .15s);
 }
 .rss-toggle-btn:hover { background: color-mix(in srgb, var(--hdr-fg) 20%, transparent); }
 .rss-toggle-btn.active { background: color-mix(in srgb, var(--hdr-fg) 25%, transparent); }
@@ -804,7 +810,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-size: var(--text-md);
   font-weight: 700;
   flex-shrink: 0;
-  transition: background .12s, border-color .12s;
+  transition: background calc(var(--motion-ui) * .12s), border-color calc(var(--motion-ui) * .12s);
 }
 .sort-dir-btn:hover { background: var(--surface-3); }
 
@@ -821,7 +827,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-size: var(--text-sm);
   font-weight: 600;
   font-family: inherit;
-  transition: border-color .12s;
+  transition: border-color calc(var(--motion-ui) * .12s);
 }
 .col-menu-btn:hover { background: var(--surface-3); }
 .col-menu {
@@ -1128,7 +1134,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   cursor: pointer;
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
-  transition: color .15s;
+  transition: color calc(var(--motion-ui) * .15s);
 }
 .card-modal-close:hover { color: var(--text); }
 
@@ -1152,7 +1158,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 /* Button active/press feedback */
 .btn-primary:active, .btn-secondary:active, .btn-danger:active {
   transform: translateY(1px);
-  transition: transform .08s;
+  transition: transform calc(var(--motion-ui) * .08s);
 }
 
 /* Loading indicator on slow Scryfall/Archidekt fetches */
@@ -1163,7 +1169,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   border: 2px solid var(--border);
   border-top-color: var(--primary);
   border-radius: var(--radius-full);
-  animation: spin .6s linear infinite;
+  animation: spin calc(var(--motion-ui) * .6s) linear infinite;
   vertical-align: middle;
   margin-right: var(--space-2);
 }

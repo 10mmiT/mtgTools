@@ -165,29 +165,51 @@
   --sidenav-width: 186px;
   --sidenav-collapsed-width: 46px;
 
-  /* Motion. 1 when cards may move, 0 when they may not — a multiplier a
-     duration is written against (`calc(var(--motion) * 150ms)`), so a rule
-     states its duration once instead of stating it twice and hoping the two
-     stay in step.
+  /* Motion. Two multipliers, each 1 when that kind of movement is welcome and
+     0 when it is not. A duration is written against one of them —
+     `calc(var(--motion-ui) * 150ms)` — so a rule states its duration once
+     instead of stating it twice and hoping the two stay in step, and so that
+     0 collapses it to no time at all.
 
-     It is derived, not chosen: js/motion.js resolves the person's preference
+     They differ in who can switch them off, because the two questions have
+     different owners:
+
+       --motion-ui    everything the interface does: drawers sliding, chevrons
+                      turning, colours fading under the pointer. Only the
+                      operating system can switch this off. Nobody asked this
+                      app for a "freeze the whole interface" switch, and the
+                      one switch it does have does not say that.
+       --motion       what cards do: the lift, the tilt, the sheen. The
+                      "Cards move" preference in the appearance popover, which
+                      the operating system can then reduce further. It is the
+                      narrower of the two — never 1 when --motion-ui is 0.
+
+     Neither is chosen directly: js/motion.js resolves the person's preference
      against the operating system's and puts the answer on <html> as
-     data-motion, which the two rules below read. The default here is what the
+     data-motion, which the rules below read. The defaults here are what the
      page has for the instant before that script runs, and for the case where
-     it cannot run at all. */
+     it cannot run at all.
+
+     scripts/lint-tokens.js holds every transition and animation in the
+     delivered CSS to one of these — an unguarded duration fails the build. */
+  --motion-ui: 1;
   --motion: 1;
 }
 
-/* Off because the person asked for it. */
+/* Off because the person asked for it. Cards only: the switch says "Cards
+   move", so it is not entitled to still the rest of the interface. */
 :root[data-motion='off'] { --motion: 0; }
 
 /* Off because the operating system asks for it — and this rule comes last on
    purpose. The OS can take motion away and can never give it back, so it has
    to beat a preference of 'on'; equal specificity and a later line is what
    makes that true without an !important. It also stands alone if no script
-   ever runs, which is why the override is not resolved in JS only. */
+   ever runs, which is why the override is not resolved in JS only.
+
+   This is the one that reaches both: a system asking for less movement is
+   asking the whole app, not the cards. */
 @media (prefers-reduced-motion: reduce) {
-  :root, :root[data-motion] { --motion: 0; }
+  :root, :root[data-motion] { --motion-ui: 0; --motion: 0; }
 }
 
 /* ── 2. Themes ────────────────────────────────────────────────────────────

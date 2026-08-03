@@ -203,7 +203,7 @@ header {
      border on top of the bar's own 2px border, so it must stay equal to
      that border width. Same below and on .db-ltab. */
   margin-bottom: -2px;
-  transition: color .15s;
+  transition: color calc(var(--motion-ui) * .15s);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -227,7 +227,7 @@ header {
     scrollbar-width: none;
     display: flex;
     flex-direction: column;
-    transition: width .2s;
+    transition: width calc(var(--motion-ui) * .2s);
   }
   .tab-bar::-webkit-scrollbar { display: none; }
   .tab-bar.collapsed { width: var(--sidenav-collapsed-width); }
@@ -298,7 +298,7 @@ header {
      than a step of the scale. */
   .site-main {
     padding-left: var(--sidenav-width);
-    transition: padding-left .2s;
+    transition: padding-left calc(var(--motion-ui) * .2s);
   }
   body.sidenav-collapsed .site-main {
     padding-left: var(--sidenav-collapsed-width);
@@ -333,7 +333,7 @@ header {
     overflow: hidden;
     max-width: 150px;
     opacity: 1;
-    transition: max-width .15s, opacity .15s;
+    transition: max-width calc(var(--motion-ui) * .15s), opacity calc(var(--motion-ui) * .15s);
   }
   .tab-bar.collapsed .tab-btn-label { max-width: 0; opacity: 0; }
 
@@ -359,10 +359,10 @@ header {
     position: sticky;
     bottom: 0;
     background: var(--surface-1);
-    transition: background .15s, color .15s;
+    transition: background calc(var(--motion-ui) * .15s), color calc(var(--motion-ui) * .15s);
   }
   .side-nav-toggle:hover { background: var(--surface-2); color: var(--text); }
-  .side-nav-toggle svg { flex-shrink: 0; transition: transform .2s; }
+  .side-nav-toggle svg { flex-shrink: 0; transition: transform calc(var(--motion-ui) * .2s); }
   .tab-bar.collapsed .side-nav-toggle { padding: var(--space-2) 0; justify-content: center; }
   .tab-bar.collapsed .side-nav-toggle svg { transform: rotate(180deg); width: 20px; height: 20px; }
 }
@@ -393,11 +393,11 @@ header {
     color: var(--primary);
     cursor: pointer;
     font-family: inherit;
-    transition: background .15s, border-color .15s;
+    transition: background calc(var(--motion-ui) * .15s), border-color calc(var(--motion-ui) * .15s);
   }
   .mob-nav-btn:hover { background: var(--surface-2); border-color: var(--primary); }
 
-  .mob-nav-chev { flex-shrink: 0; transition: transform .2s; }
+  .mob-nav-chev { flex-shrink: 0; transition: transform calc(var(--motion-ui) * .2s); }
   .mob-nav-chev.open { transform: rotate(180deg); }
 
   .mob-nav-menu {
@@ -431,7 +431,7 @@ header {
     cursor: pointer;
     font-family: inherit;
     text-align: left;
-    transition: background .12s, color .12s;
+    transition: background calc(var(--motion-ui) * .12s), color calc(var(--motion-ui) * .12s);
   }
   .mob-nav-item:last-child { border-bottom: none; }
   .mob-nav-item:hover { background: var(--surface-2); }
@@ -459,7 +459,7 @@ header {
    Create User is a plain open form (§9.11) — so the three rules are gone,
    and with them the !important the last of them needed to beat an inline
    display. The chevron stays: a player's row of decks still folds. */
-.chevron { color: var(--text-muted); transition: transform .18s; flex-shrink: 0; }
+.chevron { color: var(--text-muted); transition: transform calc(var(--motion-ui) * .18s); flex-shrink: 0; }
 .chevron.closed { transform: rotate(-90deg); }
 
 /* ── Responsive ──────────────────────────────────────────────────────────

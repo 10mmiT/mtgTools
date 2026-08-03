@@ -105,7 +105,7 @@
   background-color: var(--surface-2);
   background-size: cover;
   background-position: right center;
-  transition: box-shadow .2s;
+  transition: box-shadow calc(var(--motion-ui) * .2s);
 }
 .deck-tile:hover { border-color: transparent; box-shadow: var(--shadow-lift); }
 
@@ -248,9 +248,9 @@
   transform: translateX(100%);
   visibility: hidden;
   /* The delay is in the closing direction only — see .drawer. */
-  transition: transform .2s, visibility 0s .2s;
+  transition: transform calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
 }
-.deck-col.open { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+.deck-col.open { transform: none; visibility: visible; transition: transform calc(var(--motion-ui) * .2s), visibility 0s; }
 
 .deck-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
 
@@ -294,7 +294,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  transition: border-color .15s, color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s), color calc(var(--motion-ui) * .15s);
 }
 .deck-upload-btn:hover { border-color: var(--primary); color: var(--primary-tx); }
 
@@ -317,7 +317,7 @@
   font-family: inherit;
   width: 100%;
   color: var(--text);
-  transition: border-color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s);
 }
 .deck-filter-row:hover { border-color: var(--primary); }
 .deck-filter-row.active { border-color: var(--primary); background: var(--primary-lt); color: var(--primary-tx); }
@@ -326,7 +326,7 @@
    17px-tall pill it renders as the 9px this used to hardcode. */
 .tog-pill {
   width: 30px; height: 17px; border-radius: var(--radius-full); background: var(--border);
-  position: relative; transition: background .15s; flex-shrink: 0;
+  position: relative; transition: background calc(var(--motion-ui) * .15s); flex-shrink: 0;
 }
 /* The knob has to read against two different tracks: --border when off and
    --primary when on. Since --primary is near-white on the dark themes and
@@ -335,7 +335,7 @@
 .tog-pill::after {
   content: ''; position: absolute;
   width: 11px; height: 11px; border-radius: var(--radius-full); background: var(--text-subtle);
-  top: 3px; left: 3px; transition: transform .15s, background .15s;
+  top: 3px; left: 3px; transition: transform calc(var(--motion-ui) * .15s), background calc(var(--motion-ui) * .15s);
 }
 .deck-filter-row.active .tog-pill { background: var(--primary); }
 .deck-filter-row.active .tog-pill::after { transform: translateX(13px); background: var(--primary-fg); }
@@ -434,7 +434,9 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border);
-  transition: transform .15s, box-shadow .15s, border-color .15s;
+  transition: transform    calc(var(--motion-ui) * .15s),
+              box-shadow   calc(var(--motion-ui) * .15s),
+              border-color calc(var(--motion-ui) * .15s);
 }
 /* Lifted, so it trades the hairline for the shadow — and loses the
    accent ring and accent glow, as .grid-card does. */
@@ -484,7 +486,7 @@
   padding: var(--space-3);
   font-family: inherit;
   color: var(--text);
-  transition: border-color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s);
 }
 .set-tile:hover { border-color: var(--primary); }
 
@@ -667,7 +669,7 @@
    search input does on every other tab, but stops short of the whole
    row — this is a person's name, not a query. */
 .toolbar .avail-name-input { flex: 0 1 260px; min-width: 140px; }
-.avail-name-input.shake { animation: avail-shake .35s; }
+.avail-name-input.shake { animation: avail-shake calc(var(--motion-ui) * .35s); }
 @keyframes avail-shake {
   0%,100% { transform: translateX(0); }
   20%,60%  { transform: translateX(-5px); }
@@ -715,7 +717,7 @@
   min-height: 72px;
   background: var(--surface-1);
   position: relative;
-  transition: border-color .12s, background .12s;
+  transition: border-color calc(var(--motion-ui) * .12s), background calc(var(--motion-ui) * .12s);
 }
 .cal-cell.clickable { cursor: pointer; }
 .cal-cell.clickable:hover { border-color: var(--primary); background: var(--primary-lt); }
@@ -1020,7 +1022,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .lands-bar-fill {
   height: 100%;
   border-radius: var(--radius-sm);
-  transition: width .3s ease;
+  transition: width calc(var(--motion-ui) * .3s) ease;
   min-width: 2px;
   opacity: .85;
 }
@@ -1163,7 +1165,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color .12s, opacity .12s;
+  transition: border-color calc(var(--motion-ui) * .12s), opacity calc(var(--motion-ui) * .12s);
 }
 .pick-pool-chip:hover { border-color: var(--primary); }
 .pick-pool-chip-off { opacity: .35; text-decoration: line-through; }
@@ -1185,7 +1187,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-xs);
   cursor: pointer;
-  transition: border-color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s);
 }
 .dv-summary-pill:hover { border-color: var(--primary); }
 .dv-summary-cat { font-weight: 600; }
@@ -1450,7 +1452,9 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   padding: var(--space-2);
   cursor: pointer;
   display: flex; flex-direction: column; gap: var(--space-1);
-  transition: transform .15s, box-shadow .15s, border-color .15s;
+  transition: transform    calc(var(--motion-ui) * .15s),
+              box-shadow   calc(var(--motion-ui) * .15s),
+              border-color calc(var(--motion-ui) * .15s);
   font-family: inherit;
 }
 .card-print-tile:hover {
@@ -1587,7 +1591,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border: 2px solid var(--border);
   border-top-color: var(--primary);
   border-radius: var(--radius-full);
-  animation: spin .6s linear infinite;
+  animation: spin calc(var(--motion-ui) * .6s) linear infinite;
   vertical-align: middle;
   margin-right: var(--space-1);
 }
@@ -1691,7 +1695,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border-bottom: 2px solid transparent;
   /* EXEMPT from the spacing scale: border overlap, as on .tab-btn. */
   margin-bottom: -2px;
-  transition: color .15s, border-color .15s;
+  transition: color calc(var(--motion-ui) * .15s), border-color calc(var(--motion-ui) * .15s);
 }
 .db-ltab.active {
   color: var(--primary);
@@ -1771,7 +1775,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   display: flex;
   gap: var(--space-1);
   opacity: 0;
-  transition: opacity .15s;
+  transition: opacity calc(var(--motion-ui) * .15s);
   z-index: 2;
 }
 .db-tile:hover .db-tile-btns { opacity: 1; }
@@ -1790,7 +1794,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background .12s;
+  transition: background calc(var(--motion-ui) * .12s);
 }
 /* Both hovers swap the black scrim for a theme fill, so the glyph has to
    swap with it — the base rule's fixed #fff only suits the black scrim, and
@@ -1807,7 +1811,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   left: .3rem;
   z-index: 2;
   opacity: 0;
-  transition: opacity .15s;
+  transition: opacity calc(var(--motion-ui) * .15s);
 }
 .db-tile:hover .db-tile-info-wrap,
 .db-pile-card:hover .db-tile-info-wrap { opacity: 1; }
@@ -1866,7 +1870,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background .15s;
+  transition: background calc(var(--motion-ui) * .15s);
 }
 .db-add-btn:hover { background: var(--primary-dk); }
 .db-add-btn-in { background: var(--success); cursor: default; }
@@ -1979,7 +1983,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   min-height: 2px;
   opacity: .7;
-  transition: opacity .15s;
+  transition: opacity calc(var(--motion-ui) * .15s);
 }
 .db-curve-bar:hover { opacity: 1; }
 .db-stat-curve-label { font-size: var(--text-xs); color: var(--text-muted); }
@@ -2026,7 +2030,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   flex-direction: column;
   z-index: 201;
   transform: translateX(100%);
-  transition: transform .22s ease;
+  transition: transform calc(var(--motion-ui) * .22s) ease;
   /* Border, not shadow — see .rss-panel for the reasoning. */
 }
 .db-search-panel.open { transform: translateX(0); }
@@ -2137,7 +2141,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      is a fraction of the card's own height, so it has to track the card
      width rather than a spacing step. */
   margin-top: calc(-1 * var(--db-card-width, 150px) * 1.16);
-  transition: transform .15s;
+  transition: transform calc(var(--motion-ui) * .15s);
 }
 .db-pile-card:first-child { margin-top: 0; }
 .db-pile-card:hover { transform: translateY(-10px); z-index: 10; }
@@ -2150,7 +2154,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-pile-card .db-tile-btns {
   position: absolute; top: 4px; right: 4px;
   display: flex; gap: var(--space-1); opacity: 0;
-  transition: opacity .15s; z-index: 11;
+  transition: opacity calc(var(--motion-ui) * .15s); z-index: 11;
 }
 .db-pile-card:hover .db-tile-btns { opacity: 1; }
 /* EXEMPT from the token rule: sits on the card image, like .db-tile-btn. */
@@ -2185,7 +2189,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   content: '▾ ';
   font-size: var(--text-2xs);
   display: inline-block;
-  transition: transform .15s;
+  transition: transform calc(var(--motion-ui) * .15s);
 }
 .dv-section.collapsed .db-collapsible::before {
   transform: rotate(-90deg);
