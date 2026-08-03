@@ -572,6 +572,81 @@ td { padding: var(--space-2) var(--space-3); }
 }
 @keyframes card-sheen { from { opacity: 0; } to { opacity: 1; } }
 
+/* ── Stacks ──────────────────────────────────────────────────────────
+   A group of cards drawn as a pile: the face card lying on top, the edges of
+   the cards beneath it showing, and a thickness that grows with the count.
+   js/cardstack.js builds it and answers the two questions this cannot ask —
+   how many edges to draw, and what angle each card lies at — and hands the
+   answers over as --stack-depth and --stack-turn.
+
+   How big a stack is, the caller says: --stack-width is the card's width, and
+   in the Deck Builder that is the card-size control's own variable, so one
+   control still governs how big cards are on that tab.
+
+   The face card is an ordinary .card-img, so it takes the corner, the lit
+   edge, the shadow and the lift with every other card in the app. The pile
+   under it is not made of cards and does not pretend to be: an edge is a slab
+   the shape of a card, and ten of them cost ten empty divs rather than ten
+   more images to fetch. */
+.card-stack {
+  position: relative;
+  width: var(--stack-width, 150px);
+  /* One card's thickness, as a fraction of its own width — the same reason
+     the fanned pile's overlap tracks the width rather than the spacing
+     scale, and the reason this is a transform rather than a margin. */
+  --stack-step: calc(var(--stack-width, 150px) * .0125);
+  /* The whole pile lies a little askew, which is the face card's own angle:
+     a stack put down by hand is not square to the table it is on. */
+  transform: rotate(var(--stack-turn, 0deg));
+  /* Room for the edges below the face card and for the count under them. A
+     stack is drawn taller than its card and must not sit on the one below. */
+  margin-bottom: var(--space-6);
+}
+.card-stack-face { width: 100%; }
+/* The placeholder is a surface and not a card, so it keeps the fill and the
+   hairline a card refuses — the grids' rule, said again where a stack's face
+   is the artwork that is missing. */
+.card-stack-blank {
+  aspect-ratio: 5/7;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* One card's edge, seen from just in front of the pile: the card's own dark
+   frame with a hairline of light along the bottom where the paper catches the
+   same light every shadow in the app falls away from.
+
+   z-index puts them behind the face card, which is in flow and would
+   otherwise be painted under them. It cannot put them behind the page: the
+   rotation above makes this a stacking context, so -1 is as far back as they
+   can go. */
+.card-stack-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--radius-card);
+  background: var(--card-shade);
+  border-bottom: 1px solid var(--card-lit);
+  transform: translateY(calc(var(--stack-i) * var(--stack-step)))
+             rotate(var(--stack-turn, 0deg));
+}
+
+/* What the thickness says, said as a number. It hangs below the deepest edge
+   rather than sitting on the artwork, so it needs no exemption and does not
+   cover the card it is counting. */
+.card-stack-count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  transform: translateY(calc(var(--stack-depth, 0) * var(--stack-step) + var(--space-1)));
+  text-align: center;
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .card-grid {
   display: grid;

@@ -2130,12 +2130,31 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   flex-direction: column;
   padding: var(--space-1) 0;
 }
+/* A settled category — a stack of cards on the mat rather than a fan of them.
+   The card-size control sizes it as it sizes the grid: --db-card-width is that
+   slider's own variable, and a stack is as wide as the card lying on top of
+   it. The rest of the stack is components.css's, shared with the two browsing
+   tabs. */
+#dbDeckContent .card-stack {
+  --stack-width: var(--db-card-width, 150px);
+  cursor: pointer;
+}
+/* The stack carries its own count, so the header does not say the same number
+   again directly above it. It still does when the pile is folded away or
+   fanned out into cards, where there is no stack to read the count off. */
+.db-pile-layout .dv-section:not(.collapsed):not(.db-pile-open) .dv-section-count {
+  display: none;
+}
 .db-pile-card {
   position: relative;
   /* EXEMPT from the spacing scale. Not rhythm: the overlap that fans a pile
      is a fraction of the card's own height, so it has to track the card
      width rather than a spacing step. */
   margin-top: calc(-1 * var(--db-card-width, 150px) * 1.16);
+  /* A card in a fanned-out stack keeps the angle its name gave its edge while
+     the stack was settled — cardstack.js hands it over — so fanning a pile out
+     spreads the pile that was lying there rather than a tidier one. */
+  transform: rotate(var(--stack-turn, 0deg));
 }
 .db-pile-card:first-child { margin-top: 0; }
 /* The ten-pixel nudge that used to pull a card clear of the ones lying on top

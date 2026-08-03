@@ -279,6 +279,7 @@ mtgtools/
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
 │       ├── sortui.js      # Shared UI components: sort control, columns menu, view toggle, "⋯" kebab menus
 │       ├── cardlift.js    # Picking a card up: the hover lift, lean and sheen on every card image
+│       ├── cardstack.js   # Drawing a group of cards as a stack: thickness from count, angle from name
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches
 │       ├── card.js        # Card Detail tab (oracle text, rulings, prices, alt-art printings)
 │       ├── collections.js # Collection CRUD and results rendering
