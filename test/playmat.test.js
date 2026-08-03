@@ -291,8 +291,8 @@ test('the playmat is applied before the page it sits behind is parsed', () => {
     'the one script in <head>: a background applied after first paint is one the user watches appear');
   assert.ok(!/<script[^>]*js\/playmat\.js/.test(html.slice(html.indexOf('</head>'))),
     'and it is not loaded a second time at the foot of the body');
-  assert.ok(head.indexOf('js/playmat.js') < head.indexOf('cdn.jsdelivr.net'),
-    'above the CDN stylesheet, since a script after a <link> waits for that sheet');
+  assert.ok(head.indexOf('js/playmat.js') < head.indexOf('<link rel="stylesheet"'),
+    'above the stylesheets, since a script after a <link> waits for that sheet to load');
 });
 
 // ── The surfaces the art must not reach ───────────────────────────────

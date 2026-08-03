@@ -113,6 +113,26 @@ describe('Public assets', () => {
   });
 });
 
+// ── Vendored libraries ───────────────────────────────────────────────────────
+// The symbol font and the PDF library used to come off two CDNs; they are
+// served from public/vendor now, so this app must actually hand them over —
+// with the content types that make a browser use them. test/offline.test.js
+// asserts what is in the files; this asserts that they arrive.
+describe('Vendored libraries', () => {
+  const AS = { 'vendor/mana.min.css': /text\/css/,
+               'vendor/mana.woff2': /font\/woff2/,
+               'vendor/jspdf.umd.min.js': /javascript/ };
+
+  test('each is served to a signed-in browser', async () => {
+    const cookie = await loginAs('admin', 'testpass');
+    for (const [file, type] of Object.entries(AS)) {
+      const res = await request.get(`/${file}`).set('Cookie', cookie);
+      assert.equal(res.status, 200, `/${file}`);
+      assert.match(res.headers['content-type'], type, `/${file}`);
+    }
+  });
+});
+
 // ── Login / logout ─────────────────────────────────────────────────────────────
 describe('Auth: login / logout', () => {
   beforeEach(resetDb);

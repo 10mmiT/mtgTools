@@ -443,12 +443,33 @@ function wantExportCsv() {
   _wantDownload(`${_wantExportFilenameBase()}.csv`, lines.join('\n'), 'text/csv');
 }
 
-function wantExportPdf() {
+/* jsPDF, vendored (public/vendor/, see the README there) — it used to come off
+ * a CDN, which is a page that cannot print with the network down. It is 360KB
+ * for one button, so it is fetched the first time that button is pressed
+ * rather than on every page load: a request to this app's own server, not to
+ * anyone else's. The promise is cached on success and dropped on failure, so
+ * a second press retries. */
+let _jspdfLoad = null;
+function _loadJsPdf() {
+  if (!_jspdfLoad) _jspdfLoad = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src     = 'vendor/jspdf.umd.min.js';
+    s.onload  = () => window.jspdf?.jsPDF ? resolve(window.jspdf.jsPDF)
+                                          : reject(new Error('jsPDF loaded but defined no global'));
+    s.onerror = () => reject(new Error('jsPDF failed to load'));
+    document.head.append(s);
+  }).catch(err => { _jspdfLoad = null; throw err; });
+  return _jspdfLoad;
+}
+
+async function wantExportPdf() {
   document.getElementById('wantExportMenu')?.classList.remove('open');
   if (!_wantExportRows.length) { alert('No cards to export.'); return; }
-  if (!window.jspdf?.jsPDF) { alert('PDF library failed to load — check your connection and try again.'); return; }
 
-  const { jsPDF } = window.jspdf;
+  let jsPDF;
+  try { jsPDF = await _loadJsPdf(); }
+  catch { alert('The PDF library did not load. Reload the page and try again.'); return; }
+
   const doc      = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageW    = doc.internal.pageSize.getWidth();
   const pageH    = doc.internal.pageSize.getHeight();

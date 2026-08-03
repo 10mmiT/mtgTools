@@ -8,8 +8,8 @@
   <!-- The one script not loaded at the end of <body>. The playmat is a
        background, and a background applied after first paint is one the user
        watches appear; this sets it on <html> on the way past. It is above the
-       stylesheets because a script after a <link> waits for that sheet to
-       load, and the mana font comes off a CDN. -->
+       stylesheets because a script after a <link> waits for every sheet
+       declared before it. -->
   <script src="js/playmat.js"></script>
   <!-- Load order is cascade order: later files may override earlier ones. -->
   <link rel="stylesheet" href="css/tokens.css">
@@ -17,8 +17,10 @@
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/tabs.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- The Magic symbol font, served by this app rather than a CDN: this is
+       self-hosted software and it must render with the network unplugged.
+       See vendor/README.md. Last, so app rules win over its class rules. -->
+  <link rel="stylesheet" href="vendor/mana.min.css">
 </head>
 <body>
 

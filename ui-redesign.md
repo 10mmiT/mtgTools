@@ -1121,7 +1121,7 @@ origins the app can produce one from are the two it will render.
 - Applied via `--playmat-src` set on `<html>` at boot, before first paint, to avoid a flash.
   [playmat.js](public/js/playmat.js) is the one script loaded in `<head>` rather than at the
   foot of the body, and above the stylesheet links, since a script after a `<link>` waits for
-  that sheet — one of which comes off a CDN
+  that sheet
 - `background-attachment: fixed` on desktop; **`scroll` on mobile** — `fixed` causes severe
   scroll jank on mobile Safari
 - **Off by default on mobile** (<900px): costs bandwidth and paint time for something almost
