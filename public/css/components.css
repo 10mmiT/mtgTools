@@ -440,6 +440,42 @@ td { padding: var(--space-2) var(--space-3); }
   margin-inline: auto;
 }
 
+/* ── The card ─────────────────────────────────────────────────────────
+   One class, worn by every image of card artwork in the app — Collections,
+   Scryfall Search, the Set Browser, Want Lists and the Deck Builder, plus
+   the card detail image, its printings and the two floating previews. A
+   card is one kind of thing wherever it is met, so the treatment is stated
+   once here rather than six times over in tabs.css.
+
+   Scryfall's artwork already carries the card's own black rounded frame, so
+   the app draws no second frame around it: no fill, no hairline box, no top
+   corners clipped to a tile's radius. What it draws instead is what a
+   physical card has:
+
+     a corner   the real card's, as a ratio of the box, so it is right at
+                58px and at 220px (--radius-card);
+     an edge    a hairline of light along the top and a darker one along
+                the bottom. They are borders because that is the only way
+                to paint *on* a replaced element — an inset box-shadow is
+                painted beneath an <img>'s content and never shows — and
+                being inside the card's own outline is also what makes them
+                read against the artwork in all five themes rather than
+                disappearing into the page behind them;
+     a shadow   cast by the card's silhouette instead of by a rectangle,
+                which is what drop-shadow() does and box-shadow cannot. It
+                hugs the rounded corners, so it reads as thickness.
+
+   A card is not a surface and draws none. The placeholder standing in for
+   artwork that is missing or failed is the opposite — a surface and not a
+   card — and keeps the hairline and fill this rule refuses. */
+.card-img {
+  display: block;
+  border-radius: var(--radius-card);
+  border-top: 1px solid var(--card-lit);
+  border-bottom: 1px solid var(--card-shade);
+  filter: var(--card-shadow-rest);
+}
+
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .card-grid {
   display: grid;
@@ -447,37 +483,37 @@ td { padding: var(--space-2) var(--space-3); }
   gap: var(--space-3);
 }
 
+/* The tile is gone: no fill, no hairline and no clipping, because what is
+   inside it is a card and a card is its own edge. The lift shadow went with
+   it — it was cast by this box, and the card's shadow is cast by the card.
+   What is left here is the hover nudge and the layout. */
 .grid-card {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  transition: transform    calc(var(--motion-ui) * .15s),
-              box-shadow   calc(var(--motion-ui) * .15s),
-              border-color calc(var(--motion-ui) * .15s);
+  transition: transform calc(var(--motion-ui) * .15s);
 }
-/* A lifted tile is a floating thing, so it trades its hairline for a
-   shadow rather than wearing both (§4.5, §15.2). The accent ring and the
-   accent-tinted glow underneath it are gone: a hover is not a state the
-   mana colour is allowed to mark. */
 .grid-card:hover {
   transform: translateY(-3px);
-  border-color: transparent;
-  box-shadow: var(--shadow-lift);
 }
 
 .grid-img-link {
   display: block;
   aspect-ratio: 5/7;
-  background: var(--surface-1);
   position: relative;
-  overflow: hidden;
 }
 .grid-img-link img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
+}
+/* The other half of the elevation rule, and the reason it is stated here
+   rather than on the card: a placeholder *is* a surface, so it wears the
+   fill and the hairline a card refuses. `.img-failed` is the same state
+   arriving late — collections.js marks the link when the browser reports
+   the artwork could not be loaded. */
+.grid-img-placeholder,
+.grid-img-link.img-failed {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 .grid-img-placeholder {
   position: absolute;
@@ -516,17 +552,17 @@ td { padding: var(--space-2) var(--space-3); }
 .grid-dot { width: 6px; height: 6px; border-radius: var(--radius-full); display: inline-block; flex-shrink: 0; }
 
 /* ── Card image tooltip ──────────────────────────────────────────────── */
+/* The tooltip was a padded, filled box with a shadow, holding a card — one
+   more tile around artwork that has its own frame. The box is gone; what
+   floats is the card, and the shadow it drops is its own, deeper because it
+   is being held above the page rather than lying on it. */
 #cardTooltip {
   display: none;
   position: fixed;
   z-index: 1000;
   pointer-events: none;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-overlay);
-  background: var(--hdr-bg);
-  padding: var(--space-1);
 }
-#tooltipImg { width: 210px; border-radius: var(--radius-md); display: block; }
+#tooltipImg { width: 210px; filter: var(--card-shadow-raised); }
 .autocomplete-wrap { position: relative; flex: 1; min-width: 200px; }
 .ac-dropdown {
   display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0;

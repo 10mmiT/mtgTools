@@ -286,7 +286,7 @@ function _dbGridTile(card, canEdit) {
     <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
     <div data-name="${esc(card.card_name)}">
-      ${img ? `<img class="sf-card-lg-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
+      ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </div>
     <div class="sf-card-lg-footer">
@@ -323,7 +323,7 @@ function _dbGridTileXL(card, canEdit) {
     <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
     <div data-name="${esc(card.card_name)}">
-      ${img ? `<img class="sf-card-lg-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
+      ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </div>
     <div class="sf-card-lg-footer">
@@ -360,8 +360,8 @@ function _dbPileTile(card, canEdit) {
     <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
     <div data-name="${esc(card.card_name)}">
-      ${img ? `<img src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
-              `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--surface-2);border-radius:var(--radius-md)"></div>`}
+      ${img ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
+              `<div style="width:var(--db-card-width,150px);aspect-ratio:5/7;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md)"></div>`}
     </div>
   </div>`;
 }

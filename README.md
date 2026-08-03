@@ -338,8 +338,9 @@ Tests spin up an isolated in-memory SQLite database and a temporary state file s
 | `colour` | a raw `#hex`, `rgb()` or named colour outside `tokens.css` |
 | `type` | a `font-size` that is not one of the seven `--text-*` steps |
 | `space` | `padding`/`margin`/`gap` that is not one of the six `--space-*` steps |
-| `radius` | a corner that is not one of the three `--radius-*` steps |
+| `radius` | a corner that is not one of the `--radius-*` steps — the three UI steps plus `--radius-card`, a physical card's corner as a ratio |
 | `shadow` | a shadow that is not one of the `--shadow-*` overlay tokens, or a surface drawing a border *and* a shadow |
+| `motion` | a `transition` or `animation` whose duration is not multiplied by a motion token, so it would still move for someone who asked for less movement |
 | `important` | an `!important` outside the allowlist in the script |
 
 Run it alone with `npm run lint:tokens`. The scales are read out of `tokens.css` at startup rather than duplicated in the script, so that file stays the single written-down definition.

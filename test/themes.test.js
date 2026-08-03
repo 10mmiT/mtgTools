@@ -17,7 +17,7 @@ const fs     = require('node:fs');
 const path   = require('node:path');
 const vm     = require('node:vm');
 
-const { measure, check, format, ratio, parseColour, THEMES: PALETTE_THEMES } =
+const { measure, check, format, ratio, parseColour, parsePalettes, THEMES: PALETTE_THEMES } =
   require('../scripts/check-contrast.js');
 
 const ROOT = path.join(__dirname, '..');
@@ -90,6 +90,24 @@ test('the contrast theme is held to a higher floor than the others', () => {
     'the same colour that satisfies the dark theme must fail the contrast one');
   assert.ok(failures.every(f => f.role === 'body'),
     'and it must fail on the body floor, which is the one that differs');
+});
+
+/* A card's lighting is per theme on purpose — a light theme is a lit room
+   and does not get a dark theme's highlight — so a palette that forgot one
+   of these three would silently light its cards from another theme's lamp.
+   Nothing else would notice: the contrast checker measures foreground over
+   background pairs, and an edge hairline is neither. */
+test('every palette lights its own cards', () => {
+  const palettes = parsePalettes(read('public/css/tokens.css'));
+
+  for (const theme of PALETTE_THEMES) {
+    for (const token of ['--card-cast', '--card-lit', '--card-shade']) {
+      const value = palettes[theme][token];
+      assert.ok(value, `the ${theme} palette does not name ${token}`);
+      assert.ok(parseColour(value),
+        `the ${theme} palette's ${token} is not a colour: ${value}`);
+    }
+  }
 });
 
 // ── The rename ────────────────────────────────────────────────────────

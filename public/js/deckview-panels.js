@@ -154,7 +154,7 @@ function _dbRenderSearch() {
          </button>` : '';
     return `<div class="db-sr-row">
       ${img ? `<a href="#" class="card-open" data-name="${esc(card.name)}">
-        <img class="db-sr-thumb" src="${img}" alt="${esc(card.name)}"></a>` : ''}
+        <img class="db-sr-thumb card-img" src="${img}" alt="${esc(card.name)}"></a>` : ''}
       <div class="db-sr-info">
         <div class="db-sr-name">
           <a class="card-link" href="#" data-name="${esc(card.name)}">${esc(card.name)}</a>
@@ -306,7 +306,7 @@ function _dbRenderEdhrec() {
                onclick="dbAddCard('${jsAttr(c.name)}')">+</button>` : '';
         return `<div class="db-edh-row">
           ${img ? `<a href="#" class="card-open" data-name="${esc(c.name)}">
-            <img class="db-edh-thumb" src="${img}" alt="${esc(c.name)}"></a>` : ''}
+            <img class="db-edh-thumb card-img" src="${img}" alt="${esc(c.name)}"></a>` : ''}
           <div class="db-edh-info">
             <a class="card-link db-edh-name" href="#" data-name="${esc(c.name)}">${esc(c.name)}</a>
             ${type ? `<div class="db-edh-type">${esc(type)}</div>` : ''}

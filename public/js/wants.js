@@ -375,7 +375,7 @@ async function renderWantList() {
     return `<div class="sf-card-lg">
       <a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(cardName)}">
         ${imgUrl
-          ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(cardName)}">`
+          ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(cardName)}">`
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
       </a>
       <div class="sf-card-lg-footer">

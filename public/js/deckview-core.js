@@ -81,7 +81,7 @@ function initDeckBuilder() {
     // global click/scroll/visibility handlers in main.js.
     const preview = document.createElement('img');
     preview.id = 'dbHoverPreview';
-    preview.className = 'db-hover-preview';
+    preview.className = 'db-hover-preview card-img';
     preview.style.display = 'none';
     document.body.appendChild(preview);
 

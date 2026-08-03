@@ -147,7 +147,7 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
   else if (faces) faces.forEach(f => { if (f.image_uris?.normal) imgs.push({ src: f.image_uris.normal, alt: f.name }); });
 
   const imgHtml = imgs.length
-    ? imgs.map(i => `<img class="card-detail-img" src="${i.src}" alt="${esc(i.alt)}">`).join('')
+    ? imgs.map(i => `<img class="card-detail-img card-img" src="${i.src}" alt="${esc(i.alt)}">`).join('')
     : `<div class="card-detail-img card-detail-img-ph">No image</div>`;
 
   // Text block(s)
@@ -271,7 +271,7 @@ async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
     const img = p.image_uris?.normal || p.image_uris?.large || p.card_faces?.[0]?.image_uris?.normal;
     const isCurrent = p.id === card.id;
     return `<button class="card-print-tile${isCurrent ? ' current' : ''}" onclick="openCardById('${p.id}')" title="${esc(p.set_name)} #${esc(p.collector_number || '')}">
-      ${img ? `<img loading="lazy" src="${img}" alt="${esc(p.set_name)}">` : `<div class="card-print-ph"></div>`}
+      ${img ? `<img class="card-img" loading="lazy" src="${img}" alt="${esc(p.set_name)}">` : `<div class="card-print-ph"></div>`}
       <span class="card-print-set">${(p.set || '').toUpperCase()} · #${esc(p.collector_number || '')}</span>
     </button>`;
   }).join('');

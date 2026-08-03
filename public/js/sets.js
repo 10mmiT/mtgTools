@@ -230,7 +230,7 @@ function renderSetCardList(card) {
   const price  = renderPrice(card);
   return `<div class="sf-card">
     <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="sf-thumb card-open" data-name="${esc(card.name)}">
-      ${imgUrl ? `<img src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">` : '<div class="sf-thumb-ph"></div>'}
+      ${imgUrl ? `<img class="card-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">` : '<div class="sf-thumb-ph"></div>'}
     </a>
     <div class="sf-body">
       <div class="sf-name-row">
@@ -255,7 +255,7 @@ function renderSetCardGrid(card) {
   return `<div class="sf-card-lg">
     <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
       ${imgUrl
-        ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
+        ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
@@ -281,7 +281,7 @@ function renderSetCardXL(card) {
   return `<div class="sf-card-lg">
     <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
       ${imgUrl
-        ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
+        ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
