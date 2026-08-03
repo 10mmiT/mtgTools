@@ -121,11 +121,17 @@
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-  /* One step tighter than §7.3's snippet, which is --space-2. The controls
-     are 36px tall on their own, so the padding is the whole of what the
-     strip costs above the cards, and the criterion this tab is measured
-     against is that number. */
-  padding: var(--space-1) 0;
+  /* Vertically, one step tighter than §7.3's snippet, which is --space-2.
+     The controls are 36px tall on their own, so the padding is the whole of
+     what the strip costs above the cards, and the criterion this tab is
+     measured against is that number.
+
+     Horizontally it is --space-2: enough that the controls are not flush
+     against the edge, and deliberately short of the table's own --space-3
+     cell padding, so the strip reads as the page's furniture rather than as
+     another row of the grid. The background still runs the full width of the
+     column either way — the inset moves the controls, not the furniture. */
+  padding: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
