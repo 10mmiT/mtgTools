@@ -474,7 +474,103 @@ td { padding: var(--space-2) var(--space-3); }
   border-top: 1px solid var(--card-lit);
   border-bottom: 1px solid var(--card-shade);
   filter: var(--card-shadow-rest);
+  /* The settle is quicker than the lift below it, on purpose: a card is
+     picked up deliberately and put down the moment you look away, and a grid
+     crossed at speed must not leave a trail of cards on their way back. */
+  transition: filter    calc(var(--motion) * .18s) ease-out,
+              transform calc(var(--motion) * .1s)  ease-out;
 }
+
+/* ── Picking a card up ────────────────────────────────────────────────
+   Pointing at a card lifts it off the table: it rises, grows a little, leans
+   towards the pointer, and a band of light crosses its face.
+
+   None of that changes a layout box. The rise, the growth and the lean are
+   one transform on the image, so no neighbour is pushed aside and no grid
+   reflows; what puts the card in front of its neighbours is a stacking
+   context on the element it hangs in rather than room made for it. The
+   pointer therefore cannot fall off a card that grew under it — the card
+   under the pointer is exactly where it was before it was picked up.
+
+   The lift is written against .card-img, so it belongs to every card in the
+   app and to any card image added to it later, rather than to six tabs'
+   markup. js/cardlift.js marks it in two stages, which is where the switch
+   divides: .card-held is the card the pointer is on, and .card-lifted and
+   .card-lift-host are the two elements the movement needs — the image, which
+   is what moves, and its wrapper, which is what holds the sheen and the
+   stacking context. The wrapper is whatever element the image was already in
+   — a link, a tile, a button — and it is never given a position it did not
+   have.
+
+   Where the numbers live: the rise and the growth are here, because they are
+   the same for every card. The lean is not — it is a function of where in the
+   card the pointer is, which is a question CSS cannot ask — so cardTilt() in
+   js/cardlift.js answers it, and hands the answer over as --lift-tilt-x/y.
+   The sheen's angle arrives the same way.
+
+   The perspective is stated on the transform rather than on an ancestor, so
+   nothing outside the card has to know that a card is briefly a
+   three-dimensional object. */
+
+/* A card being reached for, whether or not it is allowed to move: it drops
+   the deeper shadow of something held above the table rather than lying on
+   it. That is a change of state and not a movement, so it is what is left of
+   the lift when "Cards move" is unticked or a system has asked for less
+   movement — a card that cannot move still has to say it can be reached for.
+   The guard above collapses the duration to nothing in that case, so it does
+   not even fade in.
+
+   Marked by the same pointer handler as the lift rather than by :hover, which
+   is deliberate: a hover state on a touchscreen outlives the finger that
+   caused it, and there is no honest way to ask CSS which kind of pointer is
+   on the card. js/cardlift.js knows, because the event told it. */
+.card-held { filter: var(--card-shadow-raised); }
+
+.card-lift-host { z-index: 3; }
+
+.card-lifted,
+.card-lift-host::after {
+  transform: perspective(40rem)
+             translateY(calc(-1 * var(--card-lift-rise)))
+             scale(var(--card-lift-scale))
+             rotateX(var(--lift-tilt-x, 0deg))
+             rotateY(var(--lift-tilt-y, 0deg));
+  transition: filter    calc(var(--motion) * .18s) ease-out,
+              transform calc(var(--motion) * .16s) ease-out;
+}
+
+/* The sheen. It is the wrapper's ::after rather than an element of its own so
+   that picking a card up puts nothing into the page, and it is placed and
+   sized from the image's laid-out box — which is why it carries the same
+   transform and lands on the card's face however the card is leaning.
+
+   EXEMPT from the colour rule: this is light on a card's face, composited
+   over card artwork — the exemption .db-tile-btn and .db-pile-qty already
+   carry for sitting on artwork. A palette colour would be wrong even if one
+   existed for it: a highlight on a laminated surface is white in a cool room
+   and in a warm one, and the artwork under it is not the theme's to tint.
+   Screen is what keeps it light rather than paint — it can lighten the card
+   and can never darken it — and the stacking context above is what confines
+   the blend to the card instead of to the page behind it. */
+.card-lift-host::after {
+  content: '';
+  position: absolute;
+  left:   var(--lift-left);
+  top:    var(--lift-top);
+  width:  var(--lift-width);
+  height: var(--lift-height);
+  border-radius: var(--radius-card);
+  pointer-events: none;
+  background: linear-gradient(var(--sheen-angle, 0deg),
+              rgb(255 255 255 / 0)   calc(var(--sheen-pos, 50%) - 34%),
+              rgb(255 255 255 / .13) var(--sheen-pos, 50%),
+              rgb(255 255 255 / 0)   calc(var(--sheen-pos, 50%) + 34%));
+  mix-blend-mode: screen;
+  /* A pseudo-element that did not exist a moment ago has nothing to
+     transition from, so the light arrives as an animation instead. */
+  animation: card-sheen calc(var(--motion) * .14s) ease-out;
+}
+@keyframes card-sheen { from { opacity: 0; } to { opacity: 1; } }
 
 /* ── Grid view ───────────────────────────────────────────────────────── */
 .card-grid {
@@ -486,14 +582,9 @@ td { padding: var(--space-2) var(--space-3); }
 /* The tile is gone: no fill, no hairline and no clipping, because what is
    inside it is a card and a card is its own edge. The lift shadow went with
    it — it was cast by this box, and the card's shadow is cast by the card.
-   What is left here is the hover nudge and the layout. */
-.grid-card {
-  transition: transform calc(var(--motion-ui) * .15s);
-}
-.grid-card:hover {
-  transform: translateY(-3px);
-}
-
+   The three-pixel nudge this tile did on hover went with the tile too: it was
+   the same nudge a deck tile and a table row did, and what happens now is
+   that the card itself is picked up. What is left here is the layout. */
 .grid-img-link {
   display: block;
   aspect-ratio: 5/7;

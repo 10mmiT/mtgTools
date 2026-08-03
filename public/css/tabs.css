@@ -434,16 +434,10 @@
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: var(--space-4);
 }
-/* No fill, no hairline and no clipping: the card inside is its own edge, and
-   the shadow that used to be cast by this box is now cast by the card. What
-   is left is the hover nudge — same as .grid-card, which is the same tile on
-   another tab. */
-.sf-card-lg {
-  transition: transform calc(var(--motion-ui) * .15s);
-}
-.sf-card-lg:hover {
-  transform: translateY(-3px);
-}
+/* No fill, no hairline and no clipping: the card inside is its own edge, the
+   shadow that used to be cast by this box is now cast by the card, and the
+   nudge this tile did on hover is now the card being picked up. Nothing is
+   left of the tile but the column it stands in, and that is the grid's. */
 .sf-card-lg-img { display: block; width: 100%; }
 /* The metadata is still legible; it has simply stopped being a box the card
    lives inside, so it sits on the page rather than on a surface of its own. */
@@ -1443,18 +1437,14 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .card-ruling-text:last-child { margin-bottom: 0; }
 
 /* A printing is a card too, so the tile around it goes the way the grids'
-   did: what is left is the layout, the label and the hover nudge. */
+   did, and so does its nudge: what is left is the layout and the label. */
 .card-print-tile {
   padding: 0;
   cursor: pointer;
   display: flex; flex-direction: column; gap: var(--space-1);
-  transition: transform calc(var(--motion-ui) * .15s);
   font-family: inherit;
   background: none;
   border: 0;
-}
-.card-print-tile:hover {
-  transform: translateY(-3px);
 }
 /* The one accent left on this tab: a selected state, which §4.7 permits. It
    was the tile's border colour and there is no tile now, so it is a ring at
@@ -2146,10 +2136,14 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      is a fraction of the card's own height, so it has to track the card
      width rather than a spacing step. */
   margin-top: calc(-1 * var(--db-card-width, 150px) * 1.16);
-  transition: transform calc(var(--motion-ui) * .15s);
 }
 .db-pile-card:first-child { margin-top: 0; }
-.db-pile-card:hover { transform: translateY(-10px); z-index: 10; }
+/* The ten-pixel nudge that used to pull a card clear of the ones lying on top
+   of it is the lift now, and the lift is a card's own. What the tile still
+   owes it is the top of the pile: these cards overlap by design, so the one
+   being pointed at has to come out in front of every card after it as well as
+   before it, which the lift's own stacking context cannot do from inside. */
+.db-pile-card:hover { z-index: 10; }
 .db-pile-card img {
   width: var(--db-card-width, 150px);
 }

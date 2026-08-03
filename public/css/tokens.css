@@ -158,6 +158,18 @@
   --card-shadow-rest:   drop-shadow(0 3px 6px var(--card-cast));
   --card-shadow-raised: drop-shadow(0 8px 16px var(--card-cast));
 
+  /* How far a card comes off the table when it is picked up, and how much
+     bigger it looks for being nearer the eye. Both are small: a card in a
+     grid of cards has to stay in its row, and everything that reads as
+     "picked up" — the deeper shadow above, the lean, the light crossing the
+     face — is doing the work together.
+
+     They are the two constants of the lift, so they are named here. The lean
+     is not a constant — it follows the pointer — and is computed in
+     js/cardlift.js, which hands it to components.css as an angle. */
+  --card-lift-rise:  6px;
+  --card-lift-scale: 1.05;
+
   /* Breakpoints. Custom properties cannot be used inside a media query, so
      @media rules must repeat these literals — 640px, 900px, 1280px. The
      tokens are here as the single written-down definition, and so that
