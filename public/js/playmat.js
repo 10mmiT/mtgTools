@@ -28,6 +28,11 @@ const PLAYMAT_MOBILE_KEY = 'mtgtools_playmat_mobile';
 // JSON that names this URL, not the bytes behind it.
 const PLAYMAT_ART_HOST = 'cards.scryfall.io';
 
+// The server's cap, repeated here so an oversized file can be refused without
+// spending a minute uploading it first. It is a courtesy, not the check: the
+// one that matters is in routes/prefs.js, where the bytes actually arrive.
+const PLAYMAT_MAX_BYTES = 5 * 1024 * 1024;
+
 /* A playmat URL is written into a CSS url(), so it is checked against the two
  * origins this app can produce one from: Scryfall's image CDN, and its own
  * /playmat/ route (issue 23's uploads). Anything else is refused rather than
@@ -112,19 +117,79 @@ function syncPlaymat() {
  * it is what the popover has to print back. An id would have to be resolved
  * to a name before it could be shown, over the network, on every load. */
 async function setPlaymatCard(name) {
-  const note = document.getElementById('playmatCurrent');
-  if (note) note.textContent = `Finding ${name}…`;
+  playmatSay(`Finding ${name}…`);
   await ensureScryfallImages([name]);
   const url = scryfallArtCache.get(name);
   if (!url) {
-    if (note) note.textContent = `No artwork found for ${name}.`;
+    playmatSay(`No artwork found for ${name}.`);
     return;
   }
   await savePlaymat({ playmatKind: 'scryfall', playmatRef: name, playmatUrl: url });
 }
 
-function removePlaymat() {
-  return savePlaymat({ playmatKind: 'none', playmatRef: null, playmatUrl: null });
+/* Say something about what just happened, on the popover's own status line.
+ * Cleared by renderPlaymatPicker(), which every successful change ends with —
+ * so a message survives exactly until the thing it was about is settled. */
+function playmatSay(msg) {
+  const el = document.getElementById('playmatStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.hidden      = !msg;
+}
+
+/* Take the mat off. This goes to DELETE /api/prefs/playmat rather than to a
+ * PUT clearing the kind, because a mat can be a file on the server and the
+ * preference is only half of it — the endpoint that clears the row is the one
+ * that deletes the file. */
+async function removePlaymat() {
+  const cleared = { playmatKind: 'none', playmatRef: null, playmatUrl: null };
+  applyPlaymat(cleared);
+  Object.assign(prefs, cleared);
+  rememberPlaymat(cleared);
+  renderPlaymatPicker();
+  try {
+    const res = await fetch('/api/prefs/playmat', { method: 'DELETE' });
+    if (res.ok) Object.assign(prefs, await res.json());
+    else console.warn(`[playmat] remove rejected (${res.status}) — cleared locally only`);
+  } catch (e) {
+    console.warn(`[playmat] remove failed (${e.message}) — cleared locally only`);
+  }
+  rememberPlaymat(prefs);
+  renderPlaymatPicker();
+}
+
+/* Bring your own image.
+ *
+ * The file's bytes are the whole request body — there is no form, so there is
+ * no filename and no part header to send. The Content-Type below is the
+ * browser's guess from the file's extension and the server does not believe
+ * it; it is sent because a request with a body ought to declare one.
+ *
+ * Nothing is applied until the server answers: unlike a card, whose art URL
+ * is known before the round trip, an upload has no URL until it has been
+ * accepted, and a rejected one must leave the current mat exactly as it was. */
+async function uploadPlaymatImage(file) {
+  if (!file) return;
+  if (file.size > PLAYMAT_MAX_BYTES) {
+    playmatSay(`That image is ${(file.size / (1024 * 1024)).toFixed(1)} MB — the limit is 5 MB.`);
+    return;
+  }
+  playmatSay(`Uploading ${file.name}…`);
+  try {
+    const res = await fetch('/api/prefs/playmat', {
+      method:  'POST',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body:    file,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { playmatSay(data.error || `Upload failed (${res.status}).`); return; }
+    Object.assign(prefs, data);
+    applyPlaymat(prefs);
+    rememberPlaymat(prefs);
+    renderPlaymatPicker();
+  } catch (e) {
+    playmatSay(`Upload failed (${e.message}).`);
+  }
 }
 
 /* Paint first, then persist. savePrefs() merges the patch into `prefs` before
@@ -159,19 +224,34 @@ function togglePlaymatOnMobile(on) {
 // which is a better preview than any 40px square, and a thumbnail would fetch
 // the full art crop on the one device the default exists to spare.
 function renderPlaymatPicker() {
+  playmatSay('');   // whatever it said, the thing it was about has settled
   const note = document.getElementById('playmatCurrent');
   if (note) {
     const kind = prefs.playmatKind;
     if (!kind || kind === 'none') {
       note.textContent = 'None — the page keeps its plain background.';
     } else {
+      // An upload's ref is the name of a file on the server, derived from the
+      // username — which says nothing to the person looking at it. A card's
+      // ref is the card's name, which says everything.
+      const label = kind === 'upload' ? 'Your uploaded image' : (prefs.playmatRef || 'Custom image');
       note.innerHTML =
-        `<span class="playmat-current-name">${esc(prefs.playmatRef || 'Custom image')}</span>` +
+        `<span class="playmat-current-name">${esc(label)}</span>` +
         `<button class="playmat-remove" onclick="removePlaymat()">Remove</button>`;
     }
   }
   const toggle = document.getElementById('playmatMobileToggle');
   if (toggle) toggle.checked = document.documentElement.hasAttribute('data-playmat-mobile');
+
+  // Open mode has no accounts and therefore nowhere to keep a file, so the
+  // control is replaced by the sentence saying so rather than removed. It is
+  // resolved from currentUser, which auth.js fills in after this first runs —
+  // hence the guard, and hence the upload row being what shows until then.
+  const openMode = typeof currentUser !== 'undefined' && currentUser?.username === 'guest';
+  const row      = document.getElementById('playmatUploadRow');
+  const explain  = document.getElementById('playmatUploadNote');
+  if (row)     row.hidden     = openMode;
+  if (explain) explain.hidden = !openMode;
 }
 
 /* The picker is the Want List's card field, mounted a second time — see

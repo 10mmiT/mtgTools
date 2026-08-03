@@ -123,6 +123,24 @@ test('the two origins the app can produce are accepted', () => {
     "Scryfall's image CDN, which is where card art comes from");
   assert.strictEqual(app.evaluate('playmatUrlOk("/playmat/alice")'), true,
     "the app's own upload route (issue 23)");
+  assert.strictEqual(app.evaluate('playmatUrlOk("/playmat/alice?v=1712345678901")'), true,
+    'an upload URL carries the version that busts the cache on replacement');
+  // The /playmat/ path is only meaningful on this origin. Somewhere else it
+  // is just a path somebody else chose, and the check must not read it as a
+  // licence — this is the case the two-branch guard exists for.
+  assert.strictEqual(app.evaluate('playmatUrlOk("https://evil.example/playmat/alice")'), false,
+    'the path only counts when the origin is ours');
+});
+
+test('an uploaded playmat paints from the browser copy like a card does', () => {
+  const url = '/playmat/alice?v=1712345678901';
+  const app = loadPlaymat({
+    stored: { playmatKind: 'upload', playmatRef: 'alice.png', playmatUrl: url },
+  });
+  assert.strictEqual(app.src(), `url("https://mtg.example${url}")`,
+    'resolved against the page, since the stored value is a path');
+  assert.strictEqual(app.kind(), 'upload',
+    'the attribute carries the kind, so the veil is on over an upload too');
 });
 
 test('a url that would break out of the url() is neutralised, not trusted', () => {

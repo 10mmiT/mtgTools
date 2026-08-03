@@ -61,6 +61,36 @@ describe('Open mode: /api/prefs', () => {
   });
 });
 
+describe('Open mode: playmat uploads', () => {
+  const playmats = require('../playmat-store');
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64');
+
+  test('uploading refuses with a specific reason, not a generic failure', async () => {
+    const res = await request.post('/api/prefs/playmat')
+      .set('Content-Type', 'image/png')
+      .send(PNG);
+    assert.equal(res.status, 403);
+    // The error is what the popover prints in place of the control, so it has
+    // to say why there is nowhere to put the file rather than that there was
+    // an error — there is no account to attach one to, and no password to set
+    // that will not also create one.
+    assert.match(res.body.error, /account/i);
+    assert.match(res.body.error, /administrator password/i);
+  });
+
+  test('nothing is written for a user who does not exist', async () => {
+    await request.post('/api/prefs/playmat').set('Content-Type', 'image/png').send(PNG);
+    assert.equal(fs.existsSync(playmats.dir), false,
+      'the refusal comes before the body is read, let alone stored');
+  });
+
+  test('there is no uploaded playmat to serve either', async () => {
+    assert.equal((await request.get('/playmat/guest')).status, 404);
+  });
+});
+
 // ── Cleanup ────────────────────────────────────────────────────────────────────
 after((_, done) => {
   const srv = getServer();

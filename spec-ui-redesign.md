@@ -320,14 +320,27 @@ The single rule that produces the "recede" effect:
 
 - **API contract**: read current preferences; update theme and/or playmat with server-side
   validation of the playmat kind; upload a playmat image; delete a playmat; and serve an
-  uploaded playmat. The serving route is authenticated like every other non-public route. The
-  upload route is rate-limited using the rate limiter already configured in the application.
+  uploaded playmat. The serving route is authenticated like every other non-public route, and
+  serves only the caller's own image. The upload route is rate-limited by a second limiter
+  beside the one the application already configures for signing in — a separate budget, so that
+  a burst of uploads cannot lock anybody out of their account.
+- **The upload request carries the image as its body**, rather than as a field of a multipart
+  form as this document first specified. There is no HTML form anywhere in this application, so
+  a multipart encoding would add only a parser — and that parser is the exposure, since the
+  filename, the boundary and the part headers are all chosen by whoever is uploading. Sent as
+  bare bytes the route cannot receive any of them. The declared content type is still accepted
+  from the client and still plays no part in any decision.
 - **Upload validation**: maximum 5 MB enforced before anything is written to disk; JPEG, PNG and
   WebP accepted; **SVG explicitly rejected**, because it can carry script and would become a
   stored cross-site-scripting vector on a same-origin route; file type determined by **inspecting
   the file's magic bytes**, never by the client-supplied content type or the filename extension.
-  One playmat per user — uploading replaces and deletes the previous file. Files are written
-  under the existing persistent data directory, which is already excluded from version control.
+  The accepted formats are an **allowlist of byte signatures**, so a vector image is refused for
+  matching nothing rather than for being named — a list of what is refused would have to
+  anticipate every markup format a browser will execute script from.
+  One playmat per user — uploading replaces and deletes the previous file, and so does changing
+  to a card's artwork or removing the mat, since otherwise the guarantee would hold only for
+  someone who replaces an upload with another upload. Files are written under the existing
+  persistent data directory, which is already excluded from version control.
   Deleting a user cascades the preference row and deletes the file in the same operation.
 - **Rendering**: the playmat and its veil are two fixed full-viewport layers behind all content.
   The image is applied at boot, before first paint, to avoid a flash. Data tables, forms, the
@@ -398,7 +411,8 @@ because all of it is request/response behaviour:
 - A second upload replaces the first, and the superseded file no longer exists.
 - Deleting a playmat clears the preference and removes the file.
 - Deleting a user cascades the preference row and removes the file.
-- The serving route requires authentication.
+- The serving route requires authentication, and one user cannot fetch another's image.
+- The upload route is rate-limited.
 - In open mode, reading preferences returns defaults and the upload route refuses with a clear
   error rather than a generic failure.
 

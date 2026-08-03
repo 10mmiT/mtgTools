@@ -203,8 +203,9 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | `MTGTOOLS_NO_BACKGROUND` | Set to `1` to skip both Scryfall background jobs — the daily bulk download and the set-index sweep. For tests and offline runs; the app then serves whatever those two last cached |
 | `COOKIE_SECURE` | Set to `1` to add the `Secure` flag to session cookies — recommended when running behind HTTPS |
 | `AUTH_RATE_LIMIT_MAX` | Override the login rate-limit window max (default: 30 requests per 15 min per IP) |
+| `UPLOAD_RATE_LIMIT_MAX` | Override the playmat-upload rate-limit window max (default: 20 uploads per 15 min per IP) |
 
-Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All app data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). A second database, `scryfall.db`, holds the local Scryfall bulk-data cache: on first startup the server downloads Scryfall's `oracle_cards` file (~24 MB gzipped, ~38k cards) in the background and refreshes it daily — watch for `[scryfall-db] imported … cards` in the log. The app works during/without the download; card lookups just fall back to live (proxied) Scryfall until it completes. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
+Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All app data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). Uploaded playmat backgrounds are the one thing kept outside it, as files under `data/playmats/` — one per user, at most 5 MB each, deleted when the user replaces the image or the account goes. A second database, `scryfall.db`, holds the local Scryfall bulk-data cache: on first startup the server downloads Scryfall's `oracle_cards` file (~24 MB gzipped, ~38k cards) in the background and refreshes it daily — watch for `[scryfall-db] imported … cards` in the log. The app works during/without the download; card lookups just fall back to live (proxied) Scryfall until it completes. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
 
 ### Stop
 
@@ -298,8 +299,10 @@ mtgtools/
 └── data/              # Created at runtime inside the container (Docker volume)
     ├── available.db   # All persistent app data: collections, players, decks,
     │                  # want lists, availability calendar, user accounts (SQLite)
-    └── scryfall.db    # Local Scryfall bulk-data cache (~38k cards, refreshed daily)
-                       # plus the set index — what is in each set, for owned counts
+    ├── scryfall.db    # Local Scryfall bulk-data cache (~38k cards, refreshed daily)
+    │                  # plus the set index — what is in each set, for owned counts
+    └── playmats/      # Uploaded playmat backgrounds, one file per user. Created
+                       # on the first upload; empty until somebody makes one
 ```
 
 ## The set index

@@ -1039,22 +1039,57 @@ with a separate lifetime.
 |---|---|---|
 | `GET` | `/api/prefs` | Current user's prefs. Open mode: returns defaults. |
 | `PUT` | `/api/prefs` | Update theme and/or playmat. Validates `playmat_kind`. |
-| `POST` | `/api/prefs/playmat` | `multipart/form-data` upload. **403 in open mode.** |
+| `POST` | `/api/prefs/playmat` | Upload; the body is the image. **403 in open mode.** |
 | `DELETE` | `/api/prefs/playmat` | Clears playmat, deletes any uploaded file. |
-| `GET` | `/playmat/:userId` | Serves the uploaded file. Auth-guarded like other routes. |
+| `GET` | `/playmat/:username` | Serves the uploaded file. Auth-guarded, owner only. |
 
-Rate-limit the upload endpoint via the existing `express-rate-limit` setup.
+Rate-limit the upload endpoint via the existing `express-rate-limit` setup. `authLimiter` moved
+out of [routes/auth.js](routes/auth.js) into [middleware/limits.js](middleware/limits.js) to make
+room for a second one beside it. Two limiters and not one shared budget: a burst of uploads must
+not be able to lock anybody out of signing in.
+
+**The upload body is the image itself, not `multipart/form-data`** as this document first
+specified. Nothing in this application is an HTML form — the client is `fetch` throughout — so
+multipart would buy nothing but a parser, and that parser is the attack surface: the boundary,
+the part headers and above all the filename are three attacker-controlled inputs that this route
+would then have to be careful with. Sent as raw bytes it cannot receive any of them. The
+declared `Content-Type` is still accepted and still ignored (`type: () => true`, so it does not
+select a parser), which is what makes "the declared type is never trusted" testable in both
+directions: an SVG calling itself `image/png` is refused, and a PNG calling itself
+`image/svg+xml` is stored and served as the PNG it is.
+
+`GET /playmat/:username` is registered **ahead of the global auth guard** and guards itself, so
+an unauthenticated request is answered `401` rather than redirected to `/login`: the route is
+fetched by a CSS `url()`, and a login page returned with a `200` where an image was expected is
+a broken background, not a sign-in prompt. The name in the path is what keeps one user's mat a
+different URL from another's in a shared browser's cache; the file served is always derived from
+the **session**, never from the path, and a name that is not the caller's own is `403`.
 
 ### 10.4 Upload constraints
 
-- **Max 5 MB**, enforced before the file is written to disk
+- **Max 5 MB**, enforced before the file is written to disk — by the body reader, against
+  `Content-Length` before a byte arrives and again as the request streams. Nothing is opened
+  on disk until the bytes have been read and looked at
 - **JPEG, PNG, WebP only.** **SVG is rejected** — it can carry script and would be a stored XSS
   vector on a same-origin route
-- Type determined by **magic-byte sniffing**, not the client-supplied `Content-Type` or extension
-- **One playmat per user.** Uploading replaces and deletes the previous file
-- Stored at `data/playmats/<user_id>.<ext>` — [data/](data/) is already gitignored and is the
-  established persistence location
-- Served with the sniffed `Content-Type`. Helmet already sets `X-Content-Type-Options: nosniff`
+- Type determined by **magic-byte sniffing**, not the client-supplied `Content-Type` or
+  extension. An **allowlist of three byte signatures**, which is why SVG needs no special case:
+  it is not named and refused, it simply matches nothing. A blocklist would have to anticipate
+  every markup format a browser will run script from
+- **One playmat per user.** Uploading replaces and deletes the previous file — every extension,
+  not only the one the preference row names, since a storage guarantee that depends on the
+  database agreeing with the filesystem is not one. Switching to a **card** playmat, or removing
+  the mat, deletes the file too: otherwise "one per user" would hold only for people who replace
+  an upload with another upload
+- Stored at `data/playmats/<username>.<ext>` — [data/](data/) is already gitignored and is the
+  established persistence location. The username is percent-encoded on the way into a filename
+  (nothing has ever constrained it to characters that are safe in a path), and the result is
+  re-checked to land directly in the playmat directory
+- `playmat_kind = 'upload'` is a value the **server** writes and `PUT /api/prefs` refuses: it
+  means "there is a file on disk for this user", and only the upload route can make that true
+- Served with the sniffed `Content-Type`. Helmet already sets `X-Content-Type-Options: nosniff`.
+  `playmat_url` carries a version (`?v=<upload time>`), so a replacement is a different URL and
+  the response can be cached hard — `private`, since it is one person's image
 - On user deletion, cascade removes the row; the file is deleted in the same handler
 
 ### 10.5 Scryfall source
@@ -1119,11 +1154,29 @@ could not name. The picker ticks the current theme instead, which is the same fa
 in the place it can be changed. Picking a theme leaves the popover **open**: the point of
 putting themes beside the playmat is being able to see one over the other.
 
+Issue 23 adds **Upload an image…** below the card field — a `<label>` wrapping a clipped file
+input, so it is a menu row like every other one here rather than the browser's own unstyleable
+file button. `accept` filters the chooser only; what an image is, the server decides by reading
+bytes. The row takes the focus ring the input cannot show.
+
+It also adds a **status line** at the foot of the section, separate from the line that names the
+current mat. Progress and refusals go there, from both sources — the card search's "Finding …"
+moved onto it too. They shared one line before, and a refusal that lands on the line naming the
+current mat takes that mat's **Remove** button down with it, which is the wrong control to lose
+at the moment an upload was just rejected. The line clears itself on every successful change.
+
 ### 10.8 Open mode
 
 No users exist, so: theme and playmat choice persist to `localStorage` via the existing
 [state.js](public/js/state.js) fallback path; Scryfall art and presets work; **upload is
 disabled** with an explanatory note rather than a hidden control.
+
+The note stands where the control was, and the endpoint says the same thing in the same words:
+`403`, refused before the body is read, with a sentence naming the reason — there is no account
+to attach a file to — rather than a bare status. The client resolves open mode the way
+[auth.js](public/js/auth.js) already does, from `currentUser.username === 'guest'`, which lands
+after the popover first renders; the upload row is what shows until then, and is replaced when
+the answer arrives.
 
 ---
 

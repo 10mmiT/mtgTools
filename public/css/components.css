@@ -902,6 +902,42 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
+/* Upload. A <label> wrapping a hidden file input, so it is a menu row like
+   every other one here rather than the browser's own file button, which
+   cannot be styled and brings a filename label with it. */
+.playmat-upload-row { cursor: pointer; }
+.playmat-upload-row[hidden] { display: none; }
+/* Clipped rather than display:none, so it can still be reached by keyboard —
+   the row is a <label> and labels do not take focus, so the input is the only
+   thing here that can. The focus ring is drawn on the row instead, since a
+   ring around a clipped element is a ring nobody sees.
+   Scoped to the row so it outranks `.col-menu-item input`, which sets a width
+   every other control in this menu wants and this one must not have. */
+.playmat-upload-row .playmat-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.playmat-upload-row:focus-within {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 2px;
+}
+/* What stands in its place in open mode. Reads as the same kind of sentence
+   as the "None —" line above it, because it is answering the same question. */
+.playmat-upload-note,
+.playmat-status {
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.playmat-upload-note[hidden],
+.playmat-status[hidden] { display: none; }
+
 /* The per-device switch has something to do only where the default it
    overrides applies, so it appears only there. */
 .playmat-mobile-row { display: none; }

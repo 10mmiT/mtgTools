@@ -65,6 +65,33 @@ app.get('/api/auth-status', (req, res) =>
 // ── Health check (public, before global auth guard) ────────────────────────────
 app.get('/healthz', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
+// ── Uploaded playmats ─────────────────────────────────────────────────────────
+// Ahead of the global guard, and guarded itself, so that a request without a
+// session is answered 401 rather than redirected to /login: this route is
+// fetched by a CSS url(), and a login page returned with a 200 in place of an
+// image is a broken background, not a sign-in prompt.
+//
+// Owner-only. The username in the path is what makes one user's mat a
+// different URL from another's — which is what keeps them apart in a shared
+// browser's cache — and the file that is served is always derived from the
+// session, never from the path, so there is no name a request can put there
+// to reach a file that is not its own.
+const playmats = require('./playmat-store');
+app.get('/playmat/:username', requireAuth, (req, res) => {
+  const sess = getSession(req);
+  if (req.params.username.toLowerCase() !== String(sess.username).toLowerCase())
+    return res.status(403).json({ error: 'Forbidden' });
+  const mat = playmats.find(sess.username);
+  if (!mat) return res.status(404).json({ error: 'No playmat' });
+  // The sniffed type, set before send() can infer one, and cached hard: the
+  // path is stable per user but the URL carries the upload's version, so a
+  // replacement is a different URL rather than a stale hit. Private, because
+  // it is one person's image behind an authenticated route.
+  res.setHeader('Content-Type', mat.type);
+  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+  res.sendFile(mat.file);
+});
+
 // ── Global auth guard ─────────────────────────────────────────────────────────
 app.use((req, res, next) => {
   if (OPEN_MODE) return next();

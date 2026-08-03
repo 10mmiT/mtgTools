@@ -8,6 +8,7 @@ COPY available-db.js .
 COPY scryfall-db.js .
 COPY scryfall-queue.js .
 COPY set-index.js .
+COPY playmat-store.js .
 COPY middleware/ middleware/
 COPY routes/ routes/
 COPY public/ public/

@@ -1000,6 +1000,28 @@
     <input id="playmatCardInput" type="text" placeholder="Card name…">
     <div id="playmatAcDrop" class="ac-dropdown"></div>
   </div>
+  <!-- Bring your own image (§10.4). The file input is hidden because a bare
+       one renders as an unstyleable button with a "no file chosen" label
+       beside it; the row below is the label for it, so a click still opens
+       the picker with no script involved. `accept` filters the chooser only —
+       the server decides what an image is by reading its bytes. -->
+  <label class="col-menu-item playmat-upload-row" id="playmatUploadRow">
+    <input type="file" id="playmatFileInput" class="playmat-file"
+           accept="image/jpeg,image/png,image/webp"
+           onchange="uploadPlaymatImage(this.files && this.files[0]); this.value = '';">
+    <span>Upload an image…</span>
+  </label>
+  <!-- Shown instead of the row above when the app runs without an
+       administrator password: a visible explanation, not a hidden control. -->
+  <p class="playmat-upload-note" id="playmatUploadNote" hidden>
+    Uploads need an account. This server runs without a password, so there is
+    nobody to store an image for — a card’s artwork still works.
+  </p>
+  <!-- Progress and refusals from either source. Its own line, and not the one
+       above that names the current mat: a rejected upload leaves the mat that
+       is already set alone, so the line that offers to remove it has to
+       survive being told the new one was no good. -->
+  <p class="playmat-status" id="playmatStatus" hidden></p>
   <!-- Shown only below the mobile breakpoint, by a media query: the default
        it overrides is itself a media query, so the control appears exactly
        where it has something to do. -->
