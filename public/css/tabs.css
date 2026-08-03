@@ -1624,14 +1624,27 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 
 /* The mat — the surface the cards sit on, and the one thing on this tab that
    is a filled box on purpose (§7.1 took the fill off everything else). It is
-   its own per-theme token rather than a --surface step because issue 24
-   replaces it with the user's playmat image, and a token that means "the
-   table" can carry an image where one that means "a panel" cannot.
+   its own per-theme token rather than a --surface step because the token
+   means "the table", and a table is allowed to be a picture.
+
+   Which is what --mat-fill is (§10.6): the two meanings of "playmat" are one
+   thing, so a user who set a card's art as their background builds their
+   deck on it. The mat does not fetch that art or veil it itself — it goes
+   transparent and the page's own two layers, already fixed behind
+   everything, show through the hole. That is the whole of it, and it is why
+   the text on the mat needs no new measurement: it is the same veil
+   scripts/check-contrast.js holds --text and --text-muted against, rather
+   than a second composite that could drift from it.
+
+   The switch lives beside those layers in layout.css, because "there is art
+   behind the page" is their condition and not this rule's — a phone or a
+   reduced-data preference turns both off together. Unset, which is a page
+   with no playmat, falls back to the flat per-theme colour.
 
    Flat, so a hairline and no shadow. The empty state sits on it too: a table
    with nothing on it is still the table. */
 .db-mat {
-  background: var(--mat);
+  background: var(--mat-fill, var(--mat));
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-3);

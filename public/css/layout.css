@@ -22,7 +22,17 @@
 
    Data surfaces are unaffected by design: tables, forms, the toolbar and
    the sidebar all carry an opaque fill already, so art shows through the
-   gutters of a card grid and never behind a column of card names. */
+   gutters of a card grid and never behind a column of card names.
+
+   --mat-fill (§10.6, issue 24) travels with these layers and is the Deck
+   Builder's half of them: the mat is the one surface in the app that is
+   *supposed* to be the table, so when there is art behind the page it stops
+   painting over it and lets these two layers through. It is set beside every
+   rule that switches the layers, and never anywhere else — the mat has to be
+   transparent exactly when there is something under it to see, and a phone
+   or a reduced-data preference that cancels the art has to hand the mat back
+   its flat colour rather than leave it showing the page. Unset is the flat
+   colour; .db-mat in tabs.css names the token as its fallback. */
 body::before,
 body::after {
   content: '';
@@ -31,6 +41,7 @@ body::after {
   display: none;
   pointer-events: none;
 }
+html[data-playmat] body { --mat-fill: transparent; }
 html[data-playmat] body::before,
 html[data-playmat] body::after { display: block; }
 
@@ -52,6 +63,7 @@ body::after { z-index: -1; background: var(--scrim); }
 
      `fixed` attachment goes with it. It stutters badly when scrolled on
      mobile browsers, which is exactly where the long scrolling lists are. */
+  html[data-playmat]:not([data-playmat-mobile]) body { --mat-fill: var(--mat); }
   html[data-playmat]:not([data-playmat-mobile]) body::before,
   html[data-playmat]:not([data-playmat-mobile]) body::after { display: none; }
   body::before { background-attachment: scroll; }
@@ -61,6 +73,7 @@ body::after { z-index: -1; background: var(--scrim); }
   /* Asked for less data, given less data — a background is the most
      skippable thing the app loads. Last in the file so it wins over the
      opt-in above: enabling the mat on a phone is not a way around this. */
+  html[data-playmat] body { --mat-fill: var(--mat); }
   html[data-playmat] body::before,
   html[data-playmat] body::after { display: none; }
 }

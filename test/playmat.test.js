@@ -223,6 +223,65 @@ test('a reduced-data preference wins over the phone opt-in', () => {
   assert.match(css.slice(reduced), /^[\s\S]{0,400}display:\s*none/);
 });
 
+// ── The Deck Builder mat ──────────────────────────────────────────────
+/* Issue 24: the mat is the playmat when there is one. It does not paint the
+ * art itself — it stops painting over the layers above — so the property
+ * worth pinning is that the two are switched by one condition and can never
+ * disagree. A transparent mat with the layers off is the page showing
+ * through a hole where the table should be. */
+
+/** The playmat gate in one segment of layout.css: what the layers do there,
+ *  what --mat-fill becomes, and the selector each was asked of. */
+function gateIn(css) {
+  const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+    .map(m => ({ sel: m[1].trim().replace(/\s+/g, ' '), body: m[2] }));
+  const has = re => rules.find(r => /data-playmat/.test(r.sel) && re.test(r.sel));
+  const layers = rules.find(r => /data-playmat/.test(r.sel) && /body::after/.test(r.sel) && /display:/.test(r.body));
+  const mat    = has(/body$/) && rules.find(r => /data-playmat/.test(r.sel) && /body$/.test(r.sel) && /--mat-fill:/.test(r.body));
+
+  // The layer rule names both pseudo-elements; the condition is what is left
+  // of it once they are, which is what the mat rule has to match exactly.
+  const condition = sel => [...new Set(sel.replace(/::(before|after)/g, '').split(',').map(s => s.trim()))].join(', ');
+  return {
+    layers:    layers && /display:\s*([a-z]+)/.exec(layers.body)[1],
+    mat:       mat    && /--mat-fill:\s*([^;]+);/.exec(mat.body)[1].trim(),
+    layerCond: layers && condition(layers.sel),
+    matCond:   mat    && mat.sel,
+  };
+}
+
+test('the mat is transparent exactly when there is art behind the page', () => {
+  const css     = layout();
+  const mobileAt  = css.indexOf('@media (width < 900px)');
+  const reducedAt = css.indexOf('@media (prefers-reduced-data: reduce)');
+  const segments = [
+    ['a page with a playmat set',   css.slice(0, mobileAt),          'block', 'transparent'],
+    ['a phone that did not ask',    css.slice(mobileAt, reducedAt),  'none',  'var(--mat)'],
+    ['a reduced-data preference',   css.slice(reducedAt)
+                                       .slice(0, css.slice(reducedAt).indexOf('\n}') + 2), 'none', 'var(--mat)'],
+  ];
+
+  for (const [where, segment, layers, fill] of segments) {
+    const gate = gateIn(segment);
+    assert.strictEqual(gate.layers, layers, `${where}: the layers`);
+    assert.strictEqual(gate.mat, fill,
+      `${where}: the mat has to be ${fill} — a transparent mat with the layers off ` +
+      'is the page showing through a hole where the table should be');
+    assert.strictEqual(gate.matCond, gate.layerCond,
+      `${where}: the mat is switched by a different condition than the layers it shows`);
+  }
+});
+
+test('the mat falls back to its own colour, so no playmat needs no rule', () => {
+  const tabs = read('public/css/tabs.css');
+  assert.match(tabs, /\.db-mat\s*\{[^}]*background:\s*var\(--mat-fill,\s*var\(--mat\)\)/,
+    'unset is the flat per-theme surface — a page with no playmat sets nothing');
+  // One home for the switch: the mat must not be told what to be from the
+  // tab's own stylesheet, where the layers' conditions are not visible.
+  assert.ok(!/--mat-fill\s*:/.test(tabs),
+    '--mat-fill is set beside the layers in layout.css and nowhere else');
+});
+
 // ── No flash ──────────────────────────────────────────────────────────
 
 test('the playmat is applied before the page it sits behind is parsed', () => {

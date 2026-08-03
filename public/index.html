@@ -783,9 +783,9 @@
     <button class="btn-secondary" onclick="dbClearSelection()">Clear selection</button>
   </div>
 
-  <!-- The mat: the surface the cards sit on, on its own per-theme token
-       (§15.3). Issue 24 makes it the user's playmat image when they have
-       set one. -->
+  <!-- The mat: the surface the cards sit on. Its own per-theme token
+       (§15.3), or the user's playmat where one is set — see .db-mat in
+       tabs.css and --mat-fill in layout.css. -->
   <div id="dbDeckContent" class="db-mat">
     <div class="empty-state">
       Select a deck above to start building.

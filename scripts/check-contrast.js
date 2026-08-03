@@ -163,6 +163,15 @@ function pairs(palette) {
     add('ui', '--text-muted', surface, 'labels, captions, help text');
     add('subtle', '--text-subtle', surface, 'placeholders, disabled');
   }
+  /* The mat carries labels as well as body text — a category's count, a
+   * card's type line and mana cost, the quantity — so the surface that was
+   * measured for --text is measured for --text-muted too. Issue 24 is why it
+   * is worth stating: the mat is now that flat colour *or* the veiled
+   * playmat, and the same tokens have to clear both. The veil's half of that
+   * pair is measured below; this is the half a phone and a reduced-data
+   * preference fall back to. --text-subtle is absent for the reason given
+   * there: every one of its uses sits inside an opaque fill. */
+  add('ui', '--text-muted', '--mat', 'labels on the Deck Builder mat');
 
   // Text on a filled control.
   add('ui', '--primary-fg', '--primary', 'text on the primary button');
