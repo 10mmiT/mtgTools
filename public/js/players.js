@@ -50,7 +50,7 @@ function addPlayerByName(name) {
   state.players.push({
     id:       (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `p_${Date.now()}`,
     name,
-    color:    PLAYER_COLORS[state.players.length % PLAYER_COLORS.length],
+    colorIdx: state.players.length % PLAYER_SLOTS,
     decks:    [],
     wantList: [],
   });
@@ -307,10 +307,18 @@ function renderPlayers() {
 
   const isAdmin = currentUser?.role === 'admin';
 
+  // The strip's count, in the slot every other tab gives its result count.
+  const info = document.getElementById('playersInfo');
+  if (info) {
+    const nPlayers = state.players.length;
+    const nDecks   = state.players.reduce((n, p) => n + (p.decks || []).length, 0);
+    info.textContent = nPlayers
+      ? `${nPlayers} player${nPlayers !== 1 ? 's' : ''} · ${nDecks} deck${nDecks !== 1 ? 's' : ''}`
+      : '';
+  }
+
   if (!state.players.length) {
-    list.innerHTML = `<div style="color:var(--muted);font-size:.9rem;text-align:center;padding:3rem 1rem">
-      No players yet — add one above to get started.
-    </div>`;
+    list.innerHTML = '<div class="empty-state">No players yet — add one above to get started.</div>';
     return;
   }
 
@@ -325,9 +333,9 @@ function renderPlayers() {
           <input type="text" name="edit-commander"  value="${esc(d.commander)}" placeholder="Commander name…">
           <input type="text" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
                  onkeydown="if(event.key==='Enter')saveEditDeck('${player.id}','${d.id}')">
-          <div style="display:flex;gap:.4rem;margin-top:.1rem">
-            <button class="btn-primary"   style="flex:1;padding:.35rem .6rem;font-size:.82rem" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
-            <button class="btn-secondary" style="padding:.35rem .6rem;font-size:.82rem"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
+          <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
+            <button class="btn-primary"   style="flex:1;padding:var(--space-1) var(--space-2);font-size:var(--text-sm)" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
+            <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-sm)"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
           </div>
         </div>`;
       }
@@ -339,7 +347,11 @@ function renderPlayers() {
       const bracketBadge = d.bracket != null ? `<span class="badge-bracket">Bracket ${d.bracket}</span>` : '';
       const viewLink     = d.deckUrl
         ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener">View ↗</a>` : '';
-      const countInfo    = d.cardCount ? `${d.cardCount} cards` : '';
+      // The count sits with the name and the commander rather than on the
+      // action row: it is something the deck *is*, not something to do to
+      // it, and on a 260px tile the row it used to share has only enough
+      // width for the three controls.
+      const countInfo    = d.cardCount ? `<div class="deck-tile-meta">${d.cardCount} cards</div>` : '';
       const cmdLine      = d.commander
         ? `<div class="deck-tile-commander">Commander: ${esc(d.commander)}</div>` : '';
 
@@ -353,9 +365,9 @@ function renderPlayers() {
           <div class="deck-tile-middle">
             <div class="deck-tile-name ${nameClass}">${esc(d.name)}</div>
             ${cmdLine}
+            ${countInfo}
           </div>
           <div class="deck-tile-bottom">
-            <span class="deck-tile-count">${countInfo}</span>
             <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
             <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
             ${canEdit ? kebabMenuHtml([
@@ -370,9 +382,10 @@ function renderPlayers() {
 
     const pCollapsed = !!collapseState[`player-${player.id}`];
     return `<div class="player-section">
-      <div class="player-header" style="--pc:${player.color}" onclick="togglePlayerSection('${player.id}', event)">
+      <div class="player-header" style="--pc:${playerColor(player)}" onclick="togglePlayerSection('${player.id}', event)">
+        <span class="player-dot"></span>
         <span class="player-name-lbl">${esc(player.name)}</span>
-        ${canEdit ? `<button class="btn-player-add-deck" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
+        ${canEdit ? `<button class="btn-secondary" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
         ${isAdmin ? kebabMenuHtml([
           { label: 'Remove player', onclick: `removePlayer('${player.id}')`, danger: true },
         ], { title: 'Player actions' }) : ''}
@@ -384,13 +397,13 @@ function renderPlayers() {
         <input type="text" name="deckurl"   placeholder="Archidekt URL (optional)" style="flex:1.5;min-width:200px"
                onkeydown="if(event.key==='Enter')confirmAddDeck('${player.id}')">
         <div class="form-btns">
-          <button class="btn-primary"   style="padding:.35rem .7rem;font-size:.82rem" onclick="confirmAddDeck('${player.id}')">Add</button>
-          <button class="btn-secondary" style="padding:.35rem .7rem;font-size:.82rem" onclick="document.getElementById('adf_${player.id}').classList.remove('open')">Cancel</button>
+          <button class="btn-primary"   style="padding:var(--space-1) var(--space-3);font-size:var(--text-sm)" onclick="confirmAddDeck('${player.id}')">Add</button>
+          <button class="btn-secondary" style="padding:var(--space-1) var(--space-3);font-size:var(--text-sm)" onclick="document.getElementById('adf_${player.id}').classList.remove('open')">Cancel</button>
         </div>
       </div>` : ''}
       <div class="deck-tiles-grid ${pCollapsed ? 'closed' : ''}" id="pb-player-${player.id}"
            style="${pCollapsed ? 'display:none' : ''}">${tilesHTML ||
-        `<div style="color:var(--muted);font-size:.85rem;font-style:italic;padding:.5rem 0">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
+        `<div class="player-no-decks">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
       }</div>
     </div>`;
   }).join('');

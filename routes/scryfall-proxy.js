@@ -10,55 +10,23 @@
 //     10/s combined. One server-side queue is the only real fix.
 //  3. We can cache hot responses (sets list, search pages, card lookups) for
 //     everyone at once.
+//
+// The queue itself moved to scryfall-queue.js when the set index became the
+// second thing on this server that talks to Scryfall — the pacing has to be
+// shared, since Scryfall's limit is per IP and not per module.
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
+const { queuedFetch, isValidJson, SF_HEADERS } = require('../scryfall-queue');
 
 const router = express.Router();
 router.use(express.json({ limit: '256kb' }));
 
-const SF_BASE         = 'https://api.scryfall.com/';
-const SF_MIN_INTERVAL = 110;              // ms between request starts (~9 req/s)
-const CACHE_TTL       = 10 * 60 * 1000;   // GET cache: 10 minutes
-const CACHE_MAX       = 500;              // max cached responses
+const SF_BASE   = 'https://api.scryfall.com/';
+const CACHE_TTL = 10 * 60 * 1000;   // GET cache: 10 minutes
+const CACHE_MAX = 500;              // max cached responses
 
 // Only these API path prefixes may be proxied
 const ALLOWED = /^(cards|sets)(\/|$|\?)/;
-
-// ── Central queue (mirrors the client-side one, but shared by all clients) ────
-const _queue = [];
-let _pumping  = false;
-let _nextSlot = 0;
-
-function queuedFetch(url, opts) {
-  return new Promise((resolve, reject) => {
-    _queue.push({ url, opts, resolve, reject });
-    _pump();
-  });
-}
-
-async function _pump() {
-  if (_pumping) return;
-  _pumping = true;
-  while (_queue.length) {
-    const wait = _nextSlot - Date.now();
-    if (wait > 0) await new Promise(r => setTimeout(r, wait));
-    _nextSlot = Date.now() + SF_MIN_INTERVAL;
-    const job = _queue.shift();
-    try {
-      let res = await fetch(job.url, job.opts);
-      if (res.status === 429) {
-        const ra    = parseInt(res.headers.get('Retry-After'), 10);
-        const delay = Number.isFinite(ra) ? Math.min(ra, 70) * 1000 : 2000;
-        console.warn(`[scryfall-proxy] 429 — pausing all Scryfall traffic ${delay / 1000}s`);
-        await new Promise(r => setTimeout(r, delay));
-        _nextSlot = Date.now() + SF_MIN_INTERVAL;
-        res = await fetch(job.url, job.opts);
-      }
-      job.resolve(res);
-    } catch (e) { job.reject(e); }
-  }
-  _pumping = false;
-}
 
 // ── GET cache ─────────────────────────────────────────────────────────────────
 const _cache = new Map(); // url → { at, status, body }
@@ -75,17 +43,10 @@ function cacheSet(url, status, body) {
   _cache.set(url, { at: Date.now(), status, body });
 }
 
-const SF_HEADERS = { 'User-Agent': 'MTGTools/1.0', 'Accept': 'application/json' };
-
-// Scryfall is Cloudflare-fronted — if something between us and them (a bot
-// challenge, a captive portal, a network block) intercepts the request, we
-// can get an HTML page back with a 200 status instead of JSON. Verify the
-// body actually parses before trusting or caching it; otherwise the client
-// gets a confusing "JSON.parse: unexpected character" error and, for cached
-// GETs, we'd serve the broken response to everyone for 10 minutes.
-function isValidJson(body) {
-  try { JSON.parse(body); return true; } catch { return false; }
-}
+// isValidJson comes from scryfall-queue.js: an intercepted response would
+// otherwise reach the client as a confusing "JSON.parse: unexpected
+// character", and a cached GET would serve the broken body to everyone for
+// ten minutes.
 
 // GET /api/scryfall/<anything scryfall serves under cards/ or sets/>
 router.get(/^\/scryfall\/(.+)$/, requireAuth, async (req, res) => {

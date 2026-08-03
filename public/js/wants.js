@@ -1,5 +1,4 @@
 // ── Want List ─────────────────────────────────────────────────────────────
-let wantAcTimer  = null;
 let wantView     = 'list'; // 'list' | 'grid' | 'xl'
 let wantCardData = new Map(); // card name → Scryfall card object
 let _wantFetching = false;
@@ -17,6 +16,16 @@ const WANT_COLUMNS = [
   { key: 'price',  label: 'Price',             default: true },
   { key: 'owned',  label: 'In Collections',    default: true },
 ];
+/* The card field is mounted at boot, not with the controls below. Those are
+ * the rendered list's — sorting nothing is not a control — and are mounted
+ * from renderWantList, which returns early when nobody wants anything yet.
+ * The add field is in the toolbar either way, and an empty want list is
+ * exactly when someone reaches for it. */
+function initWantField() {
+  wantAc = mountCardAutocomplete('wantCardInput', 'wantAcDrop',
+    name => { document.getElementById('wantCardInput').value = name; });
+}
+
 let _wantControlsMounted = false;
 function initWantControls() {
   mountSortControl('wantSortMount', 'wants', WANT_SORT_FIELDS, renderWantList, { field: 'wanted', dir: -1 });
@@ -67,33 +76,12 @@ async function fetchWantCardData(names) {
 }
 
 // ── Autocomplete ──────────────────────────────────────────────────────────
-function wantAcInput() {
-  clearTimeout(wantAcTimer);
-  const q = document.getElementById('wantCardInput').value.trim();
-  if (q.length < 2) { closeAc(); return; }
-  wantAcTimer = setTimeout(async () => {
-    try {
-      const drop = document.getElementById('wantAcDrop');
-      const names = (await cardAutocomplete(q)).slice(0, 8);
-      if (!names.length) { closeAc(); return; }
-      drop.innerHTML = names.map(n =>
-        `<div class="ac-item" onclick="pickAc('${jsAttr(n)}')">${esc(n)}</div>`).join('');
-      drop.style.display = 'block';
-    } catch { closeAc(); }
-  }, 280);
-}
-
-function pickAc(name) {
-  document.getElementById('wantCardInput').value = name;
-  closeAc();
-}
-
-function closeAc() {
-  const d = document.getElementById('wantAcDrop');
-  if (d) d.style.display = 'none';
-}
-
-document.addEventListener('click', e => { if (!e.target.closest('.autocomplete-wrap')) closeAc(); });
+// The debounce, the dropdown and the outside-click listener that used to live
+// here are mountCardAutocomplete() in sortui.js now — the playmat picker is
+// the second field that needs them, and one implementation is what keeps the
+// two behaving alike. What is left is this field's own answer to a pick:
+// put the name in the box, so that + Add has something to add.
+let wantAc = null;
 
 // ── CSV import ────────────────────────────────────────────────────────────
 function parseWantCSV(text) {
@@ -156,7 +144,7 @@ async function addWant() {
     const player = state.players.find(p => p.id === playerId);
     if (player) { if (!player.wantList) player.wantList = []; if (!player.wantList.includes(cardName)) player.wantList.push(cardName); }
     document.getElementById('wantCardInput').value = '';
-    closeAc();
+    wantAc?.close();
     renderWantList();
   } catch (e) { alert(`Could not add to wants: ${e.message}`); }
 }
@@ -203,7 +191,7 @@ async function renderWantList() {
   }
 
   if (!allWants.size) {
-    container.innerHTML = `<div class="empty-state" style="padding:2.5rem">
+    container.innerHTML = `<div class="empty-state" style="padding:var(--space-6)">
       No want lists yet — select a player above and start adding cards.
     </div>`;
     return;
@@ -213,24 +201,6 @@ async function renderWantList() {
   const activePlayers = state.players.filter(p => (p.wantList || []).length > 0);
 
   if (!_wantControlsMounted) initWantControls();
-
-  // ── Player filter chips ───────────────────────────────────────────────
-  const filterMount = document.getElementById('wantFilterMount');
-  if (filterMount && activePlayers.length > 1) {
-    filterMount.innerHTML = `<div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;padding:.5rem 0 .1rem">
-      <span class="section-label" style="flex-shrink:0">Filter:</span>
-      <button class="pick-chip ${!wantFilterPlayer ? 'pick-chip-on' : ''}"
-        onclick="setWantFilterPlayer('')" style="--pc:var(--primary)">All</button>
-      ${activePlayers.map(p =>
-        `<button class="pick-chip ${wantFilterPlayer === p.id ? 'pick-chip-on' : ''}"
-          style="--pc:${p.color}" onclick="setWantFilterPlayer('${jsAttr(p.id)}')">
-          <span class="pick-chip-dot" style="background:${p.color}"></span>${esc(p.name)}
-        </button>`
-      ).join('')}
-    </div>`;
-  } else if (filterMount) {
-    filterMount.innerHTML = '';
-  }
 
   // Sort by the chosen field ("Most Wanted" = count of players wanting it)
   const { field, dir } = getSort('wants', { field: 'wanted', dir: -1 });
@@ -258,11 +228,49 @@ async function renderWantList() {
   _wantExportRows    = visibleRows;
   _wantExportPlayers = activePlayers;
 
+  // ── Player filter chips (§9.4) ────────────────────────────────────────
+  // The one place in the app where the per-player palette has to hold up as
+  // *text* on every theme, which is why the chip carries the colour at 18%
+  // behind --text rather than as the label's own colour. Each chip's count
+  // is that player's whole list, not the filtered view — it is what you are
+  // choosing between, so it cannot depend on what is already chosen.
+  const filterMount = document.getElementById('wantFilterMount');
+  if (filterMount && activePlayers.length > 1) {
+    filterMount.innerHTML = `
+      <button class="chip chip--select" aria-pressed="${!wantFilterPlayer}"
+        onclick="setWantFilterPlayer('')">
+        <span class="chip-label">All</span>
+        <span class="chip-count">${rows.length}</span>
+      </button>
+      ${activePlayers.map(p =>
+        `<button class="chip chip--select" aria-pressed="${wantFilterPlayer === p.id}"
+          style="--pc:${playerColor(p)}" onclick="setWantFilterPlayer('${jsAttr(p.id)}')">
+          <span class="chip-dot"></span>
+          <span class="chip-label">${esc(p.name)}</span>
+          <span class="chip-count">${(p.wantList || []).length}</span>
+        </button>`
+      ).join('')}`;
+  } else if (filterMount) {
+    filterMount.innerHTML = '';
+  }
+
+  // The strip's count, and the spacer that pushes the view controls to its
+  // right end (§7.3). It says what the filter has done as well as how much
+  // there is, because the chip that did it scrolls out of sight with the
+  // rest of the page and the strip does not.
+  const infoEl = document.getElementById('wantInfo');
+  if (infoEl) {
+    const n = visibleRows.length;
+    infoEl.textContent = n === rows.length
+      ? `${n} card${n === 1 ? '' : 's'}`
+      : `${n} of ${rows.length} cards`;
+  }
+
   // ── List (table) view ─────────────────────────────────────────────────
   if (wantView === 'list') {
     const vc = getCols('wants', WANT_COLUMNS);
     const colHeaders = activePlayers.map(p =>
-      `<th style="border-bottom:3px solid ${p.color};white-space:nowrap">${esc(p.name)}</th>`
+      `<th style="border-bottom:3px solid ${playerColor(p)};white-space:nowrap">${esc(p.name)}</th>`
     ).join('');
 
     let metaHead = '';
@@ -278,7 +286,7 @@ async function renderWantList() {
         if (!wanterIds.has(p.id)) return `<td style="text-align:center;color:var(--border)">—</td>`;
         const canEdit = isMyPlayer(p.id);
         return `<td style="text-align:center">
-          <span class="want-check" style="color:${p.color}">✓
+          <span class="want-check" style="color:${playerColor(p)}">✓
             ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${jsAttr(cardName)}')" title="Remove">✕</button>` : ''}
           </span>
         </td>`;
@@ -304,7 +312,7 @@ async function renderWantList() {
       </tr>`;
     }).join('');
 
-    container.innerHTML = `<div class="panel">
+    container.innerHTML = `<div class="section">
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -335,7 +343,7 @@ async function renderWantList() {
   // Need Scryfall data — show loading state then fetch if missing
   const missingGrid = visibleRows.map(([n]) => n).filter(n => !wantCardData.has(n));
   if (missingGrid.length) {
-    container.innerHTML = `<div class="empty-state" style="padding:3rem 1rem">Loading card images…</div>`;
+    container.innerHTML = `<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading card images…</div>`;
     await fetchWantCardData(missingGrid);
   }
 
@@ -359,7 +367,7 @@ async function renderWantList() {
       .map(p => {
         const initial = esc(p.name.charAt(0).toUpperCase());
         const canEdit = isMyPlayer(p.id);
-        return `<span class="want-dot" style="background:${p.color};cursor:${canEdit?'pointer':'default'}" title="${esc(p.name)}"
+        return `<span class="want-dot" style="background:${playerColor(p)};cursor:${canEdit?'pointer':'default'}" title="${esc(p.name)}"
           ${canEdit ? `onclick="removeWant('${p.id}','${jsAttr(cardName)}')"` : ''}
         >${initial}</span>`;
       }).join('');
@@ -371,14 +379,14 @@ async function renderWantList() {
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
       </a>
       <div class="sf-card-lg-footer">
-        <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+        <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
           <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
              data-name="${esc(cardName)}" title="${esc(cardName)}" style="margin-bottom:0;flex:1">${esc(cardName)}</a>
           ${price}
         </div>
-        ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
-        ${type ? `<div style="font-size:.7rem;color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
-        <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem">${playerDots}</div>
+        ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
+        ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
+        <div style="display:flex;gap:var(--space-1);flex-wrap:wrap;margin-bottom:var(--space-1)">${playerDots}</div>
         <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
       </div>
     </div>`;
@@ -435,12 +443,33 @@ function wantExportCsv() {
   _wantDownload(`${_wantExportFilenameBase()}.csv`, lines.join('\n'), 'text/csv');
 }
 
-function wantExportPdf() {
+/* jsPDF, vendored (public/vendor/, see the README there) — it used to come off
+ * a CDN, which is a page that cannot print with the network down. It is 360KB
+ * for one button, so it is fetched the first time that button is pressed
+ * rather than on every page load: a request to this app's own server, not to
+ * anyone else's. The promise is cached on success and dropped on failure, so
+ * a second press retries. */
+let _jspdfLoad = null;
+function _loadJsPdf() {
+  if (!_jspdfLoad) _jspdfLoad = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src     = 'vendor/jspdf.umd.min.js';
+    s.onload  = () => window.jspdf?.jsPDF ? resolve(window.jspdf.jsPDF)
+                                          : reject(new Error('jsPDF loaded but defined no global'));
+    s.onerror = () => reject(new Error('jsPDF failed to load'));
+    document.head.append(s);
+  }).catch(err => { _jspdfLoad = null; throw err; });
+  return _jspdfLoad;
+}
+
+async function wantExportPdf() {
   document.getElementById('wantExportMenu')?.classList.remove('open');
   if (!_wantExportRows.length) { alert('No cards to export.'); return; }
-  if (!window.jspdf?.jsPDF) { alert('PDF library failed to load — check your connection and try again.'); return; }
 
-  const { jsPDF } = window.jspdf;
+  let jsPDF;
+  try { jsPDF = await _loadJsPdf(); }
+  catch { alert('The PDF library did not load. Reload the page and try again.'); return; }
+
   const doc      = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageW    = doc.internal.pageSize.getWidth();
   const pageH    = doc.internal.pageSize.getHeight();

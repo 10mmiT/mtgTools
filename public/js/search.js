@@ -1,12 +1,33 @@
 // ── Scryfall Search ───────────────────────────────────────────────────────
-const sfState = { query: '', nextPage: null, loading: false, timer: null, cards: [] };
+// Searching happens on Enter or the Search button, never while typing: a
+// Scryfall query is only valid once it is finished, and every keystroke of
+// `t:creature c:r` is either a different search or a syntax error. The
+// debounce that used to sit here was already unreachable — nothing had called
+// it since the input stopped having an `oninput` — and is deleted rather than
+// left as an invitation.
+const sfState = { query: '', nextPage: null, loading: false, cards: [] };
 let sfViewSize = 'list'; // 'list' | 'grid' | 'xl'
+
+/* What the results area says before anyone has searched, and again when the
+ * query is cleared. It carries the syntax examples that used to occupy a
+ * permanent second row of the toolbar — in front of the person who has not
+ * searched yet, and gone for everyone else. */
+const SF_EMPTY = `<div class="empty-state">
+  Search Scryfall’s whole catalogue — the full query syntax works.
+  <div class="help-text sf-syntax">
+    <code>t:creature c:r</code> · <code>cmc=3</code> · <code>"exact name"</code> ·
+    <code>o:draw</code> · <code>r:mythic</code>
+  </div>
+</div>`;
 
 const SF_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 
 function initScryfallSort() {
   mountSortControl('sfSortMount', 'scryfall', SF_SORT_FIELDS, sfRender);
   mountViewToggle('sfViewMount', ['list', 'grid', 'xl'], () => sfViewSize, setSfSize);
+  // The tab is hidden until this runs, so the empty state is painted here
+  // rather than written into index.html as a second copy of the same markup.
+  if (!sfState.cards.length) document.getElementById('sfResults').innerHTML = SF_EMPTY;
 }
 
 function setSfSize(size) {
@@ -14,16 +35,12 @@ function setSfSize(size) {
   sfRender();
 }
 
-function sfDebounce() {
-  clearTimeout(sfState.timer);
-  sfState.timer = setTimeout(doScryfallSearch, 380);
-}
-
 async function doScryfallSearch() {
   const query = document.getElementById('sfInput').value.trim();
   if (!query) {
-    document.getElementById('sfResults').innerHTML = '';
+    document.getElementById('sfResults').innerHTML = SF_EMPTY;
     document.getElementById('sfInfo').textContent = '';
+    sfState.cards    = [];
     sfState.nextPage = null;
     return;
   }
@@ -101,7 +118,7 @@ function sfRender() {
 
   container.innerHTML = `<div class="${wrap}" id="sfGrid">${html}</div>` +
     (sfState.nextPage
-      ? `<button id="sfLoadMore" class="btn-secondary" style="width:100%;margin-top:.75rem;padding:.6rem"
+      ? `<button id="sfLoadMore" class="btn-secondary" style="width:100%;margin-top:var(--space-3);padding:var(--space-2)"
            onclick="fetchScryfallPage(sfState.nextPage, true)">Load more results</button>`
       : '');
 }
@@ -145,7 +162,7 @@ function renderSfCardLarge(card) {
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.25rem">
+      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
         ${price}
         ${wantBtnHtml(card.name)}
@@ -171,13 +188,13 @@ function renderSfCardXL(card) {
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
+      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
         ${price}
         ${wantBtnHtml(card.name)}
       </div>
-      ${mana ? `<div style="margin-bottom:.2rem">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:.7rem;color:var(--muted);margin-bottom:.25rem">${esc(type)}</div>` : ''}
+      ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
+      ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

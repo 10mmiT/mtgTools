@@ -1,31 +1,13 @@
-// ── Collapsible panels ────────────────────────────────────────────────
+// ── Collapsible player sections ─────────────────────────────────────────
+// The generic collapse machinery — initCollapses(), toggleSection(),
+// applyCollapse() and the .section-body / .section-title.collapsible pair
+// they drove — is gone with the last section that used it. Collections' add
+// form became a drawer and its list a chip row (§9.1), Pick Night's deck
+// pool became a drawer (§9.7), and Admin's Create User is a plain open form
+// on a page of plain sections (§9.11). What is left is one collapsible that
+// is not a section: a player's row of decks, which is a person's whole
+// shelf and is worth folding away.
 const collapseState = JSON.parse(localStorage.getItem('mtgtools_collapse') || '{}');
-
-function togglePanel(id) {
-  collapseState[id] = !collapseState[id];
-  localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
-  applyCollapse(id);
-}
-
-function applyCollapse(id) {
-  const body = document.getElementById(`pb-${id}`);
-  const chv  = document.getElementById(`chv-${id}`);
-  const closed = !!collapseState[id];
-  if (body) body.classList.toggle('closed', closed);
-  if (chv)  chv.classList.toggle('closed', closed);
-}
-
-function initCollapses() {
-  // Deck Pool starts open: the pool is opt-in (no decks selected by default),
-  // so it needs to be visible for the user to pick decks into it. The old code
-  // force-stored pick-pool as collapsed for everyone — undo that once.
-  if (!collapseState['_pickPoolMigrated']) {
-    collapseState['pick-pool'] = false;
-    collapseState['_pickPoolMigrated'] = true;
-    localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
-  }
-  ['add-col', 'collections', 'pick-pool'].forEach(applyCollapse);
-}
 
 function togglePlayerSection(playerId, event) {
   // Don't collapse when clicking the action buttons
@@ -44,92 +26,225 @@ function togglePlayerSection(playerId, event) {
 function toggleSideNav() {
   const nav = document.getElementById('sideNav');
   if (!nav) return;
-  _closeThemeMenu(); // its position depends on the sidebar width
+  closeAppearance(); // its position depends on the sidebar width
   const collapsed = nav.classList.toggle('collapsed');
   document.body.classList.toggle('sidenav-collapsed', collapsed);
   localStorage.setItem('mtgtools_sidenav', collapsed ? '1' : '0');
+  _labelSideNavToggle(collapsed);
 }
 
-function initSideNav() {
-  if (localStorage.getItem('mtgtools_sidenav') === '1') {
-    document.getElementById('sideNav')?.classList.add('collapsed');
-    document.body.classList.add('sidenav-collapsed');
-  }
+/* The button's label is hidden while the sidebar is collapsed, so the tooltip
+ * is the only thing left saying what it does — and collapsed is now the state
+ * most people are in. It used to read "Collapse sidebar" in both states. */
+function _labelSideNavToggle(collapsed) {
+  const btn = document.getElementById('sideNavToggle');
+  if (!btn) return;
+  btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
 }
+
+/* Collapsed is the default (§8.2). Only the default flipped — the toggle and
+ * its persistence are unchanged, and someone who expands the sidebar still
+ * finds it expanded next time.
+ *
+ * The stored value is now read for '0' rather than '1', so the absence of a
+ * preference means collapsed. That silently re-collapses the sidebar for
+ * anyone who had never touched the toggle, which is the intent: 140px of
+ * every window was spent on eleven labels that are legible as icons.
+ *
+ * Nothing expands it on hover, deliberately — moving the pointer across the
+ * nav on the way to a card would slide the whole grid sideways. */
+function initSideNav() {
+  if (localStorage.getItem('mtgtools_sidenav') === '0') { _labelSideNavToggle(false); return; }
+  document.getElementById('sideNav')?.classList.add('collapsed');
+  document.body.classList.add('sidenav-collapsed');
+  _labelSideNavToggle(true);
+}
+
+/* ── Mobile header height ──────────────────────────────────────────────
+ * Below 900px the header is sticky at the top of the window, and so is
+ * each tab's toolbar; the toolbar has to stop under the header rather
+ * than behind it. The header's height is its contents' — a logo, a badge
+ * and a button, all of which can change — so it is measured rather than
+ * written down as a number that would quietly stop matching. Above 900px
+ * there is no header (it folds into the sidebar) and the toolbar's own
+ * media query ignores this. */
+function syncHeaderHeight() {
+  const hdr = document.querySelector('header');
+  const h = hdr && getComputedStyle(hdr).display !== 'none' ? hdr.offsetHeight : 0;
+  document.documentElement.style.setProperty('--hdr-h', `${h}px`);
+}
+syncHeaderHeight();
+window.addEventListener('resize', syncHeaderHeight);
 
 // ── Theme ─────────────────────────────────────────────────────────────
+// Five slots, differing by temperature rather than hue: cool dark, warm
+// dark, cool light, warm light, high contrast.
 const THEMES = [
   { id: 'dark',     label: 'Dark' },
   { id: 'light',    label: 'Light' },
   { id: 'contrast', label: 'High Contrast' },
   { id: 'sepia',    label: 'Sepia' },
-  { id: 'forest',   label: 'Forest' },
+  { id: 'dusk',     label: 'Dusk' },
 ];
 
-function _themeLabel(id) { return THEMES.find(t => t.id === id)?.label || id; }
+// Retired ids, mapped on read: 'forest' was a green dark theme, and the slot
+// was repainted warm-neutral and renamed 'dusk' because the old name would
+// misdescribe it. Without this map, everyone who had chosen 'forest' falls
+// silently back to Dark. public/login.html carries the same mapping, because
+// it reads the preference before any of this has run.
+const THEME_ALIASES = { forest: 'dusk' };
 
-function applyTheme(id) {
+const _canonicalTheme = id => THEME_ALIASES[id] || id;
+
+// applyTheme paints and remembers *in this browser*; it does not tell the
+// server. The server is told by _pickTheme() below, which is what an explicit
+// choice goes through — boot applies a theme too, and a boot that wrote back
+// would overwrite the stored preference with the local one on every load,
+// which is the exact opposite of following a user between devices.
+function applyTheme(rawId) {
+  // Canonicalising here rather than in initTheme means the retired id is
+  // also rewritten in storage, so the mapping is paid once per user.
+  const id = _canonicalTheme(rawId);
   document.documentElement.dataset.theme = id;
   localStorage.setItem('mtgtools_theme', id);
-  const label = _themeLabel(id);
-  const lbl = document.getElementById('mobNavThemeLabel');
-  if (lbl) lbl.textContent = label;
-  const sideLbl = document.getElementById('sidenavThemeLabel');
-  if (sideLbl) sideLbl.textContent = label;
+  // The two buttons that used to be labelled with the theme's name now say
+  // "Appearance" and open a picker that ticks the current theme instead —
+  // which is the same fact, told once, in the place it can be changed.
   document.querySelectorAll('.theme-pick-item').forEach(el =>
     el.classList.toggle('active', el.dataset.theme === id));
 }
 
+// A `?theme=` URL parameter overrides the stored preference (and is then stored
+// itself, so the link is also the only way to clear a bad stored value without
+// dev tools). An unknown id is ignored rather than applied, which would leave
+// the page styled by a data-theme no stylesheet matches.
+function _themeFromUrl() {
+  const id = _canonicalTheme(new URLSearchParams(location.search).get('theme'));
+  return THEMES.some(t => t.id === id) ? id : null;
+}
+
+// The theme is a person's, not a browser's: it is stored per user on the
+// server (/api/prefs) so it follows them to the next device. Boot is in two
+// halves because of that. This half runs before the session is even known and
+// paints the first frame from localStorage — waiting for the fetch would show
+// the wrong theme for as long as it takes, on every load. syncPrefs() below is
+// the second half, and corrects the guess if the server disagrees.
+let _urlTheme = null;
+
 function initTheme() {
-  applyTheme(localStorage.getItem('mtgtools_theme') || 'dark');
+  _urlTheme = _themeFromUrl();
+  applyTheme(_urlTheme || localStorage.getItem('mtgtools_theme') || 'dark');
 }
 
-// Direct pick (desktop sidebar dropdown)
-function setTheme(id) {
+/* Second half of boot, once there is a session to read a preference for.
+ *
+ * A `?theme=` parameter still wins, and is now written through to the server
+ * as well as the browser. That matters more than it did: the link is the way
+ * to recover from a stored theme that has made the app unreadable, and a
+ * stored theme that follows you between devices is one you cannot escape by
+ * clearing site data. */
+async function syncPrefs() {
+  const p = await loadPrefs();
+  // The playmat's half of the same correction, and it runs either way: a
+  // ?theme= link overrides the theme, not the mat.
+  syncPlaymat();
+  if (_urlTheme) { if (p.stored) savePrefs({ theme: _urlTheme }); return; }
+  if (p.stored && p.theme) applyTheme(p.theme);
+}
+
+// An explicit choice: paint it, remember it here, and tell the server. Read
+// back off the element rather than trusting the argument, so a retired id is
+// stored under the name it was canonicalised to.
+function _pickTheme(id) {
   applyTheme(id);
-  _closeThemeMenu();
+  _urlTheme = null;   // a pick supersedes whatever link opened the page
+  savePrefs({ theme: document.documentElement.dataset.theme });
 }
 
-// Cycle to the next theme (mobile dropdown + mobile header button, where a
-// full picker dropdown doesn't fit as naturally as it does in the sidebar)
-function toggleTheme() {
-  const cur = document.documentElement.dataset.theme;
-  const idx = THEMES.findIndex(t => t.id === cur);
-  applyTheme(THEMES[(idx + 1) % THEMES.length].id);
-}
+// A pick from the Appearance popover, which stays open: the point of putting
+// the themes beside the playmat is being able to see one over the other, and
+// a menu that shut on every pick would make comparing them a chore.
+function setTheme(id) { _pickTheme(id); }
 
-function toggleThemeMenu(e) {
+// ── Appearance popover (§10.7) ────────────────────────────────────────
+// Theme, playmat, and the playmat's per-device switch, in one menu opened
+// from the sidebar on a desktop and from the nav dropdown on a phone.
+//
+// It is always positioned against the button that opened it rather than
+// living inside one of them. The theme menu already had to do this in its
+// most common case — a collapsed sidebar is a 46px-wide overflow:hidden
+// scroll container, and an absolutely-positioned menu is clipped inside it —
+// so making it the only case removes a branch rather than adding one.
+function toggleAppearance(e) {
   e?.stopPropagation();
-  const menu = document.getElementById('themePickMenu');
+  const menu = document.getElementById('appearanceMenu');
   if (!menu) return;
-  const opening = !menu.classList.contains('open');
-  if (!opening) { _closeThemeMenu(); return; }
-  menu.classList.add('open');
+  if (menu.classList.contains('open')) { closeAppearance(); return; }
 
-  // When the sidebar is collapsed it's a 46px-wide scroll container with
-  // overflow hidden — an absolutely-positioned menu gets clipped inside it.
-  // Escape by fixing the menu to the viewport, to the right of the button.
-  const nav = document.getElementById('sideNav');
-  const btn = document.getElementById('sidenavThemeBtn');
-  if (nav?.classList.contains('collapsed') && btn) {
-    const r = btn.getBoundingClientRect();
-    menu.style.position = 'fixed';
-    menu.style.left     = (r.right + 8) + 'px';
-    menu.style.right    = 'auto';
-    menu.style.top      = 'auto';
-    menu.style.bottom   = Math.max(8, window.innerHeight - r.bottom) + 'px';
+  // Opened from the phone's nav dropdown, the anchor is the dropdown's own
+  // button: the menu below it is about to close, and a menu positioned
+  // against a row inside it would be left pointing at nothing.
+  const trigger = e?.currentTarget;
+  const anchor  = trigger?.closest('#mobNav') ? document.getElementById('mobNavBtn') : trigger;
+  const r = anchor?.getBoundingClientRect();
+  closeMobNav();
+  menu.classList.add('open');
+  if (!r) return;
+
+  menu.style.position = 'fixed';
+  if (window.innerWidth >= BP_MD) {
+    // Beside the sidebar button, bottom-aligned with it: the button sits at
+    // the foot of the nav, with nothing below it to drop into.
+    menu.style.left   = (r.right + 8) + 'px';
+    menu.style.right  = 'auto';
+    menu.style.top    = 'auto';
+    menu.style.bottom = Math.max(8, window.innerHeight - r.bottom) + 'px';
+  } else {
+    menu.style.top    = (r.bottom + 6) + 'px';
+    menu.style.right  = Math.max(8, window.innerWidth - r.right) + 'px';
+    menu.style.left   = 'auto';
+    menu.style.bottom = 'auto';
   }
 }
 
-function _closeThemeMenu() {
-  const menu = document.getElementById('themePickMenu');
+function closeAppearance() {
+  const menu = document.getElementById('appearanceMenu');
   if (!menu) return;
   menu.classList.remove('open');
   menu.style.position = menu.style.left = menu.style.right = menu.style.top = menu.style.bottom = '';
 }
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('.sidenav-theme-wrap')) _closeThemeMenu();
+  if (!e.target.closest('#appearanceMenu, .appearance-trigger')) closeAppearance();
+});
+
+// ── Drawers ───────────────────────────────────────────────────────────
+// A drawer is any element marked data-drawer: the Add Collection form, and
+// the deck comparison panel below 1280px. One opens at a time and one scrim
+// sits behind whichever it is, so closing is a single call from three places
+// — the scrim, the ✕ and Escape.
+function openDrawer(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  closeDrawers();
+  el.classList.add('open');
+  document.getElementById('drawerScrim')?.classList.add('open');
+  // Focus the first field so the drawer can be typed into straight away.
+  // Never the close button: opening a drawer to dismiss it is not the task.
+  // The offsetHeight read is what makes it land: a closed drawer is
+  // visibility: hidden, nothing hidden can take focus, and the class above
+  // does not reach layout until something asks for it.
+  const field = el.querySelector('input:not([type=file]), textarea, select');
+  if (field) { void el.offsetHeight; field.focus(); }
+}
+
+function closeDrawers() {
+  document.querySelectorAll('[data-drawer].open').forEach(el => el.classList.remove('open'));
+  document.getElementById('drawerScrim')?.classList.remove('open');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeDrawers(); closeAppearance(); }
 });
 
 // ── View mode ─────────────────────────────────────────────────────────
@@ -225,6 +340,10 @@ setInterval(refreshState, 30_000);
 // push = whether to add a browser-history entry (false when restoring from
 // a back/forward navigation or on initial load).
 function setTab(tab, push = true) {
+  // A drawer belongs to the tab it is in, but the scrim behind it does not —
+  // hiding the pane would leave the veil over the next tab with nothing
+  // under it to dismiss.
+  closeDrawers();
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.getElementById(`tab-${tab}`).style.display = '';
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -265,7 +384,7 @@ window.addEventListener('popstate', e => {
   if (s.view === 'card-modal') {
     // Navigating back into a modal state — re-open it
     const host = document.getElementById('cardModalDetail');
-    if (host && window.innerWidth >= 1024) {
+    if (host && window.innerWidth >= BP_MD) {
       document.getElementById('cardModal').style.display = 'flex';
       document.body.style.overflow = 'hidden';
       if (s.cardName)    loadCard({ name: s.cardName }, 'cardModalDetail');
@@ -439,10 +558,12 @@ if (document.readyState === 'loading') {
 // ── Init ──────────────────────────────────────────────────────────────
 initTheme();
 initSideNav();
+initPlaymatPicker();  // the mat itself was applied in <head>; this is its picker
+initWantField();      // the other card field in static markup; see mountCardAutocomplete
 authInit().then(() => {
+  syncPrefs();   // not awaited: appearance is already painted, this only corrects it
   loadFromStorage().then(() => {
     _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load
-    initCollapses();
     renderPlayers();
     renderCollections();
     mountViewToggle('colViewMount', ['list', 'grid'], () => viewMode, setViewMode);

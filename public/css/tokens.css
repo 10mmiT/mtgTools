@@ -1,0 +1,575 @@
+/* Design tokens — theme variables and the per-tab accent colours.
+   File 1 of 5 in load order; later files may override earlier ones.
+
+   Raw colour values (#hex, rgb(), rgba(), hsl()) are permitted in THIS FILE
+   ONLY. Everywhere else colour comes from a var(--token). Two exemptions,
+   which must carry a comment saying so: text/controls layered over card art
+   may use fixed white or black, and color-mix() on a token is allowed
+   anywhere. The same rule applies to font-size, padding, gap, margin and
+   border-radius — use a scale token below; a one-off value is a bug.
+
+   The file has four parts:
+     0. Faces — the self-hosted @font-face declarations. They sit here rather
+        than in base.css because login.html loads only this file, and the
+        login page has to be in the app's typeface too.
+     1. Fixed scales — type, spacing, radius, breakpoints, measure. Not
+        theme-dependent, so they are declared once.
+     2. Themes — five palettes, each a complete set of colour tokens.
+     3. Per-tab accent colours.
+
+   The vocabulary is semantic: a token names the job a value does, so a theme
+   can be repainted without renaming anything. The superseded names that this
+   file used to carry alongside it — --card, --card-2, --muted, --danger-lt,
+   --radius, --shadow — are gone; --surface-1/2, --text-muted, --danger-soft,
+   the --radius-* scale and the --shadow-* set do those jobs now.
+
+   scripts/lint-tokens.js enforces all of the above against the delivered
+   stylesheet, and `npm test` runs it.
+
+   public/login.html loads this file too, so it is served by its own public
+   route in server.js — the static mount sits behind the auth guard. The same
+   applies to /fonts, which this file points at. */
+
+/* ── 0. Faces ─────────────────────────────────────────────────────────────
+   Inter, self-hosted. No build step, no request to a third party: this is
+   self-hosted software and it must work with the network unplugged.
+
+   One variable file per subset carries the whole 100–900 weight axis, so the
+   four weights the app uses (400/500/600/700) cost one download, not four.
+   The italic file is not optional — card flavour text is set in it.
+
+   The files are the latin and latin-ext subsets from @fontsource-variable/inter
+   5.3.0 (Inter 4.1, SIL OFL 1.1 — see fonts/LICENSE-Inter.txt and
+   fonts/README.md). 48KB + 52KB for latin; latin-ext is another 177KB that a
+   browser fetches only if a glyph on the page needs it, which for English card
+   data is close to never.
+
+   unicode-range is what makes that true, so it is copied verbatim from
+   upstream rather than trimmed. font-display: swap is the fallback promise
+   below made visible: text paints in the system stack immediately, and
+   re-paints in Inter when it arrives — or stays there for good if it never
+   does.
+
+   The format hint says woff2, not upstream's woff2-variations: a browser
+   reads the axes off the file, and a format string it does not recognise
+   makes it skip the source entirely — which would be a silent fallback in
+   whichever browser is the unlucky one. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-wght-italic.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/inter-latin-ext-wght-italic.woff2') format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+/* ── 1. Fixed scales ──────────────────────────────────────────────────────
+   These do not vary by theme. Shadows do — they live with the palettes. */
+:root {
+  /* Font stacks — the only two permitted font-family values. Everything
+     else says `font-family: inherit` or nothing at all.
+
+     The system stack stays behind Inter as the fallback: if the face fails
+     to load the app degrades to exactly how it looked before ticket 11,
+     not to a serif default. That ordering is the whole safety net, so the
+     stack is not to be trimmed to just `sans-serif`.
+
+     --font-mono replaces the 'Courier New' that mana text used to name.
+     ui-monospace resolves to whatever the platform considers its UI
+     monospace (SF Mono, Cascadia, DejaVu Sans Mono) instead of pinning one
+     face that most machines do not have and substitute badly. */
+  --font-ui:   'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  /* Type scale — base 16px, seven steps, the only permitted font sizes.
+     Note --text-2xs…--text-xl are SIZES; --text, --text-muted and
+     --text-subtle in the palettes below are COLOURS. */
+  --text-2xs:  .6875rem;  /* 11px — badges, pips, dense metadata */
+  --text-xs:   .75rem;    /* 12px — table secondary, captions, help text */
+  --text-sm:   .8125rem;  /* 13px — table body, chips, buttons */
+  --text-base: .875rem;   /* 14px — app default */
+  --text-md:   1rem;      /* 16px — prose: oracle text, rulings, long-form */
+  --text-lg:   1.25rem;   /* 20px — section headings, card name in detail */
+  --text-xl:   1.75rem;   /* 28px — page/tab title, the only display size */
+
+  --leading-tight:  1.25; /* headings, table rows */
+  --leading-normal: 1.5;  /* prose */
+
+  /* Spacing scale — 4px base, six steps, the only permitted gap/padding/
+     margin values. */
+  --space-1: .25rem;   /*  4px — icon-to-label, pip gaps */
+  --space-2: .5rem;    /*  8px — inside controls, chip padding */
+  --space-3: .75rem;   /* 12px — grid gutters, control gaps */
+  --space-4: 1rem;     /* 16px — section padding, toolbar padding */
+  --space-5: 1.5rem;   /* 24px — between major sections */
+  --space-6: 2rem;     /* 32px — page top/bottom rhythm */
+
+  /* Radius scale — three steps, the only permitted corner sizes. */
+  --radius-sm:   4px;    /* chips, badges, inputs, small buttons */
+  --radius-md:   8px;    /* cards, sections, modals, images */
+  --radius-full: 999px;  /* pills, avatars, toggles */
+
+  /* Breakpoints. Custom properties cannot be used inside a media query, so
+     @media rules must repeat these literals — 640px, 900px, 1280px. The
+     tokens are here as the single written-down definition, and so that
+     scripts can read them off the computed style.
+
+     Every @media rule is written in range syntax, exclusive below and
+     inclusive above: (width < 900px) and (width >= 900px). That is what keeps
+     the count at three — the older max-width/min-width pairs needed an
+     off-by-one twin each (860/861, 1023/1024) and the two halves drifted
+     apart. A rule using any other number is a bug.
+
+     JS reads the same boundaries from BP_SM/BP_MD in js/state.js, which
+     compares with < and >= to match. */
+  --bp-sm:  640px;   /* compact phone */
+  --bp-md:  900px;   /* nav switches: bottom bar <-> sidebar, card modal <-> card tab */
+  --bp-lg: 1280px;   /* wide desktop: denser grids, wider tables — not yet used */
+
+  --measure: 72ch;   /* max line length for prose */
+
+  /* Sidebar geometry. Not rhythm and not a scale — this is the measured
+     width of one fixed element, which six rules across two files have to
+     agree on exactly or the content overlaps it: the sidebar itself in
+     both states, the page's left padding in both states, and the Deck
+     Builder's fixed stats bar in both states.
+
+     They were literals, and they had already drifted: the stats bar was
+     written against 200/48 while the sidebar was 186/46, so it sat 14px
+     (or 2px) out. One definition now. */
+  --sidenav-width: 186px;
+  --sidenav-collapsed-width: 46px;
+}
+
+/* ── 2. Themes ────────────────────────────────────────────────────────────
+   Each block is a complete palette. Every colour the app can show is named
+   here so that no theme is second-class.
+
+   The five differ by TEMPERATURE, not hue: cool dark, warm dark, cool light,
+   warm light, high contrast. Surfaces are near-neutral so that card artwork
+   and the per-tab Magic colour are the only saturated things on screen.
+
+   --primary is near-neutral too — a near-white fill on the dark themes, a
+   near-black one on the light themes — so the primary action no longer
+   competes with the mana accent for the eye. Three consequences follow from
+   that, and they are why the palettes below carry tokens the design brief's
+   palettes do not name:
+
+     --primary-fg   flips with the theme (near-black on dark themes). It is
+                    ink on a light fill there, not white.
+     --primary-lt   the soft "selected" fill, formerly a purple tint, is now
+                    a neutral one; --primary-tx is the text on it.
+     --hdr-fg       new. The mobile header used to be a dark or saturated
+                    brand bar drawn in --primary-fg, which was white on all
+                    five themes. --primary-fg no longer is, so the header
+                    names its own ink. --hdr-bg is a theme surface now.
+
+   scripts/check-contrast.js measures every foreground/background pair these
+   palettes put on screen; `npm test` fails if one drops below its floor. */
+
+/* Dark — cool near-black. The default.
+
+   Each palette opens with color-scheme, which is what the browser's own
+   chrome reads: scrollbars, select menus and form controls. Without it the
+   dark themes were framed by white scrollbars — visible in the Set Browser
+   long before this repaint. It is a declaration, not a token, so it belongs
+   to the theme block rather than the vocabulary above. */
+:root {
+  color-scheme: dark;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #0e1013;
+  --border:     #262c34;
+  --text:       #e7eaee;
+  --primary:    #e7eaee;       /* near-white fill on dark */
+  --primary-dk: #ffffff;       /* hover: brighter, not darker */
+  --primary-lt: #232830;       /* soft selected fill */
+  --primary-tx: #e7eaee;
+  --danger:     #f0736b;
+  --hdr-bg:     #0a0c0f;
+  --hdr-fg:     #e7eaee;
+
+  /* MTG mana palette (WUBRG + gold) — tuned for the dark themes */
+  --mc-w: #e3d7a1;
+  --mc-u: #6ba8dd;
+  --mc-b: #a596bd;
+  --mc-r: #e2665a;
+  --mc-g: #59b077;
+  --mc-c: #a3aab8;
+  --mc-gold: #d9b955;
+
+  /* Surfaces. 1 is the resting section, 2 the step above it, 3 hover and
+     disabled fills. */
+  --surface-1: #15181c;
+  --surface-2: #1c2026;
+  --surface-3: #242931;
+
+  --border-strong: #39414b;    /* focused inputs, active tiles */
+
+  --text-muted:  #98a1ad;
+  --text-subtle: #6b7381;      /* placeholders, disabled */
+
+  --primary-fg: #0e1013;       /* text/icon on a --primary fill */
+
+  /* Status. The fills are light on the dark themes, so their -fg text is
+     dark — the reverse of the old palette, where white sat on mid-tones at
+     roughly 2:1. */
+  --success:      #4ec78a;
+  --success-soft: #12291f;
+  --success-fg:   #0b1f16;
+  --warning:      #e0b055;
+  --warning-soft: #2a2214;
+  --warning-fg:   #241a06;
+  --danger-soft:  #2e1614;
+  --danger-fg:    #2a0f0c;
+
+  /* The veil between the playmat and the content, and the one alpha in the
+     file that is measured rather than chosen: issue 22 puts arbitrary card
+     art behind the page, so scripts/check-contrast.js composites this token
+     over white and over black and holds the text tokens to their floors
+     against both. Each theme's value is the lowest that clears them — the
+     art is the point, so no theme pays more alpha than its own ink needs. */
+  --scrim: rgb(14 16 19 / .86);
+  --mat:   #171b20;             /* Deck Builder felt surface */
+
+  /* Overlay shadows. Flat surfaces get a hairline instead — there is
+     deliberately no --shadow-raised. */
+  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
+  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
+  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .35);
+
+  /* Per-player categorical palette — light enough to read as text on a dark
+     surface, and to carry --primary-fg as initials when used as a fill. */
+  --player-0: #7aa2f7;
+  --player-1: #6cc58c;
+  --player-2: #e0a458;
+  --player-3: #e47983;
+  --player-4: #d7c65a;
+  --player-5: #b28cf0;
+  --player-6: #5fc9d8;
+  --player-7: #e589c0;
+
+  /* Default section accent; per-tab rules below override this */
+  --accent: var(--primary);
+}
+
+/* Dusk — warm near-black. Replaces the old green "forest" theme; a stored
+   preference for that id is mapped here on read (THEME_ALIASES in main.js). */
+html[data-theme="dusk"] {
+  color-scheme: dark;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #121010;
+  --border:     #2d2823;
+  --text:       #eeeae5;
+  --primary:    #eeeae5;
+  --primary-dk: #fffbf7;
+  --primary-lt: #282320;
+  --primary-tx: #eeeae5;
+  --danger:     #ef7466;
+  --hdr-bg:     #0d0b0b;
+  --hdr-fg:     #eeeae5;
+
+  /* Warmed a shade against the cool dark theme's, but still the game's
+     WUBRG identity rather than chrome — they stay recognisably WUBRG. */
+  --mc-w: #e6d9a4;
+  --mc-u: #74a6d4;
+  --mc-b: #a998b6;
+  --mc-r: #e26b58;
+  --mc-g: #5faf73;
+  --mc-c: #a8a49b;
+  --mc-gold: #dbb95e;
+
+  --surface-1: #191614;
+  --surface-2: #201d19;
+  --surface-3: #292520;
+
+  --border-strong: #453e37;
+
+  --text-muted:  #a89e94;
+  --text-subtle: #7a7168;
+
+  --primary-fg: #121010;
+
+  --success:      #5cc088;
+  --success-soft: #16261d;
+  --success-fg:   #0c1f16;
+  --warning:      #dfae5c;
+  --warning-soft: #2b2214;
+  --warning-fg:   #241a06;
+  --danger-soft:  #2e1815;
+  --danger-fg:    #2a100c;
+
+  --scrim: rgb(18 16 16 / .86);
+  --mat:   #1c1815;
+
+  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
+  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
+  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .35);
+
+  --player-0: #85a3ef;
+  --player-1: #74c28c;
+  --player-2: #e3a75c;
+  --player-3: #e5797f;
+  --player-4: #d9c463;
+  --player-5: #b490e8;
+  --player-6: #6cc4cd;
+  --player-7: #e58cb9;
+
+  --accent: var(--primary);
+}
+
+/* Light — cool off-white. */
+html[data-theme="light"] {
+  color-scheme: light;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #f5f6f8;
+  --border:     #e0e4ea;
+  --text:       #14181d;
+  --primary:    #14181d;       /* near-black fill on light */
+  --primary-dk: #000000;
+  --primary-lt: #e6e9ee;
+  --primary-tx: #14181d;
+  --danger:     #bf3025;
+  --hdr-bg:     #ffffff;
+  --hdr-fg:     #14181d;
+
+  /* MTG mana palette — darkened to read on a light surface */
+  --mc-w: #886c17;
+  --mc-u: #2a6ba8;
+  --mc-b: #5f5180;
+  --mc-r: #b83a2e;
+  --mc-g: #2a7a4a;
+  --mc-c: #616875;
+  --mc-gold: #8a6b15;
+
+  --surface-1: #ffffff;
+  --surface-2: #f0f2f5;
+  --surface-3: #e6e9ee;
+
+  --border-strong: #c2c9d3;
+
+  --text-muted:  #5b636e;
+  --text-subtle: #7c848f;
+
+  --primary-fg: #ffffff;
+
+  --success:      #197b4d;
+  --success-soft: #e4f4ea;
+  --success-fg:   #ffffff;
+  --warning:      #92640c;
+  --warning-soft: #fbf0dc;
+  --warning-fg:   #ffffff;
+  --danger-soft:  #fbe6e4;
+  --danger-fg:    #ffffff;
+
+  --scrim: rgb(245 246 248 / .92);
+  --mat:   #e9ecf1;
+
+  /* Light themes carry roughly half the shadow alpha. */
+  --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .14), 0 1px 3px rgb(0 0 0 / .08);
+  --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .20);
+  --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .16);
+
+  /* Same eight hues as the dark themes, darkened to read on a light
+     surface — and dark enough to carry white initials as a fill. */
+  --player-0: #2b58b0;
+  --player-1: #1f6842;
+  --player-2: #83500c;
+  --player-3: #a33040;
+  --player-4: #6c5b0d;
+  --player-5: #6d3fb5;
+  --player-6: #146572;
+  --player-7: #983672;
+
+  --accent: var(--primary);
+}
+
+/* Sepia — warm paper. */
+html[data-theme="sepia"] {
+  color-scheme: light;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #f7f3ec;
+  --border:     #e5ddce;
+  --text:       #1f1b15;
+  --primary:    #1f1b15;
+  --primary-dk: #000000;
+  --primary-lt: #eae2d4;
+  --primary-tx: #1f1b15;
+  --danger:     #b53228;
+  --hdr-bg:     #fffdf8;
+  --hdr-fg:     #1f1b15;
+
+  --mc-w: #876a16;
+  --mc-u: #2d6699;
+  --mc-b: #635541;
+  --mc-r: #b03c2c;
+  --mc-g: #2f7548;
+  --mc-c: #6b6354;
+  --mc-gold: #876a1b;
+
+  --surface-1: #fffdf8;
+  --surface-2: #f2ece1;
+  --surface-3: #eae2d4;
+
+  --border-strong: #cdc1ac;
+
+  --text-muted:  #6b6151;
+  --text-subtle: #887d6d;
+
+  --primary-fg: #fffdf8;
+
+  --success:      #1f7a4c;
+  --success-soft: #e6f1e4;
+  --success-fg:   #fffdf8;
+  --warning:      #8e6209;
+  --warning-soft: #f7ecd6;
+  --warning-fg:   #fffdf8;
+  --danger-soft:  #f7e3de;
+  --danger-fg:    #fffdf8;
+
+  --scrim: rgb(247 243 236 / .92);
+  --mat:   #ece4d6;
+
+  /* Half alpha like the other light theme, warmed to match the paper. */
+  --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
+  --shadow-modal:   0 16px 48px -8px rgb(60 40 10 / .22);
+  --shadow-lift:    0 8px 24px -4px rgb(60 40 10 / .18);
+
+  --player-0: #33589f;
+  --player-1: #266642;
+  --player-2: #7f500d;
+  --player-3: #9c3739;
+  --player-4: #6a5a0d;
+  --player-5: #6a4099;
+  --player-6: #1a636a;
+  --player-7: #94396a;
+
+  --accent: var(--primary);
+}
+
+/* High contrast — pure black, AAA body text. This is the accessibility
+   theme: where contrast and aesthetics conflict here, contrast wins. Its
+   floors are 7:1 for body text and 4.5:1 for every other piece of interface
+   text, measured rather than eyeballed (scripts/check-contrast.js). */
+html[data-theme="contrast"] {
+  color-scheme: dark;
+  scrollbar-color: var(--border-strong) var(--surface-1);
+  --bg:         #000000;
+  --border:     #6a6a6a;       /* deliberately visible, unlike other themes */
+  --text:       #ffffff;
+  --primary:    #ffffff;
+  --primary-dk: #e0e0e0;
+  --primary-lt: #1f1f1f;
+  --primary-tx: #ffffff;
+  --danger:     #ff9184;
+  --hdr-bg:     #000000;
+  --hdr-fg:     #ffffff;
+
+  --mc-w: #f5e6ad;
+  --mc-u: #8ccbff;
+  --mc-b: #d2c2ea;
+  --mc-r: #ff9484;
+  --mc-g: #7ee0a0;
+  --mc-c: #d0d5e0;
+  --mc-gold: #ffd966;
+
+  --surface-1: #0a0a0a;
+  --surface-2: #141414;
+  --surface-3: #1f1f1f;
+
+  --border-strong: #808080;
+
+  --text-muted:  #d6d6d6;
+  --text-subtle: #adadad;
+
+  --primary-fg: #000000;
+
+  /* Brighter status fills than the other dark themes, so each clears AAA
+     against the black background; their -fg text goes black to match. */
+  --success:      #66e0a0;
+  --success-soft: #06231a;
+  --success-fg:   #000000;
+  --warning:      #ffd166;
+  --warning-soft: #241d08;
+  --warning-fg:   #000000;
+  --danger-soft:  #2b100c;
+  --danger-fg:    #000000;
+
+  /* Pure black, and .90 rather than the .86 the other dark themes measure
+     down to: this palette's floors are AAA, and a veil is the cheapest place
+     to buy the headroom. The light themes need .92 — their ink is darker
+     than their page, so it is dark art that costs them, and it costs more. */
+  --scrim: rgb(0 0 0 / .90);
+  --mat:   #0f0f0f;
+
+  /* Each of these leads with a hairline ring, which no other palette needs.
+     An overlay carries a shadow and no border (§4.5), and that works because
+     the lifted surface is a visible step above the page — but here the page
+     is #000 and --surface-1 is #0a0a0a, 1.06:1, with a black shadow over
+     black. Without the ring a dropdown or a modal has no edge at all on the
+     one theme that can least afford it. Where contrast and the aesthetic
+     rule conflict, contrast wins.
+
+     It is a ring, at the element's own edge, not a second separation
+     signal cast beneath it — the same distinction the linter draws when it
+     exempts `0 0 0 <spread>` layers from the elevation rule. So an overlay
+     still declares exactly one thing, and still draws no border. */
+  --shadow-overlay: 0 0 0 1px var(--border), 0 4px 16px -2px rgb(0 0 0 / .45), 0 1px 3px rgb(0 0 0 / .25);
+  --shadow-modal:   0 0 0 1px var(--border), 0 16px 48px -8px rgb(0 0 0 / .60);
+  --shadow-lift:    0 0 0 1px var(--border), 0 8px 24px -4px rgb(0 0 0 / .50);
+
+  --player-0: #9dbcff;
+  --player-1: #85dba4;
+  --player-2: #f5bd76;
+  --player-3: #ff9099;
+  --player-4: #ecd977;
+  --player-5: #c9a8ff;
+  --player-6: #7fdbe8;
+  --player-7: #f5a3d0;
+
+  --accent: var(--primary);
+}
+
+/* ── 3. Per-tab accent colours (the "WUBRG here and there" theming) ──────
+   Each tab pane + its nav buttons inherit a mana-coloured --accent. The
+   mapping is unchanged, but since ticket 10 it marks state and nothing
+   else (§4.7): the active nav item, the focus ring, and a selected tile.
+   It is no longer a decorative tint — not on heading bars, hover fills,
+   hover borders or tinted shadows. Mana colour used as *data* — the .mc-*
+   glyph helpers, the curve chart, player colours — is a separate concern
+   and untouched. */
+#tab-available,    #tab-btn-available,    [data-tab="available"]    { --accent: var(--mc-u); }
+#tab-collections,  #tab-btn-collections,  [data-tab="collections"]  { --accent: var(--mc-g); }
+#tab-players,      #tab-btn-players,      [data-tab="players"]      { --accent: var(--mc-gold); }
+#tab-scryfall,     #tab-btn-scryfall,     [data-tab="scryfall"]     { --accent: var(--mc-r); }
+#tab-card,         #tab-btn-card,         [data-tab="card"]         { --accent: var(--mc-gold); }
+#tab-sets,         #tab-btn-sets,         [data-tab="sets"]         { --accent: var(--mc-w); }
+#tab-wants,        #tab-btn-wants,        [data-tab="wants"]        { --accent: var(--mc-b); }
+#tab-lands,        #tab-btn-lands,        [data-tab="lands"]        { --accent: var(--mc-g); }
+#tab-deckview,     #tab-btn-deckview,     [data-tab="deckview"]     { --accent: var(--mc-u); }
+#tab-pick,         #tab-btn-pick,         [data-tab="pick"]         { --accent: var(--primary); }
+#tab-admin,        #tab-btn-admin,        [data-tab="admin"]        { --accent: var(--primary); }

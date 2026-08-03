@@ -1,0 +1,2208 @@
+/* Tabs — rules owned by a single tab.
+   File 5 of 5 in load order; later files may override earlier ones. */
+
+/* ── Collections ───────────────────────────────────────────────────────
+   The list of collection rows is gone: one collection is a .chip in the
+   row under the toolbar (components.css), which is the whole of what
+   this tab now says about them before the cards start. The row's own
+   classes — .col-row, .col-dot, .col-info, .col-name, .col-meta, the
+   progress bar and the three status badges — went with it, since nothing
+   else in the app used them. Status is a colour on the chip's count now,
+   and the progress the bar drew is the count itself: it reads
+   "1,240 / 5,600" while the pages come in. */
+
+.badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+/* ── Players tab ────────────────────────────────────────────────────────
+   The tab is its strip and its artwork (§9.9). A player used to be a
+   --surface-1 box with a --surface-2 header bar inside it, which put a
+   fill, two hairlines and --space-4 of padding between the window and
+   tiles whose whole point is the art on them. A player is a heading and
+   a grid now — the same grouping the rest of the app gets from §7.1 —
+   so the tiles run the full width of the pane. */
+
+/* The form is the one control on the strip that is four controls, so it
+   overrides the strip's `flex-shrink: 0` and can wrap inside itself. Both
+   min-widths are load-bearing on a phone: an input's intrinsic minimum is
+   about twenty characters wide, which is more than a 390px window has left
+   after the label and the two buttons. */
+.players-add-form {
+  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+  flex: 1 1 auto; min-width: 0;
+}
+.players-name-input { flex: 1 1 160px; min-width: 0; max-width: 280px; }
+
+.player-section { margin-bottom: var(--space-5); }
+
+.player-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+/* The row collapses the player's decks, and the chevron is what says so.
+   The name used to turn --primary on hover, which is a near-white on the
+   dark themes and all but invisible against --text; the affordance is the
+   control, not a tint on the heading. */
+.player-header:hover .chevron { color: var(--text); }
+/* The player's own colour, which used to be a 4px rule down the left of
+   the header bar. With the bar gone that rule would be an accent stripe
+   beside a heading, which §4.7 spent the redesign deleting — so it is
+   the dot every other tab hands a player's colour to. */
+.player-dot {
+  width: 10px; height: 10px; flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--pc, var(--primary));
+}
+.player-name-lbl { font-weight: 700; font-size: var(--text-md); flex: 1; }
+
+.add-deck-form {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.add-deck-form.open { display: flex; }
+.add-deck-form input { flex: 1; min-width: 240px; font-size: var(--text-base); }
+.add-deck-form .form-btns { display: flex; gap: var(--space-2); flex-shrink: 0; }
+
+/* ── Deck tiles grid ──────────────────────────────────────────────────── */
+.deck-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+.player-no-decks {
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  font-style: italic;
+  padding: var(--space-2) 0;
+}
+
+.deck-tile {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-height: 160px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-2);
+  background-size: cover;
+  background-position: right center;
+  transition: box-shadow .2s;
+}
+.deck-tile:hover { border-color: transparent; box-shadow: var(--shadow-lift); }
+
+/* ── Deck tiles — EXEMPT-BEGIN from the colour rule ───────────────────────
+   Everything from here to the EXEMPT-END below is layered over commander
+   artwork rather than a theme surface, so it uses fixed white and black on
+   every theme. The scrim below is part of that exemption: it exists only to
+   make the fixed white text legible over an arbitrary image. It used to be
+   tinted (and carried a light-theme override tinted differently); pure black
+   does the same job on all five themes with one rule. */
+.deck-tile-overlay {
+  position: absolute;
+  inset: 0;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-1);
+  background: linear-gradient(to right, rgba(0,0,0,.97) 0%, rgba(0,0,0,.87) 52%, rgba(0,0,0,.2) 100%);
+}
+
+.deck-tile-top { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+.deck-source-badge {
+  font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+  padding: 0 var(--space-1); border-radius: var(--radius-sm);
+  background: var(--primary-lt); color: var(--primary-tx); flex-shrink: 0;
+}
+.badge-bracket {
+  font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase;
+  padding: 0 var(--space-1); border-radius: var(--radius-sm);
+  background: var(--warning-soft); color: var(--warning); flex-shrink: 0;
+}
+.deck-tile-link {
+  margin-left: auto; font-size: var(--text-xs);
+  color: rgba(255,255,255,.5); text-decoration: none;
+}
+.deck-tile-link:hover { color: rgba(255,255,255,.85); text-decoration: underline; }
+
+.deck-tile-middle { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--space-1); }
+
+.deck-tile-name {
+  font-size: var(--text-md); font-weight: 700; color: #fff;
+  line-height: 1.25; text-shadow: 0 1px 6px rgba(0,0,0,.6);
+}
+.deck-tile-name.loading { color: rgba(255,255,255,.5); font-style: italic; font-weight: 400; font-size: var(--text-base); }
+.deck-tile-name.error   { color: var(--danger); font-style: italic; font-weight: 400; }
+
+.deck-tile-commander { font-size: var(--text-xs); color: rgba(255,255,255,.55); }
+
+.deck-tile-bottom { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+/* The card count. On Pick Night's wide result tiles it is still the bottom
+   row's spacer, which is what pushes "↺ Re-roll" to the right; on a 260px
+   deck tile there is no room to spare on that row, so it is a line in the
+   middle instead (.deck-tile-meta) and the kebab does the pushing. Three
+   controls and a count wanted 275px of a 234px row, and flex wraps before
+   it shrinks, so half the tiles were carrying a second row holding one ⋯. */
+.deck-tile-count { font-size: var(--text-xs); color: rgba(255,255,255,.45); flex: 1; }
+.deck-tile-meta  { font-size: var(--text-xs); color: rgba(255,255,255,.45); }
+.deck-tiles-grid .deck-tile-bottom .col-menu-wrap { margin-left: auto; }
+
+.btn-load-tile {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.btn-load-tile:hover:not(:disabled) { background: rgba(255,255,255,.22); }
+.btn-load-tile:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-remove-tile {
+  background: transparent; color: rgba(255,255,255,.3);
+  border: none; font-size: var(--text-sm); cursor: pointer; padding: var(--space-1);
+  font-family: inherit; flex-shrink: 0;
+}
+.btn-remove-tile:hover { color: var(--danger); }
+
+.btn-edit-tile {
+  background: transparent; color: rgba(255,255,255,.45);
+  border: 1px solid rgba(255,255,255,.2); border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2); font-size: var(--text-2xs); font-weight: 600;
+  font-family: inherit; cursor: pointer; flex-shrink: 0;
+}
+.btn-edit-tile:hover { color: #fff; border-color: rgba(255,255,255,.5); }
+
+/* The one tinted control on a deck tile. Its indigo belonged to no palette,
+   so it briefly took --primary — but --primary is near-white on the dark
+   themes now, and a white wash under white text over artwork is unreadable.
+   It joins its neighbours on the white-alpha exemption instead. */
+.btn-dv-tile {
+  background: rgba(255,255,255,.22); color: rgba(255,255,255,.85);
+  border: 1px solid rgba(255,255,255,.45); border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2); font-size: var(--text-2xs); font-weight: 600;
+  font-family: inherit; cursor: pointer; flex-shrink: 0;
+}
+.btn-dv-tile:hover { background: rgba(255,255,255,.35); color: #fff; }
+/* EXEMPT-END — .deck-tile-edit below sits on a theme surface again. */
+
+.deck-tile-edit {
+  background: var(--surface-2);
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 160px;
+  justify-content: center;
+}
+.deck-tile-edit .edit-label {
+  font-size: var(--text-2xs); font-weight: 700; color: var(--text-muted);
+}
+.deck-tile-edit input { font-size: var(--text-sm); padding: var(--space-1) var(--space-2); }
+
+/* ── Deck comparison (collections tab) ───────────────────────────────────
+   Two shapes, and the narrow one is the base: below 1280px this is a
+   drawer from the right edge, opened by the toolbar's Deck button, so a
+   1280-wide laptop spends none of its width on a panel that is empty
+   until someone loads a deck. It is the .drawer geometry, written here
+   rather than shared by class, because the same element has to undo all
+   of it at the wide breakpoint below. */
+.deck-col {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  width: min(320px, 92vw);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  transform: translateX(100%);
+  visibility: hidden;
+  /* The delay is in the closing direction only — see .drawer. */
+  transition: transform .2s, visibility 0s .2s;
+}
+.deck-col.open { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+
+.deck-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+
+/* On a wide window it is what it always was: a column beside the results,
+   sticky under the top of the viewport, and no drawer chrome. */
+@media (width >= 1280px) {
+  .deck-col {
+    position: sticky;
+    top: 4.5rem;
+    right: auto;
+    height: auto;
+    max-height: calc(100vh - 5.5rem);
+    width: 272px;
+    flex-shrink: 0;
+    z-index: auto;
+    background: transparent;
+    border-left: none;
+    transform: none;
+    visibility: visible;
+  }
+  .deck-drawer-btn, .deck-drawer-close { display: none; }
+}
+
+/* ── Deck panel ──────────────────────────────────────────────────────── */
+/* Fills whichever of the two shapes it is in, so it carries no rhythm of
+   its own — the drawer's bottom edge is the drawer's, not a margin's. */
+.deck-section { display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: var(--space-4); margin-bottom: 0; }
+
+.deck-upload-btn {
+  width: 100%;
+  background: var(--surface-2);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  transition: border-color .15s, color .15s;
+}
+.deck-upload-btn:hover { border-color: var(--primary); color: var(--primary-tx); }
+
+.deck-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.deck-name { font-weight: 700; font-size: var(--text-base); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.deck-stats { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-2); }
+
+.deck-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: inherit;
+  width: 100%;
+  color: var(--text);
+  transition: border-color .15s;
+}
+.deck-filter-row:hover { border-color: var(--primary); }
+.deck-filter-row.active { border-color: var(--primary); background: var(--primary-lt); color: var(--primary-tx); }
+
+/* A toggle track: --radius-full is the step named for exactly this, and on a
+   17px-tall pill it renders as the 9px this used to hardcode. */
+.tog-pill {
+  width: 30px; height: 17px; border-radius: var(--radius-full); background: var(--border);
+  position: relative; transition: background .15s; flex-shrink: 0;
+}
+/* The knob has to read against two different tracks: --border when off and
+   --primary when on. Since --primary is near-white on the dark themes and
+   near-black on the light ones, one fixed knob colour cannot do both — off
+   uses the subtle-text grey, on uses the primary's own on-fill ink. */
+.tog-pill::after {
+  content: ''; position: absolute;
+  width: 11px; height: 11px; border-radius: var(--radius-full); background: var(--text-subtle);
+  top: 3px; left: 3px; transition: transform .15s, background .15s;
+}
+.deck-filter-row.active .tog-pill { background: var(--primary); }
+.deck-filter-row.active .tog-pill::after { transform: translateX(13px); background: var(--primary-fg); }
+
+.deck-list { overflow-y: auto; flex: 1; }
+
+.deck-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1); border-radius: var(--radius-sm); font-size: var(--text-xs);
+}
+.deck-row:hover { background: var(--surface-2); }
+
+.deck-dot { width: 7px; height: 7px; border-radius: var(--radius-full); flex-shrink: 0; }
+.dot-found   { background: var(--success); }
+.dot-missing { background: var(--border); }
+
+.deck-card-link { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); text-decoration: none; }
+.deck-card-link:hover { color: var(--primary); }
+
+.deck-deck-qty { color: var(--text-muted); font-size: var(--text-2xs); flex-shrink: 0; }
+
+.deck-col-qty { font-weight: 700; font-size: var(--text-xs); min-width: 18px; text-align: right; flex-shrink: 0; }
+.cq-found   { color: var(--success); }
+.cq-missing { color: var(--border); }
+
+/* ── Scryfall search results ──────────────────────────────────────────── */
+.sf-results { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* The query-syntax examples. They were a second row of the tab's toolbar,
+   which spent a permanent line on a hint; they are part of the empty state
+   now, in front of the person who has not searched yet and gone for
+   everyone else. */
+.sf-syntax { margin-top: var(--space-2); }
+
+.sf-card {
+  display: flex;
+  gap: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  align-items: flex-start;
+}
+.sf-thumb {
+  flex-shrink: 0;
+  width: 58px;
+  display: block;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.sf-thumb img { width: 100%; display: block; border-radius: var(--radius-sm); }
+.sf-thumb-ph { width: 58px; height: 80px; background: var(--surface-2); border-radius: var(--radius-sm); border: 1px solid var(--border); }
+
+.sf-body { flex: 1; min-width: 0; }
+.sf-name-row { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-1); }
+.sf-card-name { font-weight: 600; font-size: var(--text-base); color: var(--text); text-decoration: none; }
+.sf-card-name:hover { color: var(--primary); text-decoration: underline; }
+.sf-mana { font-size: var(--text-xs); color: var(--text-muted); font-family: var(--font-mono); }
+/* Collector number, beside the mana cost. Was an inline style on the span in
+   sets.js; it is a class so it can carry tabular figures with the rest. */
+.sf-collector { font-size: var(--text-2xs); color: var(--text-subtle); }
+.sf-type { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-1); }
+.sf-ownership { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.sf-badge {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  font-size: var(--text-xs); font-weight: 600;
+  padding: 0 var(--space-2); border-radius: var(--radius-md);
+  background: var(--surface-2); border: 1.5px solid;
+}
+.sf-dot { width: 6px; height: 6px; border-radius: var(--radius-full); display: inline-block; flex-shrink: 0; }
+.sf-not-owned { font-size: var(--text-xs); color: var(--text-muted); font-style: italic; }
+
+/* ── Cardmarket price badge ───────────────────────────────────────────── */
+.card-price {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--success);
+  white-space: nowrap;
+}
+
+/* ── Scryfall large-card grid ─────────────────────────────────────────── */
+.sf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--space-3);
+}
+
+/* XL card grid — bigger columns for larger images */
+.sf-grid-xl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+.sf-card-lg {
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+}
+/* Lifted, so it trades the hairline for the shadow — and loses the
+   accent ring and accent glow, as .grid-card does. */
+.sf-card-lg:hover {
+  transform: translateY(-3px);
+  border-color: transparent;
+  box-shadow: var(--shadow-lift);
+}
+.sf-card-lg-img { display: block; width: 100%; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.sf-card-lg-footer { padding: var(--space-1) var(--space-2) var(--space-2); background: var(--surface-2); }
+.sf-card-lg-name {
+  font-size: var(--text-xs); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: var(--space-1);
+  color: var(--text); text-decoration: none; display: block;
+}
+.sf-card-lg-name:hover { color: var(--primary); }
+.sf-card-lg-badges { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+/* ── Set browser ─────────────────────────────────────────────────────────
+   The tab has two shapes and one strip (§9.3): a picker until a set is
+   chosen, that set's cards afterwards. Which controls exist is the mode's
+   business, not each control's, so it is one rule here rather than a
+   display toggle written from four places in sets.js. */
+[data-set-mode="picker"] .sets-when-cards,
+[data-set-mode="cards"]  .sets-when-picker { display: none; }
+
+/* The pills the picker used to be were a 220px scrolling box of names, and
+   the box was the only thing saying where the list ended. A tile can hold
+   the one number the pill could not: how much of the set is already
+   owned. */
+.set-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.set-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: stretch;
+  text-align: left;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color .15s;
+}
+.set-tile:hover { border-color: var(--primary); }
+
+.set-tile-hdr { display: flex; align-items: baseline; gap: var(--space-2); }
+.set-tile-code {
+  font-size: var(--text-sm); font-weight: 700; letter-spacing: .4px;
+  color: var(--primary-tx); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.set-tile-year { font-size: var(--text-2xs); color: var(--text-subtle); flex-shrink: 0; }
+.set-tile-name {
+  font-size: var(--text-sm);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* The owned figure is the tile's point, so it carries the weight — and it
+   is the same idea as the collection chip's count (§9.1): the fraction is
+   the progress bar, so there is no bar. */
+.set-tile-owned { font-size: var(--text-xs); color: var(--text-muted); }
+.set-tile-owned strong { color: var(--success); font-weight: 700; }
+/* A set the server's index has not reached yet. It says what it does know
+   — how big the set is — in the muted weight, rather than showing a zero
+   that would read as "you own none of it". */
+.set-tile-pending { color: var(--text-subtle); font-style: italic; }
+
+/* Two tiles across a phone rather than one very wide one — the same step
+   .card-grid takes at this width. */
+@media (width < 640px) {
+  .set-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+/* ── Want list ──────────────────────────────────────────────────────────
+   The add bar is gone: its select, its card field and its + Add button are
+   three controls on the tab's one strip now (§9.4), so what is left here is
+   what the results are made of.
+
+   The card field is the strip's stretchy control, the way the search input
+   is on the other tabs — .toolbar's own rule names .search-input, and this
+   input is wrapped in the autocomplete positioning box rather than being
+   one. */
+.toolbar .want-add-field { flex: 1 1 180px; min-width: 0; }
+
+.want-check {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  font-size: var(--text-sm); font-weight: 700;
+}
+.want-rm {
+  font-size: var(--text-md); min-width: 36px; min-height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0; font-family: inherit; line-height: 1;
+  color: var(--danger);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.want-rm:hover { border-color: var(--danger); background: var(--surface-1); }
+
+/* Player dot in grid/XL views — tap your own to remove. The fill is the
+   player's own colour, set inline, so the initials use the on-a-fill token. */
+.want-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--radius-full);
+  color: var(--primary-fg); font-size: var(--text-sm); font-weight: 700; flex-shrink: 0;
+}
+
+/* ── Available week list — base hidden; shown by media query below ──────── */
+.avail-week-cal { display: none; }
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+@media (width < 900px) {
+  /* The deck panel used to stack full-width under the results here. It is a
+     drawer at this width now (see .deck-col above), which is full height, so
+     the list scrolls to fill it rather than being capped at 260px. */
+  .deck-tiles-grid { grid-template-columns: 1fr; }
+}
+@media (width < 640px) {
+  /* Prevent iOS Safari from auto-zooming when focusing inputs under 16px */
+  input[type="text"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  input[type="email"],
+  input:not([type]),
+  textarea,
+  select { font-size: var(--text-md); }
+
+  /* All search inputs fill their row */
+  #sfInput, #searchInput, #setSearchInput { width: 100%; flex: none; max-width: 100% !important; }
+
+  /* Players add-player input full width. Same story: the 280px cap it
+     overrides is a class rather than an inline style now, so equal
+     specificity and source order settle it. */
+  .players-name-input { max-width: 100%; }
+
+  /* Available@ name field takes the whole of its row on a phone rather than
+     sharing it with the hint, which wraps under it. */
+  .toolbar .avail-name-input { flex: 1 1 100%; }
+
+  /* Deck View URL wrapper: remove min-width so it stacks cleanly */
+  .dv-url-field { min-width: 0 !important; width: 100%; }
+
+  /* Wants — the card field takes the whole of its row on a phone rather than
+     sharing it with the player select, which needs the width to show a name.
+     The old grid that placed all five controls by hand went with .want-add-bar;
+     the strip wraps them itself now. */
+  .toolbar .want-add-field { flex: 1 1 100%; }
+
+  .avail-month-cal { display: none; }
+  .avail-week-cal  { display: block; }
+}
+
+
+/* ── Available week list styles ─────────────────────────────────────────── */
+
+.avail-week-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.avail-week-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  min-height: 2.4rem;
+}
+.avail-week-row.clickable   { cursor: pointer; }
+.avail-week-row.clickable:hover { border-color: var(--primary); background: var(--primary-lt); }
+.avail-week-row.past        { opacity: .5; background: var(--surface-2); }
+.avail-week-row.today       { border-color: var(--primary); border-width: 2px; }
+.avail-week-row.my-day      { background: var(--primary-lt); }
+
+.avail-week-dow {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  width: 2rem;
+  flex-shrink: 0;
+}
+.avail-week-day {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text);
+  width: 1.5rem;
+  flex-shrink: 0;
+}
+.avail-week-today { color: var(--primary); }
+.avail-week-row.today .avail-week-dow { color: var(--primary); }
+
+.avail-week-names {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.avail-week-free {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Available@ embedded calendar ─────────────────────────────────────
+   The calendar and the ranking are two columns above 900px and one below
+   (§9.8). The ranking column is fixed rather than a fraction: it is a
+   list of dates and names, and a share of an ultrawide window would set
+   "Wednesday, August 5" against half a metre of empty row. What the
+   window gains goes to the calendar, where the cells use it. */
+.avail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (width < 900px) { .avail-layout { grid-template-columns: 1fr; } }
+
+/* The name field on the strip. It takes the room left over the way a
+   search input does on every other tab, but stops short of the whole
+   row — this is a person's name, not a query. */
+.toolbar .avail-name-input { flex: 0 1 260px; min-width: 140px; }
+.avail-name-input.shake { animation: avail-shake .35s; }
+@keyframes avail-shake {
+  0%,100% { transform: translateX(0); }
+  20%,60%  { transform: translateX(-5px); }
+  40%,80%  { transform: translateX(5px); }
+}
+
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+.month-title { font-size: var(--text-md); font-weight: 700; }
+.nav-btn {
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--radius-md);
+  width: 32px; height: 32px;
+  font-size: var(--text-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-btn:hover { background: var(--surface-2); }
+.nav-btn:disabled { opacity: .35; cursor: default; }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-1);
+}
+.cal-hdr {
+  text-align: center;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: var(--space-1) 0 var(--space-2);
+}
+.cal-cell {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  min-height: 72px;
+  background: var(--surface-1);
+  position: relative;
+  transition: border-color .12s, background .12s;
+}
+.cal-cell.clickable { cursor: pointer; }
+.cal-cell.clickable:hover { border-color: var(--primary); background: var(--primary-lt); }
+.cal-cell.past { background: var(--surface-2); opacity: .55; }
+.cal-cell.today { border-color: var(--primary); border-width: 2px; }
+.cal-cell.empty { border: none; background: transparent; min-height: 0; }
+.cal-cell.my-day { background: var(--primary-lt); }
+.cal-cell.my-day.clickable:hover { filter: brightness(1.1); }
+
+.day-num {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: var(--space-1);
+}
+.cal-cell.today .day-num { color: var(--primary); }
+.cal-cell.clickable:not(.past) .day-num { color: var(--text); }
+.day-names { display: flex; flex-direction: column; gap: var(--space-1); }
+
+/* One person's name, on a day. The colour is the player's own slot, handed
+   in as --player the way every other tab hands one to a chip, a dot or a
+   column rule (js/state.js, §5.6) — the text is the slot colour and the
+   chip is a 20% wash of the same, so a theme repaints all eight by
+   changing --player-0…7 alone.
+
+   This used to be eight .pN classes here and an index the tab worked out
+   for itself, which is why the same person could be green on Available@
+   and orange everywhere else. */
+.name-tag {
+  display: inline-block;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  background: color-mix(in srgb, var(--player) 20%, transparent);
+  color: var(--player);
+}
+
+.best-day {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.best-day:last-child { border-bottom: none; }
+.best-day-info { min-width: 160px; }
+.best-day-date  { font-size: var(--text-md); font-weight: 700; }
+.best-day-count { font-size: var(--text-sm); color: var(--text-muted); }
+.best-day-names { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+/* ── Admin panel (§9.11) ─────────────────────────────────────────────────
+   Three plain sections, deliberately low-density: two tables of data at the
+   full width, and between them one form at the reading measure. Its fields
+   are sized to what goes in them — a username, a password, a role — rather
+   than to the column they sit in, which is what "a readable width rather
+   than stretched" means for a form of four short fields. */
+.admin-create-form {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.admin-create-form .admin-field { width: 180px; }
+
+/* On a phone the form is one field per row. This lives beside the rule it
+   overrides rather than in the responsive section above, which is where it
+   used to be — and being earlier in the file than the rule it fights, its
+   `align-items: stretch` lost to `flex-end` and left every field pushed to
+   the right edge of the column. Two !important on the widths had hidden
+   half of that; the alignment had no such cover, and the boxed section was
+   shut by default, so nobody had seen it. */
+@media (width < 640px) {
+  .admin-create-form { flex-direction: column; align-items: stretch; }
+  .admin-create-form .admin-field,
+  .admin-create-form select { width: 100%; max-width: 100%; box-sizing: border-box; }
+}
+
+.admin-actions { display: flex; gap: var(--space-2); align-items: center; }
+
+/* The two inline edit forms — approving a request, editing a user — happen
+   inside a table row, so their controls come down one step from the app's
+   standard control to sit in a --text-sm row without setting its height.
+   Each of them used to carry the whole of base.css's control treatment as
+   an inline style, restating the fill, the hairline, the radius and the
+   font family that the element already had. */
+.admin-inline-form { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.admin-inline-ctl {
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  max-width: 160px;
+}
+/* Selects keep the room the chevron is drawn in (base.css), which the
+   inline padding these replace had taken back — a long player name ran
+   under the arrow. */
+select.admin-inline-ctl { padding-right: var(--space-6); }
+.admin-inline-pw { width: 180px; max-width: none; font-size: var(--text-xs); }
+.admin-actions-edit { flex-wrap: wrap; gap: var(--space-1); }
+.admin-req-date { font-size: var(--text-sm); color: var(--text-muted); }
+
+/* The pending-request count, on the heading it qualifies. */
+.section-title-badge {
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.badge-admin  { background: var(--warning-soft); color: var(--warning); }
+.badge-player { background: var(--primary-lt); color: var(--primary-tx); }
+
+/* ── Mana Base Calculator ─────────────────────────────────────────────
+   Two columns of plain sections (§9.10): what you have on the left, what
+   to run on the right.
+
+   The pair is capped rather than spread across the window. This tab is a
+   form, and §8.3 gives forms the reading behaviour rather than the wide
+   one — uncapped, an ultrawide monitor put the six pip fields against
+   one edge and the answer they produce against the other, a metre apart
+   with nothing in between. The cap is what the two columns need: the pip
+   row, which is the widest thing on the left at about 860px, plus the
+   results column and the gap. */
+.lands-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-4);
+  align-items: start;
+  max-width: 1240px;
+}
+@media (width < 900px) { .lands-layout { grid-template-columns: 1fr; max-width: none; } }
+
+.lands-inputs-col { display: flex; flex-direction: column; }
+/* The button is as wide as its label. A stretched "Reset all" running the
+   length of the column reads as the tab's primary action, which it is not. */
+.lands-reset { align-self: flex-start; }
+
+/* The answer follows the inputs down the page while they are being
+   entered — but only while it is a column beside them. Stacked below 900px
+   it is the end of the page, with nothing left to scroll past. */
+@media (width >= 900px) {
+  .lands-results-col .section { position: sticky; top: var(--space-4); }
+}
+
+.lands-num-input {
+  width: 80px;
+  padding: var(--space-2) var(--space-3);
+  flex-shrink: 0;
+}
+
+/* A number and its unit — "24 lands (recommended: 24)". The two wide
+   fields are the ones with a word after them rather than a label above. */
+.lands-field-row { display: flex; align-items: center; gap: var(--space-2); }
+.lands-field-row .lands-num-input { width: 110px; }
+
+.lands-presets { width: fit-content; margin-bottom: var(--space-3); }
+
+.lands-hint { font-size: var(--text-sm); color: var(--text-muted); }
+.lands-rec-hint { opacity: .7; }
+/* The three explanatory paragraphs on this tab, and the one place in the app
+   where a real paragraph sits directly in a column that the width work
+   widened — so it takes the reading measure (§8.3) rather than running the
+   length of the column. */
+.lands-sub  { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5; max-width: var(--measure); }
+
+.preset-sub { font-size: var(--text-2xs); font-weight: 400; opacity: .7; display: block; }
+
+/* Pip grid */
+.lands-pips-grid {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.lands-pip-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lands-pip-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lands-color-letter {
+  font-size: var(--text-base);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lands-pip-name {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.lands-pip-field .lands-num-input { width: 64px; text-align: center; }
+
+/* Non-basics */
+.lands-nonbasic-grid {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.lands-nonbasic-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Summary stat cards */
+.lands-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.lands-stat-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-2);
+  text-align: center;
+}
+.lands-stat-highlight {
+  border-color: var(--primary);
+  background: var(--primary-lt);
+}
+
+.lands-stat-val {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+.lands-stat-highlight .lands-stat-val { color: var(--primary-tx); }
+
+.lands-stat-lbl {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+.lands-stat-highlight .lands-stat-lbl { color: var(--primary-tx); opacity: .7; }
+
+/* Result rows. The gap above them is theirs rather than an inline margin on
+   the element, and only when there are any — empty, the div is followed by
+   the empty state, which brings its own space. */
+.lands-result-rows { display: flex; flex-direction: column; gap: var(--space-2); }
+.lands-result-rows:not(:empty) { margin-top: var(--space-4); }
+
+.lands-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.lands-row-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.lands-row-icon .lands-color-letter { font-size: var(--text-xs); }
+.lands-row-mana { font-size: var(--text-lg); flex-shrink: 0; line-height: 1; }
+
+.lands-name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  min-width: 72px;
+  flex-shrink: 0;
+}
+
+.lands-bar-wrap {
+  flex: 1;
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.lands-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  transition: width .3s ease;
+  min-width: 2px;
+  opacity: .85;
+}
+
+.lands-count {
+  font-size: var(--text-md);
+  font-weight: 700;
+  min-width: 26px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.lands-share {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.lands-empty-state {
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  padding: var(--space-4) 0 var(--space-1);
+  line-height: 1.5;
+}
+
+/* ── Pick Night ───────────────────────────────────────────────────────────
+   Who is playing was .pick-players-list of .pick-chips; it is a .chip-row of
+   .chip--selects now (§9.7). That component was this one, generalised — the
+   Want List's player filter had been borrowing .pick-chip across tabs — so
+   what was here is in components.css beside the chip it belongs to, and the
+   status line and the button row went onto the strip. */
+
+/* Results */
+.pick-results-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+.pick-results-label {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Sized to be looked at rather than scanned (§9.7): seeing the deck you have
+   been dealt *is* this tab's output. 180px → 260, and auto-fit rather than
+   auto-fill, which is the half of it that matters — there are never more than
+   six results, so auto-fill's empty tracks would hold four picks at the
+   minimum width across a 1440px window and leave a third of the row blank.
+   With auto-fit the same four fill it.
+
+   §9.7 says .card-grid--xl. That token is 220px for a *card*, which is
+   portrait; these are landscape art tiles, so the same intent is a wider
+   number here. */
+.pick-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.pick-result-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.pick-result-player {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--pc, var(--primary)) 18%, var(--surface-2));
+  border-bottom: 2px solid var(--pc, var(--primary));
+}
+.pick-result-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--pc, var(--primary));
+  flex-shrink: 0;
+}
+.pick-result-name {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* The one display size the redesign allows (§9.7): the deck name on a result
+   tile, and nowhere else. A tile in this grid is the answer to the only
+   question the tab asks, so it says it at --text-xl where the same tile on
+   the Players & Decks tab says it at --text-md. */
+.pick-result-card .deck-tile { min-height: 200px; }
+.pick-result-card .deck-tile-name { font-size: var(--text-xl); line-height: var(--leading-tight); }
+
+/* EXEMPT-BEGIN from the colour rule. Both of these sit inside a
+   .deck-tile-overlay, over commander artwork, so they take the same
+   white/black exemption as the deck tiles above. --oc is the owning
+   player's colour, set inline; its fallback is white at the alpha the old
+   #888 resolved to over the scrim. */
+.pick-deck-commander {
+  font-size: var(--text-2xs);
+  color: rgba(255,255,255,.6);
+  margin-top: var(--space-1);
+}
+
+.pick-owner-tag {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--oc, rgba(255,255,255,.55));
+  color: var(--oc, rgba(255,255,255,.55));
+  background: rgba(0,0,0,.3);
+  white-space: nowrap;
+}
+/* EXEMPT-END */
+
+/* Deck pool selector */
+.pick-pool-group { margin-bottom: var(--space-3); }
+.pick-pool-player {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  margin-bottom: var(--space-1);
+}
+.pick-pool-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.pick-pool-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .12s, opacity .12s;
+}
+.pick-pool-chip:hover { border-color: var(--primary); }
+.pick-pool-chip-off { opacity: .35; text-decoration: line-through; }
+
+/* ── Deck Viewer ────────────────────────────────────────────────────────── */
+.dv-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.dv-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.dv-summary-pill:hover { border-color: var(--primary); }
+.dv-summary-cat { font-weight: 600; }
+.dv-summary-n {
+  background: var(--primary-lt);
+  color: var(--primary-tx);
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.dv-section { margin-bottom: var(--space-4); }
+
+.dv-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: var(--space-2);
+}
+.dv-section-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--primary-tx);
+}
+.dv-section-count {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.dv-list { display: flex; flex-direction: column; gap: var(--space-1); }
+
+/* Eight tracks for eight cells. It had seven, so the last one — the move and
+   remove buttons — wrapped onto an implicit second row under the card's name,
+   and every row in the list view was twice as tall as it needed to be. Below
+   640px the row really is two rows, which is what the media query at the end
+   of this block is for. */
+.dv-row {
+  display: grid;
+  grid-template-columns: 1.3rem 2.2rem minmax(0,1.5fr) 6.5rem minmax(0,1fr) 3.5rem 9rem auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+}
+.dv-row:hover { background: var(--surface-2); }
+.db-row-selected { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+
+.dv-qty {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: right;
+}
+.dv-name {
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-name:hover { color: var(--primary); }
+.dv-mana {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-type {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-own { font-size: var(--text-xs); min-width: 0; overflow: hidden; }
+.dv-price {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--success);
+  white-space: nowrap;
+  text-align: right;
+}
+
+@media (width < 640px) {
+  .dv-row {
+    grid-template-columns: 1.1rem 2rem 1fr auto;
+    grid-template-rows: auto auto;
+  }
+  .dv-mana  { display: none; }
+  .dv-price { display: none; }
+  .dv-type  { grid-column: 3; font-size: var(--text-xs); }
+  .dv-own   { grid-column: 4; grid-row: 1; }
+}
+
+/* ── Card Detail tab ─────────────────────────────────────────────────── */
+.card-detail-empty,
+.card-detail-loading {
+  text-align: center;
+  padding: var(--space-6) var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 460px;
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+.card-detail-top {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+  margin-bottom: var(--space-4);
+}
+.card-detail-imgcol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  /* Only ever sticky at the two-column width, where there is nothing sticky
+     above it to clear — the mobile header exists below 900px and the column
+     is static there — so this is the page padding and not --hdr-h. */
+  position: sticky;
+  top: var(--space-4);
+}
+.card-detail-img {
+  width: 100%;
+  /* EXEMPT from the radius scale: this is the corner ratio of a physical
+     Magic card, so it has to scale with the image rather than sit on a
+     fixed step — the same reasoning that exempts artwork overlays. */
+  border-radius: 4.75% / 3.5%;
+  /* Neither border nor shadow, and no accent halo: the artwork is its
+     own edge (§4.5). */
+  display: block;
+}
+.card-detail-img-ph {
+  aspect-ratio: 5/7;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* The prose case the width work exists for (§9.6). Under the old 1400px cap
+   this column could only ever get so wide; with the cap gone, a line of
+   oracle text on an ultrawide monitor would run the whole way across the
+   display. So the text column takes the reading measure and the grid track
+   keeps the slack.
+
+   The cap is on the box rather than the track so that the modal form of
+   this view is unaffected: .card-modal-box is 900px wide, the track there
+   is already narrower than the measure, and a track sized to the measure
+   outright would have overflowed it.
+
+   §9.6 gives this tab no sections, and this was the last box on it: a
+   --surface-1 panel with a hairline, which inside the modal was that same
+   surface drawn a second time. What holds a column of prose together is its
+   measure, not an edge around it. */
+.card-detail-info {
+  max-width: var(--measure);
+}
+.card-detail-name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -.3px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+.card-detail-cost { display: inline-flex; gap: var(--space-1); font-size: var(--text-md); }
+.card-detail-set { margin-bottom: var(--space-2); }
+.card-detail-prices { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); }
+.card-price {
+  font-weight: 700; font-size: var(--text-base);
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: var(--space-1) var(--space-2); border-radius: var(--radius-full);
+}
+.card-price-usd { background: var(--surface-2); border-color: var(--border); color: var(--text-muted); }
+
+.card-detail-text { margin-bottom: var(--space-4); }
+.card-face + .card-face,
+.card-face-divider + .card-face { margin-top: var(--space-4); }
+.card-face-divider { height: 1px; background: var(--border); margin: var(--space-4) 0; }
+.card-face-type {
+  font-size: var(--text-base); font-weight: 700; color: var(--text);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.card-face-cost { display: inline-flex; gap: var(--space-1); flex-shrink: 0; }
+.card-oracle {
+  /* Prose — oracle text takes the prose step and the prose leading, not the
+     app default and not a line height written for a table row (§9.6). */
+  font-size: var(--text-md); line-height: var(--leading-normal); color: var(--text);
+  white-space: normal;
+}
+/* No margin: a mana symbol set inline in a sentence is a glyph, and the
+   1px it used to carry was letter-spacing, not layout rhythm — the first
+   step of the scale is four times too wide between adjacent pips. */
+.card-oracle .ms { vertical-align: -1px; }
+.card-flavor {
+  font-style: italic; color: var(--text-muted);
+  font-size: var(--text-md); line-height: var(--leading-normal);  /* prose */
+  border-left: 2px solid var(--border); padding-left: var(--space-3); margin-top: var(--space-2);
+}
+.card-stats {
+  margin-top: var(--space-3); font-weight: 700; font-size: var(--text-md);
+  color: var(--text);
+}
+
+.card-legalities { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-4); }
+.card-legal {
+  font-size: var(--text-2xs); font-weight: 700; text-transform: capitalize;
+  padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); letter-spacing: .2px;
+}
+/* The status colours, on the soft fills §7.9 reserves for badges. These were
+   mana colours — green for legal, white for restricted — which said "this
+   card is green" on a tab whose whole job is card colour, and left "not
+   legal" at .65 opacity on top of an already muted grey. The absent case is
+   the surface, not a fourth status. */
+.leg-legal     { background: var(--success-soft); color: var(--success); }
+.leg-restricted{ background: var(--warning-soft); color: var(--warning); }
+.leg-banned    { background: var(--danger-soft);  color: var(--danger); }
+.leg-none      { background: var(--surface-2);    color: var(--text-muted); }
+
+.card-detail-links { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.card-ext-link { text-decoration: none; }
+
+.card-detail-section { margin-bottom: var(--space-4); }
+
+/* A dated list (§9.6). It was a row of two cells with a rule under it — a
+   table in everything but the tag, which cost the text a fifth of the measure
+   and drew a line between every pair of rulings. The date leads its own
+   ruling now, and the space between them is what separates them. */
+.card-rulings { margin: 0; }
+.card-ruling-date {
+  color: var(--text-muted); font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: var(--space-1);
+}
+.card-ruling-text {
+  color: var(--text);
+  font-size: var(--text-md); line-height: var(--leading-normal);  /* prose */
+  margin: 0 0 var(--space-4);
+}
+.card-ruling-text:last-child { margin-bottom: 0; }
+
+.card-print-tile {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: var(--space-1);
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  font-family: inherit;
+}
+.card-print-tile:hover {
+  transform: translateY(-3px);
+  border-color: transparent;
+  box-shadow: var(--shadow-lift);
+}
+/* The one accent left on this tab: a selected state, which §4.7 permits.
+   The border alone says it — the 1.5px ring on top of it was the same
+   signal drawn twice. */
+.card-print-tile.current { border-color: var(--accent, var(--primary)); }
+.card-print-tile img { width: 100%; border-radius: var(--radius-sm); display: block; }
+.card-print-ph { width: 100%; aspect-ratio: 5/7; background: var(--surface-1); border-radius: var(--radius-sm); }
+.card-print-set {
+  font-size: var(--text-2xs); font-weight: 700; color: var(--text-muted);
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Stacked below the nav breakpoint, up from ~720px: the card tab is the
+   narrow-window view now that wider windows get the modal, so the image and
+   text columns stack for the whole of that range rather than part of it. */
+@media (width < 900px) {
+  .card-detail-top { grid-template-columns: 1fr; }
+  .card-detail-imgcol { position: static; max-width: 280px; margin: 0 auto; }
+}
+
+/* ── The phone, per tab ───────────────────────────────────────────────────
+   The rule itself, and the reasoning behind grow-or-pad, is stated once in
+   components.css beside the shared control vocabulary. What is left here
+   is the controls only one tab has. */
+@media (width < 900px) {
+  /* Deck comparison table: prevent narrow columns from squashing text */
+  .deck-compare table {
+    min-width: 480px;
+  }
+
+  /* Grown. The month and week arrows on Available@. This rule used to name
+     .avail-nav-btn, .cal-nav button and .cal-nav-btn — three classes, none
+     of which the app has ever put in its markup, so it had been a 44px
+     guarantee that guaranteed nothing since it was written. The arrows are
+     .nav-btn, and they measure 32 wide without it. */
+  .nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Grown. The ✕ that drops a want is the only control in its cell, and
+     the matrix scrolls sideways in its own container, so it can have the
+     width. The builder's category buttons and its drawer close are the
+     same case a tab over. */
+  .want-rm { min-width: 44px; min-height: 44px; }
+  .db-cat-btn, .db-search-close { min-width: 44px; }
+
+  /* Grown. A whole row of the week list is the tap target for a day. */
+  .avail-week-row { min-height: 44px; }
+
+  /* A pad needs somewhere to go, and a deck tile clips to its own rounded
+     corners, so "View ↗" in the top row had nothing above it to pad into.
+     The row is opened up to hold the pad rather than letting it spill out
+     of the tile. Centred, because a pad hangs equally either side of what
+     it pads.
+
+     Which the tile then has to have room for. Its overlay is positioned
+     absolutely against a 160px minimum, so the tile's height is fixed
+     whatever is in it and the three rows are laid out inside a box that
+     cannot grow: a taller top row pushes Compare and Build out through
+     the overflow:hidden. On a phone the overlay goes back into flow, so
+     the tile is as tall as its contents and 160px is a floor rather than
+     a ceiling. That also settles a tile whose commander line wraps to two
+     lines, which was clipping the same row before any of this. */
+  .deck-tile-top { min-height: 44px; align-items: center; }
+  .deck-tile-overlay { position: relative; }
+
+  /* Padded. "View ↗" sits in the corner of a deck tile, over commander
+     artwork, and a category heading folds its pile — neither can take
+     44px of box without covering the thing it labels. */
+  .deck-tile-link, .dv-section-title.db-collapsible {
+    position: relative;
+  }
+  .deck-tile-link::after, .dv-section-title.db-collapsible::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    min-width: 44px;
+    height: 100%;
+    min-height: 44px;
+  }
+
+  /* Padded, from the other side. The colour-identity toggle in the
+     builder's search drawer is 14px of browser widget with its label
+     beside it rather than around it. A checkbox is a replaced element and
+     renders no ::after of its own, so the pad is the *label's*, stretched
+     over the whole row — which is the behaviour you want anyway: on a
+     phone the row is the switch. */
+  .db-ci-toggle { position: relative; min-height: 44px; }
+  .db-ci-toggle label::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  /* Week calendar availability grid: handle names overflow */
+  .avail-week-names {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Wants list table: allow scroll on narrow */
+  .want-list-table-wrap, .want-table {
+    overflow-x: auto;
+    display: block;
+    max-width: 100%;
+  }
+
+  /* Pick Night table: allow scroll */
+  .pick-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Deck tile loading state feedback */
+.deck-tile.loading .deck-tile-name::before {
+  content: '';
+  display: inline-block;
+  width: .8em;
+  height: .8em;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: var(--radius-full);
+  animation: spin .6s linear infinite;
+  vertical-align: middle;
+  margin-right: var(--space-1);
+}
+
+/* Card detail modal: small spacing improvements */
+.card-modal-box .card-detail-top {
+  gap: var(--space-5);
+}
+
+/* Collections table: prevent awkward column cuts at mid-widths */
+.col-header-row {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Deck Builder ────────────────────────────────────────────────────────── */
+
+/* This pane used to live outside the shell, with its own copy of the page
+   padding, purely so it could escape the 1400px cap. The shell has no cap
+   now (§8.3), so the pane is back inside it and all that is left here is
+   the one thing that really is particular to Deck Builder: clearance for
+   its fixed stats bar.
+
+   One step, --space-6, on top of the shell's --space-4: the same 48px of
+   clearance the pane reserved for itself before, now expressed as what it
+   adds to the page rather than as a total it has to restate. It has to be
+   at least as tall as that bar or the bar covers the add-category row. */
+.db-pane { padding-bottom: var(--space-6); }
+@media (width < 900px) {
+  /* stats bar becomes static below the nav breakpoint, no need to reserve
+     space for it — pairs with the .db-stats-bar rule further down */
+  .db-pane { padding-bottom: 0; }
+}
+
+/* The mat — the surface the cards sit on, and the one thing on this tab that
+   is a filled box on purpose (§7.1 took the fill off everything else). It is
+   its own per-theme token rather than a --surface step because the token
+   means "the table", and a table is allowed to be a picture.
+
+   Which is what --mat-fill is (§10.6): the two meanings of "playmat" are one
+   thing, so a user who set a card's art as their background builds their
+   deck on it. The mat does not fetch that art or veil it itself — it goes
+   transparent and the page's own two layers, already fixed behind
+   everything, show through the hole. That is the whole of it, and it is why
+   the text on the mat needs no new measurement: it is the same veil
+   scripts/check-contrast.js holds --text and --text-muted against, rather
+   than a second composite that could drift from it.
+
+   The switch lives beside those layers in layout.css, because "there is art
+   behind the page" is their condition and not this rule's — a phone or a
+   reduced-data preference turns both off together. Unset, which is a page
+   with no playmat, falls back to the flat per-theme colour.
+
+   Flat, so a hairline and no shadow. The empty state sits on it too: a table
+   with nothing on it is still the table. */
+.db-mat {
+  background: var(--mat-fill, var(--mat));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  /* Clear of the strip's own hairline: two rules 1px apart read as one thick
+     one, and the strip is furniture above the mat rather than its lid. */
+  margin-top: var(--space-2);
+}
+/* Someone with no decks at all lands on the empty mat, and the ⋯ menu is a
+   poor place to discover the one action that gets them out of it. */
+.db-empty-action { margin-top: var(--space-3); }
+
+/* Two shapes, one strip: the controls that act on a deck's cards do not
+   exist until a deck is loaded. An attribute on the pane rather than six
+   style.display writes in dbShowDeckUI/dbHideDeckUI, the same way the Set
+   Browser switches between its picker and its cards. */
+[data-db-mode="none"] .db-when-deck { display: none; }
+
+/* Strip members. The picker is this tab's subject, so it leads the strip and
+   is the one thing on it that is always there. */
+.toolbar .db-deck-sel {
+  flex: 1 1 180px;
+  min-width: 140px;
+  max-width: 360px;
+}
+/* .autocomplete-wrap is already relative and flexible; what it needs here is
+   to give way — two text fields on one strip, and the picker beside them. */
+.toolbar .db-add-field { flex: 1 1 180px; min-width: 140px; }
+.toolbar .db-add-field input { width: 100%; }
+
+.db-left-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: var(--space-2);
+  border-bottom: 2px solid var(--border);
+}
+.db-ltab {
+  background: none;
+  border: none;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  /* EXEMPT from the spacing scale: border overlap, as on .tab-btn. */
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.db-ltab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.db-ltab:hover { color: var(--text); }
+
+/* The save status is the strip's spacer — .result-info's job on every other
+   tab — so it takes the room left over and ellipsises rather than wrapping. */
+.db-save-status {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Add-category row */
+.db-add-cat-row {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Section header: extra space for category action buttons */
+.dv-section-hdr { align-items: center; }
+.db-cat-actions { margin-left: auto; display: flex; gap: var(--space-1); }
+.db-cat-btn {
+  background: none;
+  border: none;
+  padding: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+.db-cat-btn:hover { color: var(--text); background: var(--border); }
+.db-cat-del:hover { color: var(--danger); }
+
+/* Row action buttons */
+.db-row-actions { display: flex; gap: var(--space-1); margin-left: var(--space-1); }
+.db-row-btn {
+  background: none;
+  border: 1px solid transparent;
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.db-row-btn:hover { border-color: var(--border); color: var(--text); }
+.db-row-del:hover { color: var(--danger); border-color: var(--danger); }
+
+/* Quantity control */
+.db-qty-wrap { display: flex; align-items: center; gap: 0; }
+.db-qty-btn {
+  background: none;
+  border: 1px solid var(--border);
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.db-qty-btn:hover { background: var(--surface-2); color: var(--text); }
+
+/* Grid tile overlay buttons */
+.db-tile { position: relative; }
+.db-tile-btns {
+  position: absolute;
+  top: .3rem;
+  right: .3rem;
+  display: flex;
+  gap: var(--space-1);
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 2;
+}
+.db-tile:hover .db-tile-btns { opacity: 1; }
+/* EXEMPT from the token rule: these float over a card image, so the fixed
+   black scrim and white glyph are correct on every theme. */
+.db-tile-btn {
+  background: rgba(0,0,0,.65);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-full);
+  width: 22px;
+  height: 22px;
+  font-size: var(--text-xs);
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s;
+}
+/* Both hovers swap the black scrim for a theme fill, so the glyph has to
+   swap with it — the base rule's fixed #fff only suits the black scrim, and
+   both fills are light on the dark themes. */
+.db-tile-move:hover { background: var(--primary); color: var(--primary-fg); }
+.db-tile-del:hover  { background: var(--danger);  color: var(--danger-fg); }
+
+/* Card-info button, top-left — hover-reveal like the move/delete buttons.
+   Clicking the card itself (image, name, or anywhere else on the tile)
+   selects it instead; this is the dedicated way to open the info popup. */
+.db-tile-info-wrap {
+  position: absolute;
+  top: .3rem;
+  left: .3rem;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.db-tile:hover .db-tile-info-wrap,
+.db-pile-card:hover .db-tile-info-wrap { opacity: 1; }
+.db-tile-selected { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-md); }
+
+/* Bulk actions bar (multiselect → move to category) */
+.db-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface-1));
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+/* Disable native scroll anchoring here — dbRender() restores scroll position
+   itself on every re-render, and the browser's own anchoring would otherwise
+   fight that and reintroduce the jump it's meant to prevent. */
+.db-bulk-bar, #dbDeckContent { overflow-anchor: none; }
+
+/* Manage Categories modal */
+.db-catmodal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.db-catmodal-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.db-catmodal-name { flex: 1; font-weight: 600; font-size: var(--text-base); }
+.db-catmodal-count { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* Add button in search results */
+.db-add-btn {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: none;
+  border-radius: var(--radius-full);
+  width: 24px;
+  height: 24px;
+  font-size: var(--text-base);
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+}
+.db-add-btn:hover { background: var(--primary-dk); }
+.db-add-btn-in { background: var(--success); cursor: default; }
+
+/* Search results list */
+.db-results { overflow-y: auto; max-height: calc(100vh - 250px); }
+.db-sr-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+.db-sr-row:last-child { border-bottom: none; }
+.db-sr-thumb, .db-edh-thumb {
+  width: 120px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.db-sr-info { flex: 1; min-width: 0; }
+.db-sr-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-base);
+  font-weight: 600;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+.db-sr-type { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-1); }
+.db-sr-foot { display: flex; align-items: center; gap: var(--space-2); }
+
+/* EDHREC section */
+.db-edh-section { margin-bottom: var(--space-3); }
+.db-edh-header {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-1);
+}
+.db-edh-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.db-edh-row:last-child { border-bottom: none; }
+.db-edh-info { flex: 1; min-width: 0; padding-top: var(--space-1); }
+.db-edh-name { display: block; font-weight: 600; margin-bottom: var(--space-1); }
+.db-edh-type { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-1); }
+.db-edh-meta { display: flex; gap: var(--space-2); align-items: center; }
+.db-edh-syn {
+  font-size: var(--text-xs);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+.db-edh-inc { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* Topbar "More" menu (sectioned dropdown — Archidekt-style consolidation
+   of what used to be 5+ separate always-visible buttons) */
+.db-more-menu { min-width: 210px; }
+.db-more-section-label {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: var(--space-2) var(--space-2) var(--space-1);
+}
+.db-more-divider { border-top: 1px solid var(--border); margin: var(--space-1) 0; }
+.db-menu-danger { color: var(--danger); }
+.db-menu-danger:hover { background: var(--danger-soft); }
+
+/* Category header kebab menu (☑ select / ✎ rename / × delete consolidated) */
+.db-cat-kebab-wrap { position: relative; display: inline-block; }
+
+/* Stats bar */
+.db-stats-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  z-index: 50;
+  flex-wrap: wrap;
+}
+.db-stat-item { white-space: nowrap; }
+.db-stat-sep { color: var(--text-muted); }
+
+/* Mana curve bars */
+.db-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: 32px;
+}
+.db-curve-bar {
+  width: 10px;
+  background: var(--primary);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  min-height: 2px;
+  opacity: .7;
+  transition: opacity .15s;
+}
+.db-curve-bar:hover { opacity: 1; }
+.db-stat-curve-label { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* Mobile. Was ~1023px, which overlapped the 861px sidebar rule below — a
+   tablet-width window got a static stats bar and a sidebar offset on it at
+   the same time. Both sit on 900 now, so they cannot disagree. */
+@media (width < 900px) {
+  .db-results { max-height: 40vh; }
+  .db-stats-bar { position: static; margin-top: var(--space-3); border-top: 1px solid var(--border); padding-top: var(--space-2); }
+  .db-stat-sep-colors, .db-stat-sep-curve { display: none; }
+  #dbStatColors, .db-stat-curve-label, #dbCurve { display: none; }
+}
+
+/* Sidebar offset for the fixed stats bar. It named these two tokens before
+   they existed, so what it actually used were the fallbacks — 200px and
+   48px against a sidebar that is 186 and 46, leaving the bar 14px (or 2px)
+   short of the content above it. The tokens are defined now, so the bar
+   lines up. */
+@media (width >= 900px) {
+  .db-stats-bar { left: var(--sidenav-width); }
+  body.sidenav-collapsed .db-stats-bar { left: var(--sidenav-collapsed-width); }
+}
+
+/* ── Search/EDHREC drawer panel ─────────────────────────────────────────────── */
+#dbSearchBackdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 200;
+}
+#dbSearchBackdrop.open { display: block; }
+
+.db-search-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(50vw, 95vw);
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 201;
+  transform: translateX(100%);
+  transition: transform .22s ease;
+  /* Border, not shadow — see .rss-panel for the reasoning. */
+}
+.db-search-panel.open { transform: translateX(0); }
+
+/* Half the window is a desktop answer. min(50vw, 95vw) reads as "half the
+   screen, and never more than nearly all of it" — sensible at 1440, where
+   half is 720px of search results. At 390 it is 195px, and a 195px drawer
+   renders the Scryfall query box as the word "Scryfall" with nowhere left
+   to type. On a phone a drawer takes the screen and leaves a sliver of the
+   mat showing behind it, which is what the RSS panel's fixed 310px already
+   amounts to at this width.
+
+   Here rather than in the phone block above, because that block sits
+   earlier in the file and this rule is no more specific than the one it
+   overrides — an @media wrapper adds no specificity, so the override has
+   to win on source order. */
+@media (width < 900px) {
+  .db-search-panel { width: 92vw; }
+}
+
+.db-search-panel-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.db-search-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  padding: 0 var(--space-1);
+  margin-left: auto;
+  line-height: 1;
+}
+.db-search-close:hover { color: var(--text); }
+.db-search-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Drag-and-drop ───────────────────────────────────────────────────────────── */
+.db-draggable { cursor: grab; }
+.db-draggable:active { cursor: grabbing; }
+.db-dragging { opacity: .4; }
+
+.db-cat-drop.db-drop-target {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  outline: 2px dashed var(--primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Card Scale Slider ───────────────────────────────────────────────────────── */
+.db-scale-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.db-scale-slider {
+  width: 90px;
+  accent-color: var(--primary);
+}
+
+#dbDeckContent .sf-grid {
+  grid-template-columns: repeat(auto-fill, minmax(var(--db-card-width, 148px), 1fr));
+}
+#dbDeckContent .sf-grid-xl {
+  grid-template-columns: repeat(auto-fill, minmax(var(--db-card-width, 220px), 1fr));
+}
+
+/* ── Pile View ───────────────────────────────────────────────────────────────── */
+/* The category columns' gutter is --space-3 (§9.5): a step tighter than it
+   was, so a wide mat fits another column of piles rather than another lane
+   of mat between them. */
+.db-pile-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.db-pile-layout > .dv-section {
+  width: calc(var(--db-card-width, 150px) + 24px);
+  min-width: 0;
+}
+.db-pile-layout .dv-section-hdr {
+  flex-wrap: wrap;
+}
+.db-pile-layout .dv-section-title { font-size: var(--text-xs); }
+.db-pile-layout .dv-section-count { font-size: var(--text-2xs); }
+.db-pile {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) 0;
+}
+.db-pile-card {
+  position: relative;
+  /* EXEMPT from the spacing scale. Not rhythm: the overlap that fans a pile
+     is a fraction of the card's own height, so it has to track the card
+     width rather than a spacing step. */
+  margin-top: calc(-1 * var(--db-card-width, 150px) * 1.16);
+  transition: transform .15s;
+}
+.db-pile-card:first-child { margin-top: 0; }
+.db-pile-card:hover { transform: translateY(-10px); z-index: 10; }
+.db-pile-card img {
+  display: block;
+  width: var(--db-card-width, 150px);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+}
+.db-pile-card .db-tile-btns {
+  position: absolute; top: 4px; right: 4px;
+  display: flex; gap: var(--space-1); opacity: 0;
+  transition: opacity .15s; z-index: 11;
+}
+.db-pile-card:hover .db-tile-btns { opacity: 1; }
+/* EXEMPT from the token rule: sits on the card image, like .db-tile-btn. */
+.db-pile-qty {
+  position: absolute; top: 4px; left: 4px;
+  background: rgba(0,0,0,.7); color: #fff;
+  font-size: var(--text-2xs); font-weight: 700;
+  padding: 0 var(--space-1); border-radius: var(--radius-sm); z-index: 5;
+}
+
+/* ── Color Identity Toggle ───────────────────────────────────────────────────── */
+.db-ci-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.db-ci-toggle input[type="checkbox"] {
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.db-ci-toggle label { cursor: pointer; }
+
+/* ── Category Collapse ───────────────────────────────────────────────────────── */
+.db-collapsible {
+  cursor: pointer;
+  user-select: none;
+}
+.db-collapsible::before {
+  content: '▾ ';
+  font-size: var(--text-2xs);
+  display: inline-block;
+  transition: transform .15s;
+}
+.dv-section.collapsed .db-collapsible::before {
+  transform: rotate(-90deg);
+}
+.dv-section.collapsed .dv-list,
+.dv-section.collapsed .sf-grid,
+.dv-section.collapsed .sf-grid-xl,
+.dv-section.collapsed .db-pile {
+  display: none;
+}
+
+/* ── Hover Card Preview ──────────────────────────────────────────────────────── */
+.db-hover-preview {
+  position: fixed;
+  width: 220px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lift);
+  pointer-events: none;
+  z-index: 9999;
+}

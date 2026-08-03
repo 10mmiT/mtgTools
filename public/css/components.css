@@ -1,0 +1,1180 @@
+/* Components — controls and widgets shared across tabs.
+   File 4 of 5 in load order; later files may override earlier ones. */
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) { background: var(--primary-dk); }
+
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--primary-tx);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+.btn-secondary:hover:not(:disabled) { border-color: var(--primary); }
+
+/* The fourth of §7.4's four treatments, and the last to be written: two
+   rules in this file already named .btn-danger — the 44px touch target and
+   the press feedback — against a class no stylesheet defined and no element
+   wore. Available@'s "Remove me" was the treatment, spelled out under a name
+   of its own; it is this now. A soft fill and the label in --danger, which
+   §7.9 reserves for exactly this: the destructive action. */
+.btn-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+/* The hover is the one the button already had. A stronger fill mixed from
+   --danger would be a colour nothing measures — check-contrast.js walks the
+   label against --danger-soft, which is a token — and brightness moves the
+   label with the fill rather than closing the gap between them. */
+.btn-danger:hover:not(:disabled) { filter: brightness(1.1); }
+
+.btn-update {
+  background: transparent;
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.btn-update:hover:not(:disabled) { background: var(--primary-lt); }
+
+/* §7.4's smaller size, for a button inside a --text-sm table row — where
+   .btn-update and .btn-remove already live, and where a full-size
+   .btn-secondary beside them would set the row's height. It was written
+   inline at each of the sites that needed it. */
+.btn-sm { padding: var(--space-1) var(--space-2); font-size: var(--text-xs); }
+
+.btn-remove {
+  background: transparent;
+  color: var(--danger);
+  border: 1.5px solid var(--danger);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.btn-remove:hover:not(:disabled) { background: var(--danger-soft); }
+
+/* ── Form ──────────────────────────────────────────────────────────────
+   The Add Collection form is a column rather than a row of fixed-width
+   fields: its only home is the drawer (§9.1), which is 380px wide, so a
+   340px URL field beside a 200px label field has nowhere to go. The
+   phone-width override that used to stack it is gone with it — one
+   layout now, at every width. */
+.add-form { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-3); }
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+
+.field label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.url-input, .name-input { width: 100%; }
+
+.add-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.add-divider::before, .add-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.btn-csv { flex-shrink: 0; }
+
+.error-msg { color: var(--danger); font-size: var(--text-sm); margin-top: var(--space-2); display: none; }
+
+/* ── Toolbar (§7.3) ────────────────────────────────────────────────────
+   One control strip per tab, replacing the stack of boxes a tab used to
+   open with. Everything that acts on the results lives on this row —
+   search, count, view, sort, columns — and anything that does not goes
+   behind a button on it.
+
+   Order is fixed left to right: search → count → spacer → view → sort →
+   columns → actions. The spacer is the result count itself (.result-info
+   is flex: 1), so there is no empty element in the markup whose only job
+   is to push.
+
+   It sticks: a grid of eleven thousand cards is scrolled, and the search
+   that filters it should not be a page-scroll away. --bg rather than a
+   surface, because it is the page's own furniture and not a card. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  /* Vertically, one step tighter than §7.3's snippet, which is --space-2.
+     The controls are 36px tall on their own, so the padding is the whole of
+     what the strip costs above the cards, and the criterion this tab is
+     measured against is that number.
+
+     Horizontally it is --space-2: enough that the controls are not flush
+     against the edge, and deliberately short of the table's own --space-3
+     cell padding, so the strip reads as the page's furniture rather than as
+     another row of the grid. The background still runs the full width of the
+     column either way — the inset moves the controls, not the furniture. */
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+}
+.toolbar > * { flex-shrink: 0; }
+.toolbar .search-input { flex: 1 1 200px; }
+
+/* The count is the spacer, so it takes the room left over — but it must
+   not take a second line for it. "12,788 cards (showing first 500)" is
+   the longest it gets; below that it ellipsises rather than wrapping and
+   making the whole strip taller. */
+.toolbar .result-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Below the nav breakpoint the mobile header is sticky at the top of the
+   window and opaque, so a toolbar sticking to 0 would slide under it. Its
+   height is content-driven, so it is measured at boot into --hdr-h
+   (js/main.js) rather than guessed at as a sum of scale steps.
+
+   And it leaves a step of room under itself. A sticky strip is painted
+   over whatever scrolls beneath it, and on a phone what is immediately
+   beneath it is a 44px tap target whose top half is empty space around a
+   line of text (see the touch-target rule further down). Sitting flush on
+   the first row means the strip eats the top of that target, which makes
+   the first result in a list the hardest one to hit — the opposite of what
+   a list should do. */
+@media (width < 900px) {
+  .toolbar {
+    top: var(--hdr-h, 0px);
+    margin-bottom: var(--space-2);
+  }
+}
+
+/* On a phone the strip wraps to four rows. Two cheap steps back: the gap
+   drops a step, and "Sort" loses its label — the control it labels is a
+   dropdown reading "Name", which says what it is. */
+@media (width < 640px) {
+  .toolbar { gap: var(--space-2); }
+  .toolbar .sort-control-lbl { display: none; }
+}
+
+/* ── Chip row ──────────────────────────────────────────────────────────
+   A chip is one selected or loaded thing — a collection, later a player
+   — reduced to its name, its one number and its ⋯ menu. The row does not
+   wrap: it is the second and last thing above the cards, so it has to
+   cost one line whatever is in it, and a seventh collection scrolls
+   sideways rather than pushing the grid down. The kebab menus inside it
+   are fixed-positioned when open (sortui.js), so nothing is clipped by
+   that overflow. */
+.chip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+/* A chip row that is *on* the strip rather than under it — the Set Browser's
+   selected set — is one of its controls, so it drops the row's own top
+   margin and lines up with the rest. */
+.toolbar .chip-row { margin-top: 0; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  max-width: 320px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.chip-dot { width: 8px; height: 8px; border-radius: var(--radius-full); flex-shrink: 0; }
+.chip-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-count { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* A chip standing for a chosen thing rather than a loaded one: the Set
+   Browser's selected set (§9.3). The code identifies it in three letters
+   where the name is the readable form, and the ✕ is what dismisses the
+   selection — the same shape as .drawer-close, at chip scale. */
+.chip-code {
+  font-size: var(--text-2xs); font-weight: 700; letter-spacing: .4px;
+  color: var(--primary-tx); flex-shrink: 0;
+}
+.chip-close {
+  background: transparent; border: none; color: var(--text-muted);
+  font-family: inherit; font-size: var(--text-xs); line-height: 1;
+  padding: var(--space-1); border-radius: var(--radius-full); flex-shrink: 0;
+}
+.chip-close:hover { background: var(--surface-3); color: var(--text); }
+
+/* Status is the count's colour, not a badge beside it: "1,240 / 5,600" in
+   --warning already says loading, and a count that failed says so in
+   --danger with the reason on the chip's tooltip. */
+.chip--busy  .chip-count { color: var(--warning); }
+.chip--error .chip-count { color: var(--danger); }
+.chip--error { border-color: var(--danger); }
+
+/* A chip that is a *choice* rather than a statement: the Want List's player
+   filter and Pick Night's who's-playing row (§9.4, §9.7). These were two
+   copies of one control — .pick-chip, written for Pick Night and borrowed by
+   the Want List — so they are one now.
+
+   --pc is the player's slot colour, set inline. Selection is carried by the
+   fill, the border colour and the text colour — nothing that changes the
+   chip's metrics. Neither a thicker border nor a heavier label: either one
+   moves every chip after it along the row as you click through them. */
+.chip--select {
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  cursor: pointer;
+  padding-right: var(--space-3);
+  transition: border-color .15s, background .15s, color .15s;
+}
+.chip--select:hover { border-color: var(--pc, var(--primary)); color: var(--text); }
+.chip--select[aria-pressed="true"] {
+  border-color: var(--pc, var(--primary));
+  background: color-mix(in srgb, var(--pc, var(--primary)) 18%, var(--surface-2));
+  color: var(--text);
+}
+/* The dot is the player's colour at full strength and the only thing on the
+   chip that is; the fill above is the same hue at 18%, which is what keeps
+   the label legible on all five themes rather than the colour deciding it. */
+.chip--select .chip-dot { background: var(--pc, var(--primary)); }
+.chip-check { flex-shrink: 0; }
+
+/* ── Drawer ────────────────────────────────────────────────────────────
+   The place for a task that is performed rarely but needs room when it
+   is: adding a collection (§9.1), and the deck comparison below 1280px.
+   Pinned to the right edge, so it has one visible edge and takes a
+   hairline rather than a shadow — the same reasoning as .rss-panel.
+
+   visibility, not just the transform: a closed drawer is off-screen but
+   would still be focusable, so tabbing through the toolbar would walk
+   into a form nobody opened. Its transition is a delay rather than a
+   duration, and only in the closing direction — a visibility *duration*
+   holds the old value for its whole length, which would leave the drawer
+   unfocusable for the 200ms after it opens, so opening it and typing
+   would lose the first characters. */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  width: min(380px, 92vw);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform .2s, visibility 0s .2s;
+}
+.drawer.open { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+
+.drawer-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.drawer-title { flex: 1; font-size: var(--text-md); font-weight: 700; }
+.drawer-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.drawer-close:hover { background: var(--surface-2); color: var(--text); }
+.drawer-body { flex: 1; overflow-y: auto; padding: var(--space-4); }
+
+/* One scrim behind whichever drawer is open. --scrim is the same veil the
+   card modal draws over the page. */
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  background: var(--scrim);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .2s, visibility 0s .2s;
+}
+.drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity .2s, visibility 0s; }
+
+/* ── Search bar ──────────────────────────────────────────────────────── */
+.search-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 200px; max-width: 480px; }
+.result-info { font-size: var(--text-sm); color: var(--text-muted); flex: 1; min-width: 80px; }
+
+/* ── View toggle ─────────────────────────────────────────────────────── */
+.view-toggle {
+  display: flex;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.view-btn {
+  background: transparent;
+  color: var(--text-muted);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: inherit;
+}
+.view-btn + .view-btn { border-left: 1.5px solid var(--border); }
+.view-btn.active { background: var(--primary); color: var(--primary-fg); }
+.view-btn:hover:not(.active) { background: var(--surface-2); color: var(--text); }
+
+/* ── Results table (§7.6) ─────────────────────────────────────────────
+   The container is the box, not the section around it. Sections stopped
+   being boxes in issue 10 and grid cards have no surface at all — the
+   card image is the object — but a table is the one thing in the app
+   that is *only* text, and dense text needs a surface under it to be a
+   table rather than a page of words. It is also the surface §8.5 requires
+   to stay opaque once the playmat is behind it: art may show through the
+   gutters of a card grid, never through a column of card names.
+
+   It scrolls horizontally on its own, which is what a Want List with
+   eight player columns needs. */
+.table-wrap {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
+#resultsTable { width: max-content; min-width: 100%; }
+#resultsTable thead th { white-space: nowrap; }
+
+thead th {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--border);
+}
+thead th:hover { color: var(--text); }
+thead th.sorted-asc::after  { content: ' ↑'; color: var(--primary); }
+thead th.sorted-desc::after { content: ' ↓'; color: var(--primary); }
+
+tbody tr { border-bottom: 1px solid var(--border); }
+/* The container draws the last line now, so the last row does not draw a
+   second one a pixel inside it. */
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface-2); }
+
+td { padding: var(--space-2) var(--space-3); }
+
+.td-name { font-weight: 500; }
+.card-link { color: var(--text); text-decoration: none; }
+.card-link:hover { color: var(--primary); text-decoration: underline; }
+.td-type { color: var(--text-muted); font-size: var(--text-sm); }
+/* .td-mana was here — one of the two 'Courier New' sites §6.3 names. No markup
+   in the app has carried the class for some time (the mana column renders
+   mana-font glyphs through renderMana), so it is deleted rather than restacked
+   onto --font-mono. */
+.td-qty  { text-align: center; font-weight: 600; }
+.qty-zero { color: var(--border); font-weight: 400; }
+.qty-some { color: var(--success); }
+.td-total { text-align: center; font-weight: 700; color: var(--primary); }
+
+/* An empty state is a sentence, so it takes the reading measure like any
+   other prose (§8.3) — it just centres itself in whatever it is standing
+   in rather than sitting flush left. It composes the cap rather than
+   carrying .content-prose because it is written from some thirty places
+   across the JS, most of them a bare `<div class="empty-state">`. */
+.empty-state {
+  text-align: center;
+  padding: var(--space-6);
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  max-width: var(--measure);
+  margin-inline: auto;
+}
+
+/* ── Grid view ───────────────────────────────────────────────────────── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.grid-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+}
+/* A lifted tile is a floating thing, so it trades its hairline for a
+   shadow rather than wearing both (§4.5, §15.2). The accent ring and the
+   accent-tinted glow underneath it are gone: a hover is not a state the
+   mana colour is allowed to mark. */
+.grid-card:hover {
+  transform: translateY(-3px);
+  border-color: transparent;
+  box-shadow: var(--shadow-lift);
+}
+
+.grid-img-link {
+  display: block;
+  aspect-ratio: 5/7;
+  background: var(--surface-1);
+  position: relative;
+  overflow: hidden;
+}
+.grid-img-link img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.grid-img-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--border);
+}
+
+.grid-footer { padding: var(--space-2); }
+
+.grid-name {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: var(--space-1);
+}
+
+.grid-qtys { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+.grid-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.grid-dot { width: 6px; height: 6px; border-radius: var(--radius-full); display: inline-block; flex-shrink: 0; }
+
+/* ── Card image tooltip ──────────────────────────────────────────────── */
+#cardTooltip {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  background: var(--hdr-bg);
+  padding: var(--space-1);
+}
+#tooltipImg { width: 210px; border-radius: var(--radius-md); display: block; }
+.autocomplete-wrap { position: relative; flex: 1; min-width: 200px; }
+.ac-dropdown {
+  display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+  background: var(--surface-1);
+  border-radius: 0 0 var(--radius-md) var(--radius-md); box-shadow: var(--shadow-overlay);
+  z-index: 200; max-height: 220px; overflow-y: auto;
+}
+.ac-item { padding: var(--space-2) var(--space-3); font-size: var(--text-base); cursor: pointer; }
+.ac-item:hover { background: var(--surface-2); }
+@media (width < 640px) {
+  /* View toggles always on the right in search rows */
+  .search-row .view-toggle { margin-left: auto; flex-shrink: 0; }
+
+  .autocomplete-wrap { min-width: 0; }
+
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+
+/* ── Want quick-add button ───────────────────────────────────────────────── */
+.want-quick-btn {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-size: var(--text-base);
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s, color .12s;
+  padding: 0;
+  font-family: inherit;
+}
+.want-quick-btn:hover:not(:disabled) { background: var(--primary); color: var(--primary-fg); }
+.want-quick-btn.want-quick-added { border-color: var(--success); color: var(--success); cursor: default; }
+.want-quick-btn:disabled { opacity: .7; }
+
+/* ── Want toast notification ─────────────────────────────────────────────── */
+.want-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(1rem);
+  background: var(--success);
+  color: var(--success-fg);
+  font-size: var(--text-base);
+  font-weight: 600;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  opacity: 0;
+  transition: opacity .2s, transform .2s;
+  pointer-events: none;
+  z-index: 2000;
+  white-space: nowrap;
+}
+.want-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* Custom steppers replace the native number spinners */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+
+/* ── Number stepper (− input +) ──────────────────────────────────────── */
+.num-stepper { display: inline-flex; align-items: stretch; }
+.num-stepper .lands-num-input {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+.stepper-btn {
+  width: 30px;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.stepper-btn:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
+.stepper-btn:last-child  { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+/* Hover is a surface step, not a colour: the accent tint and the accent
+   border are both gone from here (§4.7). */
+.stepper-btn:hover { background: var(--surface-3); }
+.stepper-btn:active { background: var(--border); }
+
+/* ── RSS Panel ───────────────────────────────────────────────────────────── */
+.rss-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 0;
+  height: 100vh;
+  background: var(--surface-1);
+  border-left: 2px solid var(--border);
+  z-index: 25;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: width .2s;
+  /* Border, not shadow. A drawer pinned to the edge of the viewport is
+     not floating in the middle of the page — it has one visible edge,
+     and the hairline is what marks it. The shadow tokens all cast
+     downward anyway, so what this drew was a haze over the content
+     rather than an edge. Same reasoning on .db-search-panel. */
+}
+.rss-panel.open { width: 310px; }
+
+.rss-panel-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+}
+/* Clear the mobile-only header (hidden on desktop, see header { display:none } above) */
+/* Clearance for the mobile header the drawer slides under, not rhythm —
+   it has to be at least as tall as that bar. A sum of scale steps. */
+@media (width < 900px) { .rss-panel-hdr { padding-top: calc(var(--space-6) + var(--space-5)); } }
+.rss-panel-hdr-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  flex: 1;
+}
+.rss-panel-hdr button {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  font-family: inherit;
+  transition: background .12s, color .12s;
+}
+.rss-panel-hdr button:hover { background: var(--surface-2); color: var(--text); }
+
+.rss-feed-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rss-item {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+.rss-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+.rss-item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.rss-feed-tag {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--primary-tx);
+  background: var(--primary-lt);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rss-item-date {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.rss-item-title {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.35;
+  margin-bottom: var(--space-1);
+}
+.rss-item-title:hover { color: var(--primary); }
+
+.rss-item-desc {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical; /* stylelint-disable-line */
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.rss-status {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  padding: var(--space-4) 0;
+  text-align: center;
+}
+.rss-error { color: var(--danger); }
+
+/* RSS toggle button in header — draws in --hdr-fg like the rest of the bar */
+.rss-toggle-btn {
+  border: 1.5px solid color-mix(in srgb, var(--hdr-fg) 25%, transparent);
+  background: color-mix(in srgb, var(--hdr-fg) 10%, transparent);
+  color: color-mix(in srgb, var(--hdr-fg) 90%, transparent);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  transition: background .15s;
+}
+.rss-toggle-btn:hover { background: color-mix(in srgb, var(--hdr-fg) 20%, transparent); }
+.rss-toggle-btn.active { background: color-mix(in srgb, var(--hdr-fg) 25%, transparent); }
+
+/* ── Sort control + column menu (shared across views) ────────────────── */
+.view-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+.sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+.sort-control-lbl {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.sort-select {
+  padding: var(--space-2) var(--space-6) var(--space-2) var(--space-2) !important;
+  font-size: var(--text-sm) !important;
+  background-position: right .45rem center;
+}
+.sort-dir-btn {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  width: 32px;
+  height: 32px;
+  font-size: var(--text-md);
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: background .12s, border-color .12s;
+}
+.sort-dir-btn:hover { background: var(--surface-3); }
+
+.col-menu-wrap { position: relative; display: inline-block; flex-shrink: 0; }
+.col-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: inherit;
+  transition: border-color .12s;
+}
+.col-menu-btn:hover { background: var(--surface-3); }
+.col-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 30;
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-1);
+  min-width: 170px;
+}
+.col-menu.open { display: block; }
+.col-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.col-menu-item:hover { background: var(--surface-2); }
+/* accent-color is the native control tint, not the mana accent — it
+   matches the checkboxes in tabs.css, which are already on --primary. */
+.col-menu-item input { width: auto; cursor: pointer; accent-color: var(--primary); }
+/* .col-menu-item is normally a <label>; reset button-specific UA styles when
+   used as a plain action row (e.g. the deck builder's "More" menu). */
+button.col-menu-item { width: 100%; background: none; border: none; font: inherit; color: var(--text); text-align: left; }
+
+/* ── Appearance popover (§10.7) ────────────────────────────────────────
+   A .col-menu with two sections in it — the themes and the playmat — opened
+   from the sidebar on a desktop and from the nav dropdown on a phone. It is
+   always positioned in script against the button that opened it, so it has
+   no placement of its own here; what it needs is a width the card field can
+   live in and a ceiling, since a phone in landscape has less room below the
+   nav than the menu wants. */
+.appearance-menu {
+  width: 244px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.theme-pick-item.active { color: var(--accent, var(--primary)); font-weight: 700; }
+.theme-pick-item.active::after { content: '✓'; margin-left: auto; }
+
+/* The current mat, and the button that takes it off. Reads as a sentence
+   when there is none, and as a name when there is. */
+.playmat-current {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.playmat-current-name { color: var(--text); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.playmat-remove {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: none;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: inherit;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.playmat-remove:hover { background: var(--danger-soft); }
+
+/* The search field. .autocomplete-wrap is a flex child everywhere else in
+   the app, so its min-width would push this menu wider than the menu is. */
+.playmat-field { flex: none; min-width: 0; padding: var(--space-1) var(--space-2) var(--space-2); }
+.playmat-field input { width: 100%; }
+/* Suggestions open upward here, over the theme list. The field is the last
+   thing in a menu that clips its own overflow, so a dropdown below it would
+   be a dropdown nobody can read; above it there is a menu's worth of room. */
+.playmat-field .ac-dropdown {
+  top: auto;
+  bottom: calc(100% + 2px);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+/* Upload. A <label> wrapping a hidden file input, so it is a menu row like
+   every other one here rather than the browser's own file button, which
+   cannot be styled and brings a filename label with it. */
+.playmat-upload-row { cursor: pointer; }
+.playmat-upload-row[hidden] { display: none; }
+/* Clipped rather than display:none, so it can still be reached by keyboard —
+   the row is a <label> and labels do not take focus, so the input is the only
+   thing here that can. The focus ring is drawn on the row instead, since a
+   ring around a clipped element is a ring nobody sees.
+   Scoped to the row so it outranks `.col-menu-item input`, which sets a width
+   every other control in this menu wants and this one must not have. */
+.playmat-upload-row .playmat-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.playmat-upload-row:focus-within {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 2px;
+}
+/* What stands in its place in open mode. Reads as the same kind of sentence
+   as the "None —" line above it, because it is answering the same question. */
+.playmat-upload-note,
+.playmat-status {
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.playmat-upload-note[hidden],
+.playmat-status[hidden] { display: none; }
+
+/* The per-device switch has something to do only where the default it
+   overrides applies, so it appears only there. */
+.playmat-mobile-row { display: none; }
+@media (width < 900px) {
+  .playmat-mobile-row { display: flex; }
+}
+
+.td-meta { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
+.td-meta .ms { vertical-align: -1px; }
+.rarity-tag { font-size: var(--text-xs); font-weight: 700; }
+.rarity-tag.r-common   { color: var(--text-muted); }
+/* Uncommon is silver; --mc-c (colourless) is the themed grey that already
+   carries that hue, so rarity stays on the same mana palette as the rest. */
+.rarity-tag.r-uncommon { color: var(--mc-c); }
+.rarity-tag.r-rare     { color: var(--mc-w); }
+.rarity-tag.r-mythic   { color: var(--mc-r); }
+.rarity-tag.r-special, .rarity-tag.r-bonus { color: var(--mc-gold); }
+
+/* ── The phone: one touch-target rule (§14.7) ─────────────────────────────
+   Below the nav breakpoint the app is driven by a finger rather than a
+   pointer, and a finger covers about 44px. Every control has to be at
+   least that in both directions.
+
+   *How* a control gets there is a design decision rather than a detail,
+   and the app makes it two different ways:
+
+   **Grow it.** A control standing on its own in a strip — the view
+   toggle, the sort direction, a kebab, the mana-base steppers — is easier
+   to see as well as easier to hit when it is bigger, so on a phone it
+   simply is bigger. Nothing has to move around it either: every one of
+   them sits in a row the height rule below had already made 44 tall, so
+   what changes is the width.
+
+   **Pad it.** A control set into dense content — the ✕ on a chip, a card
+   name in a table row — cannot grow without pulling that content apart,
+   so it keeps the box it paints and gains an invisible one around it.
+   The pad carries no fill, no border and no shadow, so it is not a
+   surface and §7.3's elevation rule has nothing to say about it.
+
+   Which of the two lists a control belongs in is the only thing here
+   worth arguing about. Whether it worked is not an argument at all:
+   scripts/measure-mobile.js hit-tests every control at 390px rather than
+   reading its box, so a padded target and a grown one look the same to
+   it, and a pad that something is painted over — or that a neighbour's
+   pad has swallowed — fails. */
+@media (width < 900px) {
+  /* Grown: the height every control shares. Inputs are in this list now;
+     they were the one control vocabulary left at their desktop 38px, which
+     is under the minimum by six pixels on every form in the app.
+     Checkboxes are excluded because a 44px checkbox is a design decision
+     and not a touch target; the app has two, and both are padded from
+     their label instead (see .db-ci-toggle in tabs.css). */
+  button, .btn-primary, .btn-secondary, .btn-danger,
+  .mob-nav-item, .tab-btn, .col-menu-item,
+  select, textarea,
+  input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 44px;
+  }
+
+  /* Grown: the width, for the controls that are square or nearly so. Not
+     applied to `button` wholesale — .chip-close and the row actions inside
+     a deck row are deliberately narrow, and widening them would burst the
+     chip and the row they sit in. Those are padded instead. */
+  .view-btn, .sort-dir-btn, .col-menu-btn, .kebab-btn, .stepper-btn,
+  .rss-panel-hdr button {
+    min-width: 44px;
+  }
+
+  /* Padded: the box stays, an invisible 44 square is centred on it. Sized
+     as max(own, 44) on each axis, so a wide-but-short target — a card name
+     in a table row — keeps its full width and gains only the height it
+     was missing. */
+  .chip-close, .card-link {
+    position: relative;
+  }
+  /* And a card name long enough to wrap needs to be one box before it can
+     be padded at all. An inline box split across two lines is two
+     fragments, and the pad hangs off the first of them, which leaves the
+     middle of the name — exactly where a thumb lands — belonging to the
+     table cell behind it. inline-block makes it a single box without
+     changing where the name wraps. */
+  .card-link { display: inline-block; }
+  .chip-close::after, .card-link::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    min-width: 44px;
+    height: 100%;
+    min-height: 44px;
+  }
+
+  /* A padded target in a table needs a row tall enough to hold the pad, or
+     the pads of two card names in successive rows overlap and the wrong
+     card opens.
+
+     A height on the *row* is the one form of this that says 44 and means
+     it. It is a minimum: a short row is lifted to exactly 44, and a row
+     whose cell holds something taller — an Edit button in Admin, a card
+     name wrapped to two lines — still grows past it. The two obvious
+     alternatives both miss. Extra padding derives the height from a line
+     box, which lands on 42 or 43 depending on the name and pays for the
+     miss again on every tall row. The same height on the *cell* stops
+     being a minimum and starts being a cap: Admin's rows went to 45 with a
+     44px button inside them, spilling over the dividers.
+
+     Dense tables stay dense across, which is the axis they are dense
+     on. */
+  tr { height: 44px; }
+
+  /* Overflowing tables/card lists: allow horizontal scroll within the container */
+  .table-wrap, .col-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Collection card grid on narrow screens: slightly larger min-width per card */
+  .cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+  }
+
+  /* Modal/popup sizing on narrow: shouldn't appear, but as defensive CSS */
+  .card-modal-box {
+    padding: var(--space-4) var(--space-3);
+  }
+}
+
+/* ── Card detail modal overlay (Phase 5.1) ────────────────────────────────── */
+.card-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+  overflow-y: auto;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.card-modal-backdrop {
+  /* Dimming/blur now lives on .card-modal-overlay itself — this div is kept
+     only as a dedicated click-target for closing the card detail modal. */
+  position: fixed;
+  inset: 0;
+}
+.card-modal-box {
+  position: relative;
+  z-index: 1;
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  width: 100%;
+  max-width: 900px;
+  padding: var(--space-5);
+  margin: auto;
+}
+.card-modal-close {
+  position: absolute;
+  top: .75rem;
+  right: .9rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-xl);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: color .15s;
+}
+.card-modal-close:hover { color: var(--text); }
+
+/* Below the nav breakpoint, disable modal and use the tab-based card view
+   instead. This moved down from ~1024px with the breakpoint consolidation, so
+   a tablet-width window now gets the modal where it used to get the tab.
+   js/card.js switches on the same boundary. */
+@media (width < 900px) {
+  .card-modal-overlay { display: none !important; }
+}
+/* Card tab only makes sense when the modal is unavailable */
+@media (width >= 900px) {
+  #tab-btn-card { display: none; }
+}
+
+/* ── Phase 5.3 UI Polish ─────────────────────────────────────────────────── */
+
+/* Focus lives in base.css now — one rule for the whole app (§7.5). This
+   was the second of the two treatments it replaced. */
+
+/* Button active/press feedback */
+.btn-primary:active, .btn-secondary:active, .btn-danger:active {
+  transform: translateY(1px);
+  transition: transform .08s;
+}
+
+/* Loading indicator on slow Scryfall/Archidekt fetches */
+.loading-spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: var(--radius-full);
+  animation: spin .6s linear infinite;
+  vertical-align: middle;
+  margin-right: var(--space-2);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Shared kebab / overflow menu button (mounted by kebabMenuHtml, sortui.js) ── */
+.kebab-btn {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.kebab-btn:hover { color: var(--text); background: var(--border); }
+/* Variant for dark deck-tile overlays (white-on-image).
+   EXEMPT-BEGIN from the colour rule: the backdrop here is commander artwork,
+   not a theme surface, so fixed white is correct on every theme. */
+.kebab-btn-tile { color: rgba(255,255,255,.85); background: rgba(255,255,255,.12); }
+.kebab-btn-tile:hover { color: #fff; background: rgba(255,255,255,.28); }
+/* EXEMPT-END */

@@ -1,24 +1,17 @@
 'use strict';
 const express = require('express');
 const bcrypt  = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
 const { db }  = require('../available-db');
 const {
   OPEN_MODE, SESSION_COOKIE,
   createSession, getSession, deleteSession,
   requireAuth, requireAdmin,
 } = require('../middleware/auth');
+// Moved to middleware/limits.js when the playmat upload route needed a
+// limiter of its own; the configuration is unchanged.
+const { authLimiter } = require('../middleware/limits');
 
 const router = express.Router();
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 30, // overridable for tests
-
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later' },
-});
 
 // ── Login ──────────────────────────────────────────────────────────────────────
 router.post('/login', authLimiter, express.json(), async (req, res) => {

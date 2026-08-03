@@ -3,6 +3,7 @@ const express = require('express');
 const bcrypt  = require('bcryptjs');
 const { db }  = require('../available-db');
 const { requireAdmin } = require('../middleware/auth');
+const playmats = require('../playmat-store');
 
 const router = express.Router();
 
@@ -81,6 +82,10 @@ router.delete('/users/:username', requireAdmin, (req, res) => {
   if (uname === 'admin') return res.status(400).json({ error: 'Cannot delete the admin account' });
   db.prepare('DELETE FROM users WHERE username = ?').run(uname);
   db.prepare('DELETE FROM sessions WHERE username = ?').run(uname);
+  // The preferences row goes by foreign-key cascade; the file it pointed at
+  // cannot, so it goes here. Deleting an account has to leave nothing of the
+  // account behind, and an orphaned image is something.
+  try { playmats.remove(uname); } catch (e) { console.error('playmat cleanup:', e.message); }
   res.json({ ok: true });
 });
 

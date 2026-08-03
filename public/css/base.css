@@ -1,0 +1,158 @@
+/* Base — element defaults and shared text utilities.
+   File 2 of 5 in load order; later files may override earlier ones. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-ui);
+  /* The inherited default, now named. Anything without an explicit size has
+     always rendered at the browser's 16px, which is --text-md; §4.3 wants the
+     app default to be --text-base instead, but stepping every unsized element
+     down a notch is a visual decision, so it waits for the repaint (09). */
+  font-size: var(--text-md);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background .2s, color .2s;
+}
+
+/* ── Reading measure (§8.3) ───────────────────────────────────────────
+   The narrower half of the two width behaviours — .content-wide, the
+   page shell, is in layout.css. Removing the 1400px cap is what makes
+   this necessary: without a cap, a paragraph of oracle text on an
+   ultrawide monitor is one line 2500px long, and the eye cannot find the
+   start of the next one.
+
+   72ch is the cap, not the width: it is a max-width, so a narrow window
+   is unaffected and nothing is ever padded out to reach it.
+
+   It sits in base.css because it is a typographic rule — the same
+   reasoning that puts --measure next to the leading tokens rather than
+   the breakpoints. Applied to running text, forms and empty states;
+   never to a grid or a table, which are .content-wide's business. */
+.content-prose { max-width: var(--measure); }
+
+/* ── Shared text utilities (replaces the scattered one-off hint classes) ─ */
+.help-text {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.help-text code { font-size: var(--text-xs); color: var(--primary-tx); }
+
+.section-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── Tabular figures ──────────────────────────────────────────────────
+   The reason for self-hosting a typeface at all (§6.2). Proportional
+   digits are set to the width of the glyph; tabular digits are all set to
+   one width, so a stack of prices, quantities or collector numbers lines
+   up on the decimal instead of sitting subtly ragged. The system stacks
+   this file used to name mostly have the feature too, but not all of them
+   and not identically — Inter is what makes it the same for everyone.
+
+   The rule lives here, in one block, rather than beside each component:
+   "every number in a column aligns" is a single promise, and a reviewer
+   should be able to read the whole of it at once. Everything below is
+   either a column of numbers or a number stacked above another one.
+
+   `table` covers every td and th, which is where most of it lives —
+   prices, quantities, mana value, collector number. Names in the same
+   table inherit it too, and that is fine: the feature only touches
+   digits, of which a card name has almost none.
+
+   Not here: mana cost text, which is monospaced already and so is fixed
+   width by construction, and running prose (oracle text, rulings), where
+   proportional digits read better because nothing below them has to
+   line up. */
+table,
+input[type="number"],
+.grid-qty,                                       /* grid-view copy counts */
+.sf-collector, .card-price, .card-stats,         /* search + card detail */
+.dv-qty, .dv-price, .dv-section-count,           /* deck rows and headers */
+.db-pile-qty, .db-catmodal-count,                /* deck builder piles */
+.db-stats-bar, .db-stat-curve-label,             /* deck builder stats + curve */
+.deck-tile-count,                                /* deck tiles */
+.lands-count, .lands-stat-val,                   /* mana base */
+.day-num, .best-day-count,                       /* availability calendar */
+.set-tile-year, .set-tile-owned {                /* set browser tiles */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mana-coloured text helpers */
+.mc-w { color: var(--mc-w); }
+.mc-u { color: var(--mc-u); }
+.mc-b { color: var(--mc-b); }
+.mc-r { color: var(--mc-r); }
+.mc-g { color: var(--mc-g); }
+.mc-c { color: var(--mc-c); }
+/* ── Element defaults ─────────────────────────────────────────────────── */
+button { font-family: inherit; cursor: pointer; border: none; transition: background .15s, opacity .15s; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Form elements ──────────────────────────────────────────────────── */
+
+input[type="text"],
+input[type="password"],
+input[type="search"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input[type="tel"],
+input[type="date"],
+input:not([type]),
+textarea,
+select {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color .15s;
+}
+input:focus,
+textarea:focus,
+select:focus { border-color: var(--border-strong); }
+::placeholder { color: var(--text-muted); opacity: .75; }
+
+/* ── Focus ────────────────────────────────────────────────────────────
+   One indicator for the whole app (§7.5), and the one place the mana
+   accent still earns its keep. It replaces two competing treatments: a
+   3px accent-tinted box-shadow on inputs, and a --primary outline on
+   everything else, which disagreed on both colour and shape.
+
+   Written as an explicit selector list rather than the spec's :where(),
+   which has zero specificity and would have lost the `outline` property
+   to the typed input selectors above. These tie with them and come
+   later, so they win on source order.
+
+   The spec also set a border-radius here; that is dropped deliberately.
+   It would reshape the element while focused — squaring off the pill
+   buttons and round avatars — and browsers already follow the element's
+   own radius when drawing an outline. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 2px;
+}
+
+/* Selects: strip native chrome, add a consistent chevron */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: var(--space-6);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a8aa5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .65rem center;
+}

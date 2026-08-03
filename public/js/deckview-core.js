@@ -1,7 +1,7 @@
 // ── Deck Builder ──────────────────────────────────────────────────────────────
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let dbDeck      = null;      // {id, playerId, playerName, playerColor, name, commander, commanderImg}
+let dbDeck      = null;      // {id, playerId, playerName, name, commander, commanderImg}
 let dbCards     = [];        // [{card_name, qty, category, position}]
 let dbCats      = [];        // [{name, position}]
 let dbCardData  = new Map(); // card name → Scryfall card object
@@ -32,9 +32,15 @@ const DB_DEFAULT_CATS = [
 ];
 const DB_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 
+// The empty mat, taken from the markup at boot rather than written out a
+// second time here: putting a deck down has to land on the same thing a cold
+// load shows, and one sentence in two files is one sentence to drift.
+let _dbEmptyMat = '';
+
 // ── Initialization ────────────────────────────────────────────────────────────
 function initDeckBuilder() {
   if (!_dbInitDone) {
+    _dbEmptyMat = document.getElementById('dbDeckContent').innerHTML;
     document.getElementById('dbCsvInput').addEventListener('change', _dbHandleCsvImport);
     document.addEventListener('click', e => {
       if (!e.target.closest('#dbMoreMenu') && !e.target.closest('.col-menu-wrap')) dbCloseMoreMenu();
@@ -165,12 +171,12 @@ async function dbSelectDeck(value) {
   }
   const stableId = deck.id;  // always use this, not the raw split value
 
-  dbDeck = { id: stableId, playerId, playerName: player.name, playerColor: player.color,
+  dbDeck = { id: stableId, playerId, playerName: player.name,
              name: deck.name, commander: deck.commander || '', commanderImg: deck.commanderImg || null };
   dbEdhrecData = null; _dbEdhrecLoaded = false;
 
   document.getElementById('dbDeckContent').innerHTML =
-    '<div class="empty-state" style="padding:3rem 1rem">Loading deck…</div>';
+    '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading deck…</div>';
   _dbShowDeckUI();
 
   try {
@@ -183,7 +189,7 @@ async function dbSelectDeck(value) {
     // Auto-import Archidekt cards when the deck has never been built locally
     if (dbCards.length === 0 && deck.source === 'archidekt' && deck.deckId) {
       document.getElementById('dbDeckContent').innerHTML =
-        '<div class="empty-state" style="padding:3rem 1rem">Importing from Archidekt…</div>';
+        '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Importing from Archidekt…</div>';
       const imported = await _dbImportArchidekt(deck.deckId);
       if (imported.length) {
         dbCards = imported;
@@ -212,29 +218,29 @@ async function dbSelectDeck(value) {
     }
   } catch (e) {
     document.getElementById('dbDeckContent').innerHTML =
-      `<div class="error-msg" style="margin:.5rem 0">${esc(e.message)}</div>`;
+      `<div class="error-msg" style="margin:var(--space-2) 0">${esc(e.message)}</div>`;
   }
 }
 
+// The controls that act on a deck's cards are on the one strip with the deck
+// picker, and exist only once there is a deck: one attribute on the pane
+// switches all of them (.db-when-deck in tabs.css), so this stays a statement
+// about which shape the tab is in rather than a list of elements to keep in
+// step with the markup. Deleting a deck is the exception — it also depends on
+// whose deck it is, which no attribute on the pane knows.
+function _dbSetMode(mode) {
+  document.getElementById('tab-deckview')?.setAttribute('data-db-mode', mode);
+}
+
 function _dbShowDeckUI() {
-  document.getElementById('dbDeckToolbar').style.display = '';
-  document.getElementById('dbAddCardRow').style.display  = '';
-  document.getElementById('dbAddCatRow').style.display   = '';
-  document.getElementById('dbStatsBar').style.display    = '';
-  document.getElementById('dbCategoriesBtn').style.display = '';
+  _dbSetMode('deck');
   document.getElementById('dbDeleteDeckBtn').style.display =
     isMyPlayer(dbDeck?.playerId) ? '' : 'none';
 }
 
 function _dbHideDeckUI() {
-  document.getElementById('dbDeckToolbar').style.display = 'none';
-  document.getElementById('dbAddCardRow').style.display  = 'none';
-  document.getElementById('dbAddCatRow').style.display   = 'none';
-  document.getElementById('dbStatsBar').style.display    = 'none';
-  document.getElementById('dbCategoriesBtn').style.display = 'none';
-  document.getElementById('dbDeleteDeckBtn').style.display = 'none';
-  document.getElementById('dbDeckContent').innerHTML =
-    '<div class="empty-state" style="padding:3rem 1rem">Select a deck or create a new one</div>';
+  _dbSetMode('none');
+  document.getElementById('dbDeckContent').innerHTML = _dbEmptyMat;
 }
 
 // ── Delete deck ───────────────────────────────────────────────────────────────

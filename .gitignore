@@ -6,3 +6,10 @@ data/
 .env
 *.png
 .claude/
+.agents/
+skills-lock.json
+
+# Screenshot sets from scripts/capture-screens.js — review aids, kept locally
+.scratch/ui-redesign/shots/
+# Database snapshot the screenshot harness renders against
+.scratch/ui-redesign/capture-data/

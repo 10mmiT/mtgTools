@@ -114,6 +114,7 @@ function addFromUrl() {
   state.collections.push(col);
   urlEl.value  = '';
   nameEl.value = '';
+  closeDrawers();   // the chip that replaces this form is what reports progress
 
   renderCollections();
   renderResults();
@@ -253,6 +254,7 @@ document.getElementById('csvInput').addEventListener('change', e => {
         state.collections.push(col);
         await saveCollection(col);
         document.getElementById('nameInput').value = '';
+        closeDrawers();
       }
 
       renderCollections();
@@ -311,61 +313,47 @@ function removeCollection(key) {
 }
 
 // ── Render collections ────────────────────────────────────────────────────
+// One chip per collection, in a single row under the toolbar (§9.1). A chip
+// is the name, the one number, and the ⋯ menu the old row carried. Everything
+// else that row said — source, "Loaded", when it was last updated — is on the
+// chip's tooltip, because it answers a question nobody asks while looking for
+// a card.
 function renderCollections() {
   renderDeck();
-  const panel = document.getElementById('collectionsPanel');
-  const list  = document.getElementById('collectionsList');
+  const row = document.getElementById('collectionsChips');
 
-  if (!state.collections.length) { panel.style.display = 'none'; return; }
-  panel.style.display = 'block';
+  if (!state.collections.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+  row.style.display = '';
 
-  // Progressive disclosure: once at least one collection exists, the add-form
-  // is the rare path — collapse it by default (user's explicit toggle wins).
-  if (collapseState['add-col'] === undefined) {
-    collapseState['add-col'] = true;
-    applyCollapse('add-col');
-  }
+  row.innerHTML = state.collections.map(col => {
+    const isCSV  = col.source.startsWith('csv-');
+    const isBusy = col.status === 'loading' || col.updating;
 
-  list.innerHTML = state.collections.map(col => {
-    const pct      = col.total ? Math.min(100, Math.round(col.entries / col.total * 100)) : 0;
-    const isCSV    = col.source.startsWith('csv-');
-    const isBusy   = col.status === 'loading' || col.updating;
-    const badgeCls = col.status === 'loading' ? 'badge-loading' : col.status === 'error' ? 'badge-error' : 'badge-loaded';
-    const badgeTxt = col.status === 'loading' ? 'Loading' : col.status === 'error' ? 'Error' : 'Loaded';
-
-    const statusLine = col.status === 'error'
-      ? `<span style="color:var(--danger)">${esc(col.error)}</span>`
+    // The count is also the progress bar: while pages are coming in it reads
+    // "1,240 / 5,600", and the left number climbs on every render.
+    const count = col.status === 'error' ? 'failed'
       : col.status === 'loading'
-        ? (col.total ? `${col.entries.toLocaleString()} / ${col.total.toLocaleString()} cards` : 'Connecting…')
-        : `${[...col.cards.values()].reduce((s,c)=>s+c.qty,0).toLocaleString()} cards · updated ${relTime(col.savedAt)}`;
+        ? (col.total ? `${col.entries.toLocaleString()} / ${col.total.toLocaleString()}` : 'connecting…')
+        : col.updating ? 'updating…'
+          : [...col.cards.values()].reduce((s, c) => s + c.qty, 0).toLocaleString();
 
-    const updateLabel = col.updating ? 'Updating…' : (isCSV ? 'Re-import CSV' : 'Refresh');
+    const tip = col.status === 'error'
+      ? col.error
+      : `${sourceLabel(col.source)}${col.savedAt ? ` · updated ${relTime(col.savedAt)}` : ''}`;
+
+    const cls = col.status === 'error' ? ' chip--error' : isBusy ? ' chip--busy' : '';
 
     return `
-      <div class="col-row">
-        <div class="col-dot" style="background:${col.color}"></div>
-        <div class="col-info">
-          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-            <span class="col-name">${esc(col.name)}</span>
-            <span class="badge badge-source">${sourceLabel(col.source)}</span>
-            <span class="badge ${badgeCls}">${badgeTxt}</span>
-          </div>
-          <div class="col-meta">${statusLine}</div>
-          ${col.status === 'loading' && col.total ? `
-            <div class="progress-bar">
-              <div class="progress-fill" style="width:${pct}%;background:${col.color}"></div>
-            </div>` : ''}
-        </div>
-        <div class="col-actions">
-          ${isBusy
-            ? `<span class="col-meta" style="align-self:center">${col.updating ? 'Updating…' : ''}</span>`
-            : kebabMenuHtml([
-                { label: updateLabel, onclick: `updateCollection('${col.key}')` },
-                { divider: true },
-                { label: 'Remove',    onclick: `removeCollection('${col.key}')`, danger: true },
-              ], { title: 'Collection actions' })}
-        </div>
-      </div>`;
+      <span class="chip${cls}" title="${esc(tip)}">
+        <span class="chip-dot" style="background:${col.color}"></span>
+        <span class="chip-label">${esc(col.name)}</span>
+        <span class="chip-count">${count}</span>
+        ${isBusy ? '' : kebabMenuHtml([
+          { label: isCSV ? 'Re-import CSV' : 'Refresh', onclick: `updateCollection('${col.key}')` },
+          { divider: true },
+          { label: 'Remove', onclick: `removeCollection('${col.key}')`, danger: true },
+        ], { title: 'Collection actions' })}
+      </span>`;
   }).join('');
 }
 
@@ -474,10 +462,13 @@ function renderResults() {
   if (!state.collections.length) {
     // Both views need the empty state — mobile defaults to grid view, which
     // otherwise showed a blank panel instead of the getting-started hint.
+    // "above" was the form directly over this table; it is the toolbar's
+    // + Add button now, so the hint says which button it means.
+    const hint = 'No collections yet — add one with “+ Add” in the toolbar.';
     document.getElementById('resultsBody').innerHTML =
-      `<tr><td colspan="99" class="empty-state">Add a collection above to get started.</td></tr>`;
+      `<tr><td colspan="99" class="empty-state">${hint}</td></tr>`;
     document.getElementById('cardGrid').innerHTML =
-      `<div class="empty-state" style="grid-column:1/-1">Add a collection above to get started.</div>`;
+      `<div class="empty-state" style="grid-column:1/-1">${hint}</div>`;
     infoEl.textContent = '';
     if (moreEl) moreEl.style.display = 'none';
     return;
@@ -485,7 +476,7 @@ function renderResults() {
 
   const rows      = buildRows(query);
   ensureSortMeta(rows);
-  const isMobile  = window.innerWidth <= 640;
+  const isMobile  = window.innerWidth < BP_SM;
   const MOBILE_CAP = 150;
   const fullMax   = viewMode === 'grid' ? 200 : 500;
   const MAX       = (isMobile && !_mobileShowAll) ? MOBILE_CAP : fullMax;
@@ -502,7 +493,7 @@ function renderResults() {
     const capped = isMobile && !_mobileShowAll && rows.length > MOBILE_CAP;
     if (capped) {
       moreEl.style.display = '';
-      moreEl.innerHTML = `<button class="btn-secondary" style="width:100%;padding:.6rem;font-size:.85rem"
+      moreEl.innerHTML = `<button class="btn-secondary" style="width:100%;padding:var(--space-2);font-size:var(--text-base)"
         onclick="_mobileShowAll=true;renderResults()">Show all ${rows.length.toLocaleString()} cards ↓</button>`;
     } else {
       moreEl.style.display = 'none';
