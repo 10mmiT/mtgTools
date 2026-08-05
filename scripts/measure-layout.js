@@ -213,7 +213,7 @@ const SHOW_GRID = `(() => {
  * what querySelector answers with. */
 const FOLD = `(() => {
   const pane = [...document.querySelectorAll('.tab-pane')].find(p => p.style.display !== 'none');
-  const card = pane && pane.querySelector('.card-detail-img, .grid-card, .card-grid > *, .sf-grid > *, .sf-grid-xl > *, .pick-results-grid > *');
+  const card = pane && pane.querySelector('.card-detail-img, .grid-card, .card-grid > *, .sf-grid > *, .pick-results-grid > *');
   if (!card) return 'null';
   return String(Math.round(card.getBoundingClientRect().top));
 })()`;

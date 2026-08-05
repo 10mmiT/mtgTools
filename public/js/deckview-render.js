@@ -211,12 +211,10 @@ function _dbRenderSection(catName, cards, canEdit) {
   let cardsHtml;
   if (dbView === 'list') {
     cardsHtml = `<div class="dv-list">${cards.map(c => _dbListRow(c, canEdit)).join('')}</div>`;
-  } else if (dbView === 'grid') {
-    cardsHtml = `<div class="sf-grid">${cards.map(c => _dbGridTile(c, canEdit)).join('')}</div>`;
   } else if (dbView === 'pile') {
     cardsHtml = `<div class="db-pile">${_dbStackHtml(cards, canEdit, fanned)}</div>`;
   } else {
-    cardsHtml = `<div class="sf-grid-xl">${cards.map(c => _dbGridTileXL(c, canEdit)).join('')}</div>`;
+    cardsHtml = `<div class="sf-grid">${cards.map(c => _dbGridTile(c, canEdit)).join('')}</div>`;
   }
 
   return `<div class="dv-section${collapsed ? ' collapsed' : ''}${fanned ? ' db-pile-open' : ''} db-cat-drop"
@@ -298,45 +296,6 @@ function _dbGridTile(card, canEdit) {
         ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--text-muted)">×${card.qty}</span>` : ''}
         ${price}
       </div>
-      <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
-    </div>
-  </div>`;
-}
-
-function _dbGridTileXL(card, canEdit) {
-  const sf    = dbCardData.get(card.card_name);
-  const face  = sf?.card_faces?.[0];
-  const img   = sf?.image_uris?.large || sf?.image_uris?.normal || face?.image_uris?.large || face?.image_uris?.normal || '';
-  const mana  = sf?.mana_cost || face?.mana_cost || '';
-  const type  = sf?.type_line || face?.type_line || '';
-  const owned = sfCardOwnership(card.card_name);
-  const price = renderPrice(sf);
-  const selected = dbSelectedCards.has(card.card_name);
-  const infoBtn = `<button class="db-tile-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
-  const btns  = canEdit ? `
-    <div class="db-tile-btns">
-      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
-      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
-    </div>` : '';
-  const dragAttrs = canEdit
-    ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
-  const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
-  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs} ${clickAttrs}>
-    <div class="db-tile-info-wrap">${infoBtn}</div>
-    ${btns}
-    <div data-name="${esc(card.card_name)}">
-      ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
-              `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </div>
-    <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
-        <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
-           style="flex:1;margin-bottom:0">${esc(card.card_name)}</a>
-        ${card.qty > 1 ? `<span style="font-size:var(--text-xs);font-weight:700;color:var(--text-muted)">×${card.qty}</span>` : ''}
-        ${price}
-      </div>
-      ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

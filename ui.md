@@ -62,8 +62,11 @@
   `deckview-render.js` (rendering/tiles/multiselect/stats/view toggle),
   `deckview-edit.js` (card/category edits, move modal, autosave),
   `deckview-panels.js` (search/autocomplete, drag/drop, EDHREC, import/export).
-- `sortui.js` already provides a shared List/Grid/XL/Pile view toggle used by all
-  tabs. Build on the existing "Pile" concept rather than inventing a parallel one.
+- `sortui.js` already provides a shared List/Grid/Pile view toggle used by all
+  tabs, and the card-size control beside it. Build on the existing "Pile"
+  concept rather than inventing a parallel one. (There was an XL view too; the
+  size control replaced it — one slider from 80 to 300 says what XL's fixed
+  220px said and everything between.)
 - Check UI work with `npm run capture-screens` (see README → Testing). ALWAYS pass
   `--data .scratch/ui-redesign/capture-data/state.json`: that is a snapshot of the
   real database, and without it the repo's own `data/` is empty, so every tab

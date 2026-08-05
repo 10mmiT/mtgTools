@@ -61,11 +61,13 @@ function browser(seed) {
 
 // ── Where a view starts ───────────────────────────────────────────────
 
-test('an extra-large view opens larger than a grid', () => {
-  // Otherwise XL is the same view with a longer name.
+test('a view opens somewhere a card is legible and the slider can reach', () => {
   const { app } = browser();
-  assert.ok(app.get('collections', 'xl') > app.get('collections', 'grid'),
-    `XL opens at ${app.get('collections', 'xl')}px and Grid at ${app.get('collections', 'grid')}px`);
+  for (const mode of ['grid', 'pile']) {
+    const px = app.get('collections', mode);
+    assert.ok(px >= app.min && px <= app.max,
+      `the ${mode} view opens at ${px}px, outside the ${app.min}–${app.max} the slider offers`);
+  }
 });
 
 test('every tab opens a given view at the same size', () => {
@@ -81,11 +83,11 @@ test('every tab opens a given view at the same size', () => {
 
 test('a size chosen in one view leaves the others where they were', () => {
   const { app } = browser();
-  const before = app.get('collections', 'xl');
-  app.save('collections', 'grid', 90);
-  assert.strictEqual(app.get('collections', 'grid'), 90);
-  assert.strictEqual(app.get('collections', 'xl'), before,
-    'scanning a collection at thumbnails is not a request to shrink the XL view');
+  const before = app.get('deckbuild', 'pile');
+  app.save('deckbuild', 'grid', 90);
+  assert.strictEqual(app.get('deckbuild', 'grid'), 90);
+  assert.strictEqual(app.get('deckbuild', 'pile'), before,
+    'scanning a deck at thumbnails is not a request to shrink its piles');
 });
 
 test('a size chosen on one tab leaves the other tabs where they were', () => {
@@ -99,21 +101,38 @@ test('a size chosen on one tab leaves the other tabs where they were', () => {
 
 test('a chosen size survives a reload', () => {
   const { app, reload } = browser();
-  app.save('scryfall', 'xl', 300);
-  app.save('scryfall', 'grid', 110);
+  app.save('scryfall', 'grid', 300);
+  app.save('wants', 'grid', 110);
   const reloaded = reload();
-  assert.strictEqual(reloaded.get('scryfall', 'xl'), 300);
-  assert.strictEqual(reloaded.get('scryfall', 'grid'), 110);
+  assert.strictEqual(reloaded.get('scryfall', 'grid'), 300);
+  assert.strictEqual(reloaded.get('wants', 'grid'), 110);
 });
 
 test('the Deck Builder remembers alongside the browsing tabs, not instead of them', () => {
-  // Four callers, one store: the tab that built this control is one of them.
+  // Five callers, one store: the tab that built this control is one of them.
   const { app, reload } = browser();
   app.save('deckbuild', 'pile', 200);
   app.save('sets', 'grid', 120);
   const reloaded = reload();
   assert.strictEqual(reloaded.get('deckbuild', 'pile'), 200);
   assert.strictEqual(reloaded.get('sets', 'grid'), 120);
+});
+
+test('the sizes stored against the XL view are dropped, and nothing else is', () => {
+  // XL is gone — the slider is how "how big?" is asked now — so a size kept
+  // against it is for a view nobody can reach. What was chosen for a grid is
+  // still what that person wants their grid at.
+  const { app, storage } = browser({
+    mtgtools_size: JSON.stringify({
+      'collections:xl': 300, 'collections:grid': 130, 'deckbuild:pile': 200,
+    }),
+  });
+  assert.strictEqual(app.get('collections', 'grid'), 130);
+  assert.strictEqual(app.get('deckbuild', 'pile'), 200);
+  assert.deepStrictEqual(
+    Object.keys(JSON.parse(storage.getItem('mtgtools_size'))).sort(),
+    ['collections:grid', 'deckbuild:pile'],
+    'the dead key is gone from the store, not just ignored on the way out of it');
 });
 
 // ── What a stored size may be ─────────────────────────────────────────
@@ -139,6 +158,6 @@ test('a stored size that is not a number falls back to where the view starts', (
 test('a size arrives as the string a range input hands over', () => {
   // Every caller of saveCardSize passes slider.value, which is a string.
   const { app } = browser();
-  app.save('sets', 'xl', '170');
-  assert.strictEqual(app.get('sets', 'xl'), 170);
+  app.save('sets', 'grid', '170');
+  assert.strictEqual(app.get('sets', 'grid'), 170);
 });

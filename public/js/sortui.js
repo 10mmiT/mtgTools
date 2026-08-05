@@ -187,13 +187,23 @@ const CARD_SIZE_MIN  = 80;
 const CARD_SIZE_MAX  = 300;
 const CARD_SIZE_STEP = 10;
 
-/* Where a view starts before anyone has chosen. These are the widths the
- * stylesheet already draws each view at, said here as well because the slider
- * needs a position on its first render: XL that arrives the same size as Grid
- * is not an extra-large view, it is the same view with a longer name. */
-const CARD_SIZE_DEFAULTS = { grid: 150, xl: 220, pile: 150 };
+/* Where a view starts before anyone has chosen — the widths the stylesheet
+ * already draws each view at, said here as well because the slider needs a
+ * position on its first render. */
+const CARD_SIZE_DEFAULTS = { grid: 150, pile: 150 };
 
 const _sizeState = JSON.parse(localStorage.getItem('mtgtools_size') || '{}');
+
+/* The XL view is gone — the slider is what "how big?" is asked with now — so
+ * the sizes stored against it are for a view nobody can reach. Dropped rather
+ * than folded into the grid's: a size chosen for a grid is the size that
+ * person wants their grid at, and inheriting a 300px XL over it would be this
+ * change deciding that for them. */
+const _staleXlSizes = Object.keys(_sizeState).filter(key => key.endsWith(':xl'));
+if (_staleXlSizes.length) {
+  for (const key of _staleXlSizes) delete _sizeState[key];
+  localStorage.setItem('mtgtools_size', JSON.stringify(_sizeState));
+}
 
 function cardSizeDefault(mode) { return CARD_SIZE_DEFAULTS[mode] || CARD_SIZE_DEFAULTS.grid; }
 
@@ -207,8 +217,8 @@ function clampCardSize(px, mode) {
   return Math.min(CARD_SIZE_MAX, Math.max(CARD_SIZE_MIN, n));
 }
 
-/* Per tab *and* per view: `collections:grid` is a different setting from
- * `collections:xl`, which is a different setting from `sets:grid`. One key
+/* Per tab *and* per view: `deckbuild:grid` is a different setting from
+ * `deckbuild:pile`, which is a different setting from `sets:grid`. One key
  * per pair, in one object, in one localStorage entry — the shape the sort and
  * column preferences already use. */
 function getCardSize(view, mode) {
@@ -329,23 +339,28 @@ function mountCardAutocomplete(inputId, dropId, onPick, opts = {}) {
   return { close };
 }
 
-// ── Shared view toggle (List / Grid / XL / Pile) ────────────────────────────
+// ── Shared view toggle (List / Grid / Pile) ─────────────────────────────────
 // One component for every tab's view switcher, so the same icons appear in the
 // same order everywhere. `getCur` returns the current mode; `pick` sets it
 // (and triggers the tab's own re-render).
+//
+// There was an XL view here too — a second grid, drawn at 220px instead of
+// 148px. The card-size control is that question asked properly: XL was one
+// answer to "how big?" nailed to a button, and a slider that goes from 80 to
+// 300 says every answer it had and the ones in between. So XL is gone, and
+// what it drew is what Grid draws now.
 const _VT_ICONS = {
   list: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
   grid: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
-  xl:   'XL',
   pile: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="4" y="2" width="16" height="6" rx="1"/><rect x="4" y="9" width="16" height="6" rx="1"/><rect x="4" y="16" width="16" height="6" rx="1"/></svg>',
 };
-const _VT_TITLES = { list: 'List view', grid: 'Grid view', xl: 'Extra-large grid', pile: 'Pile view' };
+const _VT_TITLES = { list: 'List view', grid: 'Grid view', pile: 'Pile view' };
 
 function mountViewToggle(containerId, modes, getCur, pick) {
   const host = document.getElementById(containerId);
   if (!host) return;
   host.innerHTML = `<div class="view-toggle">${modes.map(m =>
-    `<button class="view-btn${getCur() === m ? ' active' : ''}" data-mode="${m}" title="${_VT_TITLES[m]}"${m === 'xl' ? ' style="font-size:var(--text-xs);font-weight:700"' : ''}>${_VT_ICONS[m]}</button>`
+    `<button class="view-btn${getCur() === m ? ' active' : ''}" data-mode="${m}" title="${_VT_TITLES[m]}">${_VT_ICONS[m]}</button>`
   ).join('')}</div>`;
   const sync = () => host.querySelectorAll('.view-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.mode === getCur()));

@@ -50,9 +50,12 @@ function initDeckBuilder() {
       dbStackClick(e);
     });
 
-    // Restore persisted view
+    // Restore persisted view. A tab left in the XL view comes back in the
+    // grid: XL was a second grid at a fixed size, and the size control is
+    // that question asked properly.
     const savedView = localStorage.getItem('dbView');
-    if (savedView && ['list','grid','xl','pile'].includes(savedView)) dbView = savedView;
+    if (savedView === 'xl') { dbView = 'grid'; localStorage.setItem('dbView', 'grid'); }
+    else if (savedView && ['list','grid','pile'].includes(savedView)) dbView = savedView;
     _dbAdoptLegacyScale();
 
     // Keyboard shortcuts (only when deck builder tab is active and not typing in a field)
@@ -105,7 +108,7 @@ function initDeckBuilder() {
     _dbInitDone = true;
   }
   // Mount the shared view toggle (re-mounts with the restored view active)
-  mountViewToggle('dbViewMount', ['list', 'grid', 'xl', 'pile'], () => dbView, dbSetView);
+  mountViewToggle('dbViewMount', ['list', 'grid', 'pile'], () => dbView, dbSetView);
   /* This tab's slider is the shared control now, sizing the mat by the same
      variable the browsing tabs size their grids by. #dbDeckContent is the
      element the width is set on, so grids, piles and stacks all inherit it. */
@@ -115,12 +118,12 @@ function initDeckBuilder() {
 
 /* The size this tab was left at, from before the control was shared. It was
  * one number for every view; the shared control keeps one per view, so the
- * old number seeds all three rather than being dropped on the floor. Run
- * once — the key is removed, and a browser that never had it does nothing. */
+ * old number seeds both rather than being dropped on the floor. Run once —
+ * the key is removed, and a browser that never had it does nothing. */
 function _dbAdoptLegacyScale() {
   const legacy = localStorage.getItem('dbScale');
   if (!legacy) return;
-  for (const mode of ['grid', 'xl', 'pile']) saveCardSize('deckbuild', mode, legacy);
+  for (const mode of ['grid', 'pile']) saveCardSize('deckbuild', mode, legacy);
   localStorage.removeItem('dbScale');
 }
 

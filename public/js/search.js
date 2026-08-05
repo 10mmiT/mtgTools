@@ -6,7 +6,7 @@
 // it since the input stopped having an `oninput` — and is deleted rather than
 // left as an invitation.
 const sfState = { query: '', nextPage: null, loading: false, cards: [] };
-let sfViewSize = 'list'; // 'list' | 'grid' | 'xl'
+let sfViewSize = 'list'; // 'list' | 'grid'
 
 /* What the results area says before anyone has searched, and again when the
  * query is cleared. It carries the syntax examples that used to occupy a
@@ -25,7 +25,7 @@ const SF_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 
 let _sfSizeSync = null;
 function initScryfallSort() {
   mountSortControl('sfSortMount', 'scryfall', SF_SORT_FIELDS, sfRender);
-  mountViewToggle('sfViewMount', ['list', 'grid', 'xl'], () => sfViewSize, setSfSize);
+  mountViewToggle('sfViewMount', ['list', 'grid'], () => sfViewSize, setSfSize);
   /* #sfResults rather than the grid inside it: sfRender replaces the grid on
      every search, and an inline width set on it would go with it. */
   _sfSizeSync = mountSizeControl('sfSizeMount', 'scryfall', 'sfResults', () => sfViewSize);
@@ -115,11 +115,9 @@ function sfRender() {
   const { field, dir } = getSort('scryfall');
   cards.sort(cardComparator(field, dir));
 
-  const wrap = sfViewSize === 'xl' ? 'sf-grid-xl' : sfViewSize === 'grid' ? 'sf-grid' : 'sf-results';
+  const wrap = sfViewSize === 'grid' ? 'sf-grid' : 'sf-results';
   const html = cards.map(c =>
-    sfViewSize === 'xl'   ? renderSfCardXL(c)
-    : sfViewSize === 'grid' ? renderSfCardLarge(c)
-    : renderSfCardSmall(c)).join('');
+    sfViewSize === 'grid' ? renderSfCardLarge(c) : renderSfCardSmall(c)).join('');
 
   container.innerHTML = `<div class="${wrap}" id="sfGrid">${html}</div>` +
     (sfState.nextPage
@@ -172,34 +170,6 @@ function renderSfCardLarge(card) {
         ${price}
         ${wantBtnHtml(card.name)}
       </div>
-      <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
-    </div>
-  </div>`;
-}
-
-function renderSfCardXL(card) {
-  const face   = card.card_faces?.[0];
-  const imgUrl = card.image_uris?.large || card.image_uris?.normal || face?.image_uris?.large || face?.image_uris?.normal || '';
-  const sfUrl  = card.scryfall_uri || `https://scryfall.com/card/${card.id}`;
-  const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
-  const owned  = sfCardOwnership(card.name);
-  const price  = renderPrice(card);
-  const mana   = card.mana_cost || face?.mana_cost || '';
-  const type   = card.type_line || face?.type_line || '';
-  return `<div class="sf-card-lg">
-    <a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
-      ${imgUrl
-        ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
-        : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </a>
-    <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
-        <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
-        ${price}
-        ${wantBtnHtml(card.name)}
-      </div>
-      ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

@@ -14,13 +14,13 @@ let setIndexing = null;   // { sets, indexed, filling } — the index's own prog
 let currentSet  = null;   // { code, name }
 let setCardsAll = [];
 let setFilter   = 'all';  // 'all' | 'owned' | 'unowned'
-let setView     = 'list'; // 'list' | 'grid' | 'xl'
+let setView     = 'list'; // 'list' | 'grid'
 
 const SET_PICKER_LIMIT = 120;   // tiles rendered at once; the filter reaches the rest
 
 let _setSizeSync = null;
 async function initSetBrowser() {
-  mountViewToggle('setViewMount', ['list', 'grid', 'xl'], () => setView, setSetView);
+  mountViewToggle('setViewMount', ['list', 'grid'], () => setView, setSetView);
   /* #setCards rather than the grid inside it, which renderSetCards replaces
      whenever the set, the filter or the view changes. */
   _setSizeSync = mountSizeControl('setSizeMount', 'sets', 'setCards', () => setView);
@@ -217,9 +217,7 @@ function renderSetCards() {
     return;
   }
 
-  if (setView === 'xl') {
-    cardsEl.innerHTML = `<div class="sf-grid-xl">${displayed.map(renderSetCardXL).join('')}</div>`;
-  } else if (setView === 'grid') {
+  if (setView === 'grid') {
     cardsEl.innerHTML = `<div class="sf-grid">${displayed.map(renderSetCardGrid).join('')}</div>`;
   } else {
     cardsEl.innerHTML = `<div class="sf-results">${displayed.map(renderSetCardList).join('')}</div>`;
@@ -270,34 +268,6 @@ function renderSetCardGrid(card) {
         ${price}
         ${wantBtnHtml(card.name)}
       </div>
-      <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
-    </div>
-  </div>`;
-}
-
-function renderSetCardXL(card) {
-  const face   = card.card_faces?.[0];
-  const imgUrl = card.image_uris?.large || card.image_uris?.normal || face?.image_uris?.large || face?.image_uris?.normal || '';
-  const mana   = card.mana_cost || face?.mana_cost || '';
-  const type   = card.type_line || face?.type_line || '';
-  const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
-  const owned  = sfCardOwnership(card.name);
-  const price  = renderPrice(card);
-  return `<div class="sf-card-lg">
-    <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
-      ${imgUrl
-        ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
-        : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </a>
-    <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
-        <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
-           data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
-        ${price}
-        ${wantBtnHtml(card.name)}
-      </div>
-      ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;

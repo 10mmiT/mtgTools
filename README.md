@@ -22,7 +22,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Sort** by name, mana value, color (WUBRG order), power, toughness, rarity, type, price, or quantity owned — via the Sort control or by clicking any column header
 - **Columns menu** to show/hide optional columns: Mana Value, Color (as mana pips), Type, Rarity, Power/Toughness, Price (off by default to keep the table clean)
 - Grid view shows full card images with per-collection ownership badges
-- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (image views only; remembered per view)
+- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid view only; remembered per view)
 - On mobile, defaults to grid view; list view is still available and scrolls horizontally
 - Hover over any card name (list view) for a Scryfall image tooltip
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens it on Scryfall instead)
@@ -47,8 +47,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Results show which collections own each card and in what quantity, plus Cardmarket price (EUR)
 - Quick **+** button on each card to add it to your personal want list in one click
 - **Sort** results by name, mana value, color, power, toughness, rarity, type, or price
-- **List**, **Grid**, and **XL** view toggle — XL uses larger card images
-- **Size** slider beside the view toggle sizes the card art (image views only; remembered per view)
+- **List** and **Grid** view toggle
+- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid view only; remembered per view)
 - Mana costs rendered as proper MTG mana icons
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 - Search on Enter or button click — no auto-search while typing to stay within Scryfall's rate limits
@@ -71,8 +71,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Ownership dropdown to show all cards, only owned, or only unowned
 - The "N of M owned" figure is the toolbar's result count
 - **Sort** by set collector number (default), name, mana value, color, power, toughness, rarity, type, or price
-- **List**, **Grid**, and **XL** view toggle
-- **Size** slider beside the view toggle sizes the card art (image views only; remembered per view)
+- **List** and **Grid** view toggle
+- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid view only; remembered per view)
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 
 ### Want Lists tab
@@ -83,7 +83,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Player filter**: chip row under the toolbar (All / per-player, each with its card count) to narrow down to a single player's list; defaults to showing everyone, and the toolbar's count says what the filter has done ("12 of 85 cards")
 - **Sort** by most-wanted (default), player (groups cards by which player(s) want them), name, mana value, color, power, toughness, rarity, type, or price
 - **Columns menu** to show/hide optional columns: Mana Value, Color, Type, Rarity, Power/Toughness, Price, In Collections
-- **Grid / XL views**: card images with Cardmarket price, coloured player-initial dots (tap your own dot to remove), and ownership badges
+- **Grid view**: card images with Cardmarket price, coloured player-initial dots (tap your own dot to remove), and ownership badges, with the same **Size** slider
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 - Remove individual wants from the table view with one click
 - All want lists persist across restarts
@@ -94,11 +94,11 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Delete Deck** removes the deck and its saved cards/categories entirely, so you can re-add it (e.g. re-import the same Archidekt URL from the Players & Decks tab) with a clean slate
 - Cards grouped into categories — Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other by default — with custom categories, rename, and delete via each category's "⋯" menu, or all at once from the **Manage Categories** modal; deleting a category with cards in it moves them to "Uncategorised" instead of losing the grouping
 - **Search name or oracle text** box filters the visible cards across every category live as you type
-- **Multiselect**: click/tap a card (List/Grid/XL/Pile) to select it, Ctrl/Cmd-A to select all visible, or "Select all" from a category's "⋯" menu — selected cards get a **Move to…** bulk action. A dedicated "ⓘ" button (top-left on tiles, first column in list view) opens the card info popup instead of selecting; on touch devices, a long-press does the same
+- **Multiselect**: click/tap a card (List/Grid/Pile) to select it, Ctrl/Cmd-A to select all visible, or "Select all" from a category's "⋯" menu — selected cards get a **Move to…** bulk action. A dedicated "ⓘ" button (top-left on tiles, first column in list view) opens the card info popup instead of selecting; on touch devices, a long-press does the same
 - **Move to…** (single card or bulk) can also **✨ Auto-categorize** — sorts staples into functional categories the way Archidekt's community auto-categories do (Sol Ring → Ramp, Swords to Plowshares → Removal, etc.), falling back to card type — or create a brand-new category and move into it in one step
 - **Drag and drop** a card anywhere onto a category's column (not just its header) to move it there; auto-saves
 - **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price
-- **List**, **Grid**, **XL**, and **Pile** view, with the shared **Size** slider for Grid/XL/Pile (remembered per view, as on the browsing tabs)
+- **List**, **Grid**, and **Pile** view, with the shared **Size** slider for Grid and Pile (remembered per view, as on every other tab)
 - Quick **Add a card** box with card-name autocomplete (served from the local card database); **Import CSV** or **Paste List** (`1 Sol Ring` / `1x Sol Ring` / `// Category` lines) for bulk add
 - **Search / EDHREC** drawer panel:
   - **Search** tab — Scryfall query search (with an optional commander color-identity filter) to find and add cards, each shown with a thumbnail
@@ -131,9 +131,9 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **5 themes** — Dark, Light, High Contrast, Sepia, and Dusk. Desktop picks via a dropdown in the sidebar (with a checkmark on the active theme); mobile cycles through them with a single tap. **The choice is saved to your account**, so it follows you to any device you sign in on; the browser keeps a copy too, which is what paints the first frame and what remembers the theme in open mode (no `ADMIN_PASSWORD`), where there are no accounts. A `?theme=` URL parameter (`/?theme=light`, ids: `dark`, `light`, `contrast`, `sepia`, `dusk`) overrides and replaces the saved preference — handy for sharing a link in a specific theme, or for recovering from an unreadable stored one; an unknown id is ignored
 - **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows — independent of the 5 UI themes above, since mana symbol colours represent the game, not the chrome
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
-- **Minimal-UI conventions across all tabs**: one shared List/Grid/XL(/Pile) view toggle component, shared Sort and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
+- **Minimal-UI conventions across all tabs**: one shared List/Grid(/Pile) view toggle component, shared Sort, Size and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
 - **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck Builder); your sort field/direction and which columns are shown persist per-view in the browser
-- **Card size** on every view that draws card art (Collections, Scryfall Search, Set Browser, Deck Builder): one shared slider on the tab's strip, hidden in list views, remembered per tab *and* per view — a collection scanned at thumbnails leaves your XL view where it was
+- **Card size** on every view that draws card art (Collections, Scryfall Search, Set Browser, Want Lists, Deck Builder): one shared slider on the tab's strip, hidden in list views, remembered per tab *and* per view — so a collection scanned at thumbnails leaves the deck you are building at the size you build it at. It replaces the old XL view, which was this question answered once at 220px and nailed to a button
 - **Scryfall traffic is centralised and cached**: the server keeps a daily copy of Scryfall's bulk card data in SQLite and serves card images/metadata/autocomplete locally; the few remaining live calls (full-text search, card detail, set browsing) go through a server-side proxy with a shared rate-limit queue and a 10-minute response cache — the browser never talks to api.scryfall.com directly
 - Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥900px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
@@ -290,7 +290,7 @@ mtgtools/
 │       ├── players.js     # Players and decks
 │       ├── search.js      # Scryfall search tab
 │       ├── sets.js        # Set browser tab
-│       ├── wants.js       # Want lists tab (list/grid/XL views)
+│       ├── wants.js       # Want lists tab (list/grid views)
 │       ├── available.js   # Available@ calendar tab
 │       ├── lands.js       # Mana base calculator tab
 │       ├── auth.js        # Session auth, quick-add wants, change password

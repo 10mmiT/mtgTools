@@ -422,22 +422,19 @@
 }
 
 /* ── Scryfall large-card grid ─────────────────────────────────────────── */
-/* Both grids are sized by the tab's card-size control — --card-width, set on
-   the container the cards are rendered into — and the literals are where each
-   view starts before anyone has touched the slider. The Deck Builder used to
-   restate these two rules with a variable in them; there is one pair now, and
-   every caller sizes them the same way. */
+/* The grid every tab's card images are laid out in, sized by that tab's
+   card-size control — --card-width, set on the container the cards are
+   rendered into — with the literal here being where the view starts before
+   anyone has touched the slider.
+
+   There was a second grid beside this one, .sf-grid-xl, drawn at 220px and
+   reached by an XL button on the view toggle. The slider says every width it
+   said and the ones in between, so both it and the four near-identical
+   renderers that fed it are gone. */
 .sf-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 148px), 1fr));
   gap: var(--space-3);
-}
-
-/* XL card grid — bigger columns for larger images */
-.sf-grid-xl {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 220px), 1fr));
-  gap: var(--space-4);
 }
 /* No fill, no hairline and no clipping: the card inside is its own edge, the
    shadow that used to be cast by this box is now cast by the card, and the
@@ -543,7 +540,7 @@
 }
 .want-rm:hover { border-color: var(--danger); background: var(--surface-1); }
 
-/* Player dot in grid/XL views — tap your own to remove. The fill is the
+/* Player dot in the grid view — tap your own to remove. The fill is the
    player's own colour, set inline, so the initials use the on-a-fill token. */
 .want-dot {
   display: inline-flex; align-items: center; justify-content: center;
@@ -1077,9 +1074,9 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    minimum width across a 1440px window and leave a third of the row blank.
    With auto-fit the same four fill it.
 
-   §9.7 says .card-grid--xl. That token is 220px for a *card*, which is
-   portrait; these are landscape art tiles, so the same intent is a wider
-   number here. */
+   §9.7 says .card-grid--xl, the redesign's name for a grid of cards at 220px.
+   That number is for a *card*, which is portrait; these are landscape art
+   tiles, so the same intent is a wider number here. */
 .pick-results-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -2091,11 +2088,10 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 
 /* The card-size slider that used to be written here is .size-control in
-   components.css: this tab built it, and Collections, Scryfall Search and the
-   Set Browser carry the same one now. So are the two grid rules that used to
-   sit here restating .sf-grid and .sf-grid-xl with a variable in them — the
-   variable is in those rules themselves now, and this tab sets it like any
-   other caller. */
+   components.css: this tab built it, and every tab that draws card art carries
+   the same one now. So is the grid rule that used to sit here restating
+   .sf-grid with a variable in it — the variable is in that rule itself now,
+   and this tab sets it like any other caller. */
 
 /* ── Pile View ───────────────────────────────────────────────────────────────── */
 /* The category columns' gutter is --space-3 (§9.5): a step tighter than it
@@ -2199,7 +2195,6 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .dv-section.collapsed .dv-list,
 .dv-section.collapsed .sf-grid,
-.dv-section.collapsed .sf-grid-xl,
 .dv-section.collapsed .db-pile {
   display: none;
 }
