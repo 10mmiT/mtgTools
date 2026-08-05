@@ -213,8 +213,10 @@ test('with nothing to be a share of, a pile is drawn as thick as it is', () => {
 // the screenshot harness's and the eye's — only how much of it there is.
 
 const cardsNamed = n => Array.from({ length: n }, (_, i) => ({ name: `Card ${i}` }));
+/** `spread` is the labels of the piles that are open — any number of them. */
 const pilesHtml = (groups, opts) => app.evaluate(
-  `cardPilesHtml(${JSON.stringify(groups)}, { fanned: ${JSON.stringify(opts?.fanned ?? null)},
+  `cardPilesHtml(${JSON.stringify(groups)}, {
+     fanned: new Set(${JSON.stringify(opts?.spread ?? [])}),
      cardOf: card => ({ name: card.name, img: 'i.png' }) })`);
 const countOf = (html, needle) => html.split(needle).length - 1;
 
@@ -230,17 +232,106 @@ test('a settled pile costs the same whether it holds four hundred cards or twelv
 
 test('a fanned pile spreads a bounded number of cards, and says how many of them', () => {
   const cap  = app.evaluate('STACK_FAN_MAX');
-  const html = pilesHtml([{ label: 'Common', cards: cardsNamed(4000) }], { fanned: 'Common' });
+  const html = pilesHtml([{ label: 'Common', cards: cardsNamed(4000) }], { spread: ['Common'] });
   assert.strictEqual(countOf(html, '<img'), cap,
     `spreading four thousand commons drew ${countOf(html, '<img')} cards`);
   assert.ok(html.includes(`${cap} of 4,000`), 'a fan that is not the whole pile says so');
 });
 
-test('one pile is fanned out and the rest stay stacked', () => {
+test('the piles that were spread are spread and the rest stay stacked', () => {
   const html = pilesHtml([
     { label: 'Common', cards: cardsNamed(30) },
     { label: 'Rare',   cards: cardsNamed(20) },
-  ], { fanned: 'Rare' });
-  assert.strictEqual(countOf(html, 'card-fan"'), 1, 'exactly one pile is spread');
+  ], { spread: ['Rare'] });
+  assert.strictEqual(countOf(html, 'card-fan"'), 1, 'the one that was asked for is spread');
   assert.strictEqual(countOf(html, 'card-stack"'), 1, 'and the other is still a stack');
+});
+
+// ── Which piles are spread ────────────────────────────────────────────
+// A set of labels rather than one label. A table of piles is read by holding
+// them up against each other, which cannot be done one at a time: by the time
+// the second is open the first has closed and there is nothing to compare.
+
+test('several piles can be spread at once', () => {
+  const table = [
+    { label: 'Common',   cards: cardsNamed(30) },
+    { label: 'Uncommon', cards: cardsNamed(20) },
+    { label: 'Rare',     cards: cardsNamed(10) },
+    { label: 'Mythic',   cards: cardsNamed(4) },
+  ];
+  const html = pilesHtml(table, { spread: ['Uncommon', 'Mythic'] });
+  assert.strictEqual(countOf(html, 'card-fan"'), 2, 'both of the piles asked for are open');
+  assert.strictEqual(countOf(html, 'card-stack"'), 2, 'and the two that were not are stacks');
+  assert.strictEqual(countOf(pilesHtml(table, { spread: table.map(g => g.label) }), 'card-fan"'), 4,
+    'and the whole table can be spread at once');
+});
+
+test('a spread pile is drawn the same whatever else is open beside it', () => {
+  // What "the cap is per pile" means: a pile does not spread fewer cards
+  // because of a pile somewhere else on the table.
+  const table = [
+    { label: 'Common', cards: cardsNamed(200) },
+    { label: 'Rare',   cards: cardsNamed(200) },
+  ];
+  const cap   = app.evaluate('STACK_FAN_MAX');
+  const alone = pilesHtml(table, { spread: ['Common'] });
+  const both  = pilesHtml(table, { spread: ['Common', 'Rare'] });
+  assert.strictEqual(countOf(alone, '<img'), cap + 1, 'one fan, and one face on the pile beside it');
+  assert.strictEqual(countOf(both, '<img'), cap * 2,
+    'the second pile spreading costs a second fan and takes nothing off the first');
+});
+
+test('a settled table is every pile stacked', () => {
+  const html = pilesHtml([
+    { label: 'Common', cards: cardsNamed(30) },
+    { label: 'Rare',   cards: cardsNamed(20) },
+  ]);
+  assert.strictEqual(countOf(html, 'card-fan"'), 0);
+  assert.strictEqual(countOf(html, 'card-stack"'), 2);
+});
+
+test('every pile carries the arrow, saying which way it is lying', () => {
+  // The one control a pile has, in the same place on all three tabs. Which
+  // way it points is aria-expanded, so the stylesheet and a screen reader are
+  // reading one fact rather than two copies of it.
+  const html = pilesHtml([
+    { label: 'Common', cards: cardsNamed(30) },
+    { label: 'Rare',   cards: cardsNamed(20) },
+  ], { spread: ['Rare'] });
+  assert.strictEqual(countOf(html, 'pile-toggle'), 2, 'one arrow per pile, open or not');
+  assert.strictEqual(countOf(html, 'aria-expanded="true"'), 1);
+  assert.strictEqual(countOf(html, 'aria-expanded="false"'), 1);
+  assert.ok(html.includes('Spread Common out') && html.includes('Settle Rare'),
+    'and each says what clicking it will do rather than what it is');
+});
+
+const spreadAfter = (labels, calls) => JSON.parse(app.evaluate(
+  `JSON.stringify([...${calls.reduce(
+    (expr, label) => `togglePile(${expr}, ${JSON.stringify(label)})`,
+    `new Set(${JSON.stringify(labels)})`)}])`));
+
+test('the arrow opens a settled pile and settles an open one', () => {
+  assert.deepStrictEqual(spreadAfter([], ['Rare']), ['Rare']);
+  assert.deepStrictEqual(spreadAfter(['Rare'], ['Rare']), []);
+  assert.deepStrictEqual(spreadAfter([], ['Rare', 'Rare']), [], 'twice is back where it started');
+});
+
+test('opening one pile leaves the others where they were', () => {
+  // The whole point of the set: no pile closes because another opened.
+  assert.deepStrictEqual(spreadAfter(['Common'], ['Rare']), ['Common', 'Rare']);
+  assert.deepStrictEqual(spreadAfter(['Common', 'Rare'], ['Common']), ['Rare']);
+});
+
+const kept = (labels, groups) => JSON.parse(app.evaluate(
+  `JSON.stringify([...settleGonePiles(new Set(${JSON.stringify(labels)}),
+     ${JSON.stringify(groups.map(label => ({ label, cards: [] })))})])`));
+
+test('a pile the table no longer has is forgotten rather than held open', () => {
+  // A search, a filter or a re-sort cuts the piles again. A label nothing
+  // answers to would be the table holding a place for nothing.
+  assert.deepStrictEqual(kept(['Common', 'Rare'], ['Common', 'Uncommon']), ['Common']);
+  assert.deepStrictEqual(kept(['Common'], []), []);
+  assert.deepStrictEqual(kept([], ['Common']), []);
+  assert.deepStrictEqual(kept(['Common', 'Rare'], ['Rare', 'Common']), ['Common', 'Rare'],
+    'and a table that still has them all keeps them all');
 });

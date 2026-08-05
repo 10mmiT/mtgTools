@@ -252,7 +252,8 @@ document.addEventListener('keydown', e => {
 // ── View mode ─────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
-  _colFannedPile = null;  // a pile fanned out in the stack view is settled by leaving it
+  /* The spread piles are kept: coming back to the table finds it the way it
+     was left, rather than swept flat by having looked at the list. */
   renderResults();
   /* The card size is the grid's, and each view remembers its own — so
      changing view is what tells the control which size it is showing. It is

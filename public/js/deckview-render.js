@@ -4,8 +4,27 @@
 // visible here and functions stay global for inline onclick handlers.
 
 // ── Render ────────────────────────────────────────────────────────────────────
+/* The mat animates its own re-renders. Every caller below — a quantity
+ * changing, a sort, a rename, a move, a selection — already calls dbRender(),
+ * so wrapping it here is what makes all of them animate rather than the ones
+ * someone remembered to. js/cardmove.js does the measuring; what this file
+ * owes it is _dbMoves() on everything that has a place on the mat, and a
+ * render that can be handed over whole. */
 function dbRender() {
   if (!dbDeck) return;
+  animateCardMove(document.getElementById('dbDeckContent'), _dbPaint);
+}
+
+/* What a thing on the mat is, as one string, so that it can be recognised
+ * across a rebuild that shares no elements with the one before it. A card is
+ * its name — which is the identity the deck itself uses — and a settled stack
+ * is its category, said differently so that a category and a card that happen
+ * to share a name are not taken for each other. */
+function _dbMoves(kind, name) {
+  return `data-moves="${esc(kind)}:${esc(name)}"`;
+}
+
+function _dbPaint() {
   // Rebuilding the deck list (and the bulk-action bar above it) can shift
   // page height enough to scroll the cards you're looking at out from under
   // the cursor. Freeze the scroll position across the rebuild so it doesn't.
@@ -193,7 +212,12 @@ function dbBulkMove() {
 function _dbRenderSection(catName, cards, canEdit) {
   const count    = cards.reduce((s, c) => s + (c.qty || 1), 0);
   const isLocked = catName === 'Commander';
-  const collapsed = dbCollapsedCats.has(catName);
+  /* Not in pile view, where the header spreads the pile rather than hiding it:
+   * a category collapsed in the list view and then looked at as a stack would
+   * be a stack that was not drawn, with the one control that could bring it
+   * back now doing something else. Kept rather than cleared, so that going
+   * back to the list finds it folded away where you left it. */
+  const collapsed = dbView !== 'pile' && dbCollapsedCats.has(catName);
   const catActions = canEdit ? `
     <div class="db-cat-kebab-wrap">
       <button class="db-cat-btn" title="Category actions" onclick="dbToggleCatMenu(event)">⋯</button>
@@ -207,7 +231,7 @@ function _dbRenderSection(catName, cards, canEdit) {
   const dropAttrs = canEdit
     ? `ondragover="dbDragOver(event)" ondragleave="dbDragLeave(event)" ondrop="dbDrop(event,'${jsAttr(catName)}')"` : '';
 
-  const fanned = dbView === 'pile' && dbExpandedCat === catName;
+  const fanned = dbView === 'pile' && dbExpandedCats.has(catName);
   let cardsHtml;
   if (dbView === 'list') {
     cardsHtml = `<div class="dv-list">${cards.map(c => _dbListRow(c, canEdit)).join('')}</div>`;
@@ -215,7 +239,7 @@ function _dbRenderSection(catName, cards, canEdit) {
     /* Fanned out, a category is a fan — the spread components.css draws for
        every tab that has one. Settled, it is a single stack and needs none of
        it. */
-    cardsHtml = `<div class="db-pile${fanned ? ' card-fan' : ''}">${_dbStackHtml(cards, canEdit, fanned)}</div>`;
+    cardsHtml = `<div class="db-pile${fanned ? ' card-fan' : ''}">${_dbStackHtml(catName, cards, canEdit, fanned)}</div>`;
   } else {
     cardsHtml = `<div class="sf-grid">${cards.map(c => _dbGridTile(c, canEdit)).join('')}</div>`;
   }
@@ -223,7 +247,14 @@ function _dbRenderSection(catName, cards, canEdit) {
   return `<div class="dv-section${collapsed ? ' collapsed' : ''}${fanned ? ' db-pile-open' : ''} db-cat-drop"
     data-cat="${esc(catName)}" ${dropAttrs}>
     <div class="dv-section-hdr">
-      <span class="dv-section-title db-collapsible" onclick="dbToggleCat('${jsAttr(catName)}')">${esc(catName)}</span>
+      ${pileToggleHtml(dbView === 'pile' ? fanned : !collapsed, {
+        title: dbView === 'pile'
+          ? (fanned ? `Settle ${catName}` : `Spread ${catName} out`)
+          : (collapsed ? 'Show these cards' : 'Hide these cards'),
+        attrs: `onclick="dbToggleCat('${jsAttr(catName)}')"`,
+      })}
+      <span class="dv-section-title db-collapsible"
+        onclick="dbToggleCat('${jsAttr(catName)}')">${esc(catName)}</span>
       <span class="dv-section-count">${count}</span>
       <span class="db-cat-actions">${catActions}</span>
     </div>
@@ -256,7 +287,8 @@ function _dbListRow(card, canEdit) {
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
   const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
 
-  return `<div class="dv-row${canEdit ? ' db-draggable' : ''}${selected ? ' db-row-selected' : ''}" ${dragAttrs} ${clickAttrs}>
+  return `<div class="dv-row${canEdit ? ' db-draggable' : ''}${selected ? ' db-row-selected' : ''}"
+    ${_dbMoves('card', card.card_name)} ${dragAttrs} ${clickAttrs}>
     ${infoEl}
     ${qtyEl}
     <a class="dv-name card-link" href="#" data-name="${esc(card.card_name)}"
@@ -285,7 +317,8 @@ function _dbGridTile(card, canEdit) {
   const dragAttrs = canEdit
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
   const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
-  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}" ${dragAttrs} ${clickAttrs}>
+  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}"
+    ${_dbMoves('card', card.card_name)} ${dragAttrs} ${clickAttrs}>
     <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
     <div data-name="${esc(card.card_name)}">
@@ -321,32 +354,34 @@ function _dbCardImg(name) {
   return sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
 }
 
-function _dbStackHtml(cards, canEdit, fanned) {
+function _dbStackHtml(catName, cards, canEdit, fanned) {
   if (!cards.length) return '';
   if (fanned) return cards.map(c => _dbPileTile(c, canEdit)).join('');
+  /* A settled stack is the one thing on the mat that is not a card: it stands
+   * for a whole category, so it is what moves when a category is deleted or
+   * another one is fanned out beside it. */
   return cardStackHtml(
     cards.map(c => ({ name: c.card_name, img: _dbCardImg(c.card_name) })),
-    { count: cards.reduce((sum, c) => sum + (c.qty || 1), 0) }
+    { count: cards.reduce((sum, c) => sum + (c.qty || 1), 0),
+      attrs: _dbMoves('stack', catName) }
   );
 }
 
-/* Which stack is fanned out, and what clicking anywhere on the mat does to
- * it. One listener rather than a handler per stack: the mat is rebuilt on
- * every change, and "click away to settle" is a question about the whole page
- * anyway. Clicks that mean something else to a card — selecting it, its ⓘ,
- * its ⇄ — stop before they reach here, which is what lets a fanned stack be
- * acted on without settling under the hand that is acting on it. */
+/* The other way to spread a pile: reaching for the stack itself, which is the
+ * gesture the mat had before it had an arrow. One listener rather than a
+ * handler per stack, because the mat is rebuilt on every change.
+ *
+ * Only ever opens. Settling is the arrow's, and it is the arrow's alone —
+ * clicking somewhere else no longer tidies the mat, because with several
+ * piles spread that would be one stray click undoing an arrangement somebody
+ * made on purpose. */
 function dbStackClick(e) {
   if (dbView !== 'pile' || !dbDeck) return;
+  if (!e.target.closest('.card-stack')) return;
   const cat = e.target.closest('.dv-section')?.dataset.cat ?? null;
-  if (e.target.closest('.card-stack')) {
-    if (cat === null) return;
-    dbExpandedCat = cat;
-    dbRender();
-  } else if (dbExpandedCat !== null && cat !== dbExpandedCat) {
-    dbExpandedCat = null;
-    dbRender();
-  }
+  if (cat === null || dbExpandedCats.has(cat)) return;
+  dbExpandedCats.add(cat);
+  dbRender();
 }
 
 /* One card in a fanned-out stack. It lies at the angle its name gives it, the
@@ -365,7 +400,8 @@ function _dbPileTile(card, canEdit) {
     ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
   const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
   return `<div class="db-pile-card${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}"
-    style="--stack-turn:${stackJitter(card.card_name)}deg" ${dragAttrs} ${clickAttrs}>
+    style="--stack-turn:${stackJitter(card.card_name)}deg"
+    ${_dbMoves('card', card.card_name)} ${dragAttrs} ${clickAttrs}>
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
     <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
@@ -436,14 +472,33 @@ function dbRenderStats() {
 // ── View toggle ───────────────────────────────────────────────────────────────
 function dbSetView(v) {
   dbView = v;
-  dbExpandedCat = null;  // a stack fanned out in pile view is settled by leaving it
+  /* The spread piles are kept, as the collapsed categories already were:
+   * looking at the deck as a list and coming back to the mat finds the mat
+   * the way it was left, rather than swept flat by having looked away. */
   localStorage.setItem('dbView', v);
   dbRender();
   _dbSizeSync?.();   // the mat's cards, the grid's and the piles' — one size per view
 }
 
+/* What the category name does when you click it, which is not the same
+ * question in every view.
+ *
+ * In list and grid it hides the cards, because there they are laid out flat
+ * and a category you are done with is a screenful of mat between you and the
+ * next one.
+ *
+ * In pile view it spreads the pile out instead, and settles it again. A
+ * settled stack is already the category folded away — it says what it holds
+ * and takes one card's room — so hiding it as well was a fold on top of a
+ * fold, and the thing there was no control for was the opposite one.
+ *
+ * Any number of piles may be spread at once, and one closing is never the
+ * price of another opening: a deck is read by holding two categories up
+ * against each other. js/cardstack.js says why, for the three tabs that now
+ * all work this way. */
 function dbToggleCat(name) {
-  if (dbCollapsedCats.has(name)) dbCollapsedCats.delete(name);
+  if (dbView === 'pile') togglePile(dbExpandedCats, name);
+  else if (dbCollapsedCats.has(name)) dbCollapsedCats.delete(name);
   else dbCollapsedCats.add(name);
   dbRender();
 }

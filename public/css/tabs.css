@@ -2137,9 +2137,10 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    shared with the two browsing tabs. */
 #dbDeckContent .card-stack { cursor: pointer; }
 /* The stack carries its own count, so the header does not say the same number
-   again directly above it. It still does when the pile is folded away or
-   fanned out into cards, where there is no stack to read the count off. */
-.db-pile-layout .dv-section:not(.collapsed):not(.db-pile-open) .dv-section-count {
+   again directly above it. It still does when the pile is fanned out into
+   cards, where there is no stack left to read the count off. A section in this
+   view is never .collapsed, so the settled stack is the only case. */
+.db-pile-layout .dv-section:not(.db-pile-open) .dv-section-count {
   display: none;
 }
 /* What a card in a fanned-out category is beyond a card in a fanned-out pile —
@@ -2184,15 +2185,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   cursor: pointer;
   user-select: none;
 }
-.db-collapsible::before {
-  content: '▾ ';
-  font-size: var(--text-2xs);
-  display: inline-block;
-  transition: transform calc(var(--motion-ui) * .15s);
-}
-.dv-section.collapsed .db-collapsible::before {
-  transform: rotate(-90deg);
-}
+/* The chevron this heading used to draw in front of itself is .pile-toggle in
+   components.css now: a real button standing beside the name rather than
+   glued to the front of it, and the same one every pile in the app has. The
+   name still does the same thing when clicked, because a heading you can
+   click is a bigger target than a heading you cannot. */
 .dv-section.collapsed .dv-list,
 .dv-section.collapsed .sf-grid,
 .dv-section.collapsed .db-pile {

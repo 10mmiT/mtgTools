@@ -180,6 +180,61 @@ function pileLayers(count, tallest) {
   return Math.min(stackLayers(held), share);
 }
 
+// ── Which piles are spread ─────────────────────────────────────────────────
+// A set of labels rather than one label, because piles are read against each
+// other. Standing the curve up off the table and then wanting to see what is
+// actually in the two tallest columns is the whole reason to look at a table
+// of piles, and it cannot be done one pile at a time — by the time the second
+// is open the first has closed and there is nothing left to compare it with.
+//
+// That is also why nothing here settles a pile you did not ask to settle. A
+// table with three piles spread is an arrangement somebody made on purpose,
+// and a stray click on the background is not an instruction to sweep it away.
+// The only things that settle a pile are its own arrow and the pile itself
+// going away.
+//
+// The set is the caller's — each tab keeps its own, as each already kept its
+// own label — and these two are the operations all three of them need.
+
+/* Spread this pile, or settle it. */
+function togglePile(spread, label) {
+  if (spread.has(label)) spread.delete(label);
+  else spread.add(label);
+  return spread;
+}
+
+/* Forget the piles that are no longer on the table. A search, a filter or a
+ * re-sort can cut the piles again and leave a label nothing answers to; a
+ * table that stayed spread for a pile that is not there would be holding a
+ * place for nothing. */
+function settleGonePiles(spread, groups) {
+  const here = new Set(groups.map(group => group.label));
+  for (const label of spread) if (!here.has(label)) spread.delete(label);
+  return spread;
+}
+
+/* The arrow that spreads a pile and settles it again.
+ *
+ * It is a real button with a real box rather than a character prefixed to a
+ * heading, because it is the only control a pile has and the way you find a
+ * control is that it looks like one. It says which way it is pointing through
+ * aria-expanded rather than through a class, so the stylesheet and a screen
+ * reader are reading the same fact — and there is nothing else for the state
+ * to disagree with.
+ *
+ * The words are the caller's. This draws an arrow and has no opinion on what
+ * unfolding means: on a table of piles it spreads one, and on the Deck
+ * Builder's list and grid the same arrow in the same place shows a category's
+ * cards, which is not a sentence this file could write.
+ *
+ * The button is empty because the arrow inside it is a shape components.css
+ * draws rather than a character typed here — see .pile-toggle for why. Its
+ * name comes from the title, which every one of these carries. */
+function pileToggleHtml(open, { title = '', attrs = '' } = {}) {
+  return `<button class="pile-toggle" aria-expanded="${open ? 'true' : 'false'}"
+    title="${esc(title)}" ${attrs}></button>`;
+}
+
 /* One card in a fanned pile: the picture, its one number, and the click every
  * other card image in the app has. It keeps the angle its name gave its edge
  * while the stack was settled, so fanning spreads the pile that was lying
@@ -198,17 +253,24 @@ function cardFanHtml({ name, img, badge, href }) {
 /* The markup for a row of piles.
  *
  *   groups  [{ label, cards }] as sortui.js's cardGroups() cuts them
- *   fanned  the label of the pile that is spread out, if any
+ *   fanned  the labels of the piles that are spread out — a set, since any
+ *           number of them may be
  *   cardOf  a card, as this tab holds it, seen as { name, img, badge, href }
  *
  * A settled pile says how many cards it holds on the stack itself; a fanned
  * one has no stack left to say it, so the label carries the count instead —
  * and says how much of the pile is spread when it is more than a fan.
+ *
+ * The cap on a fan is per pile and stays that way with several of them open.
+ * That is not an oversight: opening piles is a thing somebody does one arrow
+ * at a time, so the number of them is bounded by how many times they meant
+ * it, and capping the table as a whole would mean a pile spreading fewer
+ * cards because of a pile somewhere else on it.
  */
-function cardPilesHtml(groups, { fanned = null, cardOf } = {}) {
+function cardPilesHtml(groups, { fanned = new Set(), cardOf } = {}) {
   const tallest = groups.reduce((most, group) => Math.max(most, group.cards.length), 0);
   const piles = groups.map(group => {
-    const open  = group.label === fanned;
+    const open  = fanned.has(group.label);
     const held  = group.cards.length;
     const shown = open ? group.cards.slice(0, STACK_FAN_MAX) : [];
     const count = !open ? ''
@@ -224,7 +286,12 @@ function cardPilesHtml(groups, { fanned = null, cardOf } = {}) {
       : cardStackHtml(group.cards.slice(0, STACK_LAYERS_MAX + 1).map(cardOf),
                       { count: held, layers: pileLayers(held, tallest) });
     return `<div class="card-pile${open ? ' card-pile-open' : ''}" data-pile="${esc(group.label)}">
-      <div class="card-pile-hdr"><span class="card-pile-label">${esc(group.label)}</span>${count}</div>
+      <div class="card-pile-hdr">
+        ${pileToggleHtml(open, {
+          title: open ? `Settle ${group.label}` : `Spread ${group.label} out`,
+        })}
+        <span class="card-pile-label">${esc(group.label)}</span>${count}
+      </div>
       ${body}
     </div>`;
   }).join('');

@@ -26,7 +26,7 @@ let _dbEdhrecLoaded = false; // whether EDHREC has been fetched for the current 
 let dbOracleFilter = '';     // lowercased search filter — matches card name or oracle text
 const dbCollapsedCats = new Set(); // categories collapsed by user
 const dbSelectedCards = new Set(); // card names currently selected for bulk move
-let dbExpandedCat = null;    // the one category whose stack is fanned out, in pile view
+const dbExpandedCats = new Set(); // the categories whose stacks are fanned out, in pile view
 
 const DB_DEFAULT_CATS = [
   'Commander', 'Creatures', 'Planeswalkers', 'Instants', 'Sorceries',
@@ -161,7 +161,7 @@ function _dbPopulateNewDeckPlayers() {
 // ── Deck selection ────────────────────────────────────────────────────────────
 async function dbSelectDeck(value) {
   dbSelectedCards.clear();
-  dbExpandedCat = null;  // another deck's fanned-out stack is not this one's
+  dbExpandedCats.clear();  // another deck's spread piles are not this one's
   dbOracleFilter = '';
   const oracleInput = document.getElementById('dbOracleSearchInput');
   if (oracleInput) oracleInput.value = '';

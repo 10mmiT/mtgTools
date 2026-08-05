@@ -617,8 +617,9 @@ function colPT(m) {
 // is here is what a Collections card is (its picture, and how many of it are
 // owned) and what clicking a pile means.
 
-/* Which pile is fanned out. Null is the tidy mat. */
-let _colFannedPile = null;
+/* Which piles are spread out. Empty is the tidy table; any number of them may
+ * be open at once, for the reason js/cardstack.js gives. */
+const _colFannedPiles = new Set();
 
 /* A merged collection row, seen as a card on a table. The badge is the number
    the list view's Total column says: how many of it are owned across every
@@ -651,11 +652,9 @@ async function renderPileView(rows) {
   // Already in sort order — buildRows sorted them, and a pile is a run of that
   // order rather than a second arrangement of it.
   const groups = cardGroups(field, rows);
-  /* A search or a re-sort can leave the fanned-out pile with no cards in it;
-     the mat settles rather than keeping a label nothing answers to. */
-  if (_colFannedPile !== null && !groups.some(g => g.label === _colFannedPile)) _colFannedPile = null;
+  settleGonePiles(_colFannedPiles, groups);
 
-  const draw = () => cardPilesHtml(groups, { fanned: _colFannedPile, cardOf: _colStackCard });
+  const draw = () => cardPilesHtml(groups, { fanned: _colFannedPiles, cardOf: _colStackCard });
   host.innerHTML = draw();
 
   /* Only what is actually drawn needs a picture: the card on top of each pile,
@@ -663,7 +662,8 @@ async function renderPileView(rows) {
      whole collection cheaper than a grid of its first two hundred cards. */
   const missing = [];
   for (const group of groups) {
-    const drawn = group.label === _colFannedPile ? group.cards.slice(0, STACK_FAN_MAX) : group.cards.slice(0, 1);
+    const drawn = _colFannedPiles.has(group.label)
+      ? group.cards.slice(0, STACK_FAN_MAX) : group.cards.slice(0, 1);
     for (const card of drawn) if (!scryfallCache.has(card.name)) missing.push(card.name);
   }
   if (missing.length) {
@@ -673,22 +673,25 @@ async function renderPileView(rows) {
   }
 }
 
-/* Clicking a pile fans it out; clicking away settles it. One listener rather
- * than a handler per pile, for the reason the Deck Builder's mat has one: the
- * view is rebuilt on every change, and "click away to settle" is a question
- * about the whole page. A click inside the pile that is already open is a
- * click on a card in it — opening a card must not tidy the pile it came
+/* What clicking a pile does. One listener rather than a handler per pile,
+ * because the view is rebuilt on every change.
+ *
+ * The header — the arrow and the name beside it — says "the other thing",
+ * whichever way the pile is lying: it is the one part of a pile that is about
+ * the pile rather than about the cards in it, so it is where both halves of
+ * the answer live. The stack below it says "open this one", which is the
+ * gesture it has always had. And anywhere else on a pile that is already open
+ * is a click on a card in it — opening a card must not tidy the pile it came
  * from — so it is the one click here that does nothing. */
 document.addEventListener('click', e => {
   if (viewMode !== 'pile') return;
   if (document.getElementById('tab-collections')?.style.display === 'none') return;
   const pile = e.target.closest('#pileView .card-pile');
-  if (pile) {
-    if (pile.dataset.pile === _colFannedPile) return;
-    _colFannedPile = pile.dataset.pile;
-  } else if (_colFannedPile !== null) {
-    _colFannedPile = null;
-  } else return;
+  if (!pile) return;
+  const label = pile.dataset.pile;
+  if (e.target.closest('.card-pile-hdr')) togglePile(_colFannedPiles, label);
+  else if (!_colFannedPiles.has(label)) _colFannedPiles.add(label);
+  else return;
   renderResults();
 });
 

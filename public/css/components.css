@@ -574,6 +574,26 @@ td { padding: var(--space-2) var(--space-3); }
 }
 @keyframes card-sheen { from { opacity: 0; } to { opacity: 1; } }
 
+/* ── Cards travel to where they end up ───────────────────────────────
+   A card that is somewhere new after a re-render is put back where it was and
+   let go; this is the letting go. js/cardmove.js measures the two positions
+   and hands over the difference, and everything between them is here.
+
+   It transitions `translate` rather than `transform` because cards already
+   carry transforms of their own — the angle a card lies at in a fanned pile,
+   the lean of a card being pointed at — and the two properties compose
+   instead of overwriting each other. A card can travel across the mat while
+   still lying at the angle its name gave it.
+
+   Slower than the lift, and for the reason the lift is quick: a card is
+   picked up under your hand and needs only to acknowledge it, where a card
+   crossing the mat is the whole explanation of what just changed and has to
+   be followed. Still short of a third of a second — this is a card being put
+   down in a new place, not a card being flown there. */
+.card-moving {
+  transition: translate calc(var(--motion) * .28s) ease-out;
+}
+
 /* ── Stacks ──────────────────────────────────────────────────────────
    A group of cards drawn as a pile: the face card lying on top, the edges of
    the cards beneath it showing, and a thickness that grows with the count.
@@ -678,9 +698,81 @@ td { padding: var(--space-2) var(--space-3); }
   width: calc(var(--card-width, 150px) + 12px);
   cursor: pointer;
 }
+/* ── The arrow that spreads a pile ───────────────────────────────────
+   Every pile in the app has one, in the same place and pointing the same
+   way: the Deck Builder's categories, Collections' stacks and the Set
+   Browser's. It used to be a chevron character prefixed to a heading, which
+   is a thing you find only after you have been told it is there.
+
+   It turns rather than swapping glyphs, so that opening and closing a pile
+   is one object moving instead of two characters replacing each other, and
+   what it is doing is legible at the halfway point.
+
+   The state is aria-expanded, not a class: the stylesheet and a screen
+   reader read the same fact, and there is no second copy to fall out of step
+   with the pile it belongs to. */
+.pile-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background calc(var(--motion-ui) * .12s),
+              color      calc(var(--motion-ui) * .12s),
+              transform  calc(var(--motion-ui) * .15s);
+}
+
+/* The triangle is drawn rather than typed, and that is the whole reason this
+   rule exists. A font does not centre a glyph's ink in the box it gives it:
+   ▾ sits low and slightly to one side of its own em-box, so rotating the
+   button rotated the offset with it and the arrow appeared to hop sideways
+   every time a category was folded. A border triangle is centred in its box
+   by construction, so turning it is a pivot and the arrow stays where it is.
+
+   Bigger than the heading it stands beside, which in the Deck Builder's pile
+   view is --text-xs: it has to read as a triangle pointing somewhere rather
+   than as a speck of punctuation, and it is the control while the heading is
+   only a label. Muted, so that being the larger of the two does not also
+   make it the louder — it takes the button's colour, so the hover below
+   lights the arrow rather than the box around it. */
+.pile-toggle::before {
+  content: '';
+  border-left:  .3125rem solid transparent;
+  border-right: .3125rem solid transparent;
+  border-top:   .3125rem solid currentColor;
+}
+
+.pile-toggle:hover { background: var(--surface-2); color: var(--text); }
+.pile-toggle[aria-expanded='false'] { transform: rotate(-90deg); }
+
+@media (width < 640px) {
+  /* Padded rather than grown, the way "View ↗" on a deck tile is: the arrow
+     stands beside a heading in a column one card wide, and 44px of box there
+     would push the label it belongs to off the end of it. */
+  .pile-toggle { position: relative; }
+  .pile-toggle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    min-width: 44px;
+    height: 100%;
+    min-height: 44px;
+  }
+}
+
 .card-pile-hdr {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-1);
   max-width: 100%;
   margin-bottom: var(--space-1);

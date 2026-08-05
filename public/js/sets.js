@@ -15,7 +15,7 @@ let currentSet  = null;   // { code, name }
 let setCardsAll = [];
 let setFilter   = 'all';  // 'all' | 'owned' | 'unowned'
 let setView     = 'list'; // 'list' | 'grid' | 'pile'
-let setFanned   = null;   // the label of the pile fanned out in the stack view
+const setFanned = new Set(); // the labels of the piles spread out in the stack view
 
 const SET_PICKER_LIMIT = 120;   // tiles rendered at once; the filter reaches the rest
 
@@ -74,7 +74,8 @@ function setSetFilter(f) {
 
 function setSetView(v) {
   setView = v;
-  setFanned = null;   // a pile fanned out in the stack view is settled by leaving it
+  /* The spread piles are kept: coming back to the table finds it the way it
+     was left, rather than swept flat by having looked at the list. */
   renderSetCards();
   _setSizeSync?.();   // each view remembers its own card size
 }
@@ -250,25 +251,22 @@ function _setStackCard(card) {
 
 function renderSetPiles(displayed, field) {
   const groups = cardGroups(field, displayed);
-  /* An ownership filter or a re-sort can leave the fanned-out pile with no
-     cards in it; the table settles rather than keeping a label nothing
-     answers to. */
-  if (setFanned !== null && !groups.some(g => g.label === setFanned)) setFanned = null;
+  settleGonePiles(setFanned, groups);
   return cardPilesHtml(groups, { fanned: setFanned, cardOf: _setStackCard });
 }
 
-/* Clicking a pile fans it out, clicking away settles it — the Collections
- * stack view's listener, for this tab's piles and for the same reasons. */
+/* The header spreads a pile and settles it; the stack under it spreads it —
+ * the Collections stack view's listener, for this tab's piles and for the
+ * same reasons. */
 document.addEventListener('click', e => {
   if (setView !== 'pile' || !currentSet) return;
   if (document.getElementById('tab-sets')?.style.display === 'none') return;
   const pile = e.target.closest('#setCards .card-pile');
-  if (pile) {
-    if (pile.dataset.pile === setFanned) return;
-    setFanned = pile.dataset.pile;
-  } else if (setFanned !== null) {
-    setFanned = null;
-  } else return;
+  if (!pile) return;
+  const label = pile.dataset.pile;
+  if (e.target.closest('.card-pile-hdr')) togglePile(setFanned, label);
+  else if (!setFanned.has(label)) setFanned.add(label);
+  else return;
   renderSetCards();
 });
 
