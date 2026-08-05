@@ -1779,55 +1779,13 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .db-qty-btn:hover { background: var(--surface-2); color: var(--text); }
 
-/* Grid tile overlay buttons */
+/* A tile is a positioning context for what a card carries — the quantity on a
+   pile card, the count on a handful in hand. What it no longer carries is
+   buttons: the ⓘ, the ⇄ and the × that appeared on the picture when the
+   pointer arrived are the card menu now (#dbCardMenu, below), because a card
+   under the pointer is lifted and the lift draws over anything lying on it —
+   the ⓘ was reachable only by not pointing at it. */
 .db-tile { position: relative; }
-.db-tile-btns {
-  position: absolute;
-  top: .3rem;
-  right: .3rem;
-  display: flex;
-  gap: var(--space-1);
-  opacity: 0;
-  transition: opacity calc(var(--motion-ui) * .15s);
-  z-index: 2;
-}
-.db-tile:hover .db-tile-btns { opacity: 1; }
-/* EXEMPT from the token rule: these float over a card image, so the fixed
-   black scrim and white glyph are correct on every theme. */
-.db-tile-btn {
-  background: rgba(0,0,0,.65);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-full);
-  width: 22px;
-  height: 22px;
-  font-size: var(--text-xs);
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background calc(var(--motion-ui) * .12s);
-}
-/* Both hovers swap the black scrim for a theme fill, so the glyph has to
-   swap with it — the base rule's fixed #fff only suits the black scrim, and
-   both fills are light on the dark themes. */
-.db-tile-move:hover { background: var(--primary); color: var(--primary-fg); }
-.db-tile-del:hover  { background: var(--danger);  color: var(--danger-fg); }
-
-/* Card-info button, top-left — hover-reveal like the move/delete buttons.
-   Clicking the card itself (image, name, or anywhere else on the tile)
-   selects it instead; this is the dedicated way to open the info popup. */
-.db-tile-info-wrap {
-  position: absolute;
-  top: .3rem;
-  left: .3rem;
-  z-index: 2;
-  opacity: 0;
-  transition: opacity calc(var(--motion-ui) * .15s);
-}
-.db-tile:hover .db-tile-info-wrap,
-.db-pile-card:hover .db-tile-info-wrap { opacity: 1; }
 .db-tile-selected { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-md); }
 
 /* Bulk actions bar (multiselect → move to category) */
@@ -1959,6 +1917,28 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-more-divider { border-top: 1px solid var(--border); margin: var(--space-1) 0; }
 .db-menu-danger { color: var(--danger); }
 .db-menu-danger:hover { background: var(--danger-soft); }
+
+/* ── What can be done to a card ───────────────────────────────────────────────
+   The .col-menu the app uses everywhere, opened at a point on the screen
+   instead of under the control that opened it: there is no control, because
+   the card is the control — it is asked by right-clicking it, or by holding a
+   finger on it. js/deckview-render.js places it, and clamps it to the window.
+
+   Fixed rather than absolute, since the point it is placed at is the pointer's
+   and the pointer's coordinates are the window's. Above the mat and above a
+   card in hand (z-index 60), below the modals it opens. */
+.db-card-menu {
+  position: fixed;
+  /* .col-menu hangs under the control that opened it, pinned to its right
+     edge. This one is placed by its top-left corner at a point instead, so
+     both of those have to be let go of — a menu still pinned to `right: 0`
+     while being given a `left` is a menu as wide as the window, and it was. */
+  right: auto;
+  top: auto;
+  z-index: 100;
+  min-width: 160px;
+  width: max-content;
+}
 
 /* Category header kebab menu (☑ select / ✎ rename / × delete consolidated) */
 .db-cat-kebab-wrap { position: relative; display: inline-block; }
@@ -2156,13 +2136,9 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-pile-card img {
   width: var(--card-width, 150px);
 }
-.db-pile-card .db-tile-btns {
-  position: absolute; top: 4px; right: 4px;
-  display: flex; gap: var(--space-1); opacity: 0;
-  transition: opacity calc(var(--motion-ui) * .15s); z-index: 11;
-}
-.db-pile-card:hover .db-tile-btns { opacity: 1; }
-/* EXEMPT from the token rule: sits on the card image, like .db-tile-btn. */
+/* EXEMPT from the token rule: sits on the card image, like the quantity badge
+   on a grid tile — a fixed black scrim and a white glyph read on every theme,
+   which a token pair cannot promise over a picture. */
 .db-pile-qty {
   position: absolute; top: 4px; left: 4px;
   background: rgba(0,0,0,.7); color: #fff;

@@ -905,6 +905,11 @@
     </div>
   </div>
 
+  <!-- What can be done to one card, asked for by right-clicking it or by
+       holding a finger on it. The items are written by js/deckview-render.js,
+       which knows whether this deck is mine to edit. -->
+  <div id="dbCardMenu" class="col-menu db-card-menu"></div>
+
   <!-- Move card modal -->
   <div id="dbMoveCardOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
     <div class="card-modal-box" style="max-width:460px;padding:var(--space-5)">

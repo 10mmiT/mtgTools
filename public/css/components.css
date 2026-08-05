@@ -547,7 +547,7 @@ td { padding: var(--space-2) var(--space-3); }
    transform and lands on the card's face however the card is leaning.
 
    EXEMPT from the colour rule: this is light on a card's face, composited
-   over card artwork — the exemption .db-tile-btn and .db-pile-qty already
+   over card artwork — the exemption .db-pile-qty and .card-fan-badge already
    carry for sitting on artwork. A palette colour would be wrong even if one
    existed for it: a highlight on a laminated surface is white in a cool room
    and in a warm one, and the artwork under it is not the theme's to tint.

@@ -47,8 +47,28 @@ function initDeckBuilder() {
     document.addEventListener('click', e => {
       if (!e.target.closest('#dbMoreMenu') && !e.target.closest('.col-menu-wrap')) dbCloseMoreMenu();
       if (!e.target.closest('.db-cat-kebab-wrap')) dbCloseCatMenus();
+      if (!e.target.closest('#dbCardMenu')) dbCloseCardMenu();
       dbStackClick(e);
     });
+
+    /* What can be done to a card, asked for the way anything is asked for of a
+     * thing on a screen. The browser's own menu is refused only over a card:
+     * everywhere else on the page — a name to copy, a picture to save — it is
+     * still the browser's to offer. */
+    document.getElementById('dbDeckContent')?.addEventListener('contextmenu', e => {
+      const name = _dbCardAt(e.target);
+      if (!name) return;
+      e.preventDefault();
+      dbOpenCardMenu(e.clientX, e.clientY, name);
+    });
+
+    /* An open menu belongs to the card it was opened on, and both of these
+     * take that card out from under it: the mat scrolling away beneath it, and
+     * a hand reaching for another card and carrying it off. */
+    window.addEventListener('scroll', dbCloseCardMenu, { passive: true });
+    document.addEventListener('pointerdown', e => {
+      if (e.button !== 2 && !e.target.closest('#dbCardMenu')) dbCloseCardMenu();
+    }, true);
 
     // Restore persisted view. A tab left in the XL view comes back in the
     // grid: XL was a second grid at a fixed size, and the size control is
@@ -64,7 +84,9 @@ function initDeckBuilder() {
       const inField     = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
       if (!dbTabActive || inField) return;
 
-      if (e.key === '/') {
+      if (e.key === 'Escape') {
+        dbCloseCardMenu();
+      } else if (e.key === '/') {
         e.preventDefault();
         dbOpenSearchPanel();
         setTimeout(() => document.getElementById('dbSearchInput')?.focus(), 50);

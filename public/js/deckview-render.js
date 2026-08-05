@@ -95,20 +95,25 @@ function _dbPaint() {
 }
 
 // ── Multiselect → bulk move ─────────────────────────────────────────────────
-// Clicking a card row/tile selects it (desktop click or mobile tap); a
-// dedicated "ⓘ" button (top-left on tiles, first column in list view) opens
-// the card info popup instead. On touch devices, a long-press also opens the
-// info popup in place of needing to find/tap that small button.
+// Clicking a card row/tile selects it (desktop click or mobile tap). What can
+// be *done* to a card is asked for rather than hung on it: right-click, or a
+// finger held on it, opens the card menu below.
 let _dbLongPressTimer = null;
 let _dbLongPressFired = false;
 const DB_LONG_PRESS_MS = 500;
 
+/* Where the finger is, so that a menu it asks for opens under it. Read at the
+ * start of the press rather than at the end of it: the point that matters is
+ * where the finger came down, and a touch that has moved has cancelled the
+ * press anyway. */
 function dbTouchStart(e, name) {
   _dbLongPressFired = false;
+  const touch = e.touches && e.touches[0];
+  const at = { x: touch ? touch.clientX : 0, y: touch ? touch.clientY : 0 };
   clearTimeout(_dbLongPressTimer);
   _dbLongPressTimer = setTimeout(() => {
     _dbLongPressFired = true;
-    openCardByName(name);
+    dbOpenCardMenu(at.x, at.y, name);
   }, DB_LONG_PRESS_MS);
 }
 
@@ -159,6 +164,81 @@ function dbSelectCategory(catName) {
     if (cat === catName && _dbMatchesFilter(card.card_name)) dbSelectedCards.add(card.card_name);
   }
   dbRender();
+}
+
+// ── What can be done to a card ───────────────────────────────────────────────
+// A card's actions used to hang off the card: a ⓘ in one corner of the picture
+// and a ⇄ and a × in the other, appearing when the pointer arrived. They are a
+// menu now, asked for by right-clicking the card or holding a finger on it.
+//
+// Three reasons, in the order they were noticed. The ⓘ was unreachable: a card
+// under the pointer is lifted, and js/cardlift.js raises the picture above the
+// furniture lying on it, so the one button you had to point at to reach was
+// the one the pointing hid. A hover-reveal control is also a control a finger
+// cannot find, and the long-press that stood in for it could only ever reach
+// one of the three. And a card is a card — the picture is the thing, and three
+// buttons floating on it are the tile the redesign is taking apart.
+//
+// What is *on* a card is what a card has: its name, its price, how many you
+// own. What can be done to it is a question, and this is where it is answered.
+// The list view keeps its own row of buttons: a row is not a picture, nothing
+// is lifted over it, and a line of small controls is what a table is for.
+
+/* Which card a point on the mat is on, from what the mat already says about
+   itself. js/cardmove.js's data-moves names everything on the mat as
+   "kind:name" so that it can be recognised across a rebuild, and a card is the
+   one kind that has anything to answer here — a settled stack stands for a
+   category and is the arrow's business, not a card's. */
+function _dbCardAt(target) {
+  const el = target && target.closest ? target.closest('[data-moves^="card:"]') : null;
+  return el ? el.dataset.moves.replace(/^card:/, '') : null;
+}
+
+/* Where a menu asked for at a point on the screen is drawn, given how big it
+ * is and how big the window is.
+ *
+ * At the point, so that it opens out of the card that was asked about — but
+ * never over an edge: a menu asked for near the bottom of the window opens
+ * upwards from the point instead, the way a menu asked for near the right
+ * opens leftwards, because a menu you have to scroll to is not an answer. A
+ * menu bigger than the window it is in has nowhere to flip to and is put in
+ * the corner, which is the one place it can be. */
+function dbMenuPlacement(point, menu, view, gap = 4) {
+  const along = (at, size, limit) => {
+    const past = at + size + gap > limit;
+    return Math.max(gap, Math.min(past ? at - size : at, limit - size - gap));
+  };
+  return {
+    left: along(point.x, menu.width,  view.width),
+    top:  along(point.y, menu.height, view.height),
+  };
+}
+
+/* Open it on a card. The items are written each time rather than shown and
+   hidden, because what can be done to a card depends on whose deck it is:
+   anybody may look a card up, and only the deck's owner may move or remove
+   one. Opened before it is placed, since a menu that is not being displayed
+   has no size to place. */
+function dbOpenCardMenu(x, y, name) {
+  const menu = document.getElementById('dbCardMenu');
+  if (!menu || !dbDeck) return;
+  const canEdit = isMyPlayer(dbDeck.playerId);
+  const n = jsAttr(name);
+  menu.innerHTML = `
+    <button class="col-menu-item" onclick="dbCloseCardMenu();openCardByName('${n}')">ⓘ Inspect</button>
+    ${canEdit ? `
+    <button class="col-menu-item" onclick="dbCloseCardMenu();dbShowMoveCard('${n}')">⇄ Move to…</button>
+    <button class="col-menu-item db-menu-danger" onclick="dbCloseCardMenu();dbRemoveCard('${n}')">× Remove</button>` : ''}`;
+  menu.classList.add('open');
+  const box = menu.getBoundingClientRect();
+  const at  = dbMenuPlacement({ x, y }, { width: box.width, height: box.height },
+                              { width: window.innerWidth, height: window.innerHeight });
+  menu.style.left = `${at.left}px`;
+  menu.style.top  = `${at.top}px`;
+}
+
+function dbCloseCardMenu() {
+  document.getElementById('dbCardMenu')?.classList.remove('open');
 }
 
 // ── Category header "⋯" menu ─────────────────────────────────────────────────
@@ -326,17 +406,11 @@ function _dbGridTile(card, canEdit) {
   const owned = sfCardOwnership(card.card_name);
   const price = renderPrice(sf);
   const selected = dbSelectedCards.has(card.card_name);
-  const infoBtn = `<button class="db-tile-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
-  const btns  = canEdit ? `
-    <div class="db-tile-btns">
-      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
-      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
-    </div>` : '';
+  /* No buttons on the picture: what can be done to this card is the card
+     menu's answer, and it is asked for by right-clicking the card. */
   const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
   return `<div class="sf-card-lg db-tile${selected ? ' db-tile-selected' : ''}${_dbLanded(card.card_name)}"
     ${_dbMoves('card', card.card_name)} ${_dbCarry(card.card_name, canEdit)} ${clickAttrs}>
-    <div class="db-tile-info-wrap">${infoBtn}</div>
-    ${btns}
     <div data-name="${esc(card.card_name)}">
       ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
@@ -406,19 +480,15 @@ function dbStackClick(e) {
 function _dbPileTile(card, canEdit) {
   const img  = _dbCardImg(card.card_name);
   const selected = dbSelectedCards.has(card.card_name);
-  const infoBtn = `<button class="db-tile-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
-  const btns = canEdit ? `
-    <div class="db-tile-btns">
-      <button class="db-tile-btn db-tile-move" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
-      <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
-    </div>` : '';
+  /* As the grid's tile: the picture is the card, and what can be done to it is
+     asked for rather than drawn on it. A fanned pile leaves only the top of
+     each card showing, which is where the buttons were and where the least
+     room for them is. */
   const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
   return `<div class="db-pile-card${selected ? ' db-tile-selected' : ''}${_dbLanded(card.card_name)}"
     style="--stack-turn:${stackJitter(card.card_name)}deg"
     ${_dbMoves('card', card.card_name)} ${_dbCarry(card.card_name, canEdit)} ${clickAttrs}>
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
-    <div class="db-tile-info-wrap">${infoBtn}</div>
-    ${btns}
     <div data-name="${esc(card.card_name)}">
       ${img ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div style="width:var(--card-width,150px);aspect-ratio:5/7;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md)"></div>`}
