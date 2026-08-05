@@ -1,15 +1,31 @@
+# Dependencies
 node_modules/
+
+# Databases and their write-ahead logs. The app's own data/ is created at
+# runtime; data.bak/ is whatever was moved aside before a restore.
 data/
+data.bak/
 *.db
 *.db-shm
 *.db-wal
+
+# Secrets — .env.example is the committed one
 .env
+
+# Screenshots. capture-screens.js writes PNGs and nothing else here is one;
+# the app's own artwork is SVG and its fonts are woff2.
 *.png
+
+# Scratch. Working notes, ticket sets, screenshot runs and the populated
+# database snapshot the harness renders against — all review aids, kept
+# locally. What a finished piece of work is worth keeping is written up as a
+# *-record.md at the root instead.
+.scratch/
+
+# Agent tooling
 .claude/
 .agents/
 skills-lock.json
 
-# Screenshot sets from scripts/capture-screens.js — review aids, kept locally
-.scratch/ui-redesign/shots/
-# Database snapshot the screenshot harness renders against
-.scratch/ui-redesign/capture-data/
+# Run output
+*.log

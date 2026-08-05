@@ -22,7 +22,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Sort** by name, mana value, color (WUBRG order), power, toughness, rarity, type, price, or quantity owned — via the Sort control or by clicking any column header
 - **Columns menu** to show/hide optional columns: Mana Value, Color (as mana pips), Type, Rarity, Power/Toughness, Price (off by default to keep the table clean)
 - Grid view shows full card images with per-collection ownership badges
-- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid view only; remembered per view)
+- **Pile view** draws the collection as stacks of cards on a table, grouped by whatever the tab is currently sorted by — sort by rarity and you get four stacks of visibly different heights, by mana value and you get your curve standing up off the table, by name and it buckets on the initial letter. Each stack shows its count and fans out when clicked; clicking away settles it
+- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid and pile views; remembered per view)
 - On mobile, defaults to grid view; list view is still available and scrolls horizontally
 - Hover over any card name (list view) for a Scryfall image tooltip
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens it on Scryfall instead)
@@ -71,8 +72,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Ownership dropdown to show all cards, only owned, or only unowned
 - The "N of M owned" figure is the toolbar's result count
 - **Sort** by set collector number (default), name, mana value, color, power, toughness, rarity, type, or price
-- **List** and **Grid** view toggle
-- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid view only; remembered per view)
+- **List**, **Grid**, and **Pile** view toggle — pile view stacks the set by the current sort field, the same way Collections does
+- **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid and pile views; remembered per view)
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 
 ### Want Lists tab
@@ -97,9 +98,11 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Multiselect**: click/tap a card (List/Grid/Pile) to select it, Ctrl/Cmd-A to select all visible, or "Select all" from a category's "⋯" menu — selected cards get a **Move to…** bulk action
 - **Right-click a card** (or hold a finger on it) for what can be done to it: **Inspect**, **Move to…**, **Remove**. Grid tiles and pile cards carry no buttons of their own — the picture is the card — while list rows keep their inline ⓘ ⇄ × as well
 - **Move to…** (single card or bulk) can also **✨ Auto-categorize** — sorts staples into functional categories the way Archidekt's community auto-categories do (Sol Ring → Ramp, Swords to Plowshares → Removal, etc.), falling back to card type — or create a brand-new category and move into it in one step
-- **Drag and drop** a card anywhere onto a category's column (not just its header) to move it there; auto-saves
+- **Carry a card** with the mouse or a stylus onto any category to move it there; auto-saves. The card follows the cursor with a little lag and leans into the direction it is travelling, the pile that would receive it lights up before you let go, and releasing settles it into place with a short overshoot. Released anywhere else it goes back where it came from and nothing changes. Dragging a card that is part of the current selection carries the **whole selection as a fan** with a count on it, and drops it through the same bulk move; dragging an unselected card carries that card alone and leaves the selection untouched
+- Dragging is for pointing devices — a finger scrolls the mat instantly, with no press-and-hold delay, and **Move to…** stays the way to recategorise on a phone
+- **The mat animates its own re-renders**: any change measures where each card was and where it ended up, and every card that moved travels there — so a removal, a sort or a move is something you watch happen rather than a result you have to work out. Only what can be seen is animated, so a four-hundred-card deck costs the same as a four-thousand-card one
 - **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price
-- **List**, **Grid**, and **Pile** view, with the shared **Size** slider for Grid and Pile (remembered per view, as on every other tab)
+- **List**, **Grid**, and **Pile** view, with the shared **Size** slider for Grid and Pile (remembered per view, as on every other tab). A pile is a real stack — the face card on top with the edges of the cards beneath showing, getting visibly thicker as the category grows, so you can read the shape of a deck without counting. Each card's slight angle comes from its name, so the same card sits the same way on every render and the mat never reshuffles itself behind your back. Clicking a pile fans it out; clicking away settles it
 - Quick **Add a card** box with card-name autocomplete (served from the local card database); **Import CSV** or **Paste List** (`1 Sol Ring` / `1x Sol Ring` / `// Category` lines) for bulk add
 - **Search / EDHREC** drawer panel:
   - **Search** tab — Scryfall query search (with an optional commander color-identity filter) to find and add cards, each shown with a thumbnail
@@ -129,18 +132,23 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Feed data is fetched server-side and cached for 10 minutes; supports HTTP redirects
 
 ### General
-- **5 themes** — Dark, Light, High Contrast, Sepia, and Dusk. Desktop picks via a dropdown in the sidebar (with a checkmark on the active theme); mobile cycles through them with a single tap. **The choice is saved to your account**, so it follows you to any device you sign in on; the browser keeps a copy too, which is what paints the first frame and what remembers the theme in open mode (no `ADMIN_PASSWORD`), where there are no accounts. A `?theme=` URL parameter (`/?theme=light`, ids: `dark`, `light`, `contrast`, `sepia`, `dusk`) overrides and replaces the saved preference — handy for sharing a link in a specific theme, or for recovering from an unreadable stored one; an unknown id is ignored
+- **Appearance popover** — one menu for everything about how the app looks: the theme, the playmat, and whether cards move. Opened from the sidebar on a desktop and from the nav dropdown on a phone
+- **5 themes** — Dark, Light, High Contrast, Sepia, and Dusk, picked from the Appearance popover (with a checkmark on the active one). **The choice is saved to your account**, so it follows you to any device you sign in on; the browser keeps a copy too, which is what paints the first frame and what remembers the theme in open mode (no `ADMIN_PASSWORD`), where there are no accounts. A `?theme=` URL parameter (`/?theme=light`, ids: `dark`, `light`, `contrast`, `sepia`, `dusk`) overrides and replaces the saved preference — handy for sharing a link in a specific theme, or for recovering from an unreadable stored one; an unknown id is ignored
+- **Playmat** — set any card's artwork as the page background by name, or upload your own image (JPEG/PNG/WebP, up to 5 MB; uploads need an account). Saved to your account like the theme, painted before the first frame, and off by default on phones with a per-device switch to turn it on
 - **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows — independent of the 5 UI themes above, since mana symbol colours represent the game, not the chrome
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - **Minimal-UI conventions across all tabs**: one shared List/Grid(/Pile) view toggle component, shared Sort, Size and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
 - **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck Builder); your sort field/direction and which columns are shown persist per-view in the browser
 - **Card size** on every view that draws card art (Collections, Scryfall Search, Set Browser, Want Lists, Deck Builder): one shared slider on the tab's strip, hidden in list views, remembered per tab *and* per view — so a collection scanned at thumbnails leaves the deck you are building at the size you build it at. It replaces the old XL view, which was this question answered once at 220px and nailed to a button
+- **Cards are objects, not tiles.** Card artwork is drawn with no frame around it — the picture is the card. Its shadow follows its own rounded silhouette rather than a box, a lit top edge and shaded bottom edge give it thickness, and the corners are a real card's corner as a ratio, so they stay right at every size the slider reaches
+- **Pointing at a card picks it up**: it lifts, scales, leans a few degrees towards the pointer, and a sheen crosses its face. The card's layout box never changes, so the pointer can't fall off a card that grew underneath it and the grid never reflows — crossing a grid quickly leaves no trail of half-animated cards. Touch pointers never lift anything, so no hover state outlives the finger that caused it
+- **"Cards move" switch** in the Appearance popover turns all of that off, saved to your account like the theme. **If your operating system asks for reduced motion the whole app is still** — every transition and animation in the app is written under that guard, and the token linter fails the build on one that isn't. The system setting can only take motion away, never add it back, so it wins over the switch; the switch shows what you chose rather than silently unticking itself, with a note saying what happened
 - **Scryfall traffic is centralised and cached**: the server keeps a daily copy of Scryfall's bulk card data in SQLite and serves card images/metadata/autocomplete locally; the few remaining live calls (full-text search, card detail, set browsing) go through a server-side proxy with a shared rate-limit queue and a 10-minute response cache — the browser never talks to api.scryfall.com directly
 - Click any card (name or image) to open the card detail — a **modal overlay on desktop (≥900px)** or the **Card tab on mobile**; Ctrl/Cmd-click opens Scryfall instead
 - **URL hash routing**: tab switches and card views update the URL (`#collections`, `#card=...`); browser **back/forward** buttons navigate between views; refresh restores your current view
 - Rarely-used panels live in slide-over **drawers** opened from the tab's toolbar (Add Collection, Deck Comparison below 1280px, Deck Pool); the one thing left that collapses in place is a player's row of deck tiles, folded from the player's own header
 - Per-user login system with player-linked accounts and an admin role
-- **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content, with account actions (user badge, theme picker, RSS, change password, sign out) anchored to the bottom; click Collapse to shrink to icon-only mode — state persists across reloads. There's no top header on desktop — it's mobile-only
+- **Desktop navigation**: tabs live in a collapsible left sidebar that overlays the content, with account actions (user badge, Appearance, RSS, change password, sign out) anchored to the bottom; click Collapse to shrink to icon-only mode — state persists across reloads. There's no top header on desktop — it's mobile-only
 - **Mobile-friendly**: sidebar hidden on mobile, replaced by a compact dropdown plus a slim header (logo + RSS); all forms stack to full-width; inputs use a 16px font to avoid iOS zoom-on-focus; view toggles are right-aligned across all tabs
 
 ## Getting Started
@@ -245,21 +253,38 @@ mtgtools/
 ├── scryfall-db.js     # Scryfall bulk-data cache — daily oracle_cards download into SQLite
 ├── scryfall-queue.js  # One rate-limited Scryfall queue for the whole process (~9 req/s, Retry-After)
 ├── set-index.js       # What is in each set — background-filled, for the Set Browser's owned counts
+├── playmat-store.js   # Uploaded playmat images — one file per user, under data/playmats/
 ├── middleware/
-│   └── auth.js        # Session auth helpers (requireAuth, requireAdmin)
+│   ├── auth.js        # Session auth helpers (requireAuth, requireAdmin)
+│   └── limits.js      # The app's rate limiters — auth and playmat upload, two budgets
 ├── routes/
 │   ├── admin.js       # Admin panel API — user management, account requests
 │   ├── auth.js        # Auth API — login, logout, account request, change password
 │   ├── available.js   # Availability calendar API
 │   ├── cards.js       # Local card endpoints — /api/cards/collection + /api/cards/autocomplete (from scryfall-db)
+│   ├── decks.js       # Deck Builder API — a deck's cards and its categories
+│   ├── prefs.js       # Per-account preferences — theme, playmat, card motion
 │   ├── scryfall-proxy.js # Live Scryfall proxy — shared rate-limit queue, Retry-After handling, 10-min GET cache
 │   ├── proxy.js       # Archidekt/Moxfield collection + deck proxy, EDHREC proxy
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
-├── test/
-│   ├── server.test.js # Integration tests (node:test + supertest)
-│   └── tokens.test.js # Token-contract lint, asserted over the delivered CSS
+├── test/              # 15 files, run by `npm test`
+│   ├── server.test.js       # HTTP seam — auth, state, admin, decks, prefs
+│   ├── prefs-open-mode.test.js  # Preferences with no accounts to hang them on
+│   ├── tokens.test.js       # Token-contract lint, asserted over the delivered CSS
+│   ├── themes.test.js       # All five palettes define every token
+│   ├── fonts.test.js        # The vendored typeface is served and self-hosted
+│   ├── playmat.test.js      # Upload, replace, remove, and what counts as an image
+│   ├── offline.test.js      # The app renders with no route out
+│   ├── motion.test.js       # The preference resolved against the OS setting
+│   ├── cardlift.test.js     # The lean, at the extremes and at the centre
+│   ├── cardstack.test.js    # Layers from count, angle from name
+│   ├── cardgroups.test.js   # Which pile a card belongs in, per sort field
+│   ├── cardsize.test.js     # The size store, keyed per tab and per view
+│   ├── cardmove.test.js     # What travels on a re-render, and what is skipped
+│   ├── carddrag.test.js     # Hit-testing piles, the fan, the drop's effect
+│   └── cardmenu.test.js     # Where a menu asked for at a point is drawn
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -270,6 +295,8 @@ mtgtools/
 ├── public/
 │   ├── index.html     # Single-page app shell
 │   ├── login.html     # Password login page
+│   ├── fonts/         # Inter, vendored — the app renders the same with no route out
+│   ├── vendor/        # mana-font and jsPDF, vendored for the same reason
 │   ├── css/           # Loaded in this order; later files may override earlier
 │   │   ├── tokens.css     # The only file allowed raw colours: five theme palettes,
 │   │   │                  # the type/spacing/radius scales, the three breakpoints,
@@ -305,6 +332,11 @@ mtgtools/
 │       ├── pick.js        # Pick Night tab (random deck assignment)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
+├── ui.md                       # The "Cards on a Table" interactivity brief — the design
+│                               # intent behind how cards behave; built, kept as context
+├── spec-cards-as-objects.md    # The PRD that work was specified from
+├── cards-as-objects-record.md  # …and what was actually built, written after delivery
+├── ui-redesign-record.md       # The same, for the UI redesign that came before it
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -328,15 +360,32 @@ The sweep is sequential on purpose: one request in the shared queue at a time, s
 
 Deleting `scryfall.db` costs nothing but the refill.
 
+## Design records
+
+Two pieces of work were large enough to be worth writing up afterwards, and each has a record at the repo root that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
+
+| document | what it covers |
+|---|---|
+| [ui-redesign-record.md](ui-redesign-record.md) | The visual redesign — the token contract, the layout rules, the measurement scripts, the playmat |
+| [cards-as-objects-record.md](cards-as-objects-record.md) | Cards as objects — the motion preference and its contract, the card treatment, the lift, stacks and the pile views, the shared size control, animated re-renders, carrying a card and a handful, and the card menu |
+
+`ui.md` is the interactivity brief the second of those was written against, and `spec-cards-as-objects.md` is its PRD. Both are kept as context; where either disagrees with the record, the record is what happened.
+
 ## Testing
 
-The project ships an integration test suite using Node's built-in `node:test` runner and `supertest`.
+The project ships a test suite using Node's built-in `node:test` runner and `supertest` — 276 tests across 15 files, needing no browser and no network.
 
 ```bash
 npm test
 ```
 
-Tests spin up an isolated in-memory SQLite database and a temporary state file so they never touch production data. The suite covers auth, state, and admin API routes.
+Tests are written at three seams, all of which assert externally observable behaviour rather than which function called which:
+
+- **The HTTP seam** drives the Express app through a client against an isolated in-memory SQLite database and a temporary state file, so they never touch production data. It covers auth, state, admin, deck and preference routes — anything that is request/response behaviour, including the whole playmat and the card-motion preference.
+- **The static seam** is the token linter below, because a visual contract cannot be asserted over HTTP and its most valuable guarantee is a property of the delivered stylesheet.
+- **The vm seam** loads a shipped browser file into a `vm` context and calls its decisions directly. Everything the card behaviour decides about *where something goes* is written as a pure function of its inputs and exported from the file that ships — how thick a stack of *n* cards is, what angle a card's name gives it, which pile a card belongs in for the current sort, how far a card leans, which pile a released card would land in, where each card lies in a carried fan, where a menu asked for at a point is drawn. So those are asserted at their boundaries rather than eyeballed through a browser.
+
+Nothing asserts markup: this work churned markup deliberately.
 
 ### Token-contract linter
 
