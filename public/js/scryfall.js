@@ -56,23 +56,36 @@ async function _sfPump() {
 // and only fall back to live Scryfall for names the local DB doesn't know
 // (brand-new cards) or when the bulk download hasn't finished yet (503).
 
+/* How many names the local endpoint answers in one request. It takes the first
+ * five hundred and says nothing at all about the rest — they come back neither
+ * as cards nor as not_found (routes/cards.js) — so a caller that asked for more
+ * would take the silence for "no such card", mark them unresolved below, and
+ * never ask again. That is why the chunking is here and not in each caller:
+ * this function answers for the names it is handed, however many there are. */
+const CARD_DB_BATCH = 500;
+
 // Returns an array of Scryfall-shaped card objects for `names` (any length).
 async function fetchCardCollection(names) {
   if (!names.length) return [];
-  let cards = [];
-  let remaining = names;
+  const cards = [];
+  const remaining = [];
 
-  try {
-    const res = await fetch('/api/cards/collection', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ names }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      cards     = json.data || [];
-      remaining = json.not_found || [];
-    }
-  } catch {}
+  for (let i = 0; i < names.length; i += CARD_DB_BATCH) {
+    const batch = names.slice(i, i + CARD_DB_BATCH);
+    try {
+      const res = await fetch('/api/cards/collection', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ names: batch }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        cards.push(...(json.data || []));
+        remaining.push(...(json.not_found || []));
+      } else {
+        remaining.push(...batch);   // the local DB is not up yet; try Scryfall
+      }
+    } catch { remaining.push(...batch); }
+  }
 
   // Fall back to live Scryfall for anything the local DB couldn't resolve
   for (let i = 0; i < remaining.length; i += 75) {

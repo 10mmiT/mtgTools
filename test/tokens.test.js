@@ -9,11 +9,12 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { lint, lintSource, format, IMPORTANT_ALLOWLIST, ELEVATION_ALLOWLIST } =
+const { lint, lintSource, format, IMPORTANT_ALLOWLIST, ELEVATION_ALLOWLIST, MOTION_ALLOWLIST } =
   require('../scripts/lint-tokens.js');
 
 const rules = src => lintSource(src).map(v => v.rule);
 const inlineRules = src => lintSource(src, { inline: true }).map(v => v.rule);
+const markupRules = src => lintSource(src, { markup: true }).map(v => v.rule);
 
 test('the delivered stylesheet satisfies the token contract', () => {
   const violations = lint();
@@ -116,6 +117,62 @@ test('the elevation rule allows a border or a shadow, not both', () => {
     [], 'a ring alongside a border is not an elevation conflict');
 });
 
+test('an unguarded transition or animation is caught', () => {
+  assert.deepStrictEqual(rules('.a { transition: opacity .2s; }'), ['motion']);
+  assert.deepStrictEqual(rules('.a { animation: spin .6s linear infinite; }'), ['motion']);
+  assert.deepStrictEqual(rules('.a { transition-duration: 150ms; }'), ['motion']);
+  assert.deepStrictEqual(rules('.a { transition-delay: .2s; }'), ['motion'],
+    'a delay is a wait, and a wait is movement someone has to sit through');
+  assert.deepStrictEqual(
+    rules('.a { transition: transform calc(var(--motion-ui) * .2s), opacity .2s; }'),
+    ['motion'], 'one guarded half of a shorthand does not carry the other');
+});
+
+test('a duration multiplied by a motion token is guarded', () => {
+  assert.deepStrictEqual(rules('.a { transition: opacity calc(var(--motion-ui) * .2s); }'), []);
+  assert.deepStrictEqual(rules('.a { transition: transform calc(var(--motion) * .2s); }'), [],
+    'the card multiplier guards too — it is the narrower of the two');
+  assert.deepStrictEqual(rules('.a { transition: opacity calc(.2s * var(--motion-ui)); }'), [],
+    'multiplication commutes, and so does the guard');
+  assert.deepStrictEqual(rules('.a { transition: opacity calc(var(--motion-ish) * .2s); }'),
+    ['motion'], 'a token that tokens.css does not define is not a guard');
+});
+
+test('what a guarded transition may still say', () => {
+  assert.deepStrictEqual(rules('.a { transition: none; }'), [],
+    'nothing to guard');
+  assert.deepStrictEqual(
+    rules('.a { transition: transform calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s); }'),
+    [], 'a zero is already no time at all');
+  assert.deepStrictEqual(
+    rules('.a { transition: transform calc(var(--motion-ui) * .3s) cubic-bezier(.34, 1.56, .64, 1); }'),
+    [], 'the numbers in an easing curve are not durations');
+});
+
+test('the motion rule reaches the stylesheet inside the markup', () => {
+  // login.html keeps its own small stylesheet in a <style> block, and it is
+  // delivered CSS: the way into the app has to be still too.
+  assert.deepStrictEqual(markupRules('<style>.a { transition: opacity .2s; }</style>'), ['motion']);
+  assert.deepStrictEqual(
+    markupRules('<style>.a { transition: opacity calc(var(--motion-ui) * .2s); }</style>'), []);
+});
+
+test('the motion allowlist is a ratchet', () => {
+  const src = '.a { transition: opacity .2s; }';
+  assert.deepStrictEqual(lintSource(src, { motionAllow: ['.a'] }), [],
+    'an entry suppresses the rule for exactly its own selector');
+  assert.deepStrictEqual(
+    lintSource('.b { transition: opacity .2s; }', { motionAllow: ['.a'] })
+      .map(v => v.rule).sort(),
+    ['motion', 'stale-allowlist'],
+    'and for nothing else — and the unused entry is reported in the same breath');
+
+  const guarded = '.a { transition: opacity calc(var(--motion-ui) * .2s); }';
+  assert.deepStrictEqual(
+    lintSource(guarded, { motionAllow: ['.a'] }).map(v => v.rule), ['stale-allowlist'],
+    'an entry that is no longer needed is itself a failure, so the list cannot refill');
+});
+
 test('!important is caught, and no exemption comment can excuse it', () => {
   assert.deepStrictEqual(rules('.a { color: var(--text) !important; }'), ['important']);
   assert.deepStrictEqual(
@@ -136,6 +193,14 @@ test('an exemption comment naming nothing escapes everything', () => {
     /* EXEMPT — no rule named. */
     .a { color: #fff; font-size: 15px; }`;
   assert.deepStrictEqual(rules(src), []);
+});
+
+test('no exemption comment can excuse an unguarded transition', () => {
+  const src = `
+    /* EXEMPT — no rule named. */
+    .a { color: #fff; transition: opacity .2s; }`;
+  assert.deepStrictEqual(rules(src), ['motion'],
+    'motion has an allowlist instead, so the count stays visible in one place');
 });
 
 test('an exemption comment stops at the end of its scope', () => {
@@ -184,4 +249,7 @@ test('the allowlists are a ratchet that only shrinks', () => {
   assert.strictEqual(important, 12, '12 !important declarations, targeting zero');
   assert.strictEqual(ELEVATION_ALLOWLIST.length, 0,
     'the elevation allowlist reached zero in ticket 10 and stays there');
+  assert.strictEqual(MOTION_ALLOWLIST.length, 0,
+    'every transition and animation in the app came under the guard in one ' +
+    'pass, so the motion allowlist starts empty and has nowhere to go but back');
 });

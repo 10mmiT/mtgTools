@@ -11,6 +11,10 @@
        stylesheets because a script after a <link> waits for every sheet
        declared before it. -->
   <script src="js/playmat.js"></script>
+  <!-- Beside it, and in <head> for the same reason: a page that paints and
+       then discovers motion is off has already moved. It puts the effective
+       answer on <html>, where the stylesheet below reads it. -->
+  <script src="js/motion.js"></script>
   <!-- Load order is cascade order: later files may override earlier ones. -->
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
@@ -209,6 +213,7 @@
     <input id="searchInput" type="text" class="search-input" placeholder="Search by card name…" oninput="scheduleRender()">
     <span id="resultInfo" class="result-info"></span>
     <div id="colViewMount"></div>
+    <div id="colSizeMount"></div>
     <div id="colSortMount"></div>
     <div id="colColumnsMount"></div>
     <button class="btn-secondary" onclick="openDrawer('addColDrawer')" title="Add a collection">+ Add</button>
@@ -218,8 +223,11 @@
   <!-- One chip per loaded collection, rendered by renderCollections() -->
   <div class="chip-row" id="collectionsChips" style="display:none"></div>
 
-  <!-- Results -->
-  <div class="section">
+  <!-- Results. The card-size control sets --card-width on this box rather than
+       on a grid, so it reaches whichever view is drawn inside it: the grid and
+       the piles are both replaced on every render, an inline width set on one
+       of them would go with it. -->
+  <div class="section" id="colResults">
     <div id="listView">
       <div class="table-wrap">
         <table id="resultsTable">
@@ -238,6 +246,7 @@
     <div id="gridView" style="display:none">
       <div class="card-grid" id="cardGrid"></div>
     </div>
+    <div id="pileView" style="display:none"></div>
     <div id="colShowMoreWrap" style="display:none;padding:var(--space-2) var(--space-2) 0"></div>
   </div>
 
@@ -347,6 +356,7 @@
     <button class="btn-primary" onclick="doScryfallSearch()">Search</button>
     <span id="sfInfo" class="result-info"></span>
     <div id="sfViewMount"></div>
+    <div id="sfSizeMount"></div>
     <div id="sfSortMount"></div>
   </div>
 
@@ -383,6 +393,7 @@
       <option value="unowned">Unowned only</option>
     </select>
     <div id="setViewMount" class="sets-when-cards"></div>
+    <div id="setSizeMount" class="sets-when-cards"></div>
     <div id="setSortMount" class="sets-when-cards"></div>
   </div>
 
@@ -411,6 +422,7 @@
     <button class="btn-primary" onclick="addWant()">+ Add</button>
     <span id="wantInfo" class="result-info"></span>
     <div id="wantViewMount"></div>
+    <div id="wantSizeMount"></div>
     <div id="wantSortMount"></div>
     <div id="wantColumnsMount"></div>
     <div class="col-menu-wrap">
@@ -743,10 +755,7 @@
     <span id="dbSaveStatus" class="db-save-status result-info"></span>
 
     <div id="dbViewMount" class="db-when-deck"></div>
-    <div class="db-scale-wrap db-when-deck" id="dbScaleWrap" style="display:none">
-      <label for="dbScaleSlider">Size</label>
-      <input type="range" class="db-scale-slider" id="dbScaleSlider" min="80" max="300" step="10" value="150" oninput="dbSetScale(this.value)">
-    </div>
+    <div id="dbSizeMount" class="db-when-deck"></div>
     <div id="dbSortMount" class="db-when-deck"></div>
 
     <button class="btn-secondary db-when-deck" onclick="dbOpenSearchPanel()" title="Search Scryfall / EDHREC">
@@ -896,6 +905,11 @@
     </div>
   </div>
 
+  <!-- What can be done to one card, asked for by right-clicking it or by
+       holding a finger on it. The items are written by js/deckview-render.js,
+       which knows whether this deck is mine to edit. -->
+  <div id="dbCardMenu" class="col-menu db-card-menu"></div>
+
   <!-- Move card modal -->
   <div id="dbMoveCardOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
     <div class="card-modal-box" style="max-width:460px;padding:var(--space-5)">
@@ -977,7 +991,7 @@
 <input type="file" id="wantCsvInput" accept=".csv,.txt"     style="display:none">
 
 <!-- Card image tooltip (list view only) -->
-<div id="cardTooltip"><img id="tooltipImg" alt=""></div>
+<div id="cardTooltip"><img id="tooltipImg" class="card-img" alt=""></div>
 
 <!-- One scrim for every drawer — it is what a click outside them lands on -->
 <div id="drawerScrim" class="drawer-scrim" onclick="closeDrawers()"></div>
@@ -1031,6 +1045,21 @@
     <input type="checkbox" id="playmatMobileToggle" onchange="togglePlaymatOnMobile(this.checked)">
     <span>Show it on this phone</span>
   </label>
+
+  <div class="db-more-divider"></div>
+  <div class="db-more-section-label">Motion</div>
+  <!-- The person's own answer, kept with them like the theme above. The box
+       shows what they chose; the note below shows when their system is
+       overriding it, which the box deliberately does not. -->
+  <label class="col-menu-item">
+    <input type="checkbox" id="cardMotionToggle" checked
+           onchange="setCardMotion(this.checked)">
+    <span>Cards move</span>
+  </label>
+  <p class="motion-note" id="cardMotionNote" hidden>
+    Your system asks for reduced motion, so cards stay still here whatever
+    this says.
+  </p>
 </div>
 
 <!-- RSS Panel -->
@@ -1049,6 +1078,10 @@
 <script src="js/auth.js"></script>
 <script src="js/scryfall.js"></script>
 <script src="js/sortui.js"></script>
+<script src="js/cardlift.js"></script>
+<script src="js/cardstack.js"></script>
+<script src="js/cardmove.js"></script>
+<script src="js/carddrag.js"></script>
 <script src="js/card.js"></script>
 <script src="js/collections.js"></script>
 <script src="js/players.js"></script>

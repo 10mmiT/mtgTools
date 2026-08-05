@@ -168,7 +168,10 @@ async function loadFromStorage() {
 // `stored` says whether the server is keeping any of this. It is false in open
 // mode, where there are no accounts, and false whenever the request fails; in
 // both cases localStorage is the whole record.
-const prefs = { ...{ theme: null, playmatKind: 'none', playmatRef: null, playmatUrl: null }, stored: false };
+const prefs = {
+  ...{ theme: null, playmatKind: 'none', playmatRef: null, playmatUrl: null, cardMotion: 'on' },
+  stored: false,
+};
 
 async function loadPrefs() {
   try {

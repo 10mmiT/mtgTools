@@ -196,24 +196,43 @@ function dbMoveToNewCategory() {
   dbConfirmMoveCard(name);
 }
 
-function dbConfirmMoveCard(catName) {
-  if (_dbBulkMoveMode) {
-    for (const name of dbSelectedCards) {
-      const card = dbCards.find(c => c.card_name === name);
-      if (card) card.category = catName;
-    }
-    dbSelectedCards.clear();
-    dbHideMoveCard();
-    dbRender();
-    _dbScheduleSave();
-    return;
+/* Put cards in a category. The one place in the app where a card changes
+ * category: the move modal calls it, the bulk bar calls it, and a card carried
+ * to another pile calls it through cardCarryDrop() — so a card moved by hand
+ * and a card moved from a list are moved by the same code, and the autosave
+ * fires the same once either way.
+ *
+ * It answers whether anything actually moved, which is not the same question as
+ * whether it was asked to. A card dropped on the pile it is already in has
+ * nothing to change, and a caller with something to undo — a card in hand,
+ * waiting to find out whether it is staying — needs to be able to tell that
+ * from a move. The deck is not rebuilt and nothing is saved for a no-op, so an
+ * accidental drop back on the pile a card came from is not a save and not a
+ * re-render either. */
+function dbMoveCardsTo(names, catName) {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return false;
+  let moved = false;
+  for (const name of names) {
+    const card = dbCards.find(c => c.card_name === name);
+    if (!card || card.category === catName) continue;
+    card.category = catName;
+    moved = true;
   }
-  if (!_dbMovingCard) return dbHideMoveCard();
-  const card = dbCards.find(c => c.card_name === _dbMovingCard);
-  if (card) { card.category = catName; }
-  dbHideMoveCard();
+  if (!moved) return false;
   dbRender();
   _dbScheduleSave();
+  return true;
+}
+
+function dbConfirmMoveCard(catName) {
+  const bulk  = _dbBulkMoveMode;
+  const names = bulk ? [...dbSelectedCards] : (_dbMovingCard ? [_dbMovingCard] : []);
+  if (bulk) dbSelectedCards.clear();
+  dbHideMoveCard();
+  /* The selection is gone whether or not a card went anywhere, and a selection
+   * is drawn on the cards — so a bulk move that moved nothing still has a mat
+   * to redraw. */
+  if (!dbMoveCardsTo(names, catName) && bulk) dbRender();
 }
 
 // ── Auto-save ─────────────────────────────────────────────────────────────────

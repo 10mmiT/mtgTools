@@ -373,6 +373,7 @@ const COL_COLUMNS = [
 const COL_SORT_FIELDS = ['name', 'qty', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 
 let _colControlsMounted = false;
+let _colSizeSync = null;
 function initCollectionsControls() {
   // Adopt any persisted sort into the collections state
   const s = getSort('collections', { field: state.sort.field || 'name', dir: state.sort.dir || 1 });
@@ -383,8 +384,17 @@ function initCollectionsControls() {
     renderResults();
   });
   mountColumnMenu('colColumnsMount', 'collections', COL_COLUMNS, renderResults);
+  /* #colResults, the box the views are drawn in, rather than the grid inside
+     it: the size applies to the grid and to the stacks, and both are replaced
+     on every render. */
+  _colSizeSync = mountSizeControl('colSizeMount', 'collections', 'colResults', () => viewMode);
   _colControlsMounted = true;
 }
+
+/* Called when the view changes; see setViewMode. Null until the first render
+ * has mounted the strip's controls. */
+function syncColSize() { _colSizeSync?.(); }
+
 // Keep the Sort dropdown in sync when a column header is clicked
 function syncColSortControl() {
   const sel = document.querySelector('#colSortMount .sort-select');
@@ -458,6 +468,7 @@ function renderResults() {
 
   document.getElementById('listView').style.display = viewMode === 'list' ? '' : 'none';
   document.getElementById('gridView').style.display = viewMode === 'grid' ? '' : 'none';
+  document.getElementById('pileView').style.display = viewMode === 'pile' ? '' : 'none';
 
   if (!state.collections.length) {
     // Both views need the empty state — mobile defaults to grid view, which
@@ -469,6 +480,7 @@ function renderResults() {
       `<tr><td colspan="99" class="empty-state">${hint}</td></tr>`;
     document.getElementById('cardGrid').innerHTML =
       `<div class="empty-state" style="grid-column:1/-1">${hint}</div>`;
+    document.getElementById('pileView').innerHTML = `<div class="empty-state">${hint}</div>`;
     infoEl.textContent = '';
     if (moreEl) moreEl.style.display = 'none';
     return;
@@ -479,18 +491,25 @@ function renderResults() {
   const isMobile  = window.innerWidth < BP_SM;
   const MOBILE_CAP = 150;
   const fullMax   = viewMode === 'grid' ? 200 : 500;
-  const MAX       = (isMobile && !_mobileShowAll) ? MOBILE_CAP : fullMax;
+  /* The stack view is not capped, and needs no "show all": a pile is a summary
+     — one picture and one number however many cards are in it — so drawing the
+     whole collection as stacks costs what drawing a dozen of them costs, and a
+     collection cut off at its first two hundred rows would be four stacks of
+     the wrong heights. What is bounded there is the fan; see cardstack.js. */
+  const MAX       = viewMode === 'pile' ? rows.length
+                  : (isMobile && !_mobileShowAll) ? MOBILE_CAP : fullMax;
 
   infoEl.textContent = rows.length === 0
     ? 'No results'
     : `${rows.length.toLocaleString()} card${rows.length !== 1 ? 's' : ''}${rows.length > MAX ? ` (showing first ${MAX})` : ''}`;
 
-  if (viewMode === 'list') renderListView(rows, MAX);
-  else                     renderGridView(rows, MAX);
+  if (viewMode === 'list')      renderListView(rows, MAX);
+  else if (viewMode === 'pile') renderPileView(rows);
+  else                          renderGridView(rows, MAX);
 
   // Show "Show all" button on mobile when results are capped
   if (moreEl) {
-    const capped = isMobile && !_mobileShowAll && rows.length > MOBILE_CAP;
+    const capped = viewMode !== 'pile' && isMobile && !_mobileShowAll && rows.length > MOBILE_CAP;
     if (capped) {
       moreEl.style.display = '';
       moreEl.innerHTML = `<button class="btn-secondary" style="width:100%;padding:var(--space-2);font-size:var(--text-base)"
@@ -590,6 +609,92 @@ function colPT(m) {
   return (m.power != null && m.toughness != null) ? `${esc(String(m.power))}/${esc(String(m.toughness))}` : '—';
 }
 
+// ── Stack view ────────────────────────────────────────────────────────────
+// The same cards as the grid, put in piles — and what belongs in a pile is
+// whatever the tab is sorted by, so sorting by rarity gives four stacks of
+// visibly different heights and sorting by mana value stands the curve up off
+// the table. js/sortui.js cuts the piles and js/cardstack.js draws them; what
+// is here is what a Collections card is (its picture, and how many of it are
+// owned) and what clicking a pile means.
+
+/* Which piles are spread out. Empty is the tidy table; any number of them may
+ * be open at once, for the reason js/cardstack.js gives. */
+const _colFannedPiles = new Set();
+
+/* A merged collection row, seen as a card on a table. The badge is the number
+   the list view's Total column says: how many of it are owned across every
+   collection, which is this tab's own figure for a card. */
+function _colStackCard(row) {
+  const total = row._sortQty ?? row.qtys.reduce((s, q) => s + q, 0);
+  return {
+    name:  row.name,
+    img:   scryfallCache.get(row.name),
+    badge: `×${total}`,
+    href:  `https://scryfall.com/search?q=!%22${encodeURIComponent(row.name)}%22`,
+  };
+}
+
+async function renderPileView(rows) {
+  const host = document.getElementById('pileView');
+
+  if (!rows.length) {
+    host.innerHTML = `<div class="empty-state">No cards match your search.</div>`;
+    return;
+  }
+
+  /* Two of this tab's sort fields exist only as column headers in the list
+     view — "Total", and one per loaded collection — and both are quantities.
+     The stack view stacks them as the quantity they are rather than falling
+     back on the initial letter, which is what an unknown field would get. */
+  const field = (state.sort.field === 'total' || state.sort.field.startsWith('col_'))
+    ? 'qty' : state.sort.field;
+
+  // Already in sort order — buildRows sorted them, and a pile is a run of that
+  // order rather than a second arrangement of it.
+  const groups = cardGroups(field, rows);
+  settleGonePiles(_colFannedPiles, groups);
+
+  const draw = () => cardPilesHtml(groups, { fanned: _colFannedPiles, cardOf: _colStackCard });
+  host.innerHTML = draw();
+
+  /* Only what is actually drawn needs a picture: the card on top of each pile,
+     and the cards the fanned one spreads. That is what keeps a stack view of a
+     whole collection cheaper than a grid of its first two hundred cards. */
+  const missing = [];
+  for (const group of groups) {
+    const drawn = _colFannedPiles.has(group.label)
+      ? group.cards.slice(0, STACK_FAN_MAX) : group.cards.slice(0, 1);
+    for (const card of drawn) if (!scryfallCache.has(card.name)) missing.push(card.name);
+  }
+  if (missing.length) {
+    await ensureScryfallImages(missing);
+    // Only re-render if the stack view is still the one on screen
+    if (document.getElementById('pileView').style.display !== 'none') host.innerHTML = draw();
+  }
+}
+
+/* What clicking a pile does. One listener rather than a handler per pile,
+ * because the view is rebuilt on every change.
+ *
+ * The header — the arrow and the name beside it — says "the other thing",
+ * whichever way the pile is lying: it is the one part of a pile that is about
+ * the pile rather than about the cards in it, so it is where both halves of
+ * the answer live. The stack below it says "open this one", which is the
+ * gesture it has always had. And anywhere else on a pile that is already open
+ * is a click on a card in it — opening a card must not tidy the pile it came
+ * from — so it is the one click here that does nothing. */
+document.addEventListener('click', e => {
+  if (viewMode !== 'pile') return;
+  if (document.getElementById('tab-collections')?.style.display === 'none') return;
+  const pile = e.target.closest('#pileView .card-pile');
+  if (!pile) return;
+  const label = pile.dataset.pile;
+  if (e.target.closest('.card-pile-hdr')) togglePile(_colFannedPiles, label);
+  else if (!_colFannedPiles.has(label)) _colFannedPiles.add(label);
+  else return;
+  renderResults();
+});
+
 // ── Grid view ─────────────────────────────────────────────────────────────
 async function renderGridView(rows, MAX) {
   const grid = document.getElementById('cardGrid');
@@ -606,7 +711,7 @@ async function renderGridView(rows, MAX) {
       const href = `https://scryfall.com/search?q=!%22${encodeURIComponent(r.name)}%22`;
       const imgUri = scryfallCache.get(r.name);
       const imgHtml = imgUri
-        ? `<img src="${imgUri}" alt="${esc(r.name)}" onerror="this.style.display='none'">`
+        ? `<img class="card-img" src="${imgUri}" alt="${esc(r.name)}" onerror="this.style.display='none';this.parentNode.classList.add('img-failed')">`
         : `<div class="grid-img-placeholder">
              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
            </div>`;

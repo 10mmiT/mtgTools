@@ -145,9 +145,11 @@ function initTheme() {
  * clearing site data. */
 async function syncPrefs() {
   const p = await loadPrefs();
-  // The playmat's half of the same correction, and it runs either way: a
-  // ?theme= link overrides the theme, not the mat.
+  // The playmat's and the card motion's half of the same correction, and both
+  // run either way: a ?theme= link overrides the theme, not the mat and not
+  // whether cards move.
   syncPlaymat();
+  syncCardMotion();
   if (_urlTheme) { if (p.stored) savePrefs({ theme: _urlTheme }); return; }
   if (p.stored && p.theme) applyTheme(p.theme);
 }
@@ -250,7 +252,14 @@ document.addEventListener('keydown', e => {
 // ── View mode ─────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
+  /* The spread piles are kept: coming back to the table finds it the way it
+     was left, rather than swept flat by having looked at the list. */
   renderResults();
+  /* The card size is the grid's, and each view remembers its own — so
+     changing view is what tells the control which size it is showing. It is
+     mounted by the first render, which is why this is asked for afterwards
+     and why it may not be there yet on the very first call. */
+  syncColSize();
 }
 
 // ── Mobile navigation dropdown ────────────────────────────────────────
@@ -559,6 +568,7 @@ if (document.readyState === 'loading') {
 initTheme();
 initSideNav();
 initPlaymatPicker();  // the mat itself was applied in <head>; this is its picker
+initCardMotionControl();  // likewise: motion was resolved in <head>, this is its switch
 initWantField();      // the other card field in static markup; see mountCardAutocomplete
 authInit().then(() => {
   syncPrefs();   // not awaited: appearance is already painted, this only corrects it
@@ -566,7 +576,7 @@ authInit().then(() => {
     _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load
     renderPlayers();
     renderCollections();
-    mountViewToggle('colViewMount', ['list', 'grid'], () => viewMode, setViewMode);
+    mountViewToggle('colViewMount', ['list', 'grid', 'pile'], () => viewMode, setViewMode);
     setViewMode(viewMode); // renders results with the restored view mode
     initAvailable(); // Available is the default tab — start loading it immediately
     initRouting();   // wire up browser back/forward + restore any deep-linked view

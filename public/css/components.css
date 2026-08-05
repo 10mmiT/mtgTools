@@ -174,10 +174,12 @@
 
 /* On a phone the strip wraps to four rows. Two cheap steps back: the gap
    drops a step, and "Sort" loses its label — the control it labels is a
-   dropdown reading "Name", which says what it is. */
+   dropdown reading "Name", which says what it is. "Size" goes the same way
+   for the same reason: a slider under a thumb says what it does by moving. */
 @media (width < 640px) {
   .toolbar { gap: var(--space-2); }
-  .toolbar .sort-control-lbl { display: none; }
+  .toolbar .sort-control-lbl,
+  .toolbar .size-control-lbl { display: none; }
 }
 
 /* ── Chip row ──────────────────────────────────────────────────────────
@@ -255,7 +257,9 @@
   font-family: inherit;
   cursor: pointer;
   padding-right: var(--space-3);
-  transition: border-color .15s, background .15s, color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s),
+              background   calc(var(--motion-ui) * .15s),
+              color        calc(var(--motion-ui) * .15s);
 }
 .chip--select:hover { border-color: var(--pc, var(--primary)); color: var(--text); }
 .chip--select[aria-pressed="true"] {
@@ -295,9 +299,9 @@
   border-left: 1px solid var(--border);
   transform: translateX(100%);
   visibility: hidden;
-  transition: transform .2s, visibility 0s .2s;
+  transition: transform calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
 }
-.drawer.open { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+.drawer.open { transform: none; visibility: visible; transition: transform calc(var(--motion-ui) * .2s), visibility 0s; }
 
 .drawer-hdr {
   display: flex;
@@ -331,9 +335,9 @@
   background: var(--scrim);
   opacity: 0;
   visibility: hidden;
-  transition: opacity .2s, visibility 0s .2s;
+  transition: opacity calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
 }
-.drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity .2s, visibility 0s; }
+.drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity calc(var(--motion-ui) * .2s), visibility 0s; }
 
 /* ── Search bar ──────────────────────────────────────────────────────── */
 .search-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
@@ -438,42 +442,549 @@ td { padding: var(--space-2) var(--space-3); }
   margin-inline: auto;
 }
 
+/* ── The card ─────────────────────────────────────────────────────────
+   One class, worn by every image of card artwork in the app — Collections,
+   Scryfall Search, the Set Browser, Want Lists and the Deck Builder, plus
+   the card detail image, its printings and the two floating previews. A
+   card is one kind of thing wherever it is met, so the treatment is stated
+   once here rather than six times over in tabs.css.
+
+   Scryfall's artwork already carries the card's own black rounded frame, so
+   the app draws no second frame around it: no fill, no hairline box, no top
+   corners clipped to a tile's radius. What it draws instead is what a
+   physical card has:
+
+     a corner   the real card's, as a ratio of the box, so it is right at
+                58px and at 220px (--radius-card);
+     an edge    a hairline of light along the top and a darker one along
+                the bottom. They are borders because that is the only way
+                to paint *on* a replaced element — an inset box-shadow is
+                painted beneath an <img>'s content and never shows — and
+                being inside the card's own outline is also what makes them
+                read against the artwork in all five themes rather than
+                disappearing into the page behind them;
+     a shadow   cast by the card's silhouette instead of by a rectangle,
+                which is what drop-shadow() does and box-shadow cannot. It
+                hugs the rounded corners, so it reads as thickness.
+
+   A card is not a surface and draws none. The placeholder standing in for
+   artwork that is missing or failed is the opposite — a surface and not a
+   card — and keeps the hairline and fill this rule refuses. */
+.card-img {
+  display: block;
+  border-radius: var(--radius-card);
+  border-top: 1px solid var(--card-lit);
+  border-bottom: 1px solid var(--card-shade);
+  filter: var(--card-shadow-rest);
+  /* The settle is quicker than the lift below it, on purpose: a card is
+     picked up deliberately and put down the moment you look away, and a grid
+     crossed at speed must not leave a trail of cards on their way back. */
+  transition: filter    calc(var(--motion) * .18s) ease-out,
+              transform calc(var(--motion) * .1s)  ease-out;
+}
+
+/* ── Picking a card up ────────────────────────────────────────────────
+   Pointing at a card lifts it off the table: it rises, grows a little, leans
+   towards the pointer, and a band of light crosses its face.
+
+   None of that changes a layout box. The rise, the growth and the lean are
+   one transform on the image, so no neighbour is pushed aside and no grid
+   reflows; what puts the card in front of its neighbours is a stacking
+   context on the element it hangs in rather than room made for it. The
+   pointer therefore cannot fall off a card that grew under it — the card
+   under the pointer is exactly where it was before it was picked up.
+
+   The lift is written against .card-img, so it belongs to every card in the
+   app and to any card image added to it later, rather than to six tabs'
+   markup. js/cardlift.js marks it in two stages, which is where the switch
+   divides: .card-held is the card the pointer is on, and .card-lifted and
+   .card-lift-host are the two elements the movement needs — the image, which
+   is what moves, and its wrapper, which is what holds the sheen and the
+   stacking context. The wrapper is whatever element the image was already in
+   — a link, a tile, a button — and it is never given a position it did not
+   have.
+
+   Where the numbers live: the rise and the growth are here, because they are
+   the same for every card. The lean is not — it is a function of where in the
+   card the pointer is, which is a question CSS cannot ask — so cardTilt() in
+   js/cardlift.js answers it, and hands the answer over as --lift-tilt-x/y.
+   The sheen's angle arrives the same way.
+
+   The perspective is stated on the transform rather than on an ancestor, so
+   nothing outside the card has to know that a card is briefly a
+   three-dimensional object. */
+
+/* A card being reached for, whether or not it is allowed to move: it drops
+   the deeper shadow of something held above the table rather than lying on
+   it. That is a change of state and not a movement, so it is what is left of
+   the lift when "Cards move" is unticked or a system has asked for less
+   movement — a card that cannot move still has to say it can be reached for.
+   The guard above collapses the duration to nothing in that case, so it does
+   not even fade in.
+
+   Marked by the same pointer handler as the lift rather than by :hover, which
+   is deliberate: a hover state on a touchscreen outlives the finger that
+   caused it, and there is no honest way to ask CSS which kind of pointer is
+   on the card. js/cardlift.js knows, because the event told it. */
+.card-held { filter: var(--card-shadow-raised); }
+
+.card-lift-host { z-index: 3; }
+
+.card-lifted,
+.card-lift-host::after {
+  transform: perspective(40rem)
+             translateY(calc(-1 * var(--card-lift-rise)))
+             scale(var(--card-lift-scale))
+             rotateX(var(--lift-tilt-x, 0deg))
+             rotateY(var(--lift-tilt-y, 0deg));
+  transition: filter    calc(var(--motion) * .18s) ease-out,
+              transform calc(var(--motion) * .16s) ease-out;
+}
+
+/* The sheen. It is the wrapper's ::after rather than an element of its own so
+   that picking a card up puts nothing into the page, and it is placed and
+   sized from the image's laid-out box — which is why it carries the same
+   transform and lands on the card's face however the card is leaning.
+
+   EXEMPT from the colour rule: this is light on a card's face, composited
+   over card artwork — the exemption .db-pile-qty and .card-fan-badge already
+   carry for sitting on artwork. A palette colour would be wrong even if one
+   existed for it: a highlight on a laminated surface is white in a cool room
+   and in a warm one, and the artwork under it is not the theme's to tint.
+   Screen is what keeps it light rather than paint — it can lighten the card
+   and can never darken it — and the stacking context above is what confines
+   the blend to the card instead of to the page behind it. */
+.card-lift-host::after {
+  content: '';
+  position: absolute;
+  left:   var(--lift-left);
+  top:    var(--lift-top);
+  width:  var(--lift-width);
+  height: var(--lift-height);
+  border-radius: var(--radius-card);
+  pointer-events: none;
+  background: linear-gradient(var(--sheen-angle, 0deg),
+              rgb(255 255 255 / 0)   calc(var(--sheen-pos, 50%) - 34%),
+              rgb(255 255 255 / .13) var(--sheen-pos, 50%),
+              rgb(255 255 255 / 0)   calc(var(--sheen-pos, 50%) + 34%));
+  mix-blend-mode: screen;
+  /* A pseudo-element that did not exist a moment ago has nothing to
+     transition from, so the light arrives as an animation instead. */
+  animation: card-sheen calc(var(--motion) * .14s) ease-out;
+}
+@keyframes card-sheen { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Cards travel to where they end up ───────────────────────────────
+   A card that is somewhere new after a re-render is put back where it was and
+   let go; this is the letting go. js/cardmove.js measures the two positions
+   and hands over the difference, and everything between them is here.
+
+   It transitions `translate` rather than `transform` because cards already
+   carry transforms of their own — the angle a card lies at in a fanned pile,
+   the lean of a card being pointed at — and the two properties compose
+   instead of overwriting each other. A card can travel across the mat while
+   still lying at the angle its name gave it.
+
+   Slower than the lift, and for the reason the lift is quick: a card is
+   picked up under your hand and needs only to acknowledge it, where a card
+   crossing the mat is the whole explanation of what just changed and has to
+   be followed. Still short of a third of a second — this is a card being put
+   down in a new place, not a card being flown there. */
+.card-moving {
+  transition: translate calc(var(--motion) * .28s) ease-out;
+}
+
+/* ── Carrying a card ─────────────────────────────────────────────────
+   A card being moved to another pile is carried there: it follows the pointer
+   with a little lag and leans into the direction it is going. js/carddrag.js
+   drives both, frame by frame, as `translate` and `rotate` — the individual
+   properties rather than `transform`, so that a card carried out of a fanned
+   pile keeps the angle the pile gave it, exactly as a travelling card does.
+
+   Nothing here has a transition, and that is the point: the position is
+   written every frame and a transition on top of it would be a lag on a lag.
+   What the two classes below add is a transition, each for one moment — the
+   way back, and the landing.
+
+   The card keeps its place in the layout while it is in hand. It is drawn out
+   of that place rather than removed from it, so the mat does not close up
+   behind a card that has not gone anywhere yet, and no neighbour moves to
+   acknowledge that one was picked up. */
+.card-carried {
+  /* Above the mat, its furniture and the fixed stats bar (z-index 50), and
+     below the drawers and modals: a card in hand passes over the table it is
+     being moved across, and under a dialogue that has taken over the page.
+     `relative` is what lets it stack at all, and it changes no layout. */
+  position: relative;
+  z-index: 60;
+  cursor: grabbing;
+}
+/* A card in hand is held above the table, so it casts the deeper of the two
+   shadows — the one .card-held gives a card being reached for. On the picture
+   rather than on the element, because in the list view the element is a row of
+   text and a drop-shadow on text is a shadow on every letter. */
+.card-carried .card-img { filter: var(--card-shadow-raised); }
+/* What is picked up is the card, not the writing under it: the grid's tile
+   carries a name, a price and a badge below the artwork, and those belong to
+   the mat rather than to the hand. Hidden rather than removed, so the tile
+   keeps the shape the landing is measured against. */
+.card-carried .sf-card-lg-footer { visibility: hidden; }
+/* A card can be picked up. Written against the attribute that says so rather
+   than a class beside it, so the cursor cannot disagree with what will
+   actually happen. */
+[data-carry] { cursor: grab; }
+
+/* ── A handful ───────────────────────────────────────────────────────
+   Several cards carried at once are carried as a handful. Every one of them
+   is the card itself, lifted out of wherever on the mat it was lying and
+   gathered to the hand — so a drop lands all of them for the same reason it
+   lands one, and js/carddrag.js draws the gathering with the lag that was
+   already there.
+
+   The card the hand closed on stays under the pointer and on top of the rest:
+   it is the one being aimed, and it is the one that says how many cards are
+   in the hand. A step above the others rather than a level of its own, since
+   what it has to clear is the handful and not the mat. */
+.card-carried-lead { z-index: 61; }
+
+/* How many cards are in the hand, on the card in it — so that a handful says
+   what it is worth while it is in the air, rather than after it has landed
+   somewhere and been counted.
+
+   Drawn from the attribute rather than from an element, because what is
+   carried is the cards themselves and a number is not one of them: there is
+   nothing here for the mat to build, keep track of or take away again. And
+   only ever when there is more than one, which is what js/carddrag.js writes
+   the attribute for — a handful of one is a card, and a card does not need
+   counting. */
+.card-carried-lead[data-carry-count]::after {
+  content: attr(data-carry-count);
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: calc(-1 * var(--space-2));
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+/* Except on a row, whose far corner is not where the hand is: a list row is
+   as wide as the mat, so its right-hand end can be half a screen from the
+   card being carried. The head of the row is where the card is read and
+   where the pointer went for it. */
+.dv-row.card-carried-lead[data-carry-count]::after {
+  right: auto;
+  left: calc(-1 * var(--space-2));
+}
+/* While a card is in hand, the pointer is holding something everywhere on the
+   page, and dragging across the mat is not a text selection. */
+.card-carrying, .card-carrying * { cursor: grabbing; user-select: none; }
+
+/* Released over nothing, or over the pile it was already in: it goes back
+   where it came from and changes nothing. It travels back rather than
+   snapping, so the eye can follow the card home and see that nothing
+   happened — quicker than a card crossing the mat, because there is nothing
+   to explain. */
+.card-returning {
+  transition: translate calc(var(--motion) * .2s) ease-out,
+              rotate    calc(var(--motion) * .2s) ease-out;
+}
+
+/* And released over a pile that takes it: the card lands. This is a
+   travelling card — the mat's own movement, measured from the hand the card
+   was released from, because a carried card is where the hand is and that is
+   what js/cardmove.js measures. What this adds is the last of the journey: a
+   fraction past the mark and back, the way something set down on a table
+   settles rather than stopping dead. Every other card the drop moved eases
+   into place around it. */
+.card-moving.card-landed {
+  transition: translate calc(var(--motion) * .34s) cubic-bezier(.3, 1.5, .6, 1);
+}
+
+/* ── Stacks ──────────────────────────────────────────────────────────
+   A group of cards drawn as a pile: the face card lying on top, the edges of
+   the cards beneath it showing, and a thickness that grows with the count.
+   js/cardstack.js builds it and answers the two questions this cannot ask —
+   how many edges to draw, and what angle each card lies at — and hands the
+   answers over as --stack-depth and --stack-turn.
+
+   How big a stack is, the card-size control says: --stack-width is the card's
+   width, and it comes from --card-width — the same variable the grids size
+   themselves by — so one control governs how big cards are drawn on a tab
+   whichever view it is in.
+
+   The face card is an ordinary .card-img, so it takes the corner, the lit
+   edge, the shadow and the lift with every other card in the app. The pile
+   under it is not made of cards and does not pretend to be: an edge is a slab
+   the shape of a card, and ten of them cost ten empty divs rather than ten
+   more images to fetch. */
+.card-stack {
+  position: relative;
+  --stack-width: var(--card-width, 150px);
+  width: var(--stack-width);
+  /* One card's thickness, as a fraction of its own width — the same reason
+     the fanned pile's overlap tracks the width rather than the spacing
+     scale, and the reason this is a transform rather than a margin. */
+  --stack-step: calc(var(--stack-width, 150px) * .0125);
+  /* The whole pile lies a little askew, which is the face card's own angle:
+     a stack put down by hand is not square to the table it is on. */
+  transform: rotate(var(--stack-turn, 0deg));
+  /* Room for the edges below the face card and for the count under them. A
+     stack is drawn taller than its card and must not sit on the one below. */
+  margin-bottom: var(--space-6);
+}
+.card-stack-face { width: 100%; }
+/* The placeholder is a surface and not a card, so it keeps the fill and the
+   hairline a card refuses — the grids' rule, said again where a stack's face
+   is the artwork that is missing. */
+.card-stack-blank {
+  aspect-ratio: 5/7;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* One card's edge, seen from just in front of the pile: the card's own dark
+   frame with a hairline of light along the bottom where the paper catches the
+   same light every shadow in the app falls away from.
+
+   z-index puts them behind the face card, which is in flow and would
+   otherwise be painted under them. It cannot put them behind the page: the
+   rotation above makes this a stacking context, so -1 is as far back as they
+   can go. */
+.card-stack-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--radius-card);
+  background: var(--card-shade);
+  border-bottom: 1px solid var(--card-lit);
+  transform: translateY(calc(var(--stack-i) * var(--stack-step)))
+             rotate(var(--stack-turn, 0deg));
+}
+
+/* What the thickness says, said as a number. It hangs below the deepest edge
+   rather than sitting on the artwork, so it needs no exemption and does not
+   cover the card it is counting. */
+.card-stack-count {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  transform: translateY(calc(var(--stack-depth, 0) * var(--stack-step) + var(--space-1)));
+  text-align: center;
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ── A table of stacks ───────────────────────────────────────────────
+   The browsing tabs' stack view: piles laid out on a table, each labelled
+   with what it is a pile of, and one of them possibly fanned out. The Deck
+   Builder's mat is the same arrangement with categories for labels, and
+   tabs.css still lays that one out itself — its piles carry the tab's own
+   editing furniture and its columns are drop targets. What is shared is the
+   pile: the stack, and the fan a stack opens into.
+
+   A pile column is a little wider than the card in it, because a stack lies
+   askew: a card leaning STACK_JITTER_MAX takes about six percent more width
+   than it has, which is nine pixels at the size cards are drawn here. Twelve,
+   and not the Deck Builder's twenty-four — that column also carries a
+   category's name and its ⋯ menu — because those pixels decide whether a
+   phone holds two piles side by side or one. */
+.card-piles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.card-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: calc(var(--card-width, 150px) + 12px);
+  cursor: pointer;
+}
+/* ── The arrow that spreads a pile ───────────────────────────────────
+   Every pile in the app has one, in the same place and pointing the same
+   way: the Deck Builder's categories, Collections' stacks and the Set
+   Browser's. It used to be a chevron character prefixed to a heading, which
+   is a thing you find only after you have been told it is there.
+
+   It turns rather than swapping glyphs, so that opening and closing a pile
+   is one object moving instead of two characters replacing each other, and
+   what it is doing is legible at the halfway point.
+
+   The state is aria-expanded, not a class: the stylesheet and a screen
+   reader read the same fact, and there is no second copy to fall out of step
+   with the pile it belongs to. */
+.pile-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background calc(var(--motion-ui) * .12s),
+              color      calc(var(--motion-ui) * .12s),
+              transform  calc(var(--motion-ui) * .15s);
+}
+
+/* The triangle is drawn rather than typed, and that is the whole reason this
+   rule exists. A font does not centre a glyph's ink in the box it gives it:
+   ▾ sits low and slightly to one side of its own em-box, so rotating the
+   button rotated the offset with it and the arrow appeared to hop sideways
+   every time a category was folded. A border triangle is centred in its box
+   by construction, so turning it is a pivot and the arrow stays where it is.
+
+   Bigger than the heading it stands beside, which in the Deck Builder's pile
+   view is --text-xs: it has to read as a triangle pointing somewhere rather
+   than as a speck of punctuation, and it is the control while the heading is
+   only a label. Muted, so that being the larger of the two does not also
+   make it the louder — it takes the button's colour, so the hover below
+   lights the arrow rather than the box around it. */
+.pile-toggle::before {
+  content: '';
+  border-left:  .3125rem solid transparent;
+  border-right: .3125rem solid transparent;
+  border-top:   .3125rem solid currentColor;
+}
+
+.pile-toggle:hover { background: var(--surface-2); color: var(--text); }
+.pile-toggle[aria-expanded='false'] { transform: rotate(-90deg); }
+
+@media (width < 640px) {
+  /* Padded rather than grown, the way "View ↗" on a deck tile is: the arrow
+     stands beside a heading in a column one card wide, and 44px of box there
+     would push the label it belongs to off the end of it. */
+  .pile-toggle { position: relative; }
+  .pile-toggle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    min-width: 44px;
+    height: 100%;
+    min-height: 44px;
+  }
+}
+
+.card-pile-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-xs);
+}
+.card-pile-label {
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Only a fanned pile's header says the number: a settled one has a stack
+   under it that already does, and saying it twice reads as two figures. */
+.card-pile-count {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* A fan — a pile of cards spread so that every one of them can be seen, each
+   lying at the angle its name gave it. The Deck Builder's fanned category is
+   the same spread and shares this rule; what its cards carry on top of the
+   picture is that tab's. */
+.card-fan {
+  display: flex;
+  flex-direction: column;
+}
+.card-fan > * {
+  position: relative;
+  /* EXEMPT from the spacing scale. Not rhythm: the overlap that fans a pile
+     shows the top of each card beneath, so it is a fraction of the card's own
+     height and has to track the card width rather than a spacing step. */
+  margin-top: calc(-1 * var(--card-width, 150px) * 1.16);
+  transform: rotate(var(--stack-turn, 0deg));
+}
+.card-fan > :first-child { margin-top: 0; }
+/* The ten-pixel nudge that used to pull a card clear of the ones lying on top
+   of it is the lift now, and the lift is a card's own. What the fan still
+   owes it is the top of the pile: these cards overlap by design, so the one
+   being pointed at has to come out in front of every card after it as well as
+   before it, which the lift's own stacking context cannot do from inside.
+
+   Not the card in hand, which is a level of its own and a higher one: a
+   carried card has to clear the whole mat rather than the pile it came out of,
+   and the pointer is on it too, so without this exception the fan would pull it
+   back down to the level of a card merely being pointed at. */
+.card-fan > :hover:not(.card-carried) { z-index: 10; }
+.card-fan-card { width: var(--card-width, 150px); }
+.card-fan-card img { width: 100%; }
+/* The one number this tab has about a card, on the card. It sits at the foot
+   rather than the head of it because what a fan leaves showing of the cards
+   underneath is the top of each one — its name — and a badge there would
+   cover the only part of a card a spread pile lets you read. Pointing at a
+   card lifts it clear of the ones on top of it, which is where the number is
+   read.
+
+   EXEMPT from the token rule: sits on the card image, like the Deck Builder's
+   quantity badge, which is the same badge on the same spread. */
+.card-fan-badge {
+  position: absolute; bottom: 4px; right: 4px;
+  background: rgba(0,0,0,.7); color: #fff;
+  font-size: var(--text-2xs); font-weight: 700;
+  padding: 0 var(--space-1); border-radius: var(--radius-sm); z-index: 5;
+}
+
 /* ── Grid view ───────────────────────────────────────────────────────── */
+/* How wide a card is drawn is the tab's card-size control's answer, arriving
+   as --card-width on the container the cards are rendered into. The literal
+   here is what the grid draws before anyone has touched the slider, which is
+   the same number js/sortui.js opens the control at. */
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 150px), 1fr));
   gap: var(--space-3);
 }
 
-.grid-card {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  transition: transform .15s, box-shadow .15s, border-color .15s;
-}
-/* A lifted tile is a floating thing, so it trades its hairline for a
-   shadow rather than wearing both (§4.5, §15.2). The accent ring and the
-   accent-tinted glow underneath it are gone: a hover is not a state the
-   mana colour is allowed to mark. */
-.grid-card:hover {
-  transform: translateY(-3px);
-  border-color: transparent;
-  box-shadow: var(--shadow-lift);
-}
-
+/* The tile is gone: no fill, no hairline and no clipping, because what is
+   inside it is a card and a card is its own edge. The lift shadow went with
+   it — it was cast by this box, and the card's shadow is cast by the card.
+   The three-pixel nudge this tile did on hover went with the tile too: it was
+   the same nudge a deck tile and a table row did, and what happens now is
+   that the card itself is picked up. What is left here is the layout. */
 .grid-img-link {
   display: block;
   aspect-ratio: 5/7;
-  background: var(--surface-1);
   position: relative;
-  overflow: hidden;
 }
 .grid-img-link img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
+}
+/* The other half of the elevation rule, and the reason it is stated here
+   rather than on the card: a placeholder *is* a surface, so it wears the
+   fill and the hairline a card refuses. `.img-failed` is the same state
+   arriving late — collections.js marks the link when the browser reports
+   the artwork could not be loaded. */
+.grid-img-placeholder,
+.grid-img-link.img-failed {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 .grid-img-placeholder {
   position: absolute;
@@ -512,17 +1023,17 @@ td { padding: var(--space-2) var(--space-3); }
 .grid-dot { width: 6px; height: 6px; border-radius: var(--radius-full); display: inline-block; flex-shrink: 0; }
 
 /* ── Card image tooltip ──────────────────────────────────────────────── */
+/* The tooltip was a padded, filled box with a shadow, holding a card — one
+   more tile around artwork that has its own frame. The box is gone; what
+   floats is the card, and the shadow it drops is its own, deeper because it
+   is being held above the page rather than lying on it. */
 #cardTooltip {
   display: none;
   position: fixed;
   z-index: 1000;
   pointer-events: none;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-overlay);
-  background: var(--hdr-bg);
-  padding: var(--space-1);
 }
-#tooltipImg { width: 210px; border-radius: var(--radius-md); display: block; }
+#tooltipImg { width: 210px; filter: var(--card-shadow-raised); }
 .autocomplete-wrap { position: relative; flex: 1; min-width: 200px; }
 .ac-dropdown {
   display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0;
@@ -538,7 +1049,10 @@ td { padding: var(--space-2) var(--space-3); }
 
   .autocomplete-wrap { min-width: 0; }
 
-  .card-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  /* A phone starts two cards across rather than one and a half. It is still
+     the control's variable, so a size chosen on a phone is honoured there
+     too — what changes is only where the tab starts. */
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 120px), 1fr)); }
 }
 
 /* ── Want quick-add button ───────────────────────────────────────────────── */
@@ -556,7 +1070,7 @@ td { padding: var(--space-2) var(--space-3); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background .12s, color .12s;
+  transition: background calc(var(--motion-ui) * .12s), color calc(var(--motion-ui) * .12s);
   padding: 0;
   font-family: inherit;
 }
@@ -578,7 +1092,7 @@ td { padding: var(--space-2) var(--space-3); }
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-overlay);
   opacity: 0;
-  transition: opacity .2s, transform .2s;
+  transition: opacity calc(var(--motion-ui) * .2s), transform calc(var(--motion-ui) * .2s);
   pointer-events: none;
   z-index: 2000;
   white-space: nowrap;
@@ -613,7 +1127,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   justify-content: center;
   cursor: pointer;
   user-select: none;
-  transition: background .12s, border-color .12s, color .12s;
+  transition: background   calc(var(--motion-ui) * .12s),
+              border-color calc(var(--motion-ui) * .12s),
+              color        calc(var(--motion-ui) * .12s);
 }
 .stepper-btn:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
 .stepper-btn:last-child  { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
@@ -635,7 +1151,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: width .2s;
+  transition: width calc(var(--motion-ui) * .2s);
   /* Border, not shadow. A drawer pinned to the edge of the viewport is
      not floating in the middle of the page — it has one visible edge,
      and the hairline is what marks it. The shadow tokens all cast
@@ -674,7 +1190,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   border-radius: var(--radius-sm);
   font-size: var(--text-base);
   font-family: inherit;
-  transition: background .12s, color .12s;
+  transition: background calc(var(--motion-ui) * .12s), color calc(var(--motion-ui) * .12s);
 }
 .rss-panel-hdr button:hover { background: var(--surface-2); color: var(--text); }
 
@@ -765,7 +1281,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  transition: background .15s;
+  transition: background calc(var(--motion-ui) * .15s);
 }
 .rss-toggle-btn:hover { background: color-mix(in srgb, var(--hdr-fg) 20%, transparent); }
 .rss-toggle-btn.active { background: color-mix(in srgb, var(--hdr-fg) 25%, transparent); }
@@ -804,9 +1320,35 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-size: var(--text-md);
   font-weight: 700;
   flex-shrink: 0;
-  transition: background .12s, border-color .12s;
+  transition: background calc(var(--motion-ui) * .12s), border-color calc(var(--motion-ui) * .12s);
 }
 .sort-dir-btn:hover { background: var(--surface-3); }
+
+/* The card-size control, beside the sort control because it is the same kind
+   of thing: a preference about how this view is drawn, remembered per view.
+   One component for every tab that draws artwork — the Deck Builder's slider
+   was the first and is now one of its callers. */
+.size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+.size-control-lbl {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.size-slider {
+  width: 90px;
+  accent-color: var(--primary);
+}
+/* The list view has no artwork to size, so the control's whole mount goes
+   rather than the control inside it — an emptied host is still an item in the
+   strip and would leave a gap where the slider was. A class, so that the two
+   tabs which hide this mount for a reason of their own — no deck loaded, no
+   set chosen — still win: their rules are an attribute and a class. */
+.size-mount-hidden { display: none; }
 
 .col-menu-wrap { position: relative; display: inline-block; flex-shrink: 0; }
 .col-menu-btn {
@@ -821,7 +1363,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-size: var(--text-sm);
   font-weight: 600;
   font-family: inherit;
-  transition: border-color .12s;
+  transition: border-color calc(var(--motion-ui) * .12s);
 }
 .col-menu-btn:hover { background: var(--surface-3); }
 .col-menu {
@@ -950,6 +1492,18 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 @media (width < 900px) {
   .playmat-mobile-row { display: flex; }
 }
+
+/* What the motion switch says when the operating system has already answered
+   the question. The same sentence shape, and the same colour, as the playmat's
+   own explanations above — it is answering the same kind of question. */
+.motion-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.motion-note[hidden] { display: none; }
 
 .td-meta { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
 .td-meta .ms { vertical-align: -1px; }
@@ -1116,7 +1670,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   cursor: pointer;
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
-  transition: color .15s;
+  transition: color calc(var(--motion-ui) * .15s);
 }
 .card-modal-close:hover { color: var(--text); }
 
@@ -1140,7 +1694,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 /* Button active/press feedback */
 .btn-primary:active, .btn-secondary:active, .btn-danger:active {
   transform: translateY(1px);
-  transition: transform .08s;
+  transition: transform calc(var(--motion-ui) * .08s);
 }
 
 /* Loading indicator on slow Scryfall/Archidekt fetches */
@@ -1151,7 +1705,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   border: 2px solid var(--border);
   border-top-color: var(--primary);
   border-radius: var(--radius-full);
-  animation: spin .6s linear infinite;
+  animation: spin calc(var(--motion-ui) * .6s) linear infinite;
   vertical-align: middle;
   margin-right: var(--space-2);
 }

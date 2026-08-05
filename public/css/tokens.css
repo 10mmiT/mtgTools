@@ -129,10 +129,46 @@
   --space-5: 1.5rem;   /* 24px — between major sections */
   --space-6: 2rem;     /* 32px — page top/bottom rhythm */
 
-  /* Radius scale — three steps, the only permitted corner sizes. */
+  /* Radius scale — the only permitted corner sizes. */
   --radius-sm:   4px;    /* chips, badges, inputs, small buttons */
-  --radius-md:   8px;    /* cards, sections, modals, images */
+  --radius-md:   8px;    /* sections, modals, surfaces */
   --radius-full: 999px;  /* pills, avatars, toggles */
+
+  /* The fourth step is not a UI step: it is the corner of a physical Magic
+     card, 3mm on a 63×88mm card, written as a ratio of the box so that it
+     holds at every size a card is drawn here rather than at one — 7px on a
+     150px grid card, 10px on a 220px one, 3px on a 58px thumbnail. Only
+     card artwork uses it.
+
+     It was already written inline on .card-detail-img, with an exemption
+     comment saying exactly this; naming it here retires that exemption. */
+  --radius-card: 4.75% / 3.5%;
+
+  /* What a card casts. Drawn with drop-shadow() rather than box-shadow:
+     a drop shadow follows the image's alpha silhouette, which is what a
+     card-shaped shadow requires, and a box shadow follows a rectangle.
+     It is also the property the elevation rule does not govern, so a card
+     carrying both a lit edge and a shadow is compatible with the contract
+     by construction rather than by exemption.
+
+     The geometry is stated once here and the colour comes from the palette
+     below, so a card falls away from the same light as every other shadow
+     in the app: down, and tighter when the card is lying on the surface
+     than when it is being held above it. */
+  --card-shadow-rest:   drop-shadow(0 3px 6px var(--card-cast));
+  --card-shadow-raised: drop-shadow(0 8px 16px var(--card-cast));
+
+  /* How far a card comes off the table when it is picked up, and how much
+     bigger it looks for being nearer the eye. Both are small: a card in a
+     grid of cards has to stay in its row, and everything that reads as
+     "picked up" — the deeper shadow above, the lean, the light crossing the
+     face — is doing the work together.
+
+     They are the two constants of the lift, so they are named here. The lean
+     is not a constant — it follows the pointer — and is computed in
+     js/cardlift.js, which hands it to components.css as an angle. */
+  --card-lift-rise:  6px;
+  --card-lift-scale: 1.05;
 
   /* Breakpoints. Custom properties cannot be used inside a media query, so
      @media rules must repeat these literals — 640px, 900px, 1280px. The
@@ -164,6 +200,52 @@
      (or 2px) out. One definition now. */
   --sidenav-width: 186px;
   --sidenav-collapsed-width: 46px;
+
+  /* Motion. Two multipliers, each 1 when that kind of movement is welcome and
+     0 when it is not. A duration is written against one of them —
+     `calc(var(--motion-ui) * 150ms)` — so a rule states its duration once
+     instead of stating it twice and hoping the two stay in step, and so that
+     0 collapses it to no time at all.
+
+     They differ in who can switch them off, because the two questions have
+     different owners:
+
+       --motion-ui    everything the interface does: drawers sliding, chevrons
+                      turning, colours fading under the pointer. Only the
+                      operating system can switch this off. Nobody asked this
+                      app for a "freeze the whole interface" switch, and the
+                      one switch it does have does not say that.
+       --motion       what cards do: the lift, the tilt, the sheen. The
+                      "Cards move" preference in the appearance popover, which
+                      the operating system can then reduce further. It is the
+                      narrower of the two — never 1 when --motion-ui is 0.
+
+     Neither is chosen directly: js/motion.js resolves the person's preference
+     against the operating system's and puts the answer on <html> as
+     data-motion, which the rules below read. The defaults here are what the
+     page has for the instant before that script runs, and for the case where
+     it cannot run at all.
+
+     scripts/lint-tokens.js holds every transition and animation in the
+     delivered CSS to one of these — an unguarded duration fails the build. */
+  --motion-ui: 1;
+  --motion: 1;
+}
+
+/* Off because the person asked for it. Cards only: the switch says "Cards
+   move", so it is not entitled to still the rest of the interface. */
+:root[data-motion='off'] { --motion: 0; }
+
+/* Off because the operating system asks for it — and this rule comes last on
+   purpose. The OS can take motion away and can never give it back, so it has
+   to beat a preference of 'on'; equal specificity and a later line is what
+   makes that true without an !important. It also stands alone if no script
+   ever runs, which is why the override is not resolved in JS only.
+
+   This is the one that reaches both: a system asking for less movement is
+   asking the whole app, not the cards. */
+@media (prefers-reduced-motion: reduce) {
+  :root, :root[data-motion] { --motion-ui: 0; --motion: 0; }
 }
 
 /* ── 2. Themes ────────────────────────────────────────────────────────────
@@ -262,6 +344,19 @@
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
   --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .35);
 
+  /* A card's own lighting, and the one place a theme says how bright the
+     room is. --card-lit is the hairline of light along a card's top edge,
+     --card-shade the darker one along its bottom, and --card-cast the
+     colour of the shadow it drops. The two edges are drawn inside the
+     card's own outline, so they read against the artwork rather than
+     against the page and cannot disappear into a theme's background.
+
+     The dark themes are a dim room: the highlight is faint and the cast
+     shadow carries the depth. */
+  --card-cast:  rgb(0 0 0 / .38);
+  --card-lit:   rgb(255 255 255 / .14);
+  --card-shade: rgb(0 0 0 / .55);
+
   /* Per-player categorical palette — light enough to read as text on a dark
      surface, and to carry --primary-fg as initials when used as a fill. */
   --player-0: #7aa2f7;
@@ -330,6 +425,11 @@ html[data-theme="dusk"] {
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
   --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .35);
 
+  /* The same dim room as the cool dark theme, with a warm light in it. */
+  --card-cast:  rgb(0 0 0 / .38);
+  --card-lit:   rgb(255 251 247 / .14);
+  --card-shade: rgb(0 0 0 / .55);
+
   --player-0: #85a3ef;
   --player-1: #74c28c;
   --player-2: #e3a75c;
@@ -393,6 +493,13 @@ html[data-theme="light"] {
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .14), 0 1px 3px rgb(0 0 0 / .08);
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .20);
   --shadow-lift:    0 8px 24px -4px rgb(0 0 0 / .16);
+
+  /* A lit room: the highlight along a card's top edge is the brightest of
+     any theme's, and the cast shadow is the faintest — half the alpha the
+     dark themes pay, like the shadows above. */
+  --card-cast:  rgb(0 0 0 / .20);
+  --card-lit:   rgb(255 255 255 / .22);
+  --card-shade: rgb(0 0 0 / .40);
 
   /* Same eight hues as the dark themes, darkened to read on a light
      surface — and dark enough to carry white initials as a fill. */
@@ -458,6 +565,11 @@ html[data-theme="sepia"] {
   --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
   --shadow-modal:   0 16px 48px -8px rgb(60 40 10 / .22);
   --shadow-lift:    0 8px 24px -4px rgb(60 40 10 / .18);
+
+  /* Lit like the other light theme, warmed to match the paper. */
+  --card-cast:  rgb(60 40 10 / .22);
+  --card-lit:   rgb(255 250 240 / .22);
+  --card-shade: rgb(60 40 10 / .42);
 
   --player-0: #33589f;
   --player-1: #266642;
@@ -541,6 +653,14 @@ html[data-theme="contrast"] {
   --shadow-overlay: 0 0 0 1px var(--border), 0 4px 16px -2px rgb(0 0 0 / .45), 0 1px 3px rgb(0 0 0 / .25);
   --shadow-modal:   0 0 0 1px var(--border), 0 16px 48px -8px rgb(0 0 0 / .60);
   --shadow-lift:    0 0 0 1px var(--border), 0 8px 24px -4px rgb(0 0 0 / .50);
+
+  /* The page here is #000, so a black shadow under a card says nothing —
+     the same problem the ring above the overlay shadows solves. A card's
+     edge is what carries it instead: the brightest lit hairline of any
+     theme, drawn on the card itself, which no background can swallow. */
+  --card-cast:  rgb(0 0 0 / .55);
+  --card-lit:   rgb(255 255 255 / .34);
+  --card-shade: rgb(0 0 0 / .70);
 
   --player-0: #9dbcff;
   --player-1: #85dba4;

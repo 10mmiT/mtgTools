@@ -8,7 +8,7 @@ let dbCardData  = new Map(); // card name → Scryfall card object
 let dbView      = 'list';
 let dbLeftTab   = 'search';
 let dbSrResults = [];        // Scryfall search results
-let _dbDragCard = null;      // card name currently being dragged
+let _dbLandedCards = null;   // the cards this one render draws landing, after being carried there
 let dbEdhrecData = null;     // parsed EDHREC cardlists
 let dbAcTimer   = null;
 let dbAddAcTimer = null;
@@ -16,6 +16,7 @@ let dbCmdAcTimer = null;
 let dbSaveTimer  = null;
 let dbSaving     = false;
 let dbSortMounted = false;
+let _dbSizeSync  = null;     // the shared card-size control, told when the view changes
 let _dbInitDone  = false;
 let _dbMovingCard = null;    // card name being moved between categories
 let _dbBulkMoveMode = false; // true when the move modal is acting on dbSelectedCards instead of _dbMovingCard
@@ -25,6 +26,7 @@ let _dbEdhrecLoaded = false; // whether EDHREC has been fetched for the current 
 let dbOracleFilter = '';     // lowercased search filter — matches card name or oracle text
 const dbCollapsedCats = new Set(); // categories collapsed by user
 const dbSelectedCards = new Set(); // card names currently selected for bulk move
+const dbExpandedCats = new Set(); // the categories whose stacks are fanned out, in pile view
 
 const DB_DEFAULT_CATS = [
   'Commander', 'Creatures', 'Planeswalkers', 'Instants', 'Sorceries',
@@ -45,17 +47,36 @@ function initDeckBuilder() {
     document.addEventListener('click', e => {
       if (!e.target.closest('#dbMoreMenu') && !e.target.closest('.col-menu-wrap')) dbCloseMoreMenu();
       if (!e.target.closest('.db-cat-kebab-wrap')) dbCloseCatMenus();
+      if (!e.target.closest('#dbCardMenu')) dbCloseCardMenu();
+      dbStackClick(e);
     });
 
-    // Restore persisted view and scale
+    /* What can be done to a card, asked for the way anything is asked for of a
+     * thing on a screen. The browser's own menu is refused only over a card:
+     * everywhere else on the page — a name to copy, a picture to save — it is
+     * still the browser's to offer. */
+    document.getElementById('dbDeckContent')?.addEventListener('contextmenu', e => {
+      const name = _dbCardAt(e.target);
+      if (!name) return;
+      e.preventDefault();
+      dbOpenCardMenu(e.clientX, e.clientY, name);
+    });
+
+    /* An open menu belongs to the card it was opened on, and both of these
+     * take that card out from under it: the mat scrolling away beneath it, and
+     * a hand reaching for another card and carrying it off. */
+    window.addEventListener('scroll', dbCloseCardMenu, { passive: true });
+    document.addEventListener('pointerdown', e => {
+      if (e.button !== 2 && !e.target.closest('#dbCardMenu')) dbCloseCardMenu();
+    }, true);
+
+    // Restore persisted view. A tab left in the XL view comes back in the
+    // grid: XL was a second grid at a fixed size, and the size control is
+    // that question asked properly.
     const savedView = localStorage.getItem('dbView');
-    if (savedView && ['list','grid','xl','pile'].includes(savedView)) dbView = savedView;
-    const savedScale = localStorage.getItem('dbScale');
-    if (savedScale) {
-      const slider = document.getElementById('dbScaleSlider');
-      if (slider) slider.value = savedScale;
-      document.getElementById('dbDeckContent')?.style.setProperty('--db-card-width', savedScale + 'px');
-    }
+    if (savedView === 'xl') { dbView = 'grid'; localStorage.setItem('dbView', 'grid'); }
+    else if (savedView && ['list','grid','pile'].includes(savedView)) dbView = savedView;
+    _dbAdoptLegacyScale();
 
     // Keyboard shortcuts (only when deck builder tab is active and not typing in a field)
     document.addEventListener('keydown', e => {
@@ -63,7 +84,9 @@ function initDeckBuilder() {
       const inField     = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
       if (!dbTabActive || inField) return;
 
-      if (e.key === '/') {
+      if (e.key === 'Escape') {
+        dbCloseCardMenu();
+      } else if (e.key === '/') {
         e.preventDefault();
         dbOpenSearchPanel();
         setTimeout(() => document.getElementById('dbSearchInput')?.focus(), 50);
@@ -81,7 +104,7 @@ function initDeckBuilder() {
     // global click/scroll/visibility handlers in main.js.
     const preview = document.createElement('img');
     preview.id = 'dbHoverPreview';
-    preview.className = 'db-hover-preview';
+    preview.className = 'db-hover-preview card-img';
     preview.style.display = 'none';
     document.body.appendChild(preview);
 
@@ -107,10 +130,23 @@ function initDeckBuilder() {
     _dbInitDone = true;
   }
   // Mount the shared view toggle (re-mounts with the restored view active)
-  mountViewToggle('dbViewMount', ['list', 'grid', 'xl', 'pile'], () => dbView, dbSetView);
-  const scaleWrap = document.getElementById('dbScaleWrap');
-  if (scaleWrap) scaleWrap.style.display = (dbView !== 'list') ? '' : 'none';
+  mountViewToggle('dbViewMount', ['list', 'grid', 'pile'], () => dbView, dbSetView);
+  /* This tab's slider is the shared control now, sizing the mat by the same
+     variable the browsing tabs size their grids by. #dbDeckContent is the
+     element the width is set on, so grids, piles and stacks all inherit it. */
+  _dbSizeSync = mountSizeControl('dbSizeMount', 'deckbuild', 'dbDeckContent', () => dbView);
   dbPopulateDeckSel();
+}
+
+/* The size this tab was left at, from before the control was shared. It was
+ * one number for every view; the shared control keeps one per view, so the
+ * old number seeds both rather than being dropped on the floor. Run once —
+ * the key is removed, and a browser that never had it does nothing. */
+function _dbAdoptLegacyScale() {
+  const legacy = localStorage.getItem('dbScale');
+  if (!legacy) return;
+  for (const mode of ['grid', 'pile']) saveCardSize('deckbuild', mode, legacy);
+  localStorage.removeItem('dbScale');
 }
 
 function dbPopulateDeckSel() {
@@ -147,6 +183,7 @@ function _dbPopulateNewDeckPlayers() {
 // ── Deck selection ────────────────────────────────────────────────────────────
 async function dbSelectDeck(value) {
   dbSelectedCards.clear();
+  dbExpandedCats.clear();  // another deck's spread piles are not this one's
   dbOracleFilter = '';
   const oracleInput = document.getElementById('dbOracleSearchInput');
   if (oracleInput) oracleInput.value = '';

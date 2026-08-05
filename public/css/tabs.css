@@ -11,6 +11,21 @@
    and the progress the bar drew is the count itself: it reads
    "1,240 / 5,600" while the pages come in. */
 
+/* This strip carries more than any other in the app — a search box, the
+   count, the view toggle, the size slider, the sort control, the columns
+   menu and two buttons — in the least room any of them has, because the
+   deck column takes the right-hand third of the window the fold is measured
+   in. The stack view's button was the width that broke it: everything still
+   fitted at two views and wrapped at three, and a second row above the cards
+   is the one thing this tab is measured on.
+
+   So the size control loses its label here at every width, the way every
+   strip loses it on a phone and for the same reason — a slider between two
+   card sizes says what it does by moving, and it still says it in a tooltip
+   and to a screen reader. The label is kept on the three tabs whose strips
+   have the room for it. */
+#tab-collections .toolbar .size-control-lbl { display: none; }
+
 .badge {
   display: inline-block;
   padding: 0 var(--space-2);
@@ -105,7 +120,7 @@
   background-color: var(--surface-2);
   background-size: cover;
   background-position: right center;
-  transition: box-shadow .2s;
+  transition: box-shadow calc(var(--motion-ui) * .2s);
 }
 .deck-tile:hover { border-color: transparent; box-shadow: var(--shadow-lift); }
 
@@ -248,9 +263,9 @@
   transform: translateX(100%);
   visibility: hidden;
   /* The delay is in the closing direction only — see .drawer. */
-  transition: transform .2s, visibility 0s .2s;
+  transition: transform calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
 }
-.deck-col.open { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+.deck-col.open { transform: none; visibility: visible; transition: transform calc(var(--motion-ui) * .2s), visibility 0s; }
 
 .deck-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
 
@@ -294,7 +309,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  transition: border-color .15s, color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s), color calc(var(--motion-ui) * .15s);
 }
 .deck-upload-btn:hover { border-color: var(--primary); color: var(--primary-tx); }
 
@@ -317,7 +332,7 @@
   font-family: inherit;
   width: 100%;
   color: var(--text);
-  transition: border-color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s);
 }
 .deck-filter-row:hover { border-color: var(--primary); }
 .deck-filter-row.active { border-color: var(--primary); background: var(--primary-lt); color: var(--primary-tx); }
@@ -326,7 +341,7 @@
    17px-tall pill it renders as the 9px this used to hardcode. */
 .tog-pill {
   width: 30px; height: 17px; border-radius: var(--radius-full); background: var(--border);
-  position: relative; transition: background .15s; flex-shrink: 0;
+  position: relative; transition: background calc(var(--motion-ui) * .15s); flex-shrink: 0;
 }
 /* The knob has to read against two different tracks: --border when off and
    --primary when on. Since --primary is near-white on the dark themes and
@@ -335,7 +350,7 @@
 .tog-pill::after {
   content: ''; position: absolute;
   width: 11px; height: 11px; border-radius: var(--radius-full); background: var(--text-subtle);
-  top: 3px; left: 3px; transition: transform .15s, background .15s;
+  top: 3px; left: 3px; transition: transform calc(var(--motion-ui) * .15s), background calc(var(--motion-ui) * .15s);
 }
 .deck-filter-row.active .tog-pill { background: var(--primary); }
 .deck-filter-row.active .tog-pill::after { transform: translateX(13px); background: var(--primary-fg); }
@@ -379,14 +394,19 @@
   padding: var(--space-2) var(--space-3);
   align-items: flex-start;
 }
+/* The wrapper existed to clip the artwork to a corner; the card carries its
+   own now, and clipping here would cut the shadow off. It keeps a card's
+   shape instead, so that the link is a 58×81 touch target whether the
+   artwork has arrived, is still coming or never loads at all — it was as
+   tall as whatever it happened to contain, which for a card that failed to
+   load was nothing. */
 .sf-thumb {
   flex-shrink: 0;
   width: 58px;
+  aspect-ratio: 5/7;
   display: block;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
 }
-.sf-thumb img { width: 100%; display: block; border-radius: var(--radius-sm); }
+.sf-thumb img { width: 100%; }
 .sf-thumb-ph { width: 58px; height: 80px; background: var(--surface-2); border-radius: var(--radius-sm); border: 1px solid var(--border); }
 
 .sf-body { flex: 1; min-width: 0; }
@@ -417,34 +437,28 @@
 }
 
 /* ── Scryfall large-card grid ─────────────────────────────────────────── */
+/* The grid every tab's card images are laid out in, sized by that tab's
+   card-size control — --card-width, set on the container the cards are
+   rendered into — with the literal here being where the view starts before
+   anyone has touched the slider.
+
+   There was a second grid beside this one, .sf-grid-xl, drawn at 220px and
+   reached by an XL button on the view toggle. The slider says every width it
+   said and the ones in between, so both it and the four near-identical
+   renderers that fed it are gone. */
 .sf-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 148px), 1fr));
   gap: var(--space-3);
 }
-
-/* XL card grid — bigger columns for larger images */
-.sf-grid-xl {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-4);
-}
-.sf-card-lg {
-  background: var(--surface-1);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  transition: transform .15s, box-shadow .15s, border-color .15s;
-}
-/* Lifted, so it trades the hairline for the shadow — and loses the
-   accent ring and accent glow, as .grid-card does. */
-.sf-card-lg:hover {
-  transform: translateY(-3px);
-  border-color: transparent;
-  box-shadow: var(--shadow-lift);
-}
-.sf-card-lg-img { display: block; width: 100%; border-radius: var(--radius-md) var(--radius-md) 0 0; }
-.sf-card-lg-footer { padding: var(--space-1) var(--space-2) var(--space-2); background: var(--surface-2); }
+/* No fill, no hairline and no clipping: the card inside is its own edge, the
+   shadow that used to be cast by this box is now cast by the card, and the
+   nudge this tile did on hover is now the card being picked up. Nothing is
+   left of the tile but the column it stands in, and that is the grid's. */
+.sf-card-lg-img { display: block; width: 100%; }
+/* The metadata is still legible; it has simply stopped being a box the card
+   lives inside, so it sits on the page rather than on a surface of its own. */
+.sf-card-lg-footer { padding: var(--space-1) var(--space-2) var(--space-2); }
 .sf-card-lg-name {
   font-size: var(--text-xs); font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -484,7 +498,7 @@
   padding: var(--space-3);
   font-family: inherit;
   color: var(--text);
-  transition: border-color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s);
 }
 .set-tile:hover { border-color: var(--primary); }
 
@@ -541,7 +555,7 @@
 }
 .want-rm:hover { border-color: var(--danger); background: var(--surface-1); }
 
-/* Player dot in grid/XL views — tap your own to remove. The fill is the
+/* Player dot in the grid view — tap your own to remove. The fill is the
    player's own colour, set inline, so the initials use the on-a-fill token. */
 .want-dot {
   display: inline-flex; align-items: center; justify-content: center;
@@ -667,7 +681,7 @@
    search input does on every other tab, but stops short of the whole
    row — this is a person's name, not a query. */
 .toolbar .avail-name-input { flex: 0 1 260px; min-width: 140px; }
-.avail-name-input.shake { animation: avail-shake .35s; }
+.avail-name-input.shake { animation: avail-shake calc(var(--motion-ui) * .35s); }
 @keyframes avail-shake {
   0%,100% { transform: translateX(0); }
   20%,60%  { transform: translateX(-5px); }
@@ -715,7 +729,7 @@
   min-height: 72px;
   background: var(--surface-1);
   position: relative;
-  transition: border-color .12s, background .12s;
+  transition: border-color calc(var(--motion-ui) * .12s), background calc(var(--motion-ui) * .12s);
 }
 .cal-cell.clickable { cursor: pointer; }
 .cal-cell.clickable:hover { border-color: var(--primary); background: var(--primary-lt); }
@@ -1020,7 +1034,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .lands-bar-fill {
   height: 100%;
   border-radius: var(--radius-sm);
-  transition: width .3s ease;
+  transition: width calc(var(--motion-ui) * .3s) ease;
   min-width: 2px;
   opacity: .85;
 }
@@ -1075,9 +1089,9 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    minimum width across a 1440px window and leave a third of the row blank.
    With auto-fit the same four fill it.
 
-   §9.7 says .card-grid--xl. That token is 220px for a *card*, which is
-   portrait; these are landscape art tiles, so the same intent is a wider
-   number here. */
+   §9.7 says .card-grid--xl, the redesign's name for a grid of cards at 220px.
+   That number is for a *card*, which is portrait; these are landscape art
+   tiles, so the same intent is a wider number here. */
 .pick-results-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -1163,7 +1177,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color .12s, opacity .12s;
+  transition: border-color calc(var(--motion-ui) * .12s), opacity calc(var(--motion-ui) * .12s);
 }
 .pick-pool-chip:hover { border-color: var(--primary); }
 .pick-pool-chip-off { opacity: .35; text-decoration: line-through; }
@@ -1185,7 +1199,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-xs);
   cursor: pointer;
-  transition: border-color .15s;
+  transition: border-color calc(var(--motion-ui) * .15s);
 }
 .dv-summary-pill:hover { border-color: var(--primary); }
 .dv-summary-cat { font-weight: 600; }
@@ -1319,15 +1333,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   position: sticky;
   top: var(--space-4);
 }
+/* The corner ratio this rule used to state inline, with an exemption
+   comment explaining that it was a physical card's, is now --radius-card
+   and arrives with .card-img — along with the edges and the shadow. */
 .card-detail-img {
   width: 100%;
-  /* EXEMPT from the radius scale: this is the corner ratio of a physical
-     Magic card, so it has to scale with the image rather than sit on a
-     fixed step — the same reasoning that exempts artwork overlays. */
-  border-radius: 4.75% / 3.5%;
-  /* Neither border nor shadow, and no accent halo: the artwork is its
-     own edge (§4.5). */
-  display: block;
 }
 .card-detail-img-ph {
   aspect-ratio: 5/7;
@@ -1443,27 +1453,34 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .card-ruling-text:last-child { margin-bottom: 0; }
 
+/* A printing is a card too, so the tile around it goes the way the grids'
+   did, and so does its nudge: what is left is the layout and the label. */
 .card-print-tile {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-2);
+  padding: 0;
   cursor: pointer;
   display: flex; flex-direction: column; gap: var(--space-1);
-  transition: transform .15s, box-shadow .15s, border-color .15s;
   font-family: inherit;
+  background: none;
+  border: 0;
 }
-.card-print-tile:hover {
-  transform: translateY(-3px);
-  border-color: transparent;
-  box-shadow: var(--shadow-lift);
+/* The one accent left on this tab: a selected state, which §4.7 permits. It
+   was the tile's border colour and there is no tile now, so it is a ring at
+   the card's own edge — the shape .db-tile-selected already uses to mark a
+   chosen card without drawing a box around it. */
+.card-print-tile.current img,
+.card-print-tile.current .card-print-ph {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 2px;
 }
-/* The one accent left on this tab: a selected state, which §4.7 permits.
-   The border alone says it — the 1.5px ring on top of it was the same
-   signal drawn twice. */
-.card-print-tile.current { border-color: var(--accent, var(--primary)); }
-.card-print-tile img { width: 100%; border-radius: var(--radius-sm); display: block; }
-.card-print-ph { width: 100%; aspect-ratio: 5/7; background: var(--surface-1); border-radius: var(--radius-sm); }
+.card-print-tile img { width: 100%; }
+/* Artwork that is missing is a surface, not a card: it keeps the fill and
+   the hairline. */
+.card-print-ph {
+  width: 100%; aspect-ratio: 5/7;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
 .card-print-set {
   font-size: var(--text-2xs); font-weight: 700; color: var(--text-muted);
   text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1587,7 +1604,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border: 2px solid var(--border);
   border-top-color: var(--primary);
   border-radius: var(--radius-full);
-  animation: spin .6s linear infinite;
+  animation: spin calc(var(--motion-ui) * .6s) linear infinite;
   vertical-align: middle;
   margin-right: var(--space-1);
 }
@@ -1691,7 +1708,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border-bottom: 2px solid transparent;
   /* EXEMPT from the spacing scale: border overlap, as on .tab-btn. */
   margin-bottom: -2px;
-  transition: color .15s, border-color .15s;
+  transition: color calc(var(--motion-ui) * .15s), border-color calc(var(--motion-ui) * .15s);
 }
 .db-ltab.active {
   color: var(--primary);
@@ -1762,55 +1779,13 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .db-qty-btn:hover { background: var(--surface-2); color: var(--text); }
 
-/* Grid tile overlay buttons */
+/* A tile is a positioning context for what a card carries — the quantity on a
+   pile card, the count on a handful in hand. What it no longer carries is
+   buttons: the ⓘ, the ⇄ and the × that appeared on the picture when the
+   pointer arrived are the card menu now (#dbCardMenu, below), because a card
+   under the pointer is lifted and the lift draws over anything lying on it —
+   the ⓘ was reachable only by not pointing at it. */
 .db-tile { position: relative; }
-.db-tile-btns {
-  position: absolute;
-  top: .3rem;
-  right: .3rem;
-  display: flex;
-  gap: var(--space-1);
-  opacity: 0;
-  transition: opacity .15s;
-  z-index: 2;
-}
-.db-tile:hover .db-tile-btns { opacity: 1; }
-/* EXEMPT from the token rule: these float over a card image, so the fixed
-   black scrim and white glyph are correct on every theme. */
-.db-tile-btn {
-  background: rgba(0,0,0,.65);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-full);
-  width: 22px;
-  height: 22px;
-  font-size: var(--text-xs);
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background .12s;
-}
-/* Both hovers swap the black scrim for a theme fill, so the glyph has to
-   swap with it — the base rule's fixed #fff only suits the black scrim, and
-   both fills are light on the dark themes. */
-.db-tile-move:hover { background: var(--primary); color: var(--primary-fg); }
-.db-tile-del:hover  { background: var(--danger);  color: var(--danger-fg); }
-
-/* Card-info button, top-left — hover-reveal like the move/delete buttons.
-   Clicking the card itself (image, name, or anywhere else on the tile)
-   selects it instead; this is the dedicated way to open the info popup. */
-.db-tile-info-wrap {
-  position: absolute;
-  top: .3rem;
-  left: .3rem;
-  z-index: 2;
-  opacity: 0;
-  transition: opacity .15s;
-}
-.db-tile:hover .db-tile-info-wrap,
-.db-pile-card:hover .db-tile-info-wrap { opacity: 1; }
 .db-tile-selected { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-md); }
 
 /* Bulk actions bar (multiselect → move to category) */
@@ -1866,7 +1841,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background .15s;
+  transition: background calc(var(--motion-ui) * .15s);
 }
 .db-add-btn:hover { background: var(--primary-dk); }
 .db-add-btn-in { background: var(--success); cursor: default; }
@@ -1883,7 +1858,6 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-sr-row:last-child { border-bottom: none; }
 .db-sr-thumb, .db-edh-thumb {
   width: 120px;
-  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 .db-sr-info { flex: 1; min-width: 0; }
@@ -1944,6 +1918,28 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-menu-danger { color: var(--danger); }
 .db-menu-danger:hover { background: var(--danger-soft); }
 
+/* ── What can be done to a card ───────────────────────────────────────────────
+   The .col-menu the app uses everywhere, opened at a point on the screen
+   instead of under the control that opened it: there is no control, because
+   the card is the control — it is asked by right-clicking it, or by holding a
+   finger on it. js/deckview-render.js places it, and clamps it to the window.
+
+   Fixed rather than absolute, since the point it is placed at is the pointer's
+   and the pointer's coordinates are the window's. Above the mat and above a
+   card in hand (z-index 60), below the modals it opens. */
+.db-card-menu {
+  position: fixed;
+  /* .col-menu hangs under the control that opened it, pinned to its right
+     edge. This one is placed by its top-left corner at a point instead, so
+     both of those have to be let go of — a menu still pinned to `right: 0`
+     while being given a `left` is a menu as wide as the window, and it was. */
+  right: auto;
+  top: auto;
+  z-index: 100;
+  min-width: 160px;
+  width: max-content;
+}
+
 /* Category header kebab menu (☑ select / ✎ rename / × delete consolidated) */
 .db-cat-kebab-wrap { position: relative; display: inline-block; }
 
@@ -1979,7 +1975,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   min-height: 2px;
   opacity: .7;
-  transition: opacity .15s;
+  transition: opacity calc(var(--motion-ui) * .15s);
 }
 .db-curve-bar:hover { opacity: 1; }
 .db-stat-curve-label { font-size: var(--text-xs); color: var(--text-muted); }
@@ -2026,7 +2022,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   flex-direction: column;
   z-index: 201;
   transform: translateX(100%);
-  transition: transform .22s ease;
+  transition: transform calc(var(--motion-ui) * .22s) ease;
   /* Border, not shadow — see .rss-panel for the reasoning. */
 }
 .db-search-panel.open { transform: translateX(0); }
@@ -2074,38 +2070,28 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   flex-direction: column;
 }
 
-/* ── Drag-and-drop ───────────────────────────────────────────────────────────── */
-.db-draggable { cursor: grab; }
-.db-draggable:active { cursor: grabbing; }
-.db-dragging { opacity: .4; }
+/* ── A pile being offered a card ──────────────────────────────────────────────
+   The pile that would receive the card currently in hand, said before the card
+   is let go rather than after. js/carddrag.js marks it, and marks only one: the
+   pile under the pointer, and never the pile the card came from, since dropping
+   a card back where it already is does nothing.
 
-.db-cat-drop.db-drop-target {
+   What a carried card looks like, what it costs to pick one up and how it lands
+   is components.css's .card-carried and its neighbours — a card is a card on
+   every tab. What is here is the one thing only this tab has: a place to put
+   one down. */
+.dv-section.card-drop-target {
   background: color-mix(in srgb, var(--primary) 15%, transparent);
   outline: 2px dashed var(--primary);
   outline-offset: -2px;
   border-radius: var(--radius-sm);
 }
 
-/* ── Card Scale Slider ───────────────────────────────────────────────────────── */
-.db-scale-wrap {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-shrink: 0;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-.db-scale-slider {
-  width: 90px;
-  accent-color: var(--primary);
-}
-
-#dbDeckContent .sf-grid {
-  grid-template-columns: repeat(auto-fill, minmax(var(--db-card-width, 148px), 1fr));
-}
-#dbDeckContent .sf-grid-xl {
-  grid-template-columns: repeat(auto-fill, minmax(var(--db-card-width, 220px), 1fr));
-}
+/* The card-size slider that used to be written here is .size-control in
+   components.css: this tab built it, and every tab that draws card art carries
+   the same one now. So is the grid rule that used to sit here restating
+   .sf-grid with a variable in it — the variable is in that rule itself now,
+   and this tab sets it like any other caller. */
 
 /* ── Pile View ───────────────────────────────────────────────────────────────── */
 /* The category columns' gutter is --space-3 (§9.5): a step tighter than it
@@ -2118,7 +2104,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   align-items: flex-start;
 }
 .db-pile-layout > .dv-section {
-  width: calc(var(--db-card-width, 150px) + 24px);
+  width: calc(var(--card-width, 150px) + 24px);
   min-width: 0;
 }
 .db-pile-layout .dv-section-hdr {
@@ -2126,34 +2112,33 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .db-pile-layout .dv-section-title { font-size: var(--text-xs); }
 .db-pile-layout .dv-section-count { font-size: var(--text-2xs); }
-.db-pile {
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-1) 0;
+/* .card-fan is the column and the overlap; this adds the room a category's
+   pile needs inside its section. */
+.db-pile { padding: var(--space-1) 0; }
+/* A settled category — a stack of cards on the mat rather than a fan of them.
+   A stack is as wide as the card lying on top of it and takes that width from
+   the card-size control without being told; what is left here is that on this
+   tab a stack is something you click. The rest of it is components.css's,
+   shared with the two browsing tabs. */
+#dbDeckContent .card-stack { cursor: pointer; }
+/* The stack carries its own count, so the header does not say the same number
+   again directly above it. It still does when the pile is fanned out into
+   cards, where there is no stack left to read the count off. A section in this
+   view is never .collapsed, so the settled stack is the only case. */
+.db-pile-layout .dv-section:not(.db-pile-open) .dv-section-count {
+  display: none;
 }
-.db-pile-card {
-  position: relative;
-  /* EXEMPT from the spacing scale. Not rhythm: the overlap that fans a pile
-     is a fraction of the card's own height, so it has to track the card
-     width rather than a spacing step. */
-  margin-top: calc(-1 * var(--db-card-width, 150px) * 1.16);
-  transition: transform .15s;
-}
-.db-pile-card:first-child { margin-top: 0; }
-.db-pile-card:hover { transform: translateY(-10px); z-index: 10; }
+/* What a card in a fanned-out category is beyond a card in a fanned-out pile —
+   the spread itself, the overlap and the angle each card lies at, is
+   .card-fan's in components.css, shared with the two browsing tabs' stack
+   views. This tab's cards carry editing furniture on top of the picture, and
+   that is what is left here. */
 .db-pile-card img {
-  display: block;
-  width: var(--db-card-width, 150px);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-overlay);
+  width: var(--card-width, 150px);
 }
-.db-pile-card .db-tile-btns {
-  position: absolute; top: 4px; right: 4px;
-  display: flex; gap: var(--space-1); opacity: 0;
-  transition: opacity .15s; z-index: 11;
-}
-.db-pile-card:hover .db-tile-btns { opacity: 1; }
-/* EXEMPT from the token rule: sits on the card image, like .db-tile-btn. */
+/* EXEMPT from the token rule: sits on the card image, like the quantity badge
+   on a grid tile — a fixed black scrim and a white glyph read on every theme,
+   which a token pair cannot promise over a picture. */
 .db-pile-qty {
   position: absolute; top: 4px; left: 4px;
   background: rgba(0,0,0,.7); color: #fff;
@@ -2181,28 +2166,24 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   cursor: pointer;
   user-select: none;
 }
-.db-collapsible::before {
-  content: '▾ ';
-  font-size: var(--text-2xs);
-  display: inline-block;
-  transition: transform .15s;
-}
-.dv-section.collapsed .db-collapsible::before {
-  transform: rotate(-90deg);
-}
+/* The chevron this heading used to draw in front of itself is .pile-toggle in
+   components.css now: a real button standing beside the name rather than
+   glued to the front of it, and the same one every pile in the app has. The
+   name still does the same thing when clicked, because a heading you can
+   click is a bigger target than a heading you cannot. */
 .dv-section.collapsed .dv-list,
 .dv-section.collapsed .sf-grid,
-.dv-section.collapsed .sf-grid-xl,
 .dv-section.collapsed .db-pile {
   display: none;
 }
 
 /* ── Hover Card Preview ──────────────────────────────────────────────────────── */
+/* A card held above the page, so it drops the deeper of the two shadows —
+   the corner and the edges come from .card-img with everything else. */
 .db-hover-preview {
   position: fixed;
   width: 220px;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lift);
+  filter: var(--card-shadow-raised);
   pointer-events: none;
   z-index: 9999;
 }

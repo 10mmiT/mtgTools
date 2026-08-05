@@ -1,5 +1,5 @@
 // ── Want List ─────────────────────────────────────────────────────────────
-let wantView     = 'list'; // 'list' | 'grid' | 'xl'
+let wantView     = 'list'; // 'list' | 'grid'
 let wantCardData = new Map(); // card name → Scryfall card object
 let _wantFetching = false;
 
@@ -27,10 +27,14 @@ function initWantField() {
 }
 
 let _wantControlsMounted = false;
+let _wantSizeSync = null;
 function initWantControls() {
   mountSortControl('wantSortMount', 'wants', WANT_SORT_FIELDS, renderWantList, { field: 'wanted', dir: -1 });
   mountColumnMenu('wantColumnsMount', 'wants', WANT_COLUMNS, renderWantList);
-  mountViewToggle('wantViewMount', ['list', 'grid', 'xl'], () => wantView, setWantView);
+  mountViewToggle('wantViewMount', ['list', 'grid'], () => wantView, setWantView);
+  /* #wantResults rather than the grid inside it, which renderWantList
+     replaces whenever the list, the filter or the view changes. */
+  _wantSizeSync = mountSizeControl('wantSizeMount', 'wants', 'wantResults', () => wantView);
   _wantControlsMounted = true;
 }
 
@@ -57,6 +61,7 @@ function setWantFilterPlayer(id) {
 function setWantView(v) {
   wantView = v;
   renderWantList();
+  _wantSizeSync?.();   // each view remembers its own card size
 }
 
 // ── Scryfall batch-fetch for want list cards ──────────────────────────────
@@ -339,7 +344,7 @@ async function renderWantList() {
     return;
   }
 
-  // ── Grid / XL views ───────────────────────────────────────────────────
+  // ── Grid view ─────────────────────────────────────────────────────────
   // Need Scryfall data — show loading state then fetch if missing
   const missingGrid = visibleRows.map(([n]) => n).filter(n => !wantCardData.has(n));
   if (missingGrid.length) {
@@ -347,19 +352,14 @@ async function renderWantList() {
     await fetchWantCardData(missingGrid);
   }
 
-  const gridClass = wantView === 'xl' ? 'sf-grid-xl' : 'sf-grid';
   const tiles = visibleRows.map(([cardName, wanterIds]) => {
     const card   = wantCardData.get(cardName);
     const face   = card?.card_faces?.[0];
-    const imgUrl = wantView === 'xl'
-      ? (card?.image_uris?.large || card?.image_uris?.normal || face?.image_uris?.large || face?.image_uris?.normal || '')
-      : (card?.image_uris?.normal || face?.image_uris?.normal || '');
+    const imgUrl = card?.image_uris?.normal || face?.image_uris?.normal || '';
     const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(cardName)}%22`;
     const sfUrl  = card?.scryfall_uri || href;
     const owned  = sfCardOwnership(cardName);
     const price  = renderPrice(card);
-    const mana   = wantView === 'xl' ? (card?.mana_cost || face?.mana_cost || '') : '';
-    const type   = wantView === 'xl' ? (card?.type_line || face?.type_line || '') : '';
 
     // Colored player dots for who wants this card
     const playerDots = activePlayers
@@ -375,7 +375,7 @@ async function renderWantList() {
     return `<div class="sf-card-lg">
       <a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(cardName)}">
         ${imgUrl
-          ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(cardName)}">`
+          ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(cardName)}">`
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
       </a>
       <div class="sf-card-lg-footer">
@@ -384,15 +384,13 @@ async function renderWantList() {
              data-name="${esc(cardName)}" title="${esc(cardName)}" style="margin-bottom:0;flex:1">${esc(cardName)}</a>
           ${price}
         </div>
-        ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
-        ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
         <div style="display:flex;gap:var(--space-1);flex-wrap:wrap;margin-bottom:var(--space-1)">${playerDots}</div>
         <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
       </div>
     </div>`;
   }).join('');
 
-  container.innerHTML = `<div class="${gridClass}">${tiles}</div>`;
+  container.innerHTML = `<div class="sf-grid">${tiles}</div>`;
 }
 
 // ── Export (CSV / PDF) ───────────────────────────────────────────────────

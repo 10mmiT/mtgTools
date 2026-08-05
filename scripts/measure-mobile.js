@@ -50,6 +50,7 @@ const EXTRA_VIEWS = {
   'deckview-search':  'deckview',
   'rss-panel':        'available',
   'collections-list': 'collections',
+  'collections-pile': 'collections',
 };
 
 /* A view opened as an overlay is measured only within itself. The mat
@@ -105,6 +106,19 @@ const PREP = {
     const btn = pane && pane.querySelector('.view-btn[data-mode="list"]');
     if (!btn) return 'false';
     btn.click();
+    return 'true';
+  })()`,
+  /* The stack view, for the same reason as the list: a tab is measured as it
+   * arrives, and it arrives as a grid. Stacks are the widest thing this tab
+   * draws — a pile column is a card and the room a pile lying askew needs —
+   * so a phone is where a row of them would push the page sideways. */
+  'collections-pile': `(() => {
+    const pane = [...document.querySelectorAll('.tab-pane')].find(p => p.style.display !== 'none');
+    const btn = pane && pane.querySelector('.view-btn[data-mode="pile"]');
+    if (!btn) return 'false';
+    btn.click();
+    const pile = document.querySelector('#pileView .card-pile');
+    if (pile) pile.click();   // one fanned out, since a fan is taller and wider
     return 'true';
   })()`,
   'deckview-search': `(() => {

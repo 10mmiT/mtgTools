@@ -305,6 +305,11 @@ Each of these was a deliberate reversal during implementation, and the reason is
 
 ## Not delivered
 
+> **Since superseded.** All three deliverables below were built afterwards, on
+> `feat/cards-as-objects`. See [cards-as-objects-record.md](cards-as-objects-record.md) for what each
+> turned into and the one clause of §2 that was left undone. The rest of this section is kept as it
+> was written, because it is what the next piece of work was specified from.
+
 `ui.md` — the **"Cards on a Table" interactivity brief** — was written alongside the redesign and
 is still outstanding. Its three deliverables are:
 

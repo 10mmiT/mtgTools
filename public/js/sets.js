@@ -14,12 +14,17 @@ let setIndexing = null;   // { sets, indexed, filling } — the index's own prog
 let currentSet  = null;   // { code, name }
 let setCardsAll = [];
 let setFilter   = 'all';  // 'all' | 'owned' | 'unowned'
-let setView     = 'list'; // 'list' | 'grid' | 'xl'
+let setView     = 'list'; // 'list' | 'grid' | 'pile'
+const setFanned = new Set(); // the labels of the piles spread out in the stack view
 
 const SET_PICKER_LIMIT = 120;   // tiles rendered at once; the filter reaches the rest
 
+let _setSizeSync = null;
 async function initSetBrowser() {
-  mountViewToggle('setViewMount', ['list', 'grid', 'xl'], () => setView, setSetView);
+  mountViewToggle('setViewMount', ['list', 'grid', 'pile'], () => setView, setSetView);
+  /* #setCards rather than the grid inside it, which renderSetCards replaces
+     whenever the set, the filter or the view changes. */
+  _setSizeSync = mountSizeControl('setSizeMount', 'sets', 'setCards', () => setView);
   const filterSel = document.getElementById('setFilterSel');
   if (filterSel) filterSel.value = setFilter;
   initSetSort();
@@ -69,7 +74,10 @@ function setSetFilter(f) {
 
 function setSetView(v) {
   setView = v;
+  /* The spread piles are kept: coming back to the table finds it the way it
+     was left, rather than swept flat by having looked at the list. */
   renderSetCards();
+  _setSizeSync?.();   // each view remembers its own card size
 }
 
 const SET_SORT_FIELDS = ['number', 'name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
@@ -212,14 +220,55 @@ function renderSetCards() {
     return;
   }
 
-  if (setView === 'xl') {
-    cardsEl.innerHTML = `<div class="sf-grid-xl">${displayed.map(renderSetCardXL).join('')}</div>`;
-  } else if (setView === 'grid') {
+  if (setView === 'grid') {
     cardsEl.innerHTML = `<div class="sf-grid">${displayed.map(renderSetCardGrid).join('')}</div>`;
+  } else if (setView === 'pile') {
+    cardsEl.innerHTML = renderSetPiles(displayed, field);
   } else {
     cardsEl.innerHTML = `<div class="sf-results">${displayed.map(renderSetCardList).join('')}</div>`;
   }
 }
+
+// ── Stack view ────────────────────────────────────────────────────────────
+// A set as piles on a table, grouped by whatever the sort control is set to:
+// by rarity it is the four heights a booster is made of, by mana value it is
+// the set's curve, by collector number it is the set in hundreds. There is no
+// second control and nothing new stored — the sort field is the grouping, so
+// changing the sort restacks the table.
+//
+// js/sortui.js cuts the piles and js/cardstack.js draws them. What is here is
+// what a Scryfall card is to this tab: its picture and its collector number,
+// the set's own name for it.
+function _setStackCard(card) {
+  const face = card.card_faces?.[0];
+  return {
+    name:  card.name,
+    img:   card.image_uris?.normal || face?.image_uris?.normal || '',
+    badge: card.collector_number ? `#${card.collector_number}` : '',
+    href:  `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`,
+  };
+}
+
+function renderSetPiles(displayed, field) {
+  const groups = cardGroups(field, displayed);
+  settleGonePiles(setFanned, groups);
+  return cardPilesHtml(groups, { fanned: setFanned, cardOf: _setStackCard });
+}
+
+/* The header spreads a pile and settles it; the stack under it spreads it —
+ * the Collections stack view's listener, for this tab's piles and for the
+ * same reasons. */
+document.addEventListener('click', e => {
+  if (setView !== 'pile' || !currentSet) return;
+  if (document.getElementById('tab-sets')?.style.display === 'none') return;
+  const pile = e.target.closest('#setCards .card-pile');
+  if (!pile) return;
+  const label = pile.dataset.pile;
+  if (e.target.closest('.card-pile-hdr')) togglePile(setFanned, label);
+  else if (!setFanned.has(label)) setFanned.add(label);
+  else return;
+  renderSetCards();
+});
 
 function renderSetCardList(card) {
   const face   = card.card_faces?.[0];
@@ -230,7 +279,7 @@ function renderSetCardList(card) {
   const price  = renderPrice(card);
   return `<div class="sf-card">
     <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="sf-thumb card-open" data-name="${esc(card.name)}">
-      ${imgUrl ? `<img src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">` : '<div class="sf-thumb-ph"></div>'}
+      ${imgUrl ? `<img class="card-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">` : '<div class="sf-thumb-ph"></div>'}
     </a>
     <div class="sf-body">
       <div class="sf-name-row">
@@ -255,7 +304,7 @@ function renderSetCardGrid(card) {
   return `<div class="sf-card-lg">
     <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
       ${imgUrl
-        ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
+        ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>
     <div class="sf-card-lg-footer">
@@ -265,34 +314,6 @@ function renderSetCardGrid(card) {
         ${price}
         ${wantBtnHtml(card.name)}
       </div>
-      <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
-    </div>
-  </div>`;
-}
-
-function renderSetCardXL(card) {
-  const face   = card.card_faces?.[0];
-  const imgUrl = card.image_uris?.large || card.image_uris?.normal || face?.image_uris?.large || face?.image_uris?.normal || '';
-  const mana   = card.mana_cost || face?.mana_cost || '';
-  const type   = card.type_line || face?.type_line || '';
-  const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
-  const owned  = sfCardOwnership(card.name);
-  const price  = renderPrice(card);
-  return `<div class="sf-card-lg">
-    <a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
-      ${imgUrl
-        ? `<img class="sf-card-lg-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
-        : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </a>
-    <div class="sf-card-lg-footer">
-      <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
-        <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
-           data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>
-        ${price}
-        ${wantBtnHtml(card.name)}
-      </div>
-      ${mana ? `<div style="margin-bottom:var(--space-1)">${renderMana(mana)}</div>` : ''}
-      ${type ? `<div style="font-size:var(--text-2xs);color:var(--text-muted);margin-bottom:var(--space-1)">${esc(type)}</div>` : ''}
       <div class="sf-card-lg-badges">${owned || '<span class="sf-not-owned">—</span>'}</div>
     </div>
   </div>`;
