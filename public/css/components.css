@@ -594,6 +594,70 @@ td { padding: var(--space-2) var(--space-3); }
   transition: translate calc(var(--motion) * .28s) ease-out;
 }
 
+/* ── Carrying a card ─────────────────────────────────────────────────
+   A card being moved to another pile is carried there: it follows the pointer
+   with a little lag and leans into the direction it is going. js/carddrag.js
+   drives both, frame by frame, as `translate` and `rotate` — the individual
+   properties rather than `transform`, so that a card carried out of a fanned
+   pile keeps the angle the pile gave it, exactly as a travelling card does.
+
+   Nothing here has a transition, and that is the point: the position is
+   written every frame and a transition on top of it would be a lag on a lag.
+   What the two classes below add is a transition, each for one moment — the
+   way back, and the landing.
+
+   The card keeps its place in the layout while it is in hand. It is drawn out
+   of that place rather than removed from it, so the mat does not close up
+   behind a card that has not gone anywhere yet, and no neighbour moves to
+   acknowledge that one was picked up. */
+.card-carried {
+  /* Above the mat, its furniture and the fixed stats bar (z-index 50), and
+     below the drawers and modals: a card in hand passes over the table it is
+     being moved across, and under a dialogue that has taken over the page.
+     `relative` is what lets it stack at all, and it changes no layout. */
+  position: relative;
+  z-index: 60;
+  cursor: grabbing;
+}
+/* A card in hand is held above the table, so it casts the deeper of the two
+   shadows — the one .card-held gives a card being reached for. On the picture
+   rather than on the element, because in the list view the element is a row of
+   text and a drop-shadow on text is a shadow on every letter. */
+.card-carried .card-img { filter: var(--card-shadow-raised); }
+/* What is picked up is the card, not the writing under it: the grid's tile
+   carries a name, a price and a badge below the artwork, and those belong to
+   the mat rather than to the hand. Hidden rather than removed, so the tile
+   keeps the shape the landing is measured against. */
+.card-carried .sf-card-lg-footer { visibility: hidden; }
+/* A card can be picked up. Written against the attribute that says so rather
+   than a class beside it, so the cursor cannot disagree with what will
+   actually happen. */
+[data-carry] { cursor: grab; }
+/* While a card is in hand, the pointer is holding something everywhere on the
+   page, and dragging across the mat is not a text selection. */
+.card-carrying, .card-carrying * { cursor: grabbing; user-select: none; }
+
+/* Released over nothing, or over the pile it was already in: it goes back
+   where it came from and changes nothing. It travels back rather than
+   snapping, so the eye can follow the card home and see that nothing
+   happened — quicker than a card crossing the mat, because there is nothing
+   to explain. */
+.card-returning {
+  transition: translate calc(var(--motion) * .2s) ease-out,
+              rotate    calc(var(--motion) * .2s) ease-out;
+}
+
+/* And released over a pile that takes it: the card lands. This is a
+   travelling card — the mat's own movement, measured from the hand the card
+   was released from, because a carried card is where the hand is and that is
+   what js/cardmove.js measures. What this adds is the last of the journey: a
+   fraction past the mark and back, the way something set down on a table
+   settles rather than stopping dead. Every other card the drop moved eases
+   into place around it. */
+.card-moving.card-landed {
+  transition: translate calc(var(--motion) * .34s) cubic-bezier(.3, 1.5, .6, 1);
+}
+
 /* ── Stacks ──────────────────────────────────────────────────────────
    A group of cards drawn as a pile: the face card lying on top, the edges of
    the cards beneath it showing, and a thickness that grows with the count.
@@ -814,8 +878,13 @@ td { padding: var(--space-2) var(--space-3); }
    of it is the lift now, and the lift is a card's own. What the fan still
    owes it is the top of the pile: these cards overlap by design, so the one
    being pointed at has to come out in front of every card after it as well as
-   before it, which the lift's own stacking context cannot do from inside. */
-.card-fan > :hover { z-index: 10; }
+   before it, which the lift's own stacking context cannot do from inside.
+
+   Not the card in hand, which is a level of its own and a higher one: a
+   carried card has to clear the whole mat rather than the pile it came out of,
+   and the pointer is on it too, so without this exception the fan would pull it
+   back down to the level of a card merely being pointed at. */
+.card-fan > :hover:not(.card-carried) { z-index: 10; }
 .card-fan-card { width: var(--card-width, 150px); }
 .card-fan-card img { width: 100%; }
 /* The one number this tab has about a card, on the card. It sits at the foot

@@ -24,6 +24,23 @@ function _dbMoves(kind, name) {
   return `data-moves="${esc(kind)}:${esc(name)}"`;
 }
 
+/* A card that can be picked up, said the way js/carddrag.js reads it: the
+   value is the card, and carrying it somewhere is what the attribute means.
+   It replaces the browser's draggable="true" and the three inline handlers
+   that went with it — a card is carried now rather than dragged. */
+function _dbCarry(name, canEdit) {
+  return canEdit ? `data-carry="${esc(name)}"` : '';
+}
+
+/* The card that has just been put down, for the one render that draws it in
+   its new pile. It arrives there travelling — js/cardmove.js is measuring the
+   mat around this render, and a carried card is measured in the hand it was
+   released from — and this is what gives that one journey the overshoot of
+   something landing rather than the ease of something sliding. */
+function _dbLanded(name) {
+  return _dbLandedCards?.has(name) ? ' card-landed' : '';
+}
+
 function _dbPaint() {
   // Rebuilding the deck list (and the bulk-action bar above it) can shift
   // page height enough to scroll the cards you're looking at out from under
@@ -228,8 +245,11 @@ function _dbRenderSection(catName, cards, canEdit) {
       </div>
     </div>` : '';
 
-  const dropAttrs = canEdit
-    ? `ondragover="dbDragOver(event)" ondragleave="dbDragLeave(event)" ondrop="dbDrop(event,'${jsAttr(catName)}')"` : '';
+  /* A place a card can be put down, and what putting it there means: the
+     category. js/carddrag.js reads nothing else from the mat — it hit-tests
+     the pointer against these boxes and hands the answer back through
+     cardCarryDrop(). */
+  const dropAttrs = canEdit ? `data-drop="${esc(catName)}"` : '';
 
   const fanned = dbView === 'pile' && dbExpandedCats.has(catName);
   let cardsHtml;
@@ -244,7 +264,7 @@ function _dbRenderSection(catName, cards, canEdit) {
     cardsHtml = `<div class="sf-grid">${cards.map(c => _dbGridTile(c, canEdit)).join('')}</div>`;
   }
 
-  return `<div class="dv-section${collapsed ? ' collapsed' : ''}${fanned ? ' db-pile-open' : ''} db-cat-drop"
+  return `<div class="dv-section${collapsed ? ' collapsed' : ''}${fanned ? ' db-pile-open' : ''}"
     data-cat="${esc(catName)}" ${dropAttrs}>
     <div class="dv-section-hdr">
       ${pileToggleHtml(dbView === 'pile' ? fanned : !collapsed, {
@@ -283,12 +303,10 @@ function _dbListRow(card, canEdit) {
        </span>`
     : `<span class="dv-qty">×${card.qty || 1}</span>`;
 
-  const dragAttrs = canEdit
-    ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
   const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
 
-  return `<div class="dv-row${canEdit ? ' db-draggable' : ''}${selected ? ' db-row-selected' : ''}"
-    ${_dbMoves('card', card.card_name)} ${dragAttrs} ${clickAttrs}>
+  return `<div class="dv-row${selected ? ' db-row-selected' : ''}${_dbLanded(card.card_name)}"
+    ${_dbMoves('card', card.card_name)} ${_dbCarry(card.card_name, canEdit)} ${clickAttrs}>
     ${infoEl}
     ${qtyEl}
     <a class="dv-name card-link" href="#" data-name="${esc(card.card_name)}"
@@ -314,11 +332,9 @@ function _dbGridTile(card, canEdit) {
       <button class="db-tile-btn db-tile-move" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
       <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
     </div>` : '';
-  const dragAttrs = canEdit
-    ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
   const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
-  return `<div class="sf-card-lg db-tile${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}"
-    ${_dbMoves('card', card.card_name)} ${dragAttrs} ${clickAttrs}>
+  return `<div class="sf-card-lg db-tile${selected ? ' db-tile-selected' : ''}${_dbLanded(card.card_name)}"
+    ${_dbMoves('card', card.card_name)} ${_dbCarry(card.card_name, canEdit)} ${clickAttrs}>
     <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}
     <div data-name="${esc(card.card_name)}">
@@ -396,12 +412,10 @@ function _dbPileTile(card, canEdit) {
       <button class="db-tile-btn db-tile-move" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${jsAttr(card.card_name)}')">⇄</button>
       <button class="db-tile-btn db-tile-del"  title="Remove"   onclick="event.stopPropagation();dbRemoveCard('${jsAttr(card.card_name)}')">×</button>
     </div>` : '';
-  const dragAttrs = canEdit
-    ? `draggable="true" ondragstart="dbDragStart(event,'${jsAttr(card.card_name)}')" ondragend="dbDragEnd(event)"` : '';
   const clickAttrs = canEdit ? _dbCardClickAttrs(card.card_name) : '';
-  return `<div class="db-pile-card${canEdit ? ' db-draggable' : ''}${selected ? ' db-tile-selected' : ''}"
+  return `<div class="db-pile-card${selected ? ' db-tile-selected' : ''}${_dbLanded(card.card_name)}"
     style="--stack-turn:${stackJitter(card.card_name)}deg"
-    ${_dbMoves('card', card.card_name)} ${dragAttrs} ${clickAttrs}>
+    ${_dbMoves('card', card.card_name)} ${_dbCarry(card.card_name, canEdit)} ${clickAttrs}>
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
     <div class="db-tile-info-wrap">${infoBtn}</div>
     ${btns}

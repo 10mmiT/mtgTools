@@ -2090,12 +2090,17 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   flex-direction: column;
 }
 
-/* ── Drag-and-drop ───────────────────────────────────────────────────────────── */
-.db-draggable { cursor: grab; }
-.db-draggable:active { cursor: grabbing; }
-.db-dragging { opacity: .4; }
+/* ── A pile being offered a card ──────────────────────────────────────────────
+   The pile that would receive the card currently in hand, said before the card
+   is let go rather than after. js/carddrag.js marks it, and marks only one: the
+   pile under the pointer, and never the pile the card came from, since dropping
+   a card back where it already is does nothing.
 
-.db-cat-drop.db-drop-target {
+   What a carried card looks like, what it costs to pick one up and how it lands
+   is components.css's .card-carried and its neighbours — a card is a card on
+   every tab. What is here is the one thing only this tab has: a place to put
+   one down. */
+.dv-section.card-drop-target {
   background: color-mix(in srgb, var(--primary) 15%, transparent);
   outline: 2px dashed var(--primary);
   outline-offset: -2px;

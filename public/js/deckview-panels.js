@@ -181,42 +181,36 @@ function dbCloseSearchPanel() {
   document.body.style.overflow = '';
 }
 
-// ── Drag-and-drop between categories ─────────────────────────────────────────
-function dbDragStart(event, cardName) {
-  _dbDragCard = cardName;
-  event.dataTransfer.effectAllowed = 'move';
-  event.dataTransfer.setData('text/plain', cardName);
-  setTimeout(() => event.target.classList.add('db-dragging'), 0);
-}
-
-function dbDragEnd(event) {
-  event.target.classList.remove('db-dragging');
-  document.querySelectorAll('.db-drop-target').forEach(el => el.classList.remove('db-drop-target'));
-  _dbDragCard = null;
-}
-
-function dbDragOver(event) {
-  if (!_dbDragCard) return;
-  event.preventDefault();
-  event.dataTransfer.dropEffect = 'move';
-  event.currentTarget.classList.add('db-drop-target');
-}
-
-function dbDragLeave(event) {
-  event.currentTarget.classList.remove('db-drop-target');
-}
-
-async function dbDrop(event, targetCategory) {
-  event.preventDefault();
-  event.currentTarget.classList.remove('db-drop-target');
-  const cardName = _dbDragCard || event.dataTransfer.getData('text/plain');
-  if (!cardName || !dbDeck) return;
-  const card = dbCards.find(c => c.card_name === cardName);
-  if (!card || card.category === targetCategory) return;
-
-  card.category = targetCategory;
-  dbRender();
-  _dbScheduleSave();
+// ── A card carried to another pile ───────────────────────────────────────────
+// What a card released on a pile means, which is the one question
+// js/carddrag.js asks the mat and refuses to answer for it. Everything about
+// how a card is picked up, followed, leaned and landed is there; what is here
+// is that on this tab a pile is a category and putting a card on one moves it
+// in — through the same dbMoveCardsTo() the "Move to…" modal calls, so the
+// category assignment and the autosave have one implementation and not two.
+//
+// The answer matters as much as the move: false means nothing happened — the
+// card is already in that category, or the deck is not mine to edit — and a
+// card that was not taken is a card that has to travel back to where it was
+// picked up from. Only the carry knows how to do that, so only the carry is
+// told whether it needs to.
+function cardCarryDrop(cardName, targetCategory) {
+  /* A settled pile draws no cards — it is one stack standing for the whole
+     category — so a card put into one would have nowhere to land: it would
+     vanish out of the hand and a number under a stack would go up. Spreading
+     the pile it was put into gives the card somewhere to land and answers the
+     question the drop asks, which is "where did it go?". Unlike a pile settling
+     itself, this is the direct result of an action aimed at that pile, and the
+     arrow settles it again. */
+  if (dbView === 'pile') dbExpandedCats.add(targetCategory);
+  /* The one render that draws this card in its new pile draws it landing.
+     Set around the move rather than inside it because it is true of this
+     caller and not of the modal: a card chosen from a list was never in
+     anybody's hand. */
+  _dbLandedCards = new Set([cardName]);
+  const moved = dbMoveCardsTo([cardName], targetCategory);
+  _dbLandedCards = null;
+  return moved;
 }
 
 // ── Left panel tabs ───────────────────────────────────────────────────────────
