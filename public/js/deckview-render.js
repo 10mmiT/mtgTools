@@ -212,7 +212,10 @@ function _dbRenderSection(catName, cards, canEdit) {
   if (dbView === 'list') {
     cardsHtml = `<div class="dv-list">${cards.map(c => _dbListRow(c, canEdit)).join('')}</div>`;
   } else if (dbView === 'pile') {
-    cardsHtml = `<div class="db-pile">${_dbStackHtml(cards, canEdit, fanned)}</div>`;
+    /* Fanned out, a category is a fan — the spread components.css draws for
+       every tab that has one. Settled, it is a single stack and needs none of
+       it. */
+    cardsHtml = `<div class="db-pile${fanned ? ' card-fan' : ''}">${_dbStackHtml(cards, canEdit, fanned)}</div>`;
   } else {
     cardsHtml = `<div class="sf-grid">${cards.map(c => _dbGridTile(c, canEdit)).join('')}</div>`;
   }

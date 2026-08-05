@@ -11,6 +11,21 @@
    and the progress the bar drew is the count itself: it reads
    "1,240 / 5,600" while the pages come in. */
 
+/* This strip carries more than any other in the app — a search box, the
+   count, the view toggle, the size slider, the sort control, the columns
+   menu and two buttons — in the least room any of them has, because the
+   deck column takes the right-hand third of the window the fold is measured
+   in. The stack view's button was the width that broke it: everything still
+   fitted at two views and wrapped at three, and a second row above the cards
+   is the one thing this tab is measured on.
+
+   So the size control loses its label here at every width, the way every
+   strip loses it on a phone and for the same reason — a slider between two
+   card sizes says what it does by moving, and it still says it in a tooltip
+   and to a screen reader. The label is kept on the three tabs whose strips
+   have the room for it. */
+#tab-collections .toolbar .size-control-lbl { display: none; }
+
 .badge {
   display: inline-block;
   padding: 0 var(--space-2);
@@ -2112,11 +2127,9 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .db-pile-layout .dv-section-title { font-size: var(--text-xs); }
 .db-pile-layout .dv-section-count { font-size: var(--text-2xs); }
-.db-pile {
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-1) 0;
-}
+/* .card-fan is the column and the overlap; this adds the room a category's
+   pile needs inside its section. */
+.db-pile { padding: var(--space-1) 0; }
 /* A settled category — a stack of cards on the mat rather than a fan of them.
    A stack is as wide as the card lying on top of it and takes that width from
    the card-size control without being told; what is left here is that on this
@@ -2129,24 +2142,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-pile-layout .dv-section:not(.collapsed):not(.db-pile-open) .dv-section-count {
   display: none;
 }
-.db-pile-card {
-  position: relative;
-  /* EXEMPT from the spacing scale. Not rhythm: the overlap that fans a pile
-     is a fraction of the card's own height, so it has to track the card
-     width rather than a spacing step. */
-  margin-top: calc(-1 * var(--card-width, 150px) * 1.16);
-  /* A card in a fanned-out stack keeps the angle its name gave its edge while
-     the stack was settled — cardstack.js hands it over — so fanning a pile out
-     spreads the pile that was lying there rather than a tidier one. */
-  transform: rotate(var(--stack-turn, 0deg));
-}
-.db-pile-card:first-child { margin-top: 0; }
-/* The ten-pixel nudge that used to pull a card clear of the ones lying on top
-   of it is the lift now, and the lift is a card's own. What the tile still
-   owes it is the top of the pile: these cards overlap by design, so the one
-   being pointed at has to come out in front of every card after it as well as
-   before it, which the lift's own stacking context cannot do from inside. */
-.db-pile-card:hover { z-index: 10; }
+/* What a card in a fanned-out category is beyond a card in a fanned-out pile —
+   the spread itself, the overlap and the angle each card lies at, is
+   .card-fan's in components.css, shared with the two browsing tabs' stack
+   views. This tab's cards carry editing furniture on top of the picture, and
+   that is what is left here. */
 .db-pile-card img {
   width: var(--card-width, 150px);
 }

@@ -14,13 +14,14 @@ let setIndexing = null;   // { sets, indexed, filling } — the index's own prog
 let currentSet  = null;   // { code, name }
 let setCardsAll = [];
 let setFilter   = 'all';  // 'all' | 'owned' | 'unowned'
-let setView     = 'list'; // 'list' | 'grid'
+let setView     = 'list'; // 'list' | 'grid' | 'pile'
+let setFanned   = null;   // the label of the pile fanned out in the stack view
 
 const SET_PICKER_LIMIT = 120;   // tiles rendered at once; the filter reaches the rest
 
 let _setSizeSync = null;
 async function initSetBrowser() {
-  mountViewToggle('setViewMount', ['list', 'grid'], () => setView, setSetView);
+  mountViewToggle('setViewMount', ['list', 'grid', 'pile'], () => setView, setSetView);
   /* #setCards rather than the grid inside it, which renderSetCards replaces
      whenever the set, the filter or the view changes. */
   _setSizeSync = mountSizeControl('setSizeMount', 'sets', 'setCards', () => setView);
@@ -73,6 +74,7 @@ function setSetFilter(f) {
 
 function setSetView(v) {
   setView = v;
+  setFanned = null;   // a pile fanned out in the stack view is settled by leaving it
   renderSetCards();
   _setSizeSync?.();   // each view remembers its own card size
 }
@@ -219,10 +221,56 @@ function renderSetCards() {
 
   if (setView === 'grid') {
     cardsEl.innerHTML = `<div class="sf-grid">${displayed.map(renderSetCardGrid).join('')}</div>`;
+  } else if (setView === 'pile') {
+    cardsEl.innerHTML = renderSetPiles(displayed, field);
   } else {
     cardsEl.innerHTML = `<div class="sf-results">${displayed.map(renderSetCardList).join('')}</div>`;
   }
 }
+
+// ── Stack view ────────────────────────────────────────────────────────────
+// A set as piles on a table, grouped by whatever the sort control is set to:
+// by rarity it is the four heights a booster is made of, by mana value it is
+// the set's curve, by collector number it is the set in hundreds. There is no
+// second control and nothing new stored — the sort field is the grouping, so
+// changing the sort restacks the table.
+//
+// js/sortui.js cuts the piles and js/cardstack.js draws them. What is here is
+// what a Scryfall card is to this tab: its picture and its collector number,
+// the set's own name for it.
+function _setStackCard(card) {
+  const face = card.card_faces?.[0];
+  return {
+    name:  card.name,
+    img:   card.image_uris?.normal || face?.image_uris?.normal || '',
+    badge: card.collector_number ? `#${card.collector_number}` : '',
+    href:  `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`,
+  };
+}
+
+function renderSetPiles(displayed, field) {
+  const groups = cardGroups(field, displayed);
+  /* An ownership filter or a re-sort can leave the fanned-out pile with no
+     cards in it; the table settles rather than keeping a label nothing
+     answers to. */
+  if (setFanned !== null && !groups.some(g => g.label === setFanned)) setFanned = null;
+  return cardPilesHtml(groups, { fanned: setFanned, cardOf: _setStackCard });
+}
+
+/* Clicking a pile fans it out, clicking away settles it — the Collections
+ * stack view's listener, for this tab's piles and for the same reasons. */
+document.addEventListener('click', e => {
+  if (setView !== 'pile' || !currentSet) return;
+  if (document.getElementById('tab-sets')?.style.display === 'none') return;
+  const pile = e.target.closest('#setCards .card-pile');
+  if (pile) {
+    if (pile.dataset.pile === setFanned) return;
+    setFanned = pile.dataset.pile;
+  } else if (setFanned !== null) {
+    setFanned = null;
+  } else return;
+  renderSetCards();
+});
 
 function renderSetCardList(card) {
   const face   = card.card_faces?.[0];

@@ -102,22 +102,25 @@ function stackLayers(count) {
  *           card thirty times.
  *   count   what the stack says it holds, when that is not simply how many
  *           entries it was given — the Deck Builder counts copies, not rows.
+ *   layers  how thick to draw it, when the caller knows something this does
+ *           not — see pileLayers(). Never thicker than the count allows,
+ *           whatever is asked for.
  *   attrs   markup for the stack element itself: what clicking it does, and
  *           what it is a stack of. The renderer has no opinion on either.
  *
  * The depth and the angles travel as custom properties rather than as written
  * pixels, so the geometry stays in the stylesheet where the card-size control
  * can reach it. */
-function cardStackHtml(cards, { count, attrs = '' } = {}) {
+function cardStackHtml(cards, { count, layers, attrs = '' } = {}) {
   if (!cards || !cards.length) return '';
   const held  = Number.isFinite(count) ? count : cards.length;
-  const depth = stackLayers(held);
+  const depth = Math.min(stackLayers(held), Number.isFinite(layers) ? Math.max(0, layers) : Infinity);
 
   /* Deepest first, so the pile is drawn from the table upwards. */
-  const layers = [];
+  const edges = [];
   for (let i = depth; i >= 1; i--) {
     const under = cards[i % cards.length];
-    layers.push(`<div class="card-stack-layer" style="--stack-i:${i};--stack-turn:${stackJitter(under.name)}deg"></div>`);
+    edges.push(`<div class="card-stack-layer" style="--stack-i:${i};--stack-turn:${stackJitter(under.name)}deg"></div>`);
   }
 
   const face = cards[0];
@@ -129,8 +132,101 @@ function cardStackHtml(cards, { count, attrs = '' } = {}) {
     : `<div class="card-stack-face card-stack-blank"></div>`;
 
   return `<div class="card-stack" style="--stack-depth:${depth};--stack-turn:${stackJitter(face.name)}deg" ${attrs}>
-    ${layers.join('')}
+    ${edges.join('')}
     ${faceHtml}
-    <span class="card-stack-count">${held}</span>
+    <span class="card-stack-count">${held.toLocaleString()}</span>
   </div>`;
+}
+
+// ── A table of stacks ──────────────────────────────────────────────────────
+// What the browsing tabs' stack view is: the cards laid out in labelled piles,
+// one of which may be fanned out so that every card in it can be seen. The
+// piles come in already made — js/sortui.js cuts them from the current sort —
+// so this still knows nothing about sort fields, and the two tabs that call it
+// differ only in what a card's picture and its one number are.
+
+/* How many cards a fanned pile spreads at once. The settled stack is bounded
+ * by STACK_LAYERS_MAX and costs nothing whatever it holds, but a fan is real
+ * cards: spreading four thousand commons would be the one place this view
+ * could cost something, so it does not. The rest of the pile is reachable the
+ * way it always was — narrow the search, or sort by a field that cuts finer. */
+const STACK_FAN_MAX = 60;
+
+/* How thick one pile in a table of them is drawn: in proportion to the tallest
+ * pile on the table, rather than to what it holds outright.
+ *
+ * This is the difference between a mat and a table. A deck's categories run
+ * from four cards to forty, which is exactly the range stackLayers() draws a
+ * difference across, so the Deck Builder asks it and gets a mat whose piles
+ * are as thick as they really are. A browsing tab's piles run from four to
+ * twelve thousand, and every one of them is past the cap: a collection stacked
+ * by rarity would be four identical bricks, and stacked by mana value it would
+ * be a flat row where the curve should be. The shape of the row is the whole
+ * reason to look at it, so a pile is drawn as its share of the biggest one.
+ *
+ * Still bounded by stackLayers(), which keeps both of that function's promises
+ * here: no pile shows more edges than it has cards under the face, and none is
+ * drawn thicker than the cap. Adding a card to a pile can still never make it
+ * look thinner — though adding cards to the *biggest* pile now thins the rest,
+ * which is what being a proportion means and what makes a curve a curve. */
+function pileLayers(count, tallest) {
+  const held = Math.floor(Number(count) || 0);
+  const top  = Math.floor(Number(tallest) || 0);
+  if (held < 2) return 0;
+  if (top <= 0) return stackLayers(held);
+  /* At least one edge: a pile drawn as a single card is a pile that has been
+   * rounded away, and every pile on the table holds at least two cards. */
+  const share = Math.max(1, Math.round(STACK_LAYERS_MAX * held / top));
+  return Math.min(stackLayers(held), share);
+}
+
+/* One card in a fanned pile: the picture, its one number, and the click every
+ * other card image in the app has. It keeps the angle its name gave its edge
+ * while the stack was settled, so fanning spreads the pile that was lying
+ * there rather than replacing it with a tidier one. */
+function cardFanHtml({ name, img, badge, href }) {
+  const picture = img
+    ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(name)}">`
+    : `<div class="card-stack-blank"></div>`;
+  return `<a class="card-fan-card card-open" style="--stack-turn:${stackJitter(name)}deg"
+    data-name="${esc(name)}" href="${href || '#'}" target="_blank" rel="noopener" title="${esc(name)}">
+    ${picture}
+    ${badge ? `<span class="card-fan-badge">${esc(badge)}</span>` : ''}
+  </a>`;
+}
+
+/* The markup for a row of piles.
+ *
+ *   groups  [{ label, cards }] as sortui.js's cardGroups() cuts them
+ *   fanned  the label of the pile that is spread out, if any
+ *   cardOf  a card, as this tab holds it, seen as { name, img, badge, href }
+ *
+ * A settled pile says how many cards it holds on the stack itself; a fanned
+ * one has no stack left to say it, so the label carries the count instead —
+ * and says how much of the pile is spread when it is more than a fan.
+ */
+function cardPilesHtml(groups, { fanned = null, cardOf } = {}) {
+  const tallest = groups.reduce((most, group) => Math.max(most, group.cards.length), 0);
+  const piles = groups.map(group => {
+    const open  = group.label === fanned;
+    const held  = group.cards.length;
+    const shown = open ? group.cards.slice(0, STACK_FAN_MAX) : [];
+    const count = !open ? ''
+      : `<span class="card-pile-count">${shown.length < held
+          ? `${shown.length} of ${held.toLocaleString()}` : held.toLocaleString()}</span>`;
+    /* A settled pile is drawn from its first STACK_LAYERS_MAX + 1 cards and
+       told how many it stands for. That is not a shortcut: a stack draws the
+       face and its bounded edges and nothing else, so those are every card it
+       can possibly show, and a collection of twelve thousand costs the same to
+       lay out as a pile of eleven. */
+    const body = open
+      ? `<div class="card-fan">${shown.map(card => cardFanHtml(cardOf(card))).join('')}</div>`
+      : cardStackHtml(group.cards.slice(0, STACK_LAYERS_MAX + 1).map(cardOf),
+                      { count: held, layers: pileLayers(held, tallest) });
+    return `<div class="card-pile${open ? ' card-pile-open' : ''}" data-pile="${esc(group.label)}">
+      <div class="card-pile-hdr"><span class="card-pile-label">${esc(group.label)}</span>${count}</div>
+      ${body}
+    </div>`;
+  }).join('');
+  return `<div class="card-piles">${piles}</div>`;
 }

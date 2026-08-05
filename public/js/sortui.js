@@ -34,13 +34,21 @@ function colorRank(arr) {
 const RARITY_RANK = { common: 1, uncommon: 2, rare: 3, mythic: 4, special: 5, bonus: 6 };
 function rarityRank(r) { return RARITY_RANK[(r || '').toLowerCase()] ?? 0; }
 
+// The dominant card type, in a sensible gameplay order. The index is its own
+// function because two things ask for it: the sort key below, and the stack
+// view's grouping, which needs the same answer said as a word.
+const TYPE_ORDER = ['creature', 'planeswalker', 'battle', 'instant', 'sorcery',
+                    'artifact', 'enchantment', 'land'];
+function typeIndex(t) {
+  const text = (t || '').toLowerCase();
+  for (let i = 0; i < TYPE_ORDER.length; i++) if (text.includes(TYPE_ORDER[i])) return i;
+  return TYPE_ORDER.length;
+}
+
 // Sort by the dominant card type, in a sensible gameplay order
 function typeRank(t) {
   t = (t || '').toLowerCase();
-  const order = ['creature', 'planeswalker', 'battle', 'instant', 'sorcery',
-                 'artifact', 'enchantment', 'land'];
-  for (let i = 0; i < order.length; i++) if (t.includes(order[i])) return `${i}${t}`;
-  return `9${t}`;
+  return `${typeIndex(t)}${t}`;
 }
 
 function numOr(v, dflt) { const n = parseFloat(v); return isNaN(n) ? dflt : n; }
@@ -89,6 +97,115 @@ function cardComparator(field, dir) {
     const an = (a.name || '').toLowerCase(), bn = (b.name || '').toLowerCase();
     return an < bn ? -1 : an > bn ? 1 : 0;
   };
+}
+
+// ── Grouping, for the tabs that draw their cards as stacks ──────────────────
+// A stack view is a sorted list with the cards that belong together put in one
+// pile, and what belongs together is the question the sort control is already
+// answering: sort by rarity and a collection is four piles, sort by mana value
+// and it is the curve standing up off the table, sort by name and it buckets
+// on the initial letter. So there is no grouping control and no stored
+// grouping preference — changing the sort restacks the view.
+//
+// This lives beside sortKey() because it is the same vocabulary said a
+// different way: sortKey turns a field into an order, groupLabel turns it into
+// a name a pile can be labelled with. Every label is a function of the same
+// metadata the sort key reads, so a pile is always contiguous in the sorted
+// list it was cut from.
+//
+// The labels are short on purpose. A row of stacks is read at a glance and the
+// sort control directly above already says which field they are stacked by, so
+// a pile is "3" rather than "Mana Value 3".
+
+/* Where the curve stops. Everything from here up is one pile, the way the
+ * Deck Builder's own mana curve already buckets it: the difference between
+ * seven and eight mana is not a shape anyone reads, and drawing a stack of one
+ * for each is a row of stacks that says less than the curve does. */
+const GROUP_CMC_TOP = 7;
+
+const GROUP_COLOR_LABELS = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green' };
+const GROUP_TYPE_LABELS  = ['Creatures', 'Planeswalkers', 'Battles', 'Instants',
+                            'Sorceries', 'Artifacts', 'Enchantments', 'Lands', 'Other'];
+
+/* Nothing to bucket on: a card whose price, power or mana value the app has
+ * not been told. One pile rather than one pile each, and it says so. */
+const GROUP_NONE = '—';
+
+/* The pile a card belongs in, from the field the view is sorted by. */
+function groupLabel(field, obj) {
+  const m = cardMetaOf(obj);
+  switch (field) {
+    case 'cmc': {
+      const n = Math.trunc(numOr(m.cmc, -1));
+      if (n < 0) return GROUP_NONE;
+      return n >= GROUP_CMC_TOP ? `${GROUP_CMC_TOP}+` : String(n);
+    }
+    case 'color': {
+      const cs = (m.ci && m.ci.length ? m.ci : m.colors) || [];
+      if (!cs.length)     return 'Colorless';
+      if (cs.length > 1)  return 'Multicolor';
+      return GROUP_COLOR_LABELS[cs[0]] || 'Colorless';
+    }
+    case 'power':
+    case 'toughness': {
+      /* A power written as ✳ or 1+✳ is not a number and cannot be a pile of
+       * its own without inventing an order for it; it lies with the cards that
+       * have no power at all, which is where the sort key already puts it. */
+      const n = numOr(field === 'power' ? m.power : m.toughness, null);
+      return n === null ? GROUP_NONE : String(n);
+    }
+    case 'rarity': {
+      const r = (m.rarity || '').toLowerCase();
+      return r ? r[0].toUpperCase() + r.slice(1) : GROUP_NONE;
+    }
+    case 'type':  return GROUP_TYPE_LABELS[typeIndex(m.type)];
+    case 'price': {
+      /* Buckets, not values: grouping on the number itself would draw a
+       * thousand stacks of one card. These are the bands people actually sort
+       * their binders into. */
+      const eur = numOr(m.eur, -1);
+      if (eur < 0)  return GROUP_NONE;
+      if (eur < 1)  return '< €1';
+      if (eur < 5)  return '€1–5';
+      if (eur < 20) return '€5–20';
+      return '€20+';
+    }
+    case 'qty': return `×${obj._sortQty ?? 0}`;
+    case 'number': {
+      /* Same reason as price: a collector number is unique, so the set's own
+       * numbering is only a grouping in hundreds. */
+      const n = numOr(obj.collector_number, -1);
+      if (n < 0) return GROUP_NONE;
+      const lo = Math.floor(n / 100) * 100;
+      return `#${lo || 1}–${lo + 99}`;
+    }
+    /* Name, and any field with no bucketing of its own: the initial. It is the
+     * one grouping every card can answer, and it is what a shelf of binders
+     * does. */
+    default: {
+      const first = (obj.name || '').trim()[0] || '';
+      return /\p{L}/u.test(first) ? first.toUpperCase() : '#';
+    }
+  }
+}
+
+/* Cut an already-sorted list of cards into piles, in the order the piles first
+ * appear — which for every field above is the sorted order, ascending or
+ * descending, so the sort direction turns the row of stacks around without
+ * being consulted.
+ *
+ * Cards carrying the same label are collected into one pile even if they are
+ * not adjacent, so a field whose label is not strictly monotonic in its sort
+ * key draws one stack per label rather than the same label several times. */
+function cardGroups(field, cards) {
+  const groups = new Map();
+  for (const card of cards) {
+    const label = groupLabel(field, card);
+    const group = groups.get(label);
+    if (group) group.cards.push(card);
+    else groups.set(label, { label, cards: [card] });
+  }
+  return [...groups.values()];
 }
 
 // ── Per-view persisted sort state ───────────────────────────────────────────

@@ -252,6 +252,7 @@ document.addEventListener('keydown', e => {
 // ── View mode ─────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
+  _colFannedPile = null;  // a pile fanned out in the stack view is settled by leaving it
   renderResults();
   /* The card size is the grid's, and each view remembers its own — so
      changing view is what tells the control which size it is showing. It is
@@ -574,7 +575,7 @@ authInit().then(() => {
     _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load
     renderPlayers();
     renderCollections();
-    mountViewToggle('colViewMount', ['list', 'grid'], () => viewMode, setViewMode);
+    mountViewToggle('colViewMount', ['list', 'grid', 'pile'], () => viewMode, setViewMode);
     setViewMode(viewMode); // renders results with the restored view mode
     initAvailable(); // Available is the default tab — start loading it immediately
     initRouting();   // wire up browser back/forward + restore any deep-linked view

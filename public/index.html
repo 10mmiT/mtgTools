@@ -223,8 +223,11 @@
   <!-- One chip per loaded collection, rendered by renderCollections() -->
   <div class="chip-row" id="collectionsChips" style="display:none"></div>
 
-  <!-- Results -->
-  <div class="section">
+  <!-- Results. The card-size control sets --card-width on this box rather than
+       on a grid, so it reaches whichever view is drawn inside it: the grid and
+       the piles are both replaced on every render, an inline width set on one
+       of them would go with it. -->
+  <div class="section" id="colResults">
     <div id="listView">
       <div class="table-wrap">
         <table id="resultsTable">
@@ -243,6 +246,7 @@
     <div id="gridView" style="display:none">
       <div class="card-grid" id="cardGrid"></div>
     </div>
+    <div id="pileView" style="display:none"></div>
     <div id="colShowMoreWrap" style="display:none;padding:var(--space-2) var(--space-2) 0"></div>
   </div>
 

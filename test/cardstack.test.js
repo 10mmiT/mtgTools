@@ -34,6 +34,8 @@ function loadCardStack() {
     maxJitter: evaluate('STACK_JITTER_MAX'),
     layers: count => evaluate(`stackLayers(${JSON.stringify(count)})`),
     jitter: name  => evaluate(`stackJitter(${JSON.stringify(name)})`),
+    pile:   (count, tallest) =>
+      evaluate(`pileLayers(${JSON.stringify(count)}, ${JSON.stringify(tallest)})`),
   };
 }
 
@@ -139,4 +141,106 @@ test('cards do not all lie the same way', () => {
   assert.ok(new Set(angles).size > 20, `60 cards took only ${new Set(angles).size} angles`);
   assert.ok(angles.some(a => a < 0) && angles.some(a => a > 0),
     'and they lean both ways rather than all one way');
+});
+
+// ── How thick a pile in a row of piles is ─────────────────────────────
+// A deck's categories run from four cards to forty and are drawn as thick as
+// they are. A browsing tab's piles run to twelve thousand, where that would
+// draw every pile at the cap — so on a table of piles thickness is a share of
+// the biggest one, and what is asserted is that the row keeps its shape.
+
+test('a row of piles reads as the shape of what it holds', () => {
+  // A collection's mana curve, which is the whole reason to stand it up off
+  // the table: drawn outright, every one of these is past the cap and the
+  // curve is a flat row of identical bricks.
+  const curve   = [438, 869, 1909, 1916, 1357, 850, 423, 266];
+  const tallest = Math.max(...curve);
+  const drawn   = curve.map(n => app.pile(n, tallest));
+  assert.deepStrictEqual(curve.map(n => app.layers(n)), new Array(curve.length).fill(app.maxLayers),
+    'the premise: drawn outright these are all the same pile');
+  assert.strictEqual(new Set(drawn).size > 5, true, `the curve came out as ${drawn.join(',')}`);
+  assert.strictEqual(Math.max(...drawn), app.maxLayers, 'the biggest pile is drawn at the cap');
+  // The shape itself. Two piles a few cards apart may well be drawn the same —
+  // ten edges cannot say more than ten things — but the row never goes the
+  // wrong way, and a pile holding half again what its neighbour holds is
+  // visibly thicker than it.
+  for (let i = 1; i < curve.length; i++) {
+    const said = `${curve[i - 1]} and ${curve[i]} cards came out as ${drawn[i - 1]} and ${drawn[i]} edges`;
+    if (curve[i] >= curve[i - 1]) assert.ok(drawn[i] >= drawn[i - 1], said);
+    else                          assert.ok(drawn[i] <= drawn[i - 1], said);
+    if (curve[i] >= curve[i - 1] * 1.5) assert.ok(drawn[i] > drawn[i - 1], said);
+    if (curve[i] * 1.5 <= curve[i - 1]) assert.ok(drawn[i] < drawn[i - 1], said);
+  }
+});
+
+test('a pile in a row is still bounded by what it holds and by the cap', () => {
+  // The two promises stackLayers makes, kept here whatever the proportion says.
+  for (const [count, tallest] of [[2, 2], [3, 4], [4, 4], [11, 12], [400, 400], [12000, 12000]]) {
+    assert.ok(app.pile(count, tallest) <= app.layers(count),
+      `${count} of ${tallest} drew ${app.pile(count, tallest)} edges, more than it has cards`);
+    assert.ok(app.pile(count, tallest) <= app.maxLayers);
+  }
+  assert.strictEqual(app.pile(1, 4000), 0, 'a single card is a card');
+  assert.strictEqual(app.pile(0, 4000), 0);
+});
+
+test('a pile is never rounded away to a bare card', () => {
+  // Four cards beside four thousand is still a pile, not a card lying alone.
+  assert.ok(app.pile(4, 4000) >= 1, 'a small pile beside a huge one is still a pile');
+});
+
+test('adding a card to a pile never makes that pile look thinner', () => {
+  for (const tallest of [40, 4000]) {
+    let previous = 0;
+    for (let count = 0; count <= tallest; count++) {
+      const drawn = app.pile(count, tallest);
+      assert.ok(drawn >= previous, `${count} of ${tallest} drew ${drawn}, fewer than ${previous}`);
+      previous = drawn;
+    }
+  }
+});
+
+test('with nothing to be a share of, a pile is drawn as thick as it is', () => {
+  for (const count of [0, 1, 4, 30, 4000]) {
+    assert.strictEqual(app.pile(count, 0), app.layers(count));
+  }
+});
+
+// ── What a table of piles costs ───────────────────────────────────────
+// The stack view's promise is that it is an option and never a tax: a browsing
+// tab may hand it every card it holds, so what is drawn has to be bounded by
+// the cap rather than by the pile. The markup itself is not asserted — that is
+// the screenshot harness's and the eye's — only how much of it there is.
+
+const cardsNamed = n => Array.from({ length: n }, (_, i) => ({ name: `Card ${i}` }));
+const pilesHtml = (groups, opts) => app.evaluate(
+  `cardPilesHtml(${JSON.stringify(groups)}, { fanned: ${JSON.stringify(opts?.fanned ?? null)},
+     cardOf: card => ({ name: card.name, img: 'i.png' }) })`);
+const countOf = (html, needle) => html.split(needle).length - 1;
+
+test('a settled pile costs the same whether it holds four hundred cards or twelve thousand', () => {
+  const set  = pilesHtml([{ label: 'Common', cards: cardsNamed(400) }]);
+  const huge = pilesHtml([{ label: 'Common', cards: cardsNamed(12000) }]);
+  assert.strictEqual(countOf(huge, '<img'), 1, 'a pile is one picture, however many cards are in it');
+  assert.strictEqual(countOf(huge, 'card-stack-layer'), app.maxLayers);
+  assert.strictEqual(countOf(set, 'card-stack-layer'), countOf(huge, 'card-stack-layer'),
+    'a whole collection is drawn with what a set is drawn with');
+  assert.ok(huge.includes((12000).toLocaleString()), 'and it says what it holds');
+});
+
+test('a fanned pile spreads a bounded number of cards, and says how many of them', () => {
+  const cap  = app.evaluate('STACK_FAN_MAX');
+  const html = pilesHtml([{ label: 'Common', cards: cardsNamed(4000) }], { fanned: 'Common' });
+  assert.strictEqual(countOf(html, '<img'), cap,
+    `spreading four thousand commons drew ${countOf(html, '<img')} cards`);
+  assert.ok(html.includes(`${cap} of 4,000`), 'a fan that is not the whole pile says so');
+});
+
+test('one pile is fanned out and the rest stay stacked', () => {
+  const html = pilesHtml([
+    { label: 'Common', cards: cardsNamed(30) },
+    { label: 'Rare',   cards: cardsNamed(20) },
+  ], { fanned: 'Rare' });
+  assert.strictEqual(countOf(html, 'card-fan"'), 1, 'exactly one pile is spread');
+  assert.strictEqual(countOf(html, 'card-stack"'), 1, 'and the other is still a stack');
 });
