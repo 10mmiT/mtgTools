@@ -181,35 +181,59 @@ function dbCloseSearchPanel() {
   document.body.style.overflow = '';
 }
 
-// ── A card carried to another pile ───────────────────────────────────────────
-// What a card released on a pile means, which is the one question
-// js/carddrag.js asks the mat and refuses to answer for it. Everything about
-// how a card is picked up, followed, leaned and landed is there; what is here
-// is that on this tab a pile is a category and putting a card on one moves it
-// in — through the same dbMoveCardsTo() the "Move to…" modal calls, so the
-// category assignment and the autosave have one implementation and not two.
+// ── Cards carried to another pile ────────────────────────────────────────────
+// What a card released on a pile means, and which cards a card picked up
+// brings with it: the two questions js/carddrag.js asks the mat and refuses to
+// answer for it. Everything about how cards are picked up, followed, leaned,
+// fanned and landed is there; what is here is that on this tab a pile is a
+// category and putting cards on one moves them in — through the same
+// dbMoveCardsTo() the "Move to…" modal and the bulk bar call, so the category
+// assignment and the autosave have one implementation and not three.
 //
 // The answer matters as much as the move: false means nothing happened — the
-// card is already in that category, or the deck is not mine to edit — and a
-// card that was not taken is a card that has to travel back to where it was
-// picked up from. Only the carry knows how to do that, so only the carry is
-// told whether it needs to.
-function cardCarryDrop(cardName, targetCategory) {
+// cards are already in that category, or the deck is not mine to edit — and
+// cards that were not taken are cards that have to travel back to where they
+// were picked up from. Only the carry knows how to do that, so only the carry
+// is told whether it needs to.
+
+/* Which cards come with the one being picked up, which is the whole of what
+   multi-select means to a drag: a card that is part of the selection carries
+   the selection, and any other card carries itself. Picking one card up is
+   never a way to move twenty by accident — that takes selecting them first,
+   which is a thing you can see you have done. */
+function cardCarryHandful(cardName) {
+  return dbSelectedCards.has(cardName) ? [...dbSelectedCards] : [cardName];
+}
+
+function cardCarryDrop(cardNames, targetCategory) {
   /* A settled pile draws no cards — it is one stack standing for the whole
      category — so a card put into one would have nowhere to land: it would
      vanish out of the hand and a number under a stack would go up. Spreading
-     the pile it was put into gives the card somewhere to land and answers the
-     question the drop asks, which is "where did it go?". Unlike a pile settling
-     itself, this is the direct result of an action aimed at that pile, and the
-     arrow settles it again. */
+     the pile it was put into gives the cards somewhere to land and answers the
+     question the drop asks, which is "where did they go?". Unlike a pile
+     settling itself, this is the direct result of an action aimed at that pile,
+     and the arrow settles it again. */
   if (dbView === 'pile') dbExpandedCats.add(targetCategory);
-  /* The one render that draws this card in its new pile draws it landing.
+  /* A selection carried somewhere is a selection spent, the way it is spent by
+     the bulk bar's move: these cards have just been put where they were wanted,
+     and leaving them lit afterwards would make the next click on the mat act on
+     a handful nobody is still holding. Cleared before the move, because the
+     selection is drawn on the cards and the move's render is the one that draws
+     them in their new pile. */
+  const held = cardNames.filter(name => dbSelectedCards.has(name));
+  for (const name of held) dbSelectedCards.delete(name);
+  /* The one render that draws these cards in their new pile draws them landing.
      Set around the move rather than inside it because it is true of this
      caller and not of the modal: a card chosen from a list was never in
      anybody's hand. */
-  _dbLandedCards = new Set([cardName]);
-  const moved = dbMoveCardsTo([cardName], targetCategory);
+  _dbLandedCards = new Set(cardNames);
+  const moved = dbMoveCardsTo(cardNames, targetCategory);
   _dbLandedCards = null;
+  /* Nothing moved is nothing happened, and that has to include the selection:
+     the cards are on their way back to where they were picked up from, and
+     they go back selected. Nothing has been drawn in between, so putting them
+     back costs no render. */
+  if (!moved) for (const name of held) dbSelectedCards.add(name);
   return moved;
 }
 

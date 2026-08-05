@@ -1,13 +1,14 @@
-/* Carrying a card: the decisions inside it.
+/* Carrying a card, and carrying a handful of them: the decisions inside it.
  *
  * Where a card following the pointer has got to, how far it leans from how far
- * behind it is, and which pile would receive it, are all functions of a
- * position and some boxes, and they are written as functions of exactly that
+ * behind it is, which pile would receive it, where each card of a handful lies
+ * in the fan and how far that is from where it was lying, are all functions of
+ * a position and some boxes, and they are written as functions of exactly that
  * so they can be asserted here rather than eyeballed in a browser. So is what
- * a drop does to the deck, which is the one thing in this ticket that can
- * break something that already worked. What is not asserted is what a card in
- * hand looks like — that is the eye's, for the reason the redesign already
- * recorded.
+ * a drop does to the deck and to the selection, which is the one thing in
+ * these two tickets that can break something that already worked. What is not
+ * asserted is what a card in hand looks like — that is the eye's, for the
+ * reason the redesign already recorded.
  *
  * The shipped files are run against stub browser globals, the way
  * test/cardmove.test.js runs the mat's movement, so these assert on the code
@@ -47,6 +48,7 @@ function loadCardDrag() {
     arrived: evaluate('CARD_CARRY_ARRIVED'),
     lag:     evaluate('CARD_CARRY_LAG'),
     maxLean: evaluate('CARD_TILT_MAX'),
+    maxTurn: evaluate('CARD_FAN_TURN'),
     /** One frame of following the pointer. */
     step: (at, to, ease = evaluate('CARD_CARRY_EASE')) =>
       answer(`cardCarryStep(${JSON.stringify(at)}, ${JSON.stringify(to)}, ${ease})`),
@@ -54,6 +56,12 @@ function loadCardDrag() {
     lean: behind => evaluate(`cardCarryLean(${behind})`),
     /** Which pile would take a card released here. */
     target: (x, y, zones) => evaluate(`cardCarryTarget(${x}, ${y}, ${JSON.stringify(zones)})`),
+    /** Where the index-th card of a handful lies, relative to the one in hand. */
+    fan: (index, count, { width, height }) =>
+      answer(`cardCarryFan(${index}, ${count}, ${width}, ${height})`),
+    /** How far that card has to be moved to get there. */
+    aim: (hand, origin, fan) => answer(
+      `cardCarryAim(${JSON.stringify(hand)}, ${JSON.stringify(origin)}, ${JSON.stringify(fan)})`),
   };
 }
 
@@ -202,6 +210,114 @@ test('where two piles overlap, the one on top takes the card', () => {
   assert.strictEqual(app.target(120, 220, overlapping), 'Ramp', 'and only where they overlap');
 });
 
+// ── The shape of a handful ────────────────────────────────────────────
+// Several cards carried at once are carried as a handful: the card the hand
+// closed on under the pointer, the rest fanned out behind it.
+
+/** A card as the grid and the piles draw one, and a card as the list view
+ *  draws one: the same card, one of them as wide as the mat. */
+const CARD = { width: 150, height: 210 };
+const ROW  = { width: 900, height: 34 };
+
+test('the card in the hand is where the hand is, whatever it is holding', () => {
+  // Card 0 is the one that was picked up. It stays exactly where it was
+  // grabbed — square, under the pointer — and the fan is what is behind it.
+  for (const count of [1, 2, 3, 20]) {
+    assert.deepStrictEqual(app.fan(0, count, CARD), { x: 0, y: 0, turn: 0 },
+      `a handful of ${count} moved the card being carried`);
+  }
+});
+
+test('a card carried on its own is not a fan', () => {
+  assert.deepStrictEqual(app.fan(0, 1, CARD), { x: 0, y: 0, turn: 0 });
+});
+
+test('each card further back is further out and further round', () => {
+  const fan = [0, 1, 2, 3, 4].map(i => app.fan(i, 5, CARD));
+  for (let i = 1; i < fan.length; i++) {
+    assert.ok(fan[i].x > fan[i - 1].x,    `card ${i} is not further across than card ${i - 1}`);
+    assert.ok(fan[i].y < fan[i - 1].y,    `card ${i} is not further up than card ${i - 1}`);
+    assert.ok(fan[i].turn > fan[i - 1].turn, `card ${i} is not turned further than card ${i - 1}`);
+  }
+});
+
+test('a hand holds what it holds: twenty cards spread no further than three', () => {
+  // The spread is the whole fan rather than the step between two cards, so a
+  // bigger handful is a denser one and not a wider one. Otherwise picking up a
+  // selection of forty would throw a fan the width of the mat.
+  const three  = app.fan(2, 3, CARD);
+  const twenty = app.fan(19, 20, CARD);
+  assert.deepStrictEqual(twenty, three);
+  assert.ok(three.x < CARD.width, 'and the whole handful is narrower than one card is wide');
+});
+
+test('the fan is a fraction of the card, so it follows the size control', () => {
+  // Cards are drawn at whatever width the tab's slider says. A fan measured in
+  // pixels would be a wide spread of small cards and a tight bunch of big ones.
+  const small = app.fan(1, 2, { width: 100, height: 140 });
+  const big   = app.fan(1, 2, { width: 200, height: 280 });
+  assert.strictEqual(big.x, small.x * 2);
+  assert.strictEqual(big.y, small.y * 2);
+  assert.strictEqual(big.turn, small.turn, 'and the angle is the angle: it does not scale');
+});
+
+test('a handful of list rows is a stack of papers, not a fan', () => {
+  // A row is a card as wide as the mat. Spread across *that* the cards would
+  // be thrown down a table, and turned by the full angle the far end of a row
+  // would swing off the page — so the spread is the narrow way across the
+  // thing being carried, and the turn is bounded by how card-shaped it is.
+  const row  = app.fan(1, 2, ROW);
+  const card = app.fan(1, 2, CARD);
+  assert.ok(row.x < ROW.height, `${row.x}px is a spread of rows, not a stack of them`);
+  assert.ok(row.turn > 0 && row.turn < card.turn / 10,
+    `a row turned ${row.turn}°, where a card turns ${card.turn}°`);
+});
+
+test('a fan never turns further than a fan may', () => {
+  for (const shape of [CARD, ROW, { width: 60, height: 400 }]) {
+    for (const [i, n] of [[1, 2], [3, 4], [99, 100]]) {
+      const { turn } = app.fan(i, n, shape);
+      assert.ok(turn >= 0 && turn <= app.maxTurn,
+        `card ${i} of ${n} turned ${turn}°, past the ${app.maxTurn}° a handful spreads`);
+    }
+  }
+});
+
+test('a handful of things with no size is still a handful', () => {
+  // A card whose image has not loaded measures nothing. It is carried like the
+  // rest of them rather than to some undefined place off the page.
+  const { x, y, turn } = app.fan(1, 2, { width: 0, height: 0 });
+  for (const n of [x, y, turn]) assert.ok(Number.isFinite(n), `${n} is not a place`);
+});
+
+// ── Where that puts each card ─────────────────────────────────────────
+// Every card in a handful is aimed at the same hand and given a different
+// number to get there, because what a carry writes is a displacement: a card
+// keeps its own place in the layout and is drawn out of it.
+
+test('cards from anywhere on the mat are aimed at the same hand', () => {
+  const hand = { x: 700, y: 400 };
+  const fan  = { x: 12, y: -4 };
+  for (const origin of [{ x: 20, y: 30 }, { x: 690, y: 380 }, { x: 1400, y: 2000 }]) {
+    const to = app.aim(hand, origin, fan);
+    assert.deepStrictEqual({ x: origin.x + to.x, y: origin.y + to.y },
+      { x: hand.x + fan.x, y: hand.y + fan.y },
+      'a card put where it was told to go is not in the hand');
+  }
+});
+
+test('a card already lying where it is wanted is not moved', () => {
+  assert.deepStrictEqual(app.aim({ x: 300, y: 200 }, { x: 300, y: 200 }, { x: 0, y: 0 }),
+    { x: 0, y: 0 });
+});
+
+test('the card in the hand is aimed at the hand itself', () => {
+  // Its fan is nothing, so wherever it was lying, what it is asked to cover is
+  // exactly the distance from there to the pointer.
+  const to = app.aim({ x: 500, y: 100 }, { x: 120, y: 640 }, { x: 0, y: 0 });
+  assert.deepStrictEqual(to, { x: 380, y: -540 });
+});
+
 // ── What a drop does to the deck ───────────────────────────────────────
 // The one thing here that can break something that already worked: the deck's
 // categories, and the autosave that follows them. The move logic is the edit
@@ -304,6 +420,128 @@ test('the cards in a handful that were already there do not stop the rest', () =
     'Sol Ring': 'Ramp', 'Doom Blade': 'Removal', 'Forest': 'Ramp',
   });
   assert.strictEqual(deck.saves(), 1);
+});
+
+// ── A handful, dropped ────────────────────────────────────────────────
+// Which cards a card brings with it, and what putting them down does to the
+// deck and to the selection. Both are the mat's answers rather than the
+// carry's — js/carddrag.js asks cardCarryHandful() and cardCarryDrop() and
+// knows nothing else about what a selection is — so both are asserted where
+// they are answered: the Deck Builder's panel module, over the edit module it
+// moves cards through.
+
+/** The Deck Builder's two answers to the carry, over a deck and a selection.
+ *  Both shipped modules are run together in one sandbox, because the panel's
+ *  answer is only true if the move underneath it is: what is counted is the
+ *  render and the deferred write the edit module really schedules. */
+function loadMat(cards, selected = []) {
+  const sandbox = {
+    dbDeck:  { id: 'd1', playerId: 'p1' },
+    dbCards: cards.map(c => ({ qty: 1, ...c })),
+    dbSelectedCards: new Set(selected),
+    dbExpandedCats:  new Set(),
+    dbView: 'list',
+    _dbLandedCards: null,
+    dbSaveTimer: 0,
+    isMyPlayer: id => id === 'p1',
+    document: { addEventListener() {}, getElementById: () => null },
+    window:   { addEventListener() {} },
+    clearTimeout() {},
+    renders: 0, saves: 0,
+  };
+  sandbox.dbRender   = () => { sandbox.renders++; };
+  sandbox.setTimeout = () => { sandbox.saves++; return 1; };
+  vm.createContext(sandbox);
+  vm.runInContext(read('public/js/deckview-edit.js'), sandbox);
+  vm.runInContext(read('public/js/deckview-panels.js'), sandbox);
+  const run = expr => vm.runInContext(expr, sandbox);
+  return {
+    sandbox,
+    /** What the hand closes on, picking this card up. */
+    handful: name => JSON.parse(run(`JSON.stringify(cardCarryHandful(${JSON.stringify(name)}))`)),
+    /** And what letting go of it over a pile does. */
+    drop: (names, cat) => run(`cardCarryDrop(${JSON.stringify(names)}, ${JSON.stringify(cat)})`),
+    categories: () => Object.fromEntries(sandbox.dbCards.map(c => [c.card_name, c.category])),
+    selection:  () => [...sandbox.dbSelectedCards],
+    renders: () => sandbox.renders,
+    saves:   () => sandbox.saves,
+  };
+}
+
+test('a selected card brings the whole selection with it', () => {
+  const mat = loadMat(DECK, ['Sol Ring', 'Forest']);
+  assert.deepStrictEqual(mat.handful('Sol Ring').sort(), ['Forest', 'Sol Ring']);
+  assert.deepStrictEqual(mat.handful('Forest').sort(), ['Forest', 'Sol Ring'],
+    'either of them picks up both');
+});
+
+test('an unselected card is carried alone, and the selection is left alone', () => {
+  // Picking one card up is never a way to move twenty by accident: that takes
+  // selecting them first, which is a thing you can see you have done.
+  const mat = loadMat(DECK, ['Sol Ring', 'Forest']);
+  assert.deepStrictEqual(mat.handful('Doom Blade'), ['Doom Blade']);
+  assert.deepStrictEqual(mat.selection().sort(), ['Forest', 'Sol Ring'],
+    'and asking cost the selection nothing');
+});
+
+test('a card carried on a mat with nothing selected is a handful of one', () => {
+  const mat = loadMat(DECK);
+  assert.deepStrictEqual(mat.handful('Sol Ring'), ['Sol Ring']);
+});
+
+test('a handful dropped on a pile moves every card in it, as one change', () => {
+  // The bulk move the modal has always done, arrived at by hand: several
+  // cards, one render, one autosave.
+  const mat = loadMat(DECK, ['Sol Ring', 'Doom Blade']);
+  assert.strictEqual(mat.drop(mat.handful('Sol Ring'), 'Lands'), true);
+  assert.deepStrictEqual(mat.categories(), {
+    'Sol Ring': 'Lands', 'Doom Blade': 'Lands', 'Forest': 'Lands',
+  });
+  assert.strictEqual(mat.renders(), 1, 'the mat is redrawn once for the whole handful');
+  assert.strictEqual(mat.saves(), 1, 'and the deck saved once, as it is for a bulk move today');
+});
+
+test('a selection carried somewhere is a selection spent', () => {
+  // The bulk bar's move clears it too. Cards that have just been put where they
+  // were wanted are not still being chosen, and leaving them lit would make the
+  // next thing done on the mat act on a handful nobody is holding.
+  const mat = loadMat(DECK, ['Sol Ring', 'Doom Blade']);
+  mat.drop(['Sol Ring', 'Doom Blade'], 'Lands');
+  assert.deepStrictEqual(mat.selection(), []);
+});
+
+test('a card carried alone out of a mat with a selection leaves it standing', () => {
+  const mat = loadMat(DECK, ['Doom Blade', 'Forest']);
+  assert.strictEqual(mat.drop(['Sol Ring'], 'Lands'), true);
+  assert.deepStrictEqual(mat.selection().sort(), ['Doom Blade', 'Forest'],
+    'the cards nobody picked up are still selected');
+  assert.strictEqual(mat.categories()['Sol Ring'], 'Lands');
+});
+
+test('a drop that moves nothing leaves the selection exactly as it was', () => {
+  // Released over a pile every card in the handful is already in, or on a deck
+  // that is not mine: nothing moved, nothing was saved, and the cards are on
+  // their way back to where they were picked up from — selected, because
+  // nothing happened.
+  const mat = loadMat(DECK, ['Sol Ring']);
+  assert.strictEqual(mat.drop(['Sol Ring'], 'Ramp'), false);
+  assert.deepStrictEqual(mat.selection(), ['Sol Ring']);
+  assert.strictEqual(mat.renders(), 0);
+  assert.strictEqual(mat.saves(), 0);
+
+  mat.sandbox.dbDeck = { id: 'd1', playerId: 'someone-else' };
+  assert.strictEqual(mat.drop(['Sol Ring'], 'Lands'), false);
+  assert.deepStrictEqual(mat.selection(), ['Sol Ring'], 'a deck I may not edit takes nothing');
+});
+
+test('a handful put into a settled pile spreads it, so the cards have somewhere to land', () => {
+  // A settled pile draws no cards. Dropping a handful into one without
+  // spreading it would be twenty cards vanishing out of the hand and a number
+  // under a stack going up.
+  const mat = loadMat(DECK, ['Sol Ring', 'Doom Blade']);
+  mat.sandbox.dbView = 'pile';
+  mat.drop(['Sol Ring', 'Doom Blade'], 'Lands');
+  assert.deepStrictEqual([...mat.sandbox.dbExpandedCats], ['Lands']);
 });
 
 // ── The gate on the gesture ───────────────────────────────────────────

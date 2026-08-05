@@ -633,6 +633,51 @@ td { padding: var(--space-2) var(--space-3); }
    than a class beside it, so the cursor cannot disagree with what will
    actually happen. */
 [data-carry] { cursor: grab; }
+
+/* ── A handful ───────────────────────────────────────────────────────
+   Several cards carried at once are carried as a handful. Every one of them
+   is the card itself, lifted out of wherever on the mat it was lying and
+   gathered to the hand — so a drop lands all of them for the same reason it
+   lands one, and js/carddrag.js draws the gathering with the lag that was
+   already there.
+
+   The card the hand closed on stays under the pointer and on top of the rest:
+   it is the one being aimed, and it is the one that says how many cards are
+   in the hand. A step above the others rather than a level of its own, since
+   what it has to clear is the handful and not the mat. */
+.card-carried-lead { z-index: 61; }
+
+/* How many cards are in the hand, on the card in it — so that a handful says
+   what it is worth while it is in the air, rather than after it has landed
+   somewhere and been counted.
+
+   Drawn from the attribute rather than from an element, because what is
+   carried is the cards themselves and a number is not one of them: there is
+   nothing here for the mat to build, keep track of or take away again. And
+   only ever when there is more than one, which is what js/carddrag.js writes
+   the attribute for — a handful of one is a card, and a card does not need
+   counting. */
+.card-carried-lead[data-carry-count]::after {
+  content: attr(data-carry-count);
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: calc(-1 * var(--space-2));
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+/* Except on a row, whose far corner is not where the hand is: a list row is
+   as wide as the mat, so its right-hand end can be half a screen from the
+   card being carried. The head of the row is where the card is read and
+   where the pointer went for it. */
+.dv-row.card-carried-lead[data-carry-count]::after {
+  right: auto;
+  left: calc(-1 * var(--space-2));
+}
 /* While a card is in hand, the pointer is holding something everywhere on the
    page, and dragging across the mat is not a text selection. */
 .card-carrying, .card-carrying * { cursor: grabbing; user-select: none; }

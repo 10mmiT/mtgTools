@@ -285,7 +285,7 @@ mtgtools/
 │       ├── cardlift.js    # Picking a card up: the hover lift, lean and sheen on every card image
 │       ├── cardstack.js   # Drawing a group of cards as a stack: thickness from count, angle from name
 │       ├── cardmove.js    # Cards travelling to where a re-render put them: measured before and after
-│       ├── carddrag.js    # Carrying a card: the lag, the lean, the pile that would take it, the landing
+│       ├── carddrag.js    # Carrying a card, or a handful: the lag, the lean, the fan, the pile that would take it
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches
 │       ├── card.js        # Card Detail tab (oracle text, rulings, prices, alt-art printings)
 │       ├── collections.js # Collection CRUD and results rendering

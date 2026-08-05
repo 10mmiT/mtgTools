@@ -19,12 +19,22 @@
 // journey the mat was going to draw anyway. Ticket 08 said this would be what
 // let a dropped card land rather than teleport, and this is that.
 //
-// Three decisions live here, all written as functions of their inputs so that
+// What is picked up may be more than one card. A card that is part of a
+// selection brings the rest of it with it, as a handful: the card the hand
+// closed on stays under the pointer and the others gather to it and spread
+// into a small fan, so that moving twenty cards looks like moving twenty
+// cards. They are the cards themselves as well — each one lifted out of
+// wherever on the mat it was lying — so the landing is free for a handful for
+// the same reason it is free for one.
+//
+// Five decisions live here, all written as functions of their inputs so that
 // they can be asserted rather than eyeballed:
 //
 //   cardCarryStep()    where a card that is following the pointer has got to
 //   cardCarryLean()    how far it leans, from how far behind it is
 //   cardCarryTarget()  which pile would receive it, from where the pointer is
+//   cardCarryFan()     where a card lies in the handful it is part of
+//   cardCarryAim()     where that puts it, from where it was lying
 //
 // The markup contract is two attributes, in the spirit of js/cardmove.js's
 // data-moves — the value of each says what the thing *is*, not what to do
@@ -37,8 +47,11 @@
 //
 // What a card released on a pile *means* is not this file's to know. It calls
 // cardCarryDrop(), which the tab that owns the piles defines — the Deck
-// Builder, in js/deckview-panels.js — and reads the answer: it took the card,
-// or it did not and the card has to go back where it came from. The category
+// Builder, in js/deckview-panels.js — and reads the answer: it took the cards,
+// or it did not and they have to go back where they came from. Which cards a
+// card brings with it is the same tab's answer, through cardCarryHandful():
+// what a selection is belongs to the mat that has one, and this file only
+// knows that a hand may close on several cards at once. The category
 // assignment and the autosave stay in the deck's own edit module, which is
 // where they were.
 //
@@ -73,6 +86,20 @@ const CARD_CARRY_ARRIVED = 1;
  * pixels. Roughly a card's width: at that distance the hand is moving fast
  * enough that a card in it would swing. */
 const CARD_CARRY_LAG = 150;
+
+/* How far a handful spreads, as a fraction of the size of the card being
+ * carried — across the fan and up it. This is the whole spread rather than
+ * the step between two cards: a hand holds what it holds, so a handful of
+ * twenty is the same size as a handful of three and only packed tighter. */
+const CARD_FAN_REACH = 0.42;
+const CARD_FAN_RISE  = 0.10;
+
+/* And how far round the fan turns, in degrees, from the card in the hand to
+ * the last card behind it. Not a lean: a leaning card is one being pulled
+ * through the air and CARD_TILT_MAX is how far it may go, where this is the
+ * shape of a handful standing still. The two add up on the same card, which
+ * is what a fan of cards swung sideways does. */
+const CARD_FAN_TURN = 8;
 
 /* How long the way back takes at most, in milliseconds — the same kind of
  * number as CARD_MOVE_SETTLE_MS in js/cardmove.js and for the same reason.
@@ -136,6 +163,49 @@ function cardCarryTarget(x, y, zones) {
   return found;
 }
 
+/* Where the index-th card of a handful of `count` lies, relative to the card
+ * in the hand. Card 0 *is* the card in the hand: it stays exactly where it was
+ * grabbed, square and under the pointer, and the rest fan out behind it.
+ *
+ * The spread is a fraction of the card rather than a number of pixels, so a
+ * handful is the same handful whatever the card-size control is set to. Which
+ * measurement of the card, though, depends on what the mat is drawing: in the
+ * grid and the piles a card is a card and its width is the smaller way across
+ * it, but in the list view a card is a row as wide as the mat, and a fan
+ * spread across *that* would be cards thrown down a table. The narrow way
+ * across the thing being carried is a card's width in the one case and a row's
+ * height in the other, and both are the size of the thing in the hand.
+ *
+ * The turn is bounded by the same shape, for the same reason from the other
+ * side: eight degrees on a card sweeps its corner a few pixels, and eight
+ * degrees on a row as wide as the mat sweeps its far end off the page. A wide
+ * thing turns less, in proportion to how card-shaped it is, so a handful of
+ * rows is a neat stack of papers and a handful of cards is a fan. */
+function cardCarryFan(index, count, width, height) {
+  if (index <= 0 || count <= 1) return { x: 0, y: 0, turn: 0 };
+  const along = Math.min(index, count - 1) / (count - 1);
+  const size  = Math.min(width, height);
+  const card  = width > 0 ? Math.min(1, height / width) : 1;
+  return {
+    x:     along * CARD_FAN_REACH * size,
+    y:    -along * CARD_FAN_RISE  * size,
+    turn:  along * CARD_FAN_TURN  * card,
+  };
+}
+
+/* How far a card has to be moved to be in the hand, given where the hand is,
+ * where the card is lying and where in the fan it belongs.
+ *
+ * Everything a carry writes is a displacement rather than a position, because
+ * a carried card keeps its own place in the layout — so a card at the far end
+ * of the mat and a card lying beside the hand are aimed at the same place and
+ * given very different numbers to get there. This is that subtraction, and it
+ * is the whole of what makes a handful gather: every card is told where the
+ * hand is, and each one answers with its own way there. */
+function cardCarryAim(hand, origin, fan) {
+  return { x: hand.x + fan.x - origin.x, y: hand.y + fan.y - origin.y };
+}
+
 // ── The wiring ────────────────────────────────────────────────────────────
 
 /* Every place a card can be put down, measured once when the carry begins.
@@ -162,10 +232,60 @@ function cardCarryZones(root) {
 }
 
 let carryPress  = null;   // a pointer down on a card that has not moved far enough yet
-let carry       = null;   // the card in hand
+let carry       = null;   // the handful in hand
 let carryZones  = [];     // where it could be put down
 let carryOffer  = null;   // the pile currently showing that it would take it
 let carryFrame  = 0;
+
+/* Which cards come with the one being picked up. The mat is asked, because
+ * what a selection is belongs to the mat that has one; a tab with no answer
+ * carries one card, which is what every tab did before there was a question.
+ *
+ * An answer the card itself is not in is an answer to a different question —
+ * the card in the hand is the card being carried — so it is refused rather
+ * than patched, and the hand closes on the one card. */
+function carryHandful(name) {
+  const asked = typeof cardCarryHandful === 'function' ? cardCarryHandful(name) : null;
+  return Array.isArray(asked) && asked.includes(name) ? asked : [name];
+}
+
+/* The handful's cards, in the order they are held: the one that was picked up
+ * first, and the rest in the order the mat draws them.
+ *
+ * A name with nothing on the mat to it is still in the handful — a card in a
+ * settled pile, or one the search is filtering out, is selected and will be
+ * moved — there is simply nothing of it to carry. So this can be shorter than
+ * the handful, and what is dropped is the names rather than what was drawn. */
+function carryHandfulCards(lead, names) {
+  const wanted = new Set(names);
+  const els = [lead];
+  for (const el of document.querySelectorAll('[data-carry]')) {
+    if (el !== lead && wanted.has(el.dataset.carry)) els.push(el);
+  }
+  return els;
+}
+
+/* The pile a handful came from, which is the pile every one of its cards came
+ * from. Dropping a card back where it already is does nothing, and that is
+ * what `from` is for — but a handful gathered out of several piles came from
+ * nowhere in particular, and every pile on the mat is somewhere new for at
+ * least one of its cards.
+ *
+ * A handful with a card the mat is not drawing has no home either, for the
+ * same reason read the other way: that card may be lying in any category at
+ * all, so dropping the handful on the pile the hand reached into is a real
+ * move and has to be offered. */
+function carryHandfulFrom(els, names) {
+  if (els.length !== names.length) return null;
+  let from = null;
+  for (const el of els) {
+    const zone = el.closest('[data-drop]');
+    if (!zone) return null;
+    if (from === null) from = zone.dataset.drop;
+    else if (from !== zone.dataset.drop) return null;
+  }
+  return from;
+}
 
 /* Which pile is showing that it would receive the card. Only ever one, and
  * never the pile the card came from — dropping a card back where it already is
@@ -177,51 +297,106 @@ function offerCarryTo(zone) {
   carryOffer = zone;
 }
 
-/* One write per frame, and a frame asked for as long as the card is in hand:
- * the card goes on catching up after the pointer has stopped, which is the
- * back half of the lag. */
+/* One write per frame per card, and a frame asked for as long as the handful
+ * is in hand: the cards go on catching up after the pointer has stopped, which
+ * is the back half of the lag.
+ *
+ * Every card in a handful is following the same hand with the same lag, so
+ * they arrive together and lean together — one hand, moving one way. What each
+ * card has of its own is where it is coming from and where in the fan it is
+ * going, and the fan's turn is added to the hand's lean rather than replacing
+ * it, so a handful hurried sideways swings as one fanned thing. */
 function paintCarry() {
   carryFrame = 0;
   if (!carry) return;
 
-  /* Asked here rather than when the card was picked up, so that unticking
+  /* Asked here rather than when the cards were picked up, so that unticking
    * "Cards move" — or a system that starts asking for less movement — puts the
-   * card straight under the pointer and leaves it draggable. */
+   * hand straight under the pointer and leaves it draggable. The fan itself
+   * stays: how a handful is arranged is not motion, any more than the angle a
+   * card lies at in a pile is. */
   const moving = cardMotionOn();
-  carry.at = cardCarryStep(carry.at, carry.to, moving ? CARD_CARRY_EASE : 1);
-  carry.el.style.translate = `${carry.at.x.toFixed(1)}px ${carry.at.y.toFixed(1)}px`;
+  const ease   = moving ? CARD_CARRY_EASE : 1;
+  const lead   = carry.cards[0];
 
-  const lean = moving ? cardCarryLean(carry.to.x - carry.at.x) : 0;
-  if (lean) carry.el.style.rotate = `${lean.toFixed(2)}deg`;
-  else carry.el.style.removeProperty('rotate');
+  lead.at = cardCarryStep(lead.at, lead.to, ease);
+  const lean = moving ? cardCarryLean(lead.to.x - lead.at.x) : 0;
+
+  for (const card of carry.cards) {
+    if (card !== lead) card.at = cardCarryStep(card.at, card.to, ease);
+    card.el.style.translate = `${card.at.x.toFixed(1)}px ${card.at.y.toFixed(1)}px`;
+    const turn = lean + card.fan.turn;
+    if (turn) card.el.style.rotate = `${turn.toFixed(2)}deg`;
+    else card.el.style.removeProperty('rotate');
+  }
 
   carryFrame = requestAnimationFrame(paintCarry);
 }
 
-/* Pick it up. The card keeps its place in the layout and is drawn above its
- * neighbours from there, so nothing on the mat shifts to acknowledge that a
- * card has been lifted off it.
+/* Where the handful is going, from where the hand is. The card that was picked
+ * up is aimed at the pointer by the point on it that was grabbed, so it stays
+ * under the hand exactly where it was taken hold of; every other card is aimed
+ * at that card's place in the page plus its own place in the fan.
  *
- * The pointer is captured so that the rest of the journey arrives here whatever
- * the card is dragged over — and so that nothing else sees a pointer crossing
- * it, which is what stops a carried card from leaving a trail of lifted cards
- * behind it. */
+ * Written on each move rather than each frame: it is a function of where the
+ * pointer is, and the frames in between are the cards catching up with it. */
+function aimCarry(x, y) {
+  const lead = carry.cards[0];
+  carry.point = { x, y };
+  lead.to = { x: x - carry.grab.x, y: y - carry.grab.y };
+
+  const hand = { x: lead.origin.x + lead.to.x, y: lead.origin.y + lead.to.y };
+  for (const card of carry.cards) {
+    if (card !== lead) card.to = cardCarryAim(hand, card.origin, card.fan);
+  }
+}
+
+/* Pick it up. Each card keeps its place in the layout and is drawn above its
+ * neighbours from there, so nothing on the mat shifts to acknowledge that a
+ * card has been lifted off it — and the mat does not close up behind a handful
+ * that may yet come back.
+ *
+ * Where every card is lying is measured now, once, for the same reason the
+ * piles are: the mat cannot change while cards are in hand, and a carry that
+ * measured the page every frame would be a carry that stuttered.
+ *
+ * The pointer is captured by the card that was grabbed, so that the rest of
+ * the journey arrives here whatever the handful is dragged over — and so that
+ * nothing else sees a pointer crossing it, which is what stops a carried card
+ * from leaving a trail of lifted cards behind it. */
 function beginCarry(press) {
-  const zone = press.el.closest('[data-drop]');
+  const names = carryHandful(press.el.dataset.carry);
+  const els   = carryHandfulCards(press.el, names);
+  const box   = press.el.getBoundingClientRect();
+  const pageX = window.scrollX || 0;
+  const pageY = window.scrollY || 0;
+
   carry = {
-    el:   press.el,
-    id:   press.id,
-    name: press.el.dataset.carry,
-    from: zone ? zone.dataset.drop : null,
-    at:   { x: 0, y: 0 },
-    to:   { x: 0, y: 0 },
+    id:    press.id,
+    names,
+    from:  carryHandfulFrom(els, names),
     point: { x: press.x, y: press.y },
     grab:  { x: press.x, y: press.y },
+    cards: els.map((el, i) => {
+      const at = el.getBoundingClientRect();
+      return {
+        el,
+        origin: { x: at.left + pageX, y: at.top + pageY },
+        fan:    cardCarryFan(i, els.length, box.width, box.height),
+        at:     { x: 0, y: 0 },
+        to:     { x: 0, y: 0 },
+      };
+    }),
   };
   carryZones = cardCarryZones();
-  carry.el.classList.add('card-carried');
+  for (const card of carry.cards) card.el.classList.add('card-carried');
+  /* The card the hand closed on is the card on top of the handful, and the one
+   * that says how many cards are in it — the whole handful, including the ones
+   * the mat is not drawing, because they are going where it goes. */
+  press.el.classList.add('card-carried-lead');
+  if (names.length > 1) press.el.dataset.carryCount = names.length;
   document.documentElement.classList.add('card-carrying');
-  try { carry.el.setPointerCapture(press.id); } catch { /* the pointer is already gone */ }
+  try { press.el.setPointerCapture(press.id); } catch { /* the pointer is already gone */ }
   if (!carryFrame) carryFrame = requestAnimationFrame(paintCarry);
 }
 
@@ -229,7 +404,8 @@ function beginCarry(press) {
  * been replaced by a re-render, which is harmless to write to — it is no
  * longer in the page. */
 function endCarry(el) {
-  el.classList.remove('card-carried', 'card-returning');
+  el.classList.remove('card-carried', 'card-carried-lead', 'card-returning');
+  delete el.dataset.carryCount;
   el.style.removeProperty('translate');
   el.style.removeProperty('rotate');
 }
@@ -240,25 +416,33 @@ function endCarry(el) {
  * and the eye should be able to follow it there. It stays above its neighbours
  * until it has landed. */
 function returnCarry(el) {
+  /* No longer in anybody's hand, so no longer the card on top of one and no
+   * longer the one saying how many there are: what is left of the carry is a
+   * card on its way back to where it was lying. */
+  el.classList.remove('card-carried-lead');
+  delete el.dataset.carryCount;
   el.classList.add('card-returning');
   el.style.translate = '0px 0px';
   el.style.removeProperty('rotate');
   setTimeout(() => endCarry(el), CARD_CARRY_HOME_MS);
 }
 
-/* Let go. The pile under the pointer is what receives the card — the pointer
- * rather than the card, because the card is behind the hand by design and the
- * hand is what is being aimed.
+/* Let go. The pile under the pointer is what receives the handful — the
+ * pointer rather than the cards, because they are behind the hand by design
+ * and the hand is what is being aimed.
  *
- * The lean comes off before the drop and the displacement does not: what the
- * mat measures next is this element where it is now, which is the hand, and
- * that is the position the card's landing is drawn from. Straight, because a
- * card measured while leaning reports the box its corners reach rather than
- * the box it covers. */
+ * What is dropped is the names, not the elements: a handful can hold cards the
+ * mat is not drawing, and they go where the hand goes. The lean comes off
+ * before the drop and the displacement does not: what the mat measures next is
+ * these elements where they are now, which is the hand, and that is the
+ * position each card's landing is drawn from. Straight, because a card
+ * measured while leaning reports the box its corners reach rather than the box
+ * it covers. */
 function releaseCarry() {
-  const el = carry.el;
-  const key = cardCarryTarget(carry.point.x, carry.point.y, carryZones);
-  const to  = key !== null && key !== carry.from ? key : null;
+  const cards = carry.cards;
+  const names = carry.names;
+  const key   = cardCarryTarget(carry.point.x, carry.point.y, carryZones);
+  const to    = key !== null && key !== carry.from ? key : null;
 
   offerCarryTo(null);
   cancelAnimationFrame(carryFrame);
@@ -267,12 +451,14 @@ function releaseCarry() {
   carryZones = [];
   document.documentElement.classList.remove('card-carrying');
 
-  el.style.removeProperty('rotate');
+  for (const card of cards) card.el.style.removeProperty('rotate');
   const taken = to !== null && typeof cardCarryDrop === 'function'
-    && cardCarryDrop(el.dataset.carry, to);
-  /* Taken means the mat has been rebuilt and this element is not in the page
-   * any more: there is nothing left to clean up and nothing to bring home. */
-  if (!taken) returnCarry(el);
+    && cardCarryDrop(names, to);
+  /* Taken means the mat has been rebuilt and these elements are not in the
+   * page any more: there is nothing left to clean up and nothing to bring
+   * home. Not taken means every one of them goes back, including the ones that
+   * were never going to move. */
+  if (!taken) for (const card of cards) returnCarry(card.el);
 }
 
 // ── The pointer ───────────────────────────────────────────────────────────
@@ -314,13 +500,12 @@ function onCarryPointerMove(e) {
     beginCarry(carryPress);
     carryPress = null;
   } else if (e.pointerId !== carry.id) {
-    /* A second pointer crossing the page while a card is in hand is not the
-     * hand that is carrying it. */
+    /* A second pointer crossing the page while cards are in hand is not the
+     * hand that is carrying them. */
     return;
   }
 
-  carry.point = { x, y };
-  carry.to    = { x: x - carry.grab.x, y: y - carry.grab.y };
+  aimCarry(x, y);
 
   const key  = cardCarryTarget(x, y, carryZones);
   const zone = key !== null && key !== carry.from
@@ -336,18 +521,18 @@ function onCarryPointerUp() {
 }
 
 /* The pointer taken away rather than lifted — a system gesture, a window
- * losing it. The card was never dropped anywhere, so it goes home. */
+ * losing it. The cards were never dropped anywhere, so they go home. */
 function cancelCarry() {
   carryPress = null;
   if (!carry) return;
-  const el = carry.el;
+  const cards = carry.cards;
   offerCarryTo(null);
   cancelAnimationFrame(carryFrame);
   carryFrame = 0;
   carry = null;
   carryZones = [];
   document.documentElement.classList.remove('card-carrying');
-  returnCarry(el);
+  for (const card of cards) returnCarry(card.el);
 }
 
 /* The click that a release fires on the card it was released over. A carry is
