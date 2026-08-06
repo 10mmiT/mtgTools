@@ -2,11 +2,11 @@
 
 A record of the work on `docs/ui-redesign` (32 commits, `2ad4567..fede17c`), written after
 delivery. It supersedes the three planning documents the work was driven from — the PRD
-(`spec-ui-redesign.md`), the implementation design spec (`ui-redesign.md`), and the 25 tickets
-in `.scratch/ui-redesign/issues/`. Where this document and those disagree, this one is what
-happened.
+(`spec-ui-redesign.md`), the implementation design spec (`ui-redesign.md`, no relation to this
+file), and the 25 tickets in `.scratch/ui-redesign/issues/`. None of the three is still in the
+repo. Where this document and those disagree, this one is what happened.
 
-The companion interactivity brief (`ui.md`) is **not** covered here, because it was not built.
+The companion interactivity brief (`docs/design/ui.md`) is **not** covered here, because it was not built.
 See [Not delivered](#not-delivered).
 
 ---
@@ -306,11 +306,11 @@ Each of these was a deliberate reversal during implementation, and the reason is
 ## Not delivered
 
 > **Since superseded.** All three deliverables below were built afterwards, on
-> `feat/cards-as-objects`. See [cards-as-objects-record.md](cards-as-objects-record.md) for what each
+> `feat/cards-as-objects`. See [cards-as-objects.md](cards-as-objects.md) for what each
 > turned into and the one clause of §2 that was left undone. The rest of this section is kept as it
 > was written, because it is what the next piece of work was specified from.
 
-`ui.md` — the **"Cards on a Table" interactivity brief** — was written alongside the redesign and
+`docs/design/ui.md` — the **"Cards on a Table" interactivity brief** — was written alongside the redesign and
 is still outstanding. Its three deliverables are:
 
 1. **Hover-to-lift** — scale a card up on hover via transform only, so the layout hitbox never
@@ -325,5 +325,5 @@ redesign explicitly scoped these out and built the grid, toolbar and mat surface
 on; the elevation rule permits the hover-lift's shadow, because a lifted card is a transient
 floating object and the rule only forbids shadows on flat surfaces at rest.
 
-`ui.md` is therefore kept, not retired. It is the file an agent is told to read first, and its
+`docs/design/ui.md` is therefore kept, not retired. It is the file an agent is told to read first, and its
 context section is current.

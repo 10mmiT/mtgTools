@@ -2,10 +2,11 @@
 
 A record of the work on `feat/cards-as-objects` (14 commits, `33a9486..6ae9a40`), written after
 delivery. It supersedes the 11 tickets it was driven from — `01-motion-preference` through
-`11-card-context-menu` — and stands beside the PRD (`spec-cards-as-objects.md`), which is what the
-work was specified from. Where this document and a ticket disagree, this one is what happened.
+`11-card-context-menu` — and stands beside the PRD (`docs/design/spec-cards-as-objects.md`), which is
+what the work was specified from. Where this document and a ticket disagree, this one is what
+happened.
 
-It also largely closes `ui.md`, the "Cards on a Table" interactivity brief that the UI redesign wrote
+It also largely closes `docs/design/ui.md`, the "Cards on a Table" interactivity brief that the UI redesign wrote
 and did not build. All three of its deliverables are here — the hover-to-lift, the Deck Builder as a
 playmat of piles, and the card-size control — with one clause of the second left undone: dragging a
 card onto empty mat space does not create a category. See "What this cost" below.
@@ -360,7 +361,7 @@ Each of these was a deliberate reversal during implementation, and the reason is
   made to fit. Stacks changed how a pile is drawn, not how the mat is arranged.
 - **Want Lists and Scryfall Search draw cards and have no stack view.** Neither was in scope; each is
   one call away.
-- **Dropping a card on empty mat space does not create a category.** `ui.md` §2 asks for it and no
+- **Dropping a card on empty mat space does not create a category.** `docs/design/ui.md` §2 asks for it and no
   ticket in this set carried it, so it was not built. The pieces are in place — `data-drop` is how a
   place says it can receive a card, and "Move to…" already creates a category and moves into it in one
   step — so it is a drop zone on the mat and a call to code that exists. Piles and categories are

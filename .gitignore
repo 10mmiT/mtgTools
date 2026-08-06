@@ -18,8 +18,8 @@ data.bak/
 
 # Scratch. Working notes, ticket sets, screenshot runs and the populated
 # database snapshot the harness renders against — all review aids, kept
-# locally. What a finished piece of work is worth keeping is written up as a
-# *-record.md at the root instead.
+# locally. What a finished piece of work is worth keeping is written up in
+# docs/records/ instead.
 .scratch/
 
 # Agent tooling

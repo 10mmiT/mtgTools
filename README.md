@@ -332,11 +332,14 @@ mtgtools/
 │       ├── pick.js        # Pick Night tab (random deck assignment)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
-├── ui.md                       # The "Cards on a Table" interactivity brief — the design
-│                               # intent behind how cards behave; built, kept as context
-├── spec-cards-as-objects.md    # The PRD that work was specified from
-├── cards-as-objects-record.md  # …and what was actually built, written after delivery
-├── ui-redesign-record.md       # The same, for the UI redesign that came before it
+├── docs/
+│   ├── design/          # What was planned — briefs and PRDs, kept as context
+│   │   ├── ui.md                    # The "Cards on a Table" interactivity brief — the
+│   │   │                            # design intent behind how cards behave; built
+│   │   └── spec-cards-as-objects.md # The PRD that work was specified from
+│   └── records/         # …and what was actually built, written after delivery
+│       ├── cards-as-objects.md
+│       └── ui-redesign.md           # The same, for the redesign that came before it
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -362,14 +365,14 @@ Deleting `scryfall.db` costs nothing but the refill.
 
 ## Design records
 
-Two pieces of work were large enough to be worth writing up afterwards, and each has a record at the repo root that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
+Two pieces of work were large enough to be worth writing up afterwards, and each has a record in [docs/records/](docs/records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
 
 | document | what it covers |
 |---|---|
-| [ui-redesign-record.md](ui-redesign-record.md) | The visual redesign — the token contract, the layout rules, the measurement scripts, the playmat |
-| [cards-as-objects-record.md](cards-as-objects-record.md) | Cards as objects — the motion preference and its contract, the card treatment, the lift, stacks and the pile views, the shared size control, animated re-renders, carrying a card and a handful, and the card menu |
+| [docs/records/ui-redesign.md](docs/records/ui-redesign.md) | The visual redesign — the token contract, the layout rules, the measurement scripts, the playmat |
+| [docs/records/cards-as-objects.md](docs/records/cards-as-objects.md) | Cards as objects — the motion preference and its contract, the card treatment, the lift, stacks and the pile views, the shared size control, animated re-renders, carrying a card and a handful, and the card menu |
 
-`ui.md` is the interactivity brief the second of those was written against, and `spec-cards-as-objects.md` is its PRD. Both are kept as context; where either disagrees with the record, the record is what happened.
+What each was planned from is kept beside them in [docs/design/](docs/design/): [ui.md](docs/design/ui.md), the interactivity brief the second of those was written against, and [spec-cards-as-objects.md](docs/design/spec-cards-as-objects.md), its PRD. Where either disagrees with the record, the record is what happened.
 
 ## Testing
 
