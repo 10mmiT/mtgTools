@@ -342,13 +342,11 @@ mtgtools/
 │   │   │                            # design intent behind how cards behave; built
 │   │   ├── spec-cards-as-objects.md # The PRD that work was specified from
 │   │   └── spec-sorting.md          # The PRD for multi-criteria sorting
-│   ├── records/         # …and what was actually built, written after delivery
-│   │   ├── ui-redesign.md           # The visual redesign that came first
-│   │   ├── cards-as-objects.md
-│   │   ├── sorting.md               # A sort becomes a sentence of up to three criteria
-│   │   └── piles-expanded.md        # A table of stacks arrives spread
-│   └── tickets/         # Work in flight, cut into shippable pieces; retired into a
-│                        # record once the set lands
+│   └── records/         # …and what was actually built, written after delivery
+│       ├── ui-redesign.md           # The visual redesign that came first
+│       ├── cards-as-objects.md
+│       ├── sorting.md               # A sort becomes a sentence of up to three criteria
+│       └── piles-expanded.md        # A table of stacks arrives spread
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -385,7 +383,7 @@ Four pieces of work were large enough to be worth writing up afterwards, and eac
 
 What each was planned from is kept beside them in [docs/design/](docs/design/): [ui.md](docs/design/ui.md), the interactivity brief the second of those was written against, [spec-cards-as-objects.md](docs/design/spec-cards-as-objects.md), its PRD, and [spec-sorting.md](docs/design/spec-sorting.md), the PRD for the third. Where any of them disagrees with its record, the record is what happened.
 
-Work still in flight is cut into tickets under [docs/tickets/](docs/tickets/) — one shippable, testable change each. A ticket set is retired into a record once it lands, so an empty `docs/tickets/` means everything written down has been built.
+Work large enough to need planning is cut into tickets first — one shippable, testable change each — under a `docs/tickets/<effort>/` directory that exists only while that effort is in flight. A ticket set is retired into a record once it lands, so there is no `docs/tickets/` here right now: everything that was written down has been built.
 
 ## Testing
 

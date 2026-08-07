@@ -1,8 +1,9 @@
 # Piles land expanded — what was done
 
-A record of the one ticket in `docs/tickets/piles-expanded/`, written after delivery. It supersedes
-that ticket and stands beside `docs/records/cards-as-objects.md`, which built the piles this changes
-the default of. Where this document and the ticket disagree, this one is what happened.
+A record of one ticket — `piles-expanded/01-piles-land-expanded`, now retired — written after
+delivery. It supersedes that ticket and stands beside `docs/records/cards-as-objects.md`, which built
+the piles this changes the default of. Where this document and the ticket disagree, this one is what
+happened.
 
 ---
 
