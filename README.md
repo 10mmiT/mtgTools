@@ -19,6 +19,10 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 ### Collections tab
 - Add collections from Archidekt (URL or CSV export) or Moxfield (CSV export only — Moxfield's API blocks automated access)
 - Results table shows card name, a column per collection, and a total; scrolls horizontally when many collections are loaded
+- **Search in Scryfall syntax.** A bare word is still a card-name search, so `sol ring` means what it always did — but the box now reads the same query language as the Scryfall tab, run against the cards you actually own: `t:creature c:r mv<=2`, `o:"draw a card" -t:land`, `r:mythic`, `t:goblin OR t:elf`, `c=wu`, `m:{G}{G}`, `is:mdfc`, `eur>=50`, `!"Sol Ring"`. Filters combine with spaces (all must hold), `-` for not, `OR` and parentheses for the rest. Supported: `name` `t`(ype) `o`(racle) `m`(ana) `mv`/`cmc` `c`(olor) `id`entity `r`(arity) `pow` `tou` `s`(et) `is`/`not` `layout` `usd` `eur`, each with `: = != < <= > >=`
+  - It runs entirely on the local card database — nothing is sent to Scryfall, and typing filters ~13,000 cards in well under a frame. The first non-name search in a session pauses for a second to read the card data it needs
+  - Filters that need data the local oracle-card cache doesn't carry (`f:` format legality, `a:`rtist, `year:`, `kw:` …) are refused **by name** rather than quietly matching nothing, and point you at the Scryfall tab. So are typos: `zzz:1` says *Unknown filter "zzz:"*
+  - As on Scryfall, `OR` and `AND` are operators only in capitals — lower-case `or` is a word in a card name
 - **Sort** by name, mana value, color (WUBRG order), power, toughness, rarity, type, price, quantity owned, or any single collection's own count — as a sentence of up to three, e.g. *Rarity → Mana Value → Name*
 - **The column headers are a shortcut into the same sort.** Click a heading to make that column the sort; **shift-click** to add it as the next criterion. Clicking the column already leading flips its direction. A sorted column is marked `↑`, and a column carrying a later criterion is marked `2↑` or `3↓` so you can see where in the sentence it comes
 - **Columns menu** to show/hide optional columns: Mana Value, Color (as mana pips), Type, Rarity, Power/Toughness, Price (off by default to keep the table clean)
@@ -283,6 +287,7 @@ mtgtools/
 │   ├── cardstack.test.js    # Layers from count, angle from name
 │   ├── cardgroups.test.js   # Which pile a card belongs in, per sort field
 │   ├── cardsort.test.js     # A sort as a chain — order, seeding, ownership, migration
+│   ├── cardquery.test.js    # Scryfall syntax — what each filter reads, and what is refused
 │   ├── cardsize.test.js     # The size store, keyed per tab and per view
 │   ├── cardmove.test.js     # What travels on a re-render, and what is skipped
 │   ├── carddrag.test.js     # Hit-testing piles, the fan, the drop's effect
@@ -320,6 +325,7 @@ mtgtools/
 │       ├── carddrag.js    # Carrying a card, or a handful: the lag, the lean, the fan, the pile that would take it
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches
 │       ├── card.js        # Card Detail tab (oracle text, rulings, prices, alt-art printings)
+│       ├── cardquery.js   # Scryfall query syntax, parsed and run against the local card cache
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks
 │       ├── search.js      # Scryfall search tab
@@ -346,7 +352,8 @@ mtgtools/
 │       ├── ui-redesign.md           # The visual redesign that came first
 │       ├── cards-as-objects.md
 │       ├── sorting.md               # A sort becomes a sentence of up to three criteria
-│       └── piles-expanded.md        # A table of stacks arrives spread
+│       ├── piles-expanded.md        # A table of stacks arrives spread
+│       └── collection-query.md      # Scryfall syntax, run against the cards you own
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -372,7 +379,7 @@ Deleting `scryfall.db` costs nothing but the refill.
 
 ## Design records
 
-Four pieces of work were large enough to be worth writing up afterwards, and each has a record in [docs/records/](docs/records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
+Five pieces of work were large enough to be worth writing up afterwards, and each has a record in [docs/records/](docs/records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
 
 | document | what it covers |
 |---|---|
@@ -380,6 +387,7 @@ Four pieces of work were large enough to be worth writing up afterwards, and eac
 | [docs/records/cards-as-objects.md](docs/records/cards-as-objects.md) | Cards as objects — the motion preference and its contract, the card treatment, the lift, stacks and the pile views, the shared size control, animated re-renders, carrying a card and a handful, and the card menu |
 | [docs/records/sorting.md](docs/records/sorting.md) | Sorting by more than one thing — a sort as a chain of up to three criteria, every field a real criterion, seeded sentences and who owns them, the control that says the sentence, and the table header as a shortcut into it |
 | [docs/records/piles-expanded.md](docs/records/piles-expanded.md) | Piles land expanded — a table of stacks arrives spread, and settling one is the thing you do |
+| [docs/records/collection-query.md](docs/records/collection-query.md) | Scryfall syntax in the Collections search — the query language parsed and run locally against the cards you own, one cache of card facts for the sort and the search both, and the filters that are refused by name because the local data can't answer them |
 
 What each was planned from is kept beside them in [docs/design/](docs/design/): [ui.md](docs/design/ui.md), the interactivity brief the second of those was written against, [spec-cards-as-objects.md](docs/design/spec-cards-as-objects.md), its PRD, and [spec-sorting.md](docs/design/spec-sorting.md), the PRD for the third. Where any of them disagrees with its record, the record is what happened.
 

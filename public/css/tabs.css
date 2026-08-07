@@ -383,7 +383,10 @@
    which spent a permanent line on a hint; they are part of the empty state
    now, in front of the person who has not searched yet and gone for
    everyone else. */
-.sf-syntax { margin-top: var(--space-2); }
+   Two tabs read Scryfall syntax now — this one and Collections, whose search
+   box runs the same language against the cards you own — so the class is
+   named for what it is rather than for the tab it started on. */
+.syntax-tip { margin-top: var(--space-2); }
 
 .sf-card {
   display: flex;

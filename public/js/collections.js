@@ -463,6 +463,64 @@ function ensureSortMeta(rows) {
   ensureScryfallImages(need).then(() => { _colMetaFetching = false; renderResults(); });
 }
 
+// ── What the search box means ─────────────────────────────────────────────
+// It reads Scryfall's query language (js/cardquery.js), of which a bare word
+// is the smallest sentence — so `sol ring` still means what it has always
+// meant here, and `t:creature c:r -o:draw` now means something too.
+//
+// Two costs come with that, and both are paid in renderResults rather than
+// here. A query can be nonsense, and says so instead of returning nothing;
+// and a query that asks about anything but the name needs card facts the app
+// fetches lazily, so it waits for them once per collection.
+
+/* The examples, shown where somebody is looking when they need them: under an
+ * empty result, and under a query that didn't parse. Same reasoning as the
+ * Scryfall tab's own empty state — a permanent second toolbar row of syntax
+ * tips is in front of everyone who already knows. */
+const COL_SYNTAX_HELP = `<div class="help-text syntax-tip">
+  <code>t:creature</code> · <code>c:rg</code> · <code>mv&lt;=2</code> ·
+  <code>o:draw</code> · <code>r:mythic</code> · <code>-t:land</code> ·
+  <code>"exact phrase"</code> · <code>t:goblin OR t:elf</code>
+</div>`;
+
+/* A row as js/cardquery.js wants to see it: the name off the row, and the
+ * card facts out of the cache the sort and the metadata columns fill. A name
+ * with nothing cached is an empty card rather than a missing one — it matches
+ * nothing but its own name, which is what an unresolved card can honestly
+ * answer. */
+function colQueryCard(name) {
+  return { name, ...(scryfallMetaCache.get(name) || {}) };
+}
+
+/* Every name across every loaded collection needs its facts before a query
+ * that reads them can be trusted: a filter run over half a cache is not a
+ * narrower answer, it is a wrong one. So this reports whether the search can
+ * run yet, and starts the fetch — in one pass, whatever the size, since
+ * fetchCardCollection does its own batching — if it can't.
+ *
+ * Unresolved names are cached as `{}` by ensureScryfallImages, so a card the
+ * local database has never heard of costs one lookup and not one per
+ * keystroke. That is the postcondition this rests on — every name handed to
+ * ensureScryfallImages is in scryfallMetaCache when it resolves, one way or
+ * the other — and it is load-bearing: a name that came back still missing
+ * would be re-fetched by the re-render this schedules, forever. */
+let _colQueryMetaFetching = false;
+function colQueryMetaReady() {
+  const missing = new Set();
+  for (const col of state.collections) {
+    for (const name of col.cards.keys()) if (!scryfallMetaCache.has(name)) missing.add(name);
+  }
+  if (!missing.size) return true;
+  if (!_colQueryMetaFetching) {
+    _colQueryMetaFetching = true;
+    ensureScryfallImages([...missing]).finally(() => {
+      _colQueryMetaFetching = false;
+      renderResults();
+    });
+  }
+  return false;
+}
+
 function buildRows(query) {
   const merged = new Map();
   state.collections.forEach((col, ci) => {
@@ -480,7 +538,7 @@ function buildRows(query) {
 
   let rows = Array.from(merged.values());
   if (deckFilter && deck) rows = rows.filter(r => deck.cards.has(r.name));
-  if (query) rows = rows.filter(r => r.name.toLowerCase().includes(query));
+  if (query) rows = rows.filter(r => query.match(colQueryCard(r.name)));
 
   /* One comparator for every field this tab offers, quantities included. The
      three special cases that used to be here — Total, Quantity, and one per
@@ -501,11 +559,27 @@ function scheduleRender() {
   state.renderTimer = setTimeout(renderResults, 80);
 }
 
+/* Something other than cards, said in whichever view is on screen. All three
+ * of them need it and not one of them is reliably the visible one — mobile
+ * defaults to the grid, which used to show a blank panel where the list view
+ * showed the getting-started hint — so the message goes into all three and
+ * the display rules decide who reads it. */
+function colSayInstead(html, info = '') {
+  document.getElementById('resultsBody').innerHTML =
+    `<tr><td colspan="99" class="empty-state">${html}</td></tr>`;
+  document.getElementById('cardGrid').innerHTML =
+    `<div class="empty-state" style="grid-column:1/-1">${html}</div>`;
+  document.getElementById('pileView').innerHTML = `<div class="empty-state">${html}</div>`;
+  document.getElementById('resultInfo').textContent = info;
+  const moreEl = document.getElementById('colShowMoreWrap');
+  if (moreEl) moreEl.style.display = 'none';
+}
+
 // ── Render results ────────────────────────────────────────────────────────
 function renderResults() {
   if (!_colControlsMounted) initCollectionsControls();
   else syncColSortFields();
-  const query   = document.getElementById('searchInput').value.trim().toLowerCase();
+  const raw     = document.getElementById('searchInput').value.trim();
   const infoEl  = document.getElementById('resultInfo');
   const moreEl  = document.getElementById('colShowMoreWrap');
 
@@ -514,18 +588,30 @@ function renderResults() {
   document.getElementById('pileView').style.display = viewMode === 'pile' ? '' : 'none';
 
   if (!state.collections.length) {
-    // Both views need the empty state — mobile defaults to grid view, which
-    // otherwise showed a blank panel instead of the getting-started hint.
     // "above" was the form directly over this table; it is the toolbar's
     // + Add button now, so the hint says which button it means.
-    const hint = 'No collections yet — add one with “+ Add” in the toolbar.';
-    document.getElementById('resultsBody').innerHTML =
-      `<tr><td colspan="99" class="empty-state">${hint}</td></tr>`;
-    document.getElementById('cardGrid').innerHTML =
-      `<div class="empty-state" style="grid-column:1/-1">${hint}</div>`;
-    document.getElementById('pileView').innerHTML = `<div class="empty-state">${hint}</div>`;
-    infoEl.textContent = '';
-    if (moreEl) moreEl.style.display = 'none';
+    colSayInstead('No collections yet — add one with “+ Add” in the toolbar.');
+    return;
+  }
+
+  /* What was typed, as a filter. A search that cannot mean anything says so —
+     the message names the filter it choked on — rather than quietly matching
+     no cards, which is what an unknown `f:standard` would otherwise look like
+     and is indistinguishable from owning none of them. */
+  let query = null;
+  try {
+    query = parseCardQuery(raw);
+  } catch (e) {
+    colSayInstead(`${esc(e.message)}${COL_SYNTAX_HELP}`, 'Invalid search');
+    return;
+  }
+
+  /* A name search needs nothing but the rows. Anything else — a type, a
+     colour, a word in the rules text — is a fact about the card that is
+     fetched lazily everywhere else in this tab, and here it has to be in hand
+     before the first row can be judged. Once, per collection, per session. */
+  if (query?.needsMeta && !colQueryMetaReady()) {
+    colSayInstead('Reading card data for this search…', 'Loading…');
     return;
   }
 
@@ -628,7 +714,7 @@ function renderListView(rows, MAX) {
   });
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="100" class="empty-state">No cards match your search.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="100" class="empty-state">No cards match your search.${COL_SYNTAX_HELP}</td></tr>`;
     return;
   }
 
@@ -707,7 +793,7 @@ async function renderPileView(rows) {
   const host = document.getElementById('pileView');
 
   if (!rows.length) {
-    host.innerHTML = `<div class="empty-state">No cards match your search.</div>`;
+    host.innerHTML = `<div class="empty-state">No cards match your search.${COL_SYNTAX_HELP}</div>`;
     return;
   }
 
@@ -773,7 +859,7 @@ async function renderGridView(rows, MAX) {
   const grid = document.getElementById('cardGrid');
 
   if (!rows.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No cards match your search.</div>`;
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No cards match your search.${COL_SYNTAX_HELP}</div>`;
     return;
   }
 

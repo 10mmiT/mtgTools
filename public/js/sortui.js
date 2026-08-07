@@ -64,10 +64,29 @@ function typeRank(t) {
 
 function numOr(v, dflt) { const n = parseFloat(v); return isNaN(n) ? dflt : n; }
 
-// Normalise either a full Scryfall card object or a name-keyed row into meta
+/* Normalise either a full Scryfall card object or a name-keyed row into meta.
+ *
+ * This is the one shape the app keeps card facts in — `scryfallMetaCache` is
+ * a map of name to exactly this — and it is read by two things now: the sort
+ * and the grouping here, and the Collections search box, which runs Scryfall
+ * query syntax against it (js/cardquery.js).
+ *
+ * That second reader is why there are fields below that nothing sorts by.
+ * Oracle text, the printed mana cost, the set code and the layout are not
+ * sortable and are not columns; they are what `o:`, `m:`, `s:` and `is:dfc`
+ * ask about. Keeping them here rather than in a cache of their own is the
+ * point: two caches of card facts filled from the same fetch would drift, and
+ * a card the search knows about but the sort does not is a card that vanishes
+ * when the piles are cut.
+ *
+ * A double-faced card's oracle text lives on its faces and not on the card,
+ * so both faces are joined — `o:draw` on an MDFC should find the half that
+ * draws. Its `type_line` already reads "A // B" and is left as printed, since
+ * the metadata column shows it. */
 function cardMetaOf(obj) {
   if (obj.type_line !== undefined || obj.cmc !== undefined) {
-    const face = obj.card_faces?.[0];
+    const faces = obj.card_faces || [];
+    const face  = faces[0];
     return {
       cmc:       obj.cmc,
       colors:    obj.colors || face?.colors || [],
@@ -77,6 +96,11 @@ function cardMetaOf(obj) {
       type:      obj.type_line || face?.type_line || '',
       rarity:    obj.rarity || '',
       eur:       obj.prices?.eur ? parseFloat(obj.prices.eur) : null,
+      usd:       obj.prices?.usd ? parseFloat(obj.prices.usd) : null,
+      oracle:    [obj.oracle_text, ...faces.map(f => f.oracle_text)].filter(Boolean).join('\n'),
+      mana:      obj.mana_cost || faces.map(f => f.mana_cost).filter(Boolean).join('') || '',
+      set:       obj.set    || '',
+      layout:    obj.layout || '',
     };
   }
   return scryfallMetaCache.get(obj.name) || {};

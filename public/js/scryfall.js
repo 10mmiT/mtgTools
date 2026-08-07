@@ -121,11 +121,27 @@ async function cardAutocomplete(q, { commander = false } = {}) {
 const scryfallCache    = new Map();
 // name → art_crop URL or null
 const scryfallArtCache = new Map();
-// name → { cmc, colors[], ci[], power, toughness, type, rarity, eur } for sorting
+/* name → the card facts the app sorts, groups, tabulates and now searches by.
+ * The shape is `cardMetaOf`'s in js/sortui.js, which is where it is defined
+ * and where the reasons for what is in it are written down — this file only
+ * fills the map. */
 const scryfallMetaCache = new Map();
 
+/* Fills all three caches for `names`, and the postcondition is that every name
+ * handed in is in every one of them when this resolves — a picture or a null,
+ * meta or an empty object.
+ *
+ * Which is why "missing" is asked of both maps and not just the pictures. The
+ * Collections search waits on this to fill scryfallMetaCache before it can run
+ * a `t:creature` (see colQueryMetaReady in js/collections.js), and it waits by
+ * re-rendering when the promise settles. A name that came back in one cache
+ * and not the other would be a name that is still missing on that re-render,
+ * which is a fetch, which is a re-render: a loop with a browser at the bottom
+ * of it. The two maps happen to be written together everywhere below, so the
+ * old image-only test was right by coincidence; this one is right by
+ * construction. */
 async function ensureScryfallImages(names) {
-  const missing = names.filter(n => !scryfallCache.has(n));
+  const missing = names.filter(n => !scryfallCache.has(n) || !scryfallMetaCache.has(n));
   if (!missing.length) return;
 
   const cards = await fetchCardCollection(missing);
@@ -135,16 +151,11 @@ async function ensureScryfallImages(names) {
       card.image_uris?.normal    || face?.image_uris?.normal    || null);
     scryfallArtCache.set(card.name,
       card.image_uris?.art_crop  || face?.image_uris?.art_crop  || null);
-    scryfallMetaCache.set(card.name, {
-      cmc:       card.cmc,
-      colors:    card.colors        || face?.colors        || [],
-      ci:        card.color_identity || [],
-      power:     card.power      ?? face?.power,
-      toughness: card.toughness  ?? face?.toughness,
-      type:      card.type_line  || face?.type_line || '',
-      rarity:    card.rarity     || '',
-      eur:       card.prices?.eur ? parseFloat(card.prices.eur) : null,
-    });
+    /* One reading of a Scryfall card into meta, in js/sortui.js. This used to
+       be a second copy of that object literal, which is how a field added for
+       one reader — the search's oracle text — would have reached the cards
+       fetched by the search tab and not the ones fetched here. */
+    scryfallMetaCache.set(card.name, cardMetaOf(card));
   }
   // Mark any still-missing names so we don't retry them (both caches, so
   // metadata-driven sorts/columns don't keep re-requesting unresolved cards)

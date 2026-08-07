@@ -14,7 +14,7 @@ let sfViewSize = 'list'; // 'list' | 'grid'
  * searched yet, and gone for everyone else. */
 const SF_EMPTY = `<div class="empty-state">
   Search Scryfall’s whole catalogue — the full query syntax works.
-  <div class="help-text sf-syntax">
+  <div class="help-text syntax-tip">
     <code>t:creature c:r</code> · <code>cmc=3</code> · <code>"exact name"</code> ·
     <code>o:draw</code> · <code>r:mythic</code>
   </div>
