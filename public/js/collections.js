@@ -358,8 +358,6 @@ function renderCollections() {
 }
 
 // ── Build merged + filtered rows ──────────────────────────────────────────
-const VALID_SORT_FIELDS = new Set(['name', 'total', 'qty',
-  'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price']);
 const COL_META_FIELDS = new Set(['cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price']);
 
 const COL_COLUMNS = [
@@ -372,17 +370,72 @@ const COL_COLUMNS = [
 ];
 const COL_SORT_FIELDS = ['name', 'qty', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
 
+/* This tab's field list is not a constant. Every loaded collection is a field
+ * of its own — its quantity column in the table below, which was a sort the
+ * control could not say and could not display — so the list is one entry per
+ * collection longer than the fields above, labelled with that collection's
+ * own name. Built when the control is mounted, and rebuilt when the
+ * collections change under it.
+ *
+ * The field is the collection's id and the label is its name, which is what
+ * makes a rename a relabelling: the stored sort still names the same
+ * collection, and only the word in the select and the header changes. */
+function colSortFields() {
+  return [...COL_SORT_FIELDS,
+          ...state.collections.map(col => ({ key: colQtyField(col.key), label: col.name }))];
+}
+
+/* What the sort needs that a card cannot answer: how many of it are owned. The
+ * Total column, the Quantity field and each collection's own count all read
+ * this rather than a number stamped onto every row before sorting. */
+function colSortContext() { return { collections: state.collections }; }
+
+/* The sentence this tab is sorted by, and the one answer to what it is sorted
+ * by: the rows' order, the piles the stack view cuts from its first word, and
+ * the marks the table header draws. There is no `state.sort` mirror of the
+ * first criterion any more — the header was the only thing that wrote one, and
+ * it goes through the control now.
+ *
+ * The field list goes over, so that a stored criterion naming a column this tab
+ * has not got is dropped rather than sorting the table on nothing. Which means
+ * the same rule reconcileColSorts is called under: the list has to be real. It
+ * is — the collections are hydrated before anything renders, and every change
+ * to them re-enters through syncColSortFields.
+ *
+ * No default goes over. This tab's is name ascending, which is what an entry
+ * with nothing readable in it falls back to anyway. */
+function colSortNow()      { return getSortChain('collections', null, colSortFields()); }
+function colSortCriteria() { return colSortNow().criteria; }
+
 let _colControlsMounted = false;
 let _colSizeSync = null;
+let _colSort = null;
+let _colSortFieldSig = '';
+
+function mountColSortControl() {
+  const fields = colSortFields();
+  _colSortFieldSig = JSON.stringify(fields);
+  _colSort = mountSortControl('colSortMount', 'collections', fields, renderResults);
+}
+
+/* Collections are added, removed and renamed while this tab is on screen, and
+ * each of them is one of the fields above — so the control is rebuilt whenever
+ * its list would no longer match. Asked on every render because a render is
+ * what every one of those changes ends in.
+ *
+ * A collection that has gone takes its criterion with it: the stored sort is
+ * reconciled against the list as it now is, and this tab re-reads what that
+ * left. Silently, and with no modal — a sort naming a column that is not on
+ * the table is the tab falling back to name ascending, which is where every
+ * unanswerable sort lands. */
+function syncColSortFields() {
+  if (!_colControlsMounted || JSON.stringify(colSortFields()) === _colSortFieldSig) return;
+  reconcileColSorts(state.collections);
+  mountColSortControl();
+}
+
 function initCollectionsControls() {
-  // Adopt any persisted sort into the collections state
-  const s = getSort('collections', { field: state.sort.field || 'name', dir: state.sort.dir || 1 });
-  state.sort.field = s.field; state.sort.dir = s.dir;
-  mountSortControl('colSortMount', 'collections', COL_SORT_FIELDS, () => {
-    const ns = getSort('collections');
-    state.sort.field = ns.field; state.sort.dir = ns.dir;
-    renderResults();
-  });
+  mountColSortControl();
   mountColumnMenu('colColumnsMount', 'collections', COL_COLUMNS, renderResults);
   /* #colResults, the box the views are drawn in, rather than the grid inside
      it: the size applies to the grid and to the stacks, and both are replaced
@@ -395,19 +448,13 @@ function initCollectionsControls() {
  * has mounted the strip's controls. */
 function syncColSize() { _colSizeSync?.(); }
 
-// Keep the Sort dropdown in sync when a column header is clicked
-function syncColSortControl() {
-  const sel = document.querySelector('#colSortMount .sort-select');
-  const btn = document.querySelector('#colSortMount .sort-dir-btn');
-  if (sel && [...sel.options].some(o => o.value === state.sort.field)) sel.value = state.sort.field;
-  if (btn) btn.textContent = state.sort.dir === 1 ? '↑' : '↓';
-}
-
 // Lazily pull card metadata from Scryfall when a meta sort/column needs it
 let _colMetaFetching = false;
 function ensureSortMeta(rows) {
   const cols = getCols('collections', COL_COLUMNS);
-  const needed = COL_META_FIELDS.has(state.sort.field)
+  /* Every word of the sort, not only the first: a chain of most-owned then
+     mana value needs the mana values as much as one of mana value alone. */
+  const needed = colSortCriteria().some(c => COL_META_FIELDS.has(c.field))
     || cols.mana || cols.color || cols.type || cols.rarity || cols.pt || cols.price;
   if (!needed || _colMetaFetching) return;
   const need = rows.map(r => r.name).filter(n => !scryfallMetaCache.has(n)).slice(0, 800);
@@ -435,17 +482,12 @@ function buildRows(query) {
   if (deckFilter && deck) rows = rows.filter(r => deck.cards.has(r.name));
   if (query) rows = rows.filter(r => r.name.toLowerCase().includes(query));
 
-  rows.forEach(r => { r._sortQty = r.qtys.reduce((s, q) => s + q, 0); });
-
-  const { field, dir } = state.sort;
-  if (field === 'total' || field === 'qty') {
-    rows.sort((a, b) => (a._sortQty - b._sortQty) * dir || a.name.localeCompare(b.name));
-  } else if (field.startsWith('col_')) {
-    const i = +field.slice(4);
-    rows.sort((a, b) => ((a.qtys[i] || 0) - (b.qtys[i] || 0)) * dir || a.name.localeCompare(b.name));
-  } else {
-    rows.sort(cardComparator(field, dir)); // name, cmc, color, power, toughness, rarity, type, price
-  }
+  /* One comparator for every field this tab offers, quantities included. The
+     three special cases that used to be here — Total, Quantity, and one per
+     collection — are criteria in js/sortui.js now, reading the collections off
+     the context rather than a `_sortQty` this function had to stamp onto every
+     row before it could sort them. */
+  rows.sort(cardComparator(colSortCriteria(), colSortContext()));
 
   return rows;
 }
@@ -462,6 +504,7 @@ function scheduleRender() {
 // ── Render results ────────────────────────────────────────────────────────
 function renderResults() {
   if (!_colControlsMounted) initCollectionsControls();
+  else syncColSortFields();
   const query   = document.getElementById('searchInput').value.trim().toLowerCase();
   const infoEl  = document.getElementById('resultInfo');
   const moreEl  = document.getElementById('colShowMoreWrap');
@@ -491,11 +534,12 @@ function renderResults() {
   const isMobile  = window.innerWidth < BP_SM;
   const MOBILE_CAP = 150;
   const fullMax   = viewMode === 'grid' ? 200 : 500;
-  /* The stack view is not capped, and needs no "show all": a pile is a summary
-     — one picture and one number however many cards are in it — so drawing the
-     whole collection as stacks costs what drawing a dozen of them costs, and a
-     collection cut off at its first two hundred rows would be four stacks of
-     the wrong heights. What is bounded there is the fan; see cardstack.js. */
+  /* The stack view is handed every row and needs no "show all": what a pile
+     says about itself is how many cards are in it, and a collection cut off at
+     its first two hundred rows would be four stacks of the wrong heights. The
+     cost is bounded by the fan rather than by the row count — every pile
+     arrives spread now, so the table draws its piles times STACK_FAN_MAX and
+     not its cards; see cardstack.js. */
   const MAX       = viewMode === 'pile' ? rows.length
                   : (isMobile && !_mobileShowAll) ? MOBILE_CAP : fullMax;
 
@@ -525,10 +569,9 @@ function renderListView(rows, MAX) {
   const tbody  = document.getElementById('resultsBody');
   const header = document.getElementById('headerRow');
 
-  // Reset stale sort field if it referenced a removed column
-  if (!VALID_SORT_FIELDS.has(state.sort.field) && !state.sort.field.startsWith('col_'))
-    state.sort.field = 'name';
-
+  /* No stale field to reset: the chain is read against this tab's field list,
+     so a criterion naming a column that is no longer on the table is dropped
+     before it gets here — see colSortNow and getSortChain. */
   const cols = getCols('collections', COL_COLUMNS);
 
   // ── Header ──
@@ -539,24 +582,49 @@ function renderListView(rows, MAX) {
   if (cols.rarity) h += '<th data-sort="rarity">Rarity</th>';
   if (cols.pt)     h += '<th data-sort="power">P/T</th>';
   if (cols.price)  h += '<th data-sort="price">Price</th>';
-  state.collections.forEach((col, i) => {
-    h += `<th data-sort="col_${i}" style="border-bottom:3px solid ${col.color}">${esc(col.name)}</th>`;
+  state.collections.forEach(col => {
+    h += `<th data-sort="${esc(colQtyField(col.key))}" style="border-bottom:3px solid ${col.color}">${esc(col.name)}</th>`;
   });
-  h += '<th data-sort="total">Total</th>';
+  /* Total and the sort control's "Quantity" are one field: how many of this
+     card are owned altogether. The header writes the field the control can
+     name, so clicking it and choosing Quantity are the same sort said two
+     ways, and the arrow lands on this column either way. */
+  h += '<th data-sort="qty">Total</th>';
   header.innerHTML = h;
 
+  /* Two gestures, both of them the sort control's own operations said faster —
+     a click makes this column the sort, a shift-click adds it as the next
+     word. Neither writes the stored entry: they hand a chain to the control,
+     which stores it, relabels itself and re-renders the tab, so the sentence
+     on the strip and the marks on this row cannot come apart. See
+     chooseSortColumn / appendSortColumn in js/sortui.js for what each means.
+
+     Shift-click has no keyboard or touch equivalent here, and is not given
+     one: a `<th>` is not focusable, making the whole header row so is a tab
+     stop per column on the way to the table, and a phone has no shift. **The
+     sort control is that path** — its popover adds, reorders, flips and
+     removes criteria, and it is directly above this table, fully operable by
+     keyboard, and the thing this header is a shortcut *into*. The tooltip
+     below is what says the shortcut exists to somebody holding a mouse. */
+  const sort = colSortNow();
   header.querySelectorAll('th').forEach(th => {
-    th.onclick = () => {
-      const f = th.dataset.sort;
-      if (state.sort.field === f) state.sort.dir *= -1;
-      else { state.sort.field = f; state.sort.dir = 1; }
-      saveSort('collections', state.sort.field, state.sort.dir);
-      syncColSortControl();
-      renderResults();
-    };
-    const sorted = th.dataset.sort === state.sort.field;
-    th.classList.toggle('sorted-asc',  sorted && state.sort.dir ===  1);
-    th.classList.toggle('sorted-desc', sorted && state.sort.dir === -1);
+    const field = th.dataset.sort;
+    th.title = 'Sort by this column — shift-click to add it to the sort';
+    th.onclick = e => _colSort?.set(
+      (e.shiftKey ? appendSortColumn : chooseSortColumn)(colSortNow(), field, colSortFields()));
+
+    /* What the marks say. The column that cuts the piles carries the arrow it
+       has always carried; a column carrying a later word of the sentence
+       carries its position as well, because a shift-click nobody can see the
+       result of is a feature nobody knows they used. `aria-sort` is the first
+       criterion's alone — it is the one the table is ordered by, and the
+       attribute has no way to say "and then". */
+    const at = sortColumnAt(sort.criteria, field);
+    if (at === -1) return;
+    const desc = sort.criteria[at].dir === -1;
+    if (at) th.classList.add('sorted-next');
+    th.dataset.sortMark = (at ? String(at + 1) : '') + (desc ? '↓' : '↑');
+    if (!at) th.setAttribute('aria-sort', desc ? 'descending' : 'ascending');
   });
 
   if (!rows.length) {
@@ -566,7 +634,7 @@ function renderListView(rows, MAX) {
 
   // ── Rows ──
   tbody.innerHTML = rows.slice(0, MAX).map(r => {
-    const total = r._sortQty ?? r.qtys.reduce((s, q) => s + q, 0);
+    const total = r.qtys.reduce((s, q) => s + q, 0);
     const m = scryfallMetaCache.get(r.name) || {};
     let metaCells = '';
     if (cols.mana)   metaCells += `<td class="td-meta">${colMV(m)}</td>`;
@@ -617,15 +685,16 @@ function colPT(m) {
 // is here is what a Collections card is (its picture, and how many of it are
 // owned) and what clicking a pile means.
 
-/* Which piles are spread out. Empty is the tidy table; any number of them may
- * be open at once, for the reason js/cardstack.js gives. */
-const _colFannedPiles = new Set();
+/* Which piles have been settled. Empty is the table as it arrives — every pile
+ * spread — and any number of them may be settled, for the reason
+ * js/cardstack.js gives. Not persisted: a reload is a fully spread table. */
+const _colSettledPiles = new Set();
 
 /* A merged collection row, seen as a card on a table. The badge is the number
    the list view's Total column says: how many of it are owned across every
    collection, which is this tab's own figure for a card. */
 function _colStackCard(row) {
-  const total = row._sortQty ?? row.qtys.reduce((s, q) => s + q, 0);
+  const total = row.qtys.reduce((s, q) => s + q, 0);
   return {
     name:  row.name,
     img:   scryfallCache.get(row.name),
@@ -642,28 +711,32 @@ async function renderPileView(rows) {
     return;
   }
 
-  /* Two of this tab's sort fields exist only as column headers in the list
-     view — "Total", and one per loaded collection — and both are quantities.
-     The stack view stacks them as the quantity they are rather than falling
-     back on the initial letter, which is what an unknown field would get. */
-  const field = (state.sort.field === 'total' || state.sort.field.startsWith('col_'))
-    ? 'qty' : state.sort.field;
+  /* Already in sort order — buildRows sorted them, and a pile is a run of that
+     order rather than a second arrangement of it. The field goes over as it
+     is: the quantity fields that had to be translated into `qty` here, because
+     the grouping had never heard of them, are fields it knows now.
 
-  // Already in sort order — buildRows sorted them, and a pile is a run of that
-  // order rather than a second arrangement of it.
-  const groups = cardGroups(field, rows);
-  settleGonePiles(_colFannedPiles, groups);
+     Cut from the first word of the same sentence buildRows sorted by. There
+     used to be a `state.sort` mirroring that word for the table header to draw
+     its arrow on, and this read the chain rather than the mirror so the two
+     could not disagree about what the piles were; the header reads the chain
+     too now, and the mirror is gone. The rest of the chain never reaches here:
+     it has already done its work, ordering the cards inside each pile. */
+  const groups = cardGroups(colSortCriteria()[0]?.field || 'name', rows, colSortContext());
+  forgetGonePiles(_colSettledPiles, groups);
 
-  const draw = () => cardPilesHtml(groups, { fanned: _colFannedPiles, cardOf: _colStackCard });
+  const draw = () => cardPilesHtml(groups, { settled: _colSettledPiles, cardOf: _colStackCard });
   host.innerHTML = draw();
 
-  /* Only what is actually drawn needs a picture: the card on top of each pile,
-     and the cards the fanned one spreads. That is what keeps a stack view of a
-     whole collection cheaper than a grid of its first two hundred cards. */
+  /* Only what is actually drawn needs a picture: the cards each spread pile
+     fans, and the one card on top of each settled one. A spread pile is a fan
+     rather than the whole pile, so this is bounded by STACK_FAN_MAX per pile
+     however large the collection is — which is what a table arriving spread
+     costs, and the reason it is a fan and not the pile. */
   const missing = [];
   for (const group of groups) {
-    const drawn = _colFannedPiles.has(group.label)
-      ? group.cards.slice(0, STACK_FAN_MAX) : group.cards.slice(0, 1);
+    const drawn = _colSettledPiles.has(group.label)
+      ? group.cards.slice(0, 1) : group.cards.slice(0, STACK_FAN_MAX);
     for (const card of drawn) if (!scryfallCache.has(card.name)) missing.push(card.name);
   }
   if (missing.length) {
@@ -689,8 +762,8 @@ document.addEventListener('click', e => {
   const pile = e.target.closest('#pileView .card-pile');
   if (!pile) return;
   const label = pile.dataset.pile;
-  if (e.target.closest('.card-pile-hdr')) togglePile(_colFannedPiles, label);
-  else if (!_colFannedPiles.has(label)) _colFannedPiles.add(label);
+  if (e.target.closest('.card-pile-hdr')) togglePile(_colSettledPiles, label);
+  else if (_colSettledPiles.has(label)) _colSettledPiles.delete(label);
   else return;
   renderResults();
 });

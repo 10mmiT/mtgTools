@@ -28,15 +28,30 @@ registered".
 
 **Blocked by:** 01 — A sort is a list of criteria.
 
-**Status:** todo
+**Status:** done
 
-- [ ] `sortKey(field, card, ctx)` handles `wanted`, `player`, `qty`, `total` and per-collection counts
-- [ ] `cardComparator(criteria, ctx)` passes the context to every criterion it evaluates
-- [ ] `wants.js` no longer branches on the sort field and its two bespoke comparators are gone
-- [ ] `_sortQty` is gone from `sortui.js` and from `collections.js`
-- [ ] A view's field list is built at mount time and includes one entry per collection where that applies
-- [ ] Sorting on a field whose context is missing degrades to a stable order rather than throwing
-- [ ] Want Lists can sort by Most Wanted, then Mana Value, and the ties resolve
-- [ ] Every view's existing single-field sorts produce the order they produced before
-- [ ] `test/cardsort.test.js` covers each newly-absorbed field, with the context supplied as a plain object
-- [ ] `npm test`, `npm run lint:tokens`, `npm run check:contrast` and `npm run measure:mobile` are green
+- [x] `sortKey(field, card, ctx)` handles `wanted`, `player`, `qty`, `total` and per-collection counts
+- [x] `cardComparator(criteria, ctx)` passes the context to every criterion it evaluates
+- [x] `wants.js` no longer branches on the sort field and its two bespoke comparators are gone
+- [x] `_sortQty` is gone from `sortui.js` and from `collections.js`
+- [x] A view's field list is built at mount time and includes one entry per collection where that applies —
+      `colSortFields()`, rebuilt on any render where the collections no longer match the mounted list, so
+      adding or removing one re-labels the select
+- [x] Sorting on a field whose context is missing degrades to a stable order rather than throwing — every
+      card scores alike and the name tiebreak orders them, and the rest of the chain still fires
+- [x] Want Lists can sort by Most Wanted, then Mana Value, and the ties resolve — the model can say it;
+      the control still asks for one criterion until 04
+- [x] Every view's existing single-field sorts produce the order they produced before, with two ties
+      resolved differently on purpose: Most Wanted tiebroke on `localeCompare` and now uses the same
+      lowercased name tiebreak as every other field, and Player had no tiebreak at all, so its ties were
+      left in whatever order they arrived in
+- [x] `test/cardsort.test.js` covers each newly-absorbed field, with the context supplied as a plain object
+- [x] `npm test`, `npm run lint:tokens`, `npm run check:contrast` and `npm run measure:mobile` are green
+
+Two things settled here that the ticket left open:
+
+- **Quantity and Total are one field.** They were always the same number — how many of a card are owned
+  altogether — under two names, and the table header now writes the one the sort control can say. `total`
+  stays in `sortKey` because it is what earlier versions wrote into the stored sort.
+- **A collection is still `col_<i>`.** Positional, as the header has always written it; 03 makes it an id.
+  A `col_<i>` past the end of the list is one of the missing-context cases above rather than a crash.

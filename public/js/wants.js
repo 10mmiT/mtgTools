@@ -207,21 +207,20 @@ async function renderWantList() {
 
   if (!_wantControlsMounted) initWantControls();
 
-  // Sort by the chosen field ("Most Wanted" = count of players wanting it)
-  const { field, dir } = getSort('wants', { field: 'wanted', dir: -1 });
-  const rows = [...allWants.entries()];
-  if (field === 'wanted') {
-    rows.sort((a, b) => (a[1].size - b[1].size) * dir || a[0].localeCompare(b[0]));
-  } else if (field === 'player') {
-    rows.sort((a, b) => {
-      const aN = activePlayers.filter(p => a[1].has(p.id)).map(p => p.name).join('\0');
-      const bN = activePlayers.filter(p => b[1].has(p.id)).map(p => p.name).join('\0');
-      return aN.localeCompare(bN) * dir;
-    });
-  } else {
-    const cmp = cardComparator(field, dir);
-    rows.sort((a, b) => cmp(wantCardData.get(a[0]) || { name: a[0] }, wantCardData.get(b[0]) || { name: b[0] }));
-  }
+  /* Sorting is one comparator for every field, including this tab's own two.
+     Most Wanted is a count of the players wanting a card and Player is who
+     they are, and both used to be sorted here — which is why neither could
+     ever be the *first* word of a sort with a second one after it, and Most
+     Wanted produces enormous ties by construction. They read the context
+     below instead: this tab's want map and the players it draws columns for.
+
+     A row is `[cardName, Set<playerId>]` and the comparator wants a card, so
+     what is sorted is the card each row is about — the Scryfall one where it
+     has arrived, and the name on its own where it has not. */
+  const { criteria } = getSortChain('wants', { field: 'wanted', dir: -1 }, WANT_SORT_FIELDS);
+  const cmp    = cardComparator(criteria, { wants: allWants, players: activePlayers });
+  const cardOf = name => wantCardData.get(name) || { name };
+  const rows   = [...allWants.entries()].sort((a, b) => cmp(cardOf(a[0]), cardOf(b[0])));
 
   // Apply player filter (default '' = show all)
   const visibleRows = wantFilterPlayer

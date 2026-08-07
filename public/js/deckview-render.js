@@ -48,8 +48,8 @@ function _dbPaint() {
   const _scroller  = document.scrollingElement || document.documentElement;
   const _scrollTop = _scroller.scrollTop;
 
-  const { field, dir } = getSort('deckbuild', { field: 'name', dir: 1 });
-  const cmp = cardComparator(field, dir);
+  const cmp = cardComparator(
+    getSortChain('deckbuild', { field: 'name', dir: 1 }, DB_SORT_FIELDS).criteria);
 
   // Drop selections for cards no longer in the deck (removed/deleted elsewhere)
   for (const name of [...dbSelectedCards]) {
@@ -72,6 +72,14 @@ function _dbPaint() {
       dbCardData.get(b.card_name) || { name: b.card_name }
     ));
   }
+
+  /* A category the deck no longer has is not a settled pile — it is a label
+     nothing answers to, and a name that comes back comes back as a new pile,
+     spread like every other. Against dbCats rather than against the sections
+     actually drawn: a category the search has emptied is still a category of
+     this deck, and clearing the search should find it lying the way it was
+     left rather than sprung open. */
+  forgetGonePiles(dbSettledCats, dbCats.map(cat => ({ label: cat.name })));
 
   const canEdit = isMyPlayer(dbDeck.playerId);
   const sections = [];
@@ -331,7 +339,7 @@ function _dbRenderSection(catName, cards, canEdit) {
      cardCarryDrop(). */
   const dropAttrs = canEdit ? `data-drop="${esc(catName)}"` : '';
 
-  const fanned = dbView === 'pile' && dbExpandedCats.has(catName);
+  const fanned = dbView === 'pile' && !dbSettledCats.has(catName);
   let cardsHtml;
   if (dbView === 'list') {
     cardsHtml = `<div class="dv-list">${cards.map(c => _dbListRow(c, canEdit)).join('')}</div>`;
@@ -462,15 +470,16 @@ function _dbStackHtml(catName, cards, canEdit, fanned) {
  * handler per stack, because the mat is rebuilt on every change.
  *
  * Only ever opens. Settling is the arrow's, and it is the arrow's alone —
- * clicking somewhere else no longer tidies the mat, because with several
- * piles spread that would be one stray click undoing an arrangement somebody
- * made on purpose. */
+ * clicking somewhere else no longer tidies the mat, because that would be one
+ * stray click undoing an arrangement somebody made on purpose. There is
+ * nothing to guard against a click on a spread pile here: a spread pile draws
+ * no stack, so there is no .card-stack under the pointer to have hit. */
 function dbStackClick(e) {
   if (dbView !== 'pile' || !dbDeck) return;
   if (!e.target.closest('.card-stack')) return;
   const cat = e.target.closest('.dv-section')?.dataset.cat ?? null;
-  if (cat === null || dbExpandedCats.has(cat)) return;
-  dbExpandedCats.add(cat);
+  if (cat === null || !dbSettledCats.has(cat)) return;
+  dbSettledCats.delete(cat);
   dbRender();
 }
 
@@ -491,7 +500,13 @@ function _dbPileTile(card, canEdit) {
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
     <div data-name="${esc(card.card_name)}">
       ${img ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
-              `<div style="width:var(--card-width,150px);aspect-ratio:5/7;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md)"></div>`}
+              /* Artwork that is missing is a surface and not a card, which is
+                 one rule said in one place — components.css's, the same shape
+                 a stack's face falls back to. It was written out inline here
+                 in tokens that happened to agree with it; now it is the rule,
+                 so a card with no picture is ringed when it is chosen like any
+                 other. */
+              `<div class="card-stack-blank"></div>`}
     </div>
   </div>`;
 }
@@ -571,17 +586,18 @@ function dbSetView(v) {
  * and a category you are done with is a screenful of mat between you and the
  * next one.
  *
- * In pile view it spreads the pile out instead, and settles it again. A
- * settled stack is already the category folded away — it says what it holds
- * and takes one card's room — so hiding it as well was a fold on top of a
- * fold, and the thing there was no control for was the opposite one.
+ * In pile view it settles the pile into a stack instead, and spreads it out
+ * again. A settled stack is already the category folded away — it says what it
+ * holds and takes one card's room — so hiding it as well was a fold on top of
+ * a fold, and this is the control for the other direction.
  *
- * Any number of piles may be spread at once, and one closing is never the
- * price of another opening: a deck is read by holding two categories up
- * against each other. js/cardstack.js says why, for the three tabs that now
- * all work this way. */
+ * The mat arrives with every category spread, so settling is what is done to
+ * it rather than what has to be undone. Any number of piles may be settled,
+ * and one settling is never the price of another spreading: a deck is read by
+ * holding two categories up against each other. js/cardstack.js says why, for
+ * the three tabs that all work this way. */
 function dbToggleCat(name) {
-  if (dbView === 'pile') togglePile(dbExpandedCats, name);
+  if (dbView === 'pile') togglePile(dbSettledCats, name);
   else if (dbCollapsedCats.has(name)) dbCollapsedCats.delete(name);
   else dbCollapsedCats.add(name);
   dbRender();

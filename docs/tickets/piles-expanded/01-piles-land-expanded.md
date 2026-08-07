@@ -28,17 +28,17 @@ is the part of this ticket that is not optional.
 
 **Blocked by:** nothing.
 
-**Status:** todo
+**Status:** done — see `docs/records/piles-expanded.md`, which supersedes this.
 
-- [ ] Deck Builder categories, Collections' stack view and the Set Browser's arrive with every pile spread
-- [ ] Each tab tracks settled labels rather than spread ones, and absence means spread
-- [ ] Settling a pile survives a re-render, a sort change and a quantity edit
-- [ ] A pile that appears because the sort changed arrives spread
-- [ ] A label that is settled and then stops existing does not keep a pile settled if the label returns for different cards, or the chosen behaviour is stated
-- [ ] `togglePile` and the pile toggle's `aria-expanded` still say what is true
-- [ ] Nothing is persisted — a reload returns the table to fully spread
-- [ ] `STACK_FAN_MAX` is unchanged and still bounds each fan
-- [ ] First paint of Collections' stack view on a large collection is measured, in the worst grouping the app offers, and the number is recorded in the record
-- [ ] Card motion, the hover lift and the card menu behave on a fanned card exactly as on a settled pile's face card
-- [ ] Correct in all five themes, and at the narrowest breakpoint
-- [ ] `npm test`, `npm run lint:tokens`, `npm run check:contrast` and `npm run measure:mobile` are green
+- [x] Deck Builder categories, Collections' stack view and the Set Browser's arrive with every pile spread
+- [x] Each tab tracks settled labels rather than spread ones, and absence means spread — `dbSettledCats`, `_colSettledPiles`, `setSettled`
+- [x] Settling a pile survives a re-render, a sort change and a quantity edit
+- [x] A pile that appears because the sort changed arrives spread
+- [x] A label that is settled and then stops existing does not keep a pile settled if the label returns for different cards, or the chosen behaviour is stated — `forgetGonePiles`, so it returns spread. On the Deck Builder it is run against the deck's categories rather than the sections drawn, so a search that empties a category does not spring it open when the search is cleared
+- [x] `togglePile` and the pile toggle's `aria-expanded` still say what is true
+- [x] Nothing is persisted — a reload returns the table to fully spread
+- [x] `STACK_FAN_MAX` is unchanged and still bounds each fan
+- [x] First paint of Collections' stack view on a large collection is measured, in the worst grouping the app offers, and the number is recorded in the record — 12,788 cards grouped by initial: 28 piles, 1,507 card elements, **118–139ms**
+- [x] Card motion, the hover lift and the card menu behave on a fanned card exactly as on a settled pile's face card — untouched: a fan card is a `.card-img` inside a `.card-open`, which is what both are hung on
+- [x] Correct in all five themes, and at the narrowest breakpoint — one thing was not, and is now: a fan card had no height until its picture arrived, so a spread table on a phone collapsed into itself. See the record
+- [x] `npm test`, `npm run lint:tokens`, `npm run check:contrast` and `npm run measure:mobile` are green

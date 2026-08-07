@@ -111,14 +111,18 @@ const PREP = {
   /* The stack view, for the same reason as the list: a tab is measured as it
    * arrives, and it arrives as a grid. Stacks are the widest thing this tab
    * draws — a pile column is a card and the room a pile lying askew needs —
-   * so a phone is where a row of them would push the page sideways. */
+   * so a phone is where a row of them would push the page sideways.
+   *
+   * Nothing is opened here any more. The view arrives with every pile spread,
+   * so switching to it is the whole of the state worth measuring — and it is
+   * the dense one: fifteen hundred cards overlapping down a 390px screen,
+   * where a card that has not held its own height is a card the rest of the
+   * fan lands on top of. */
   'collections-pile': `(() => {
     const pane = [...document.querySelectorAll('.tab-pane')].find(p => p.style.display !== 'none');
     const btn = pane && pane.querySelector('.view-btn[data-mode="pile"]');
     if (!btn) return 'false';
     btn.click();
-    const pile = document.querySelector('#pileView .card-pile');
-    if (pile) pile.click();   // one fanned out, since a fan is taller and wider
     return 'true';
   })()`,
   'deckview-search': `(() => {
