@@ -391,7 +391,9 @@ Five pieces of work were large enough to be worth writing up afterwards, and eac
 
 What each was planned from is kept beside them in [docs/design/](docs/design/): [ui.md](docs/design/ui.md), the interactivity brief the second of those was written against, [spec-cards-as-objects.md](docs/design/spec-cards-as-objects.md), its PRD, and [spec-sorting.md](docs/design/spec-sorting.md), the PRD for the third. Where any of them disagrees with its record, the record is what happened.
 
-Work large enough to need planning is cut into tickets first — one shippable, testable change each — under a `docs/tickets/<effort>/` directory that exists only while that effort is in flight. A ticket set is retired into a record once it lands, so there is no `docs/tickets/` here right now: everything that was written down has been built.
+Work large enough to need planning is cut into tickets first — one shippable, testable change each — under a `docs/tickets/<effort>/` directory that exists only while that effort is in flight. A ticket set is retired into a record once it lands.
+
+One effort is in flight: [docs/tickets/deckbuilder-depth/](docs/tickets/deckbuilder-depth/), eleven tickets cut from [spec-deckbuilder-depth.md](docs/design/spec-deckbuilder-depth.md) — the deck builder's analysis surface, the boards it has never had, and the frame that keeps the cards the content while all of it lands. Each ticket names the tickets that block it; six are blocked by nothing.
 
 ## Testing
 
