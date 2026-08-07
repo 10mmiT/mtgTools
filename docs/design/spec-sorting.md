@@ -2,7 +2,12 @@
 
 The PRD for multi-criteria sorting, settled over three rounds of grilling. Every decision below was
 made deliberately; where a rejected alternative is worth knowing about, it is named and the reason
-is given. The tickets it was cut into are in [docs/tickets/sorting/](../tickets/sorting/).
+is given.
+
+**This is what was planned. What was built is [docs/records/sorting.md](../records/sorting.md), and
+where the two disagree the record is what happened.** It is kept because a PRD says *why* in a way a
+record written afterwards cannot: the alternatives below were rejected before there was any code to
+point at.
 
 ---
 
@@ -229,7 +234,12 @@ The popover's DOM is not tested, exactly as `mountSortControl` is not tested tod
 
 ## How it is built
 
-A ticket set, in [docs/tickets/sorting/](../tickets/sorting/) — the repo's pattern for work this
-size, and what the last two efforts used at 25 and 11 tickets. The cuts are one shippable, testable
-change each, and the first three carry all of the risk. One change would put a localStorage
-migration and a new control in the same commit, which is the commit nobody can bisect.
+A ticket set — the repo's pattern for work this size, and what the last two efforts used at 25 and
+11 tickets. The cuts are one shippable, testable change each, and the first three carry all of the
+risk. One change would put a localStorage migration and a new control in the same commit, which is
+the commit nobody can bisect.
+
+It came to eight, and they are retired: `01-criteria-model`, `02-a-criterion-is-a-criterion`,
+`03-collection-criteria-by-id`, `04-seeded-chains`, `05-stored-sorts-migrate`,
+`06-the-control-says-the-sentence`, `07-first-criterion-cuts-the-piles` and
+`08-table-header-is-a-shortcut`. What each of them settled is in the record.
