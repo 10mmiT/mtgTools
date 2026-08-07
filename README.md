@@ -19,10 +19,11 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 ### Collections tab
 - Add collections from Archidekt (URL or CSV export) or Moxfield (CSV export only — Moxfield's API blocks automated access)
 - Results table shows card name, a column per collection, and a total; scrolls horizontally when many collections are loaded
-- **Sort** by name, mana value, color (WUBRG order), power, toughness, rarity, type, price, or quantity owned — via the Sort control or by clicking any column header
+- **Sort** by name, mana value, color (WUBRG order), power, toughness, rarity, type, price, quantity owned, or any single collection's own count — as a sentence of up to three, e.g. *Rarity → Mana Value → Name*
+- **The column headers are a shortcut into the same sort.** Click a heading to make that column the sort; **shift-click** to add it as the next criterion. Clicking the column already leading flips its direction. A sorted column is marked `↑`, and a column carrying a later criterion is marked `2↑` or `3↓` so you can see where in the sentence it comes
 - **Columns menu** to show/hide optional columns: Mana Value, Color (as mana pips), Type, Rarity, Power/Toughness, Price (off by default to keep the table clean)
 - Grid view shows full card images with per-collection ownership badges
-- **Pile view** draws the collection as stacks of cards on a table, grouped by whatever the tab is currently sorted by — sort by rarity and you get four stacks of visibly different heights, by mana value and you get your curve standing up off the table, by name and it buckets on the initial letter. Each stack shows its count and fans out when clicked; clicking away settles it
+- **Pile view** draws the collection as stacks of cards on a table, cut by the **first** criterion of the sort — sort by rarity and you get four stacks of visibly different heights, by mana value and you get your curve standing up off the table, by name and it buckets on the initial letter. The rest of the sentence orders the cards *inside* each pile, so *Rarity → Mana Value* is four piles each standing in curve order. Each stack shows its count, and the table arrives with every pile already spread — clicking a pile's header settles it back into a stack
 - **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid and pile views; remembered per view)
 - On mobile, defaults to grid view; list view is still available and scrolls horizontally
 - Hover over any card name (list view) for a Scryfall image tooltip
@@ -47,7 +48,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Full Scryfall query syntax: `t:legendary t:creature`, `c:g cmc=3`, `"exact name"`, etc.
 - Results show which collections own each card and in what quantity, plus Cardmarket price (EUR)
 - Quick **+** button on each card to add it to your personal want list in one click
-- **Sort** results by name, mana value, color, power, toughness, rarity, type, or price
+- **Sort** results by name, mana value, color, power, toughness, rarity, type, or price — as a sentence of up to three
 - **List** and **Grid** view toggle
 - **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid view only; remembered per view)
 - Mana costs rendered as proper MTG mana icons
@@ -71,8 +72,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Click a tile to load that set's cards, with collection ownership and Cardmarket price shown inline; the set becomes a chip on the toolbar whose ✕ goes back to the tiles
 - Ownership dropdown to show all cards, only owned, or only unowned
 - The "N of M owned" figure is the toolbar's result count
-- **Sort** by set collector number (default), name, mana value, color, power, toughness, rarity, type, or price
-- **List**, **Grid**, and **Pile** view toggle — pile view stacks the set by the current sort field, the same way Collections does
+- **Sort** by set collector number (default), name, mana value, color, power, toughness, rarity, type, or price — as a sentence of up to three
+- **List**, **Grid**, and **Pile** view toggle — pile view stacks the set by the sort's first criterion, the same way Collections does, and arrives with every pile spread
 - **Size** slider beside the view toggle sizes the card art from thumbnails to full-size (grid and pile views; remembered per view)
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
 
@@ -82,7 +83,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - Import (CSV: qty,name or name-only) and Export (CSV / printable PDF checklist) share one "⋯" menu in the toolbar
 - **List view**: combined table across all players — who wants each card, Cardmarket price, and whether anyone already owns it
 - **Player filter**: chip row under the toolbar (All / per-player, each with its card count) to narrow down to a single player's list; defaults to showing everyone, and the toolbar's count says what the filter has done ("12 of 85 cards")
-- **Sort** by most-wanted (default), player (groups cards by which player(s) want them), name, mana value, color, power, toughness, rarity, type, or price
+- **Sort** by most-wanted (default), player (groups cards by which player(s) want them), name, mana value, color, power, toughness, rarity, type, or price — as a sentence of up to three. Most Wanted produces enormous ties by construction, so it defaults to *Most Wanted ↓ → Mana Value → Name*, which is the curve inside each block rather than one undifferentiated block per number of people who want a card
 - **Columns menu** to show/hide optional columns: Mana Value, Color, Type, Rarity, Power/Toughness, Price, In Collections
 - **Grid view**: card images with Cardmarket price, coloured player-initial dots (tap your own dot to remove), and ownership badges, with the same **Size** slider
 - Click any card name or image to open it in the **Card** tab (Ctrl/Cmd-click opens Scryfall)
@@ -101,8 +102,8 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Carry a card** with the mouse or a stylus onto any category to move it there; auto-saves. The card follows the cursor with a little lag and leans into the direction it is travelling, the pile that would receive it lights up before you let go, and releasing settles it into place with a short overshoot. Released anywhere else it goes back where it came from and nothing changes. Dragging a card that is part of the current selection carries the **whole selection as a fan** with a count on it, and drops it through the same bulk move; dragging an unselected card carries that card alone and leaves the selection untouched
 - Dragging is for pointing devices — a finger scrolls the mat instantly, with no press-and-hold delay, and **Move to…** stays the way to recategorise on a phone
 - **The mat animates its own re-renders**: any change measures where each card was and where it ended up, and every card that moved travels there — so a removal, a sort or a move is something you watch happen rather than a result you have to work out. Only what can be seen is animated, so a four-hundred-card deck costs the same as a four-thousand-card one
-- **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price
-- **List**, **Grid**, and **Pile** view, with the shared **Size** slider for Grid and Pile (remembered per view, as on every other tab). A pile is a real stack — the face card on top with the edges of the cards beneath showing, getting visibly thicker as the category grows, so you can read the shape of a deck without counting. Each card's slight angle comes from its name, so the same card sits the same way on every render and the mat never reshuffles itself behind your back. Clicking a pile fans it out; clicking away settles it
+- **Sort** cards within each category by name (default), mana value, color, power, toughness, rarity, type, or price — as a sentence of up to three
+- **List**, **Grid**, and **Pile** view, with the shared **Size** slider for Grid and Pile (remembered per view, as on every other tab). A pile is a real stack — the face card on top with the edges of the cards beneath showing, getting visibly thicker as the category grows, so you can read the shape of a deck without counting. Each card's slight angle comes from its name, so the same card sits the same way on every render and the mat never reshuffles itself behind your back. Categories arrive spread; the arrow on a category's header settles it back into a stack
 - Quick **Add a card** box with card-name autocomplete (served from the local card database); **Import CSV** or **Paste List** (`1 Sol Ring` / `1x Sol Ring` / `// Category` lines) for bulk add
 - **Search / EDHREC** drawer panel:
   - **Search** tab — Scryfall query search (with an optional commander color-identity filter) to find and add cards, each shown with a thumbnail
@@ -138,7 +139,7 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **MTG colour theming**: each tab carries its own mana-colour accent (WUBRG + gold) on the active nav item, panel headings, focus rings, and card hover glows — independent of the 5 UI themes above, since mana symbol colours represent the game, not the chrome
 - Mana symbols rendered as proper MTG icons throughout (mana-font)
 - **Minimal-UI conventions across all tabs**: one shared List/Grid(/Pile) view toggle component, shared Sort, Size and Columns controls, and "⋯" overflow menus for secondary/destructive actions (collection rows, deck tiles, player headers, want-list import/export, Pick Night options) — the common path stays visible, everything else is one click away
-- **Sorting & column visibility** on every card view (Collections, Scryfall Search, Card, Set Browser, Want Lists, Deck Builder); your sort field/direction and which columns are shown persist per-view in the browser
+- **Sorting is a sentence, on every card view** (Collections, Scryfall Search, Set Browser, Want Lists, Deck Builder). A sort is an ordered list of up to three criteria, each with its own direction — *Color → Mana Value → Name* — and the control is one button whose label is that sentence, opening a popover to add, reorder, flip or remove a word. **Choosing a field seeds the whole sentence** rather than giving you one word: pick Color and you are sorted colour → mana value → name without touching anything else, pick Price and the expensive cards come first. Edit the tail and the chain becomes yours — changing the first field then swaps only that word instead of re-seeding, with "Reset to suggested" as the way back. Your sort and which columns are shown persist per-view in the browser; a sort stored by an older version of the app is read as the single criterion it was, and never silently re-seeded
 - **Card size** on every view that draws card art (Collections, Scryfall Search, Set Browser, Want Lists, Deck Builder): one shared slider on the tab's strip, hidden in list views, remembered per tab *and* per view — so a collection scanned at thumbnails leaves the deck you are building at the size you build it at. It replaces the old XL view, which was this question answered once at 220px and nailed to a button
 - **Cards are objects, not tiles.** Card artwork is drawn with no frame around it — the picture is the card. Its shadow follows its own rounded silhouette rather than a box, a lit top edge and shaded bottom edge give it thickness, and the corners are a real card's corner as a ratio, so they stay right at every size the slider reaches
 - **Pointing at a card picks it up**: it lifts, scales, leans a few degrees towards the pointer, and a sheen crosses its face. The card's layout box never changes, so the pointer can't fall off a card that grew underneath it and the grid never reflows — crossing a grid quickly leaves no trail of half-animated cards. Touch pointers never lift anything, so no hover state outlives the finger that caused it
@@ -269,7 +270,7 @@ mtgtools/
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
-├── test/              # 15 files, run by `npm test`
+├── test/              # 16 files, run by `npm test`
 │   ├── server.test.js       # HTTP seam — auth, state, admin, decks, prefs
 │   ├── prefs-open-mode.test.js  # Preferences with no accounts to hang them on
 │   ├── tokens.test.js       # Token-contract lint, asserted over the delivered CSS
@@ -281,6 +282,7 @@ mtgtools/
 │   ├── cardlift.test.js     # The lean, at the extremes and at the centre
 │   ├── cardstack.test.js    # Layers from count, angle from name
 │   ├── cardgroups.test.js   # Which pile a card belongs in, per sort field
+│   ├── cardsort.test.js     # A sort as a chain — order, seeding, ownership, migration
 │   ├── cardsize.test.js     # The size store, keyed per tab and per view
 │   ├── cardmove.test.js     # What travels on a re-render, and what is skipped
 │   ├── carddrag.test.js     # Hit-testing piles, the fan, the drop's effect
@@ -309,7 +311,9 @@ mtgtools/
 │       ├── playmat.js     # Loaded in <head>: paints the background before first paint, and its picker
 │       ├── motion.js      # Loaded in <head>: resolves the card-motion preference against the OS
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
-│       ├── sortui.js      # Shared UI components: sort control, columns menu, view toggle, card-size control, "⋯" kebab menus
+│       ├── sortui.js      # The sort model — a chain of criteria, what each field is worth, what a
+│       │                  # field seeds, what is stored — plus the shared controls: the sort button
+│       │                  # and its popover, columns menu, view toggle, card-size control, "⋯" kebab menus
 │       ├── cardlift.js    # Picking a card up: the hover lift, lean and sheen on every card image
 │       ├── cardstack.js   # Drawing a group of cards as a stack: thickness from count, angle from name
 │       ├── cardmove.js    # Cards travelling to where a re-render put them: measured before and after
@@ -336,10 +340,15 @@ mtgtools/
 │   ├── design/          # What was planned — briefs and PRDs, kept as context
 │   │   ├── ui.md                    # The "Cards on a Table" interactivity brief — the
 │   │   │                            # design intent behind how cards behave; built
-│   │   └── spec-cards-as-objects.md # The PRD that work was specified from
-│   └── records/         # …and what was actually built, written after delivery
-│       ├── cards-as-objects.md
-│       └── ui-redesign.md           # The same, for the redesign that came before it
+│   │   ├── spec-cards-as-objects.md # The PRD that work was specified from
+│   │   └── spec-sorting.md          # The PRD for multi-criteria sorting
+│   ├── records/         # …and what was actually built, written after delivery
+│   │   ├── ui-redesign.md           # The visual redesign that came first
+│   │   ├── cards-as-objects.md
+│   │   ├── sorting.md               # A sort becomes a sentence of up to three criteria
+│   │   └── piles-expanded.md        # A table of stacks arrives spread
+│   └── tickets/         # Work in flight, cut into shippable pieces; retired into a
+│                        # record once the set lands
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -365,18 +374,22 @@ Deleting `scryfall.db` costs nothing but the refill.
 
 ## Design records
 
-Two pieces of work were large enough to be worth writing up afterwards, and each has a record in [docs/records/](docs/records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
+Four pieces of work were large enough to be worth writing up afterwards, and each has a record in [docs/records/](docs/records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
 
 | document | what it covers |
 |---|---|
 | [docs/records/ui-redesign.md](docs/records/ui-redesign.md) | The visual redesign — the token contract, the layout rules, the measurement scripts, the playmat |
 | [docs/records/cards-as-objects.md](docs/records/cards-as-objects.md) | Cards as objects — the motion preference and its contract, the card treatment, the lift, stacks and the pile views, the shared size control, animated re-renders, carrying a card and a handful, and the card menu |
+| [docs/records/sorting.md](docs/records/sorting.md) | Sorting by more than one thing — a sort as a chain of up to three criteria, every field a real criterion, seeded sentences and who owns them, the control that says the sentence, and the table header as a shortcut into it |
+| [docs/records/piles-expanded.md](docs/records/piles-expanded.md) | Piles land expanded — a table of stacks arrives spread, and settling one is the thing you do |
 
-What each was planned from is kept beside them in [docs/design/](docs/design/): [ui.md](docs/design/ui.md), the interactivity brief the second of those was written against, and [spec-cards-as-objects.md](docs/design/spec-cards-as-objects.md), its PRD. Where either disagrees with the record, the record is what happened.
+What each was planned from is kept beside them in [docs/design/](docs/design/): [ui.md](docs/design/ui.md), the interactivity brief the second of those was written against, [spec-cards-as-objects.md](docs/design/spec-cards-as-objects.md), its PRD, and [spec-sorting.md](docs/design/spec-sorting.md), the PRD for the third. Where any of them disagrees with its record, the record is what happened.
+
+Work still in flight is cut into tickets under [docs/tickets/](docs/tickets/) — one shippable, testable change each. A ticket set is retired into a record once it lands, so an empty `docs/tickets/` means everything written down has been built.
 
 ## Testing
 
-The project ships a test suite using Node's built-in `node:test` runner and `supertest` — 276 tests across 15 files, needing no browser and no network.
+The project ships a test suite using Node's built-in `node:test` runner and `supertest` — 338 tests across 16 files, needing no browser and no network.
 
 ```bash
 npm test
@@ -386,7 +399,7 @@ Tests are written at three seams, all of which assert externally observable beha
 
 - **The HTTP seam** drives the Express app through a client against an isolated in-memory SQLite database and a temporary state file, so they never touch production data. It covers auth, state, admin, deck and preference routes — anything that is request/response behaviour, including the whole playmat and the card-motion preference.
 - **The static seam** is the token linter below, because a visual contract cannot be asserted over HTTP and its most valuable guarantee is a property of the delivered stylesheet.
-- **The vm seam** loads a shipped browser file into a `vm` context and calls its decisions directly. Everything the card behaviour decides about *where something goes* is written as a pure function of its inputs and exported from the file that ships — how thick a stack of *n* cards is, what angle a card's name gives it, which pile a card belongs in for the current sort, how far a card leans, which pile a released card would land in, where each card lies in a carried fan, where a menu asked for at a point is drawn. So those are asserted at their boundaries rather than eyeballed through a browser.
+- **The vm seam** loads a shipped browser file into a `vm` context and calls its decisions directly. Everything the card behaviour decides about *where something goes* is written as a pure function of its inputs and exported from the file that ships — how thick a stack of *n* cards is, what angle a card's name gives it, which pile a card belongs in for the sort's first criterion, how far a card leans, which pile a released card would land in, where each card lies in a carried fan, where a menu asked for at a point is drawn. Sorting is the same seam pointed at the same file: what a chain orders, what a field seeds, what makes a chain somebody's own, what a stored preference from an older version means now, and that no gesture on a table header can reach a chain the control's label cannot say. So those are asserted at their boundaries rather than eyeballed through a browser.
 
 Nothing asserts markup: this work churned markup deliberately.
 

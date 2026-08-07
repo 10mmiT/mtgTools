@@ -439,7 +439,7 @@ function loadMat(cards, selected = []) {
     dbDeck:  { id: 'd1', playerId: 'p1' },
     dbCards: cards.map(c => ({ qty: 1, ...c })),
     dbSelectedCards: new Set(selected),
-    dbExpandedCats:  new Set(),
+    dbSettledCats:   new Set(),
     dbView: 'list',
     _dbLandedCards: null,
     dbSaveTimer: 0,
@@ -540,8 +540,22 @@ test('a handful put into a settled pile spreads it, so the cards have somewhere 
   // under a stack going up.
   const mat = loadMat(DECK, ['Sol Ring', 'Doom Blade']);
   mat.sandbox.dbView = 'pile';
+  mat.sandbox.dbSettledCats.add('Lands');
   mat.drop(['Sol Ring', 'Doom Blade'], 'Lands');
-  assert.deepStrictEqual([...mat.sandbox.dbExpandedCats], ['Lands']);
+  assert.deepStrictEqual([...mat.sandbox.dbSettledCats], [],
+    'the pile the cards were put into is the one that is no longer settled');
+});
+
+test('a handful put into a pile that was already spread leaves the mat as it was', () => {
+  // Piles arrive spread, so this is the common drop: the target is already
+  // open and there is nothing to reopen. What must not happen is the drop
+  // settling anything, or reaching for a set that does not have the label.
+  const mat = loadMat(DECK, ['Sol Ring']);
+  mat.sandbox.dbView = 'pile';
+  mat.sandbox.dbSettledCats.add('Ramp');
+  mat.drop(['Doom Blade'], 'Lands');
+  assert.deepStrictEqual([...mat.sandbox.dbSettledCats], ['Ramp'],
+    'the pile somebody settled elsewhere on the mat stays settled');
 });
 
 // ── The gate on the gesture ───────────────────────────────────────────

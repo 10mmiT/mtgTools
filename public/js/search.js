@@ -112,8 +112,7 @@ function sfRender() {
   const cards = (sfState.cards || []).slice();
   if (!cards.length) return; // leave any empty/error state from the fetch
 
-  const { field, dir } = getSort('scryfall');
-  cards.sort(cardComparator(field, dir));
+  cards.sort(cardComparator(getSortChain('scryfall', null, SF_SORT_FIELDS).criteria));
 
   const wrap = sfViewSize === 'grid' ? 'sf-grid' : 'sf-results';
   const html = cards.map(c =>

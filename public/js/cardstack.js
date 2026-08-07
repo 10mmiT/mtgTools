@@ -140,16 +140,22 @@ function cardStackHtml(cards, { count, layers, attrs = '' } = {}) {
 
 // ── A table of stacks ──────────────────────────────────────────────────────
 // What the browsing tabs' stack view is: the cards laid out in labelled piles,
-// one of which may be fanned out so that every card in it can be seen. The
-// piles come in already made — js/sortui.js cuts them from the current sort —
-// so this still knows nothing about sort fields, and the two tabs that call it
-// differ only in what a card's picture and its one number are.
+// spread out so that the cards in them can be seen, and settled one at a time
+// into stacks by whoever wants the shape of the table instead. The piles come
+// in already made — js/sortui.js cuts them from the current sort — so this
+// still knows nothing about sort fields, and the two tabs that call it differ
+// only in what a card's picture and its one number are.
 
 /* How many cards a fanned pile spreads at once. The settled stack is bounded
  * by STACK_LAYERS_MAX and costs nothing whatever it holds, but a fan is real
  * cards: spreading four thousand commons would be the one place this view
  * could cost something, so it does not. The rest of the pile is reachable the
- * way it always was — narrow the search, or sort by a field that cuts finer. */
+ * way it always was — narrow the search, or sort by a field that cuts finer.
+ *
+ * With every pile arriving spread this is the whole table's bound as well as
+ * one pile's: a table is at most its number of piles times this. That is the
+ * cost the spread-by-default decision buys, and it is measured rather than
+ * assumed — see docs/records/piles-expanded.md. */
 const STACK_FAN_MAX = 60;
 
 /* How thick one pile in a table of them is drawn: in proportion to the tallest
@@ -180,37 +186,52 @@ function pileLayers(count, tallest) {
   return Math.min(stackLayers(held), share);
 }
 
-// ── Which piles are spread ─────────────────────────────────────────────────
-// A set of labels rather than one label, because piles are read against each
-// other. Standing the curve up off the table and then wanting to see what is
-// actually in the two tallest columns is the whole reason to look at a table
-// of piles, and it cannot be done one pile at a time — by the time the second
-// is open the first has closed and there is nothing left to compare it with.
+// ── Which piles are settled ────────────────────────────────────────────────
+// A table of stacks arrives spread. Every pile is open on the first paint, on
+// all three views that draw one, and settling a pile is the thing somebody
+// does — the opposite of what this was. A table of piles is a way of looking
+// at cards, and a view of cards that shows none of them until you ask it to,
+// one arrow at a time, is a view that has to be operated before it says
+// anything.
 //
-// That is also why nothing here settles a pile you did not ask to settle. A
-// table with three piles spread is an arrangement somebody made on purpose,
-// and a stray click on the background is not an instruction to sweep it away.
-// The only things that settle a pile are its own arrow and the pile itself
-// going away.
+// So the set each tab keeps is the labels it has been asked to *settle*, and
+// absence means spread. Seeding a set of spread labels with every label on
+// each render would fight the model rather than change it: a pile you settled
+// would spring back open the moment a quantity edit re-rendered the table, and
+// a pile that appeared because the sort changed would have to be seeded too or
+// arrive settled. Inverted, all three fall out — a new pile is open because
+// nothing has settled it, a settled pile stays settled because the set is not
+// rebuilt, and the arrow keeps the shape it had.
 //
-// The set is the caller's — each tab keeps its own, as each already kept its
-// own label — and these two are the operations all three of them need.
+// The set is still a set rather than one label, because piles are read against
+// each other. Standing the curve up off the table and then wanting to see what
+// is actually in the two tallest columns is the whole reason to look at a
+// table of piles, and it cannot be done one pile at a time. Nothing here
+// settles a pile you did not ask to settle, and nothing spreads one you
+// settled: a table somebody has tidied down to two open piles is an
+// arrangement made on purpose, and a stray click on the background is not an
+// instruction to undo it.
+//
+// The set is the caller's, each tab keeps its own, and it is not persisted:
+// reloading gives you the table fully spread again, which is the state the
+// view is meant to arrive in.
 
-/* Spread this pile, or settle it. */
-function togglePile(spread, label) {
-  if (spread.has(label)) spread.delete(label);
-  else spread.add(label);
-  return spread;
+/* Settle this pile, or spread it. */
+function togglePile(settled, label) {
+  if (settled.has(label)) settled.delete(label);
+  else settled.add(label);
+  return settled;
 }
 
 /* Forget the piles that are no longer on the table. A search, a filter or a
- * re-sort can cut the piles again and leave a label nothing answers to; a
- * table that stayed spread for a pile that is not there would be holding a
- * place for nothing. */
-function settleGonePiles(spread, groups) {
+ * re-sort can cut the piles again and leave a label nothing answers to; a set
+ * that kept it would be holding a pile settled for cards that have gone. It
+ * also answers what happens when the label comes back for different cards: it
+ * comes back spread, like any pile the table has not been asked to settle. */
+function forgetGonePiles(settled, groups) {
   const here = new Set(groups.map(group => group.label));
-  for (const label of spread) if (!here.has(label)) spread.delete(label);
-  return spread;
+  for (const label of settled) if (!here.has(label)) settled.delete(label);
+  return settled;
 }
 
 /* The arrow that spreads a pile and settles it again.
@@ -253,24 +274,25 @@ function cardFanHtml({ name, img, badge, href }) {
 /* The markup for a row of piles.
  *
  *   groups  [{ label, cards }] as sortui.js's cardGroups() cuts them
- *   fanned  the labels of the piles that are spread out — a set, since any
- *           number of them may be
+ *   settled the labels of the piles that have been settled — a set, and empty
+ *           is the table as it arrives: every pile spread
  *   cardOf  a card, as this tab holds it, seen as { name, img, badge, href }
  *
  * A settled pile says how many cards it holds on the stack itself; a fanned
  * one has no stack left to say it, so the label carries the count instead —
  * and says how much of the pile is spread when it is more than a fan.
  *
- * The cap on a fan is per pile and stays that way with several of them open.
- * That is not an oversight: opening piles is a thing somebody does one arrow
- * at a time, so the number of them is bounded by how many times they meant
- * it, and capping the table as a whole would mean a pile spreading fewer
- * cards because of a pile somewhere else on it.
+ * The cap on a fan is per pile and stays that way with the whole table open.
+ * Capping the table as a whole would mean a pile spreading fewer cards
+ * because of a pile somewhere else on it — the number in a pile would stop
+ * being a fact about that pile — and the bound that matters is the one on a
+ * single fan, which is what keeps four thousand commons from being four
+ * thousand elements.
  */
-function cardPilesHtml(groups, { fanned = new Set(), cardOf } = {}) {
+function cardPilesHtml(groups, { settled = new Set(), cardOf } = {}) {
   const tallest = groups.reduce((most, group) => Math.max(most, group.cards.length), 0);
   const piles = groups.map(group => {
-    const open  = fanned.has(group.label);
+    const open  = !settled.has(group.label);
     const held  = group.cards.length;
     const shown = open ? group.cards.slice(0, STACK_FAN_MAX) : [];
     const count = !open ? ''

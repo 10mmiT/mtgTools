@@ -15,7 +15,7 @@ let currentSet  = null;   // { code, name }
 let setCardsAll = [];
 let setFilter   = 'all';  // 'all' | 'owned' | 'unowned'
 let setView     = 'list'; // 'list' | 'grid' | 'pile'
-const setFanned = new Set(); // the labels of the piles spread out in the stack view
+const setSettled = new Set(); // the labels of the piles settled in the stack view; the rest are spread
 
 const SET_PICKER_LIMIT = 120;   // tiles rendered at once; the filter reaches the rest
 
@@ -202,8 +202,10 @@ function renderSetCards() {
                 : setFilter === 'unowned' ? setCardsAll.filter(c => !isOwned(c))
                 : setCardsAll.slice();
 
-  const { field, dir } = getSort('sets', { field: 'number', dir: 1 });
-  displayed = displayed.slice().sort(cardComparator(field, dir));
+  /* The whole sentence orders the cards; its first word cuts the piles. */
+  const { criteria } = getSortChain('sets', { field: 'number', dir: 1 }, SET_SORT_FIELDS);
+  const field = criteria[0]?.field || 'name';
+  displayed = displayed.slice().sort(cardComparator(criteria));
 
   // §9.3: the "N of M owned" figure is the toolbar's result count. What the
   // ownership filter is currently hiding is said here too, since the grid
@@ -251,8 +253,8 @@ function _setStackCard(card) {
 
 function renderSetPiles(displayed, field) {
   const groups = cardGroups(field, displayed);
-  settleGonePiles(setFanned, groups);
-  return cardPilesHtml(groups, { fanned: setFanned, cardOf: _setStackCard });
+  forgetGonePiles(setSettled, groups);
+  return cardPilesHtml(groups, { settled: setSettled, cardOf: _setStackCard });
 }
 
 /* The header spreads a pile and settles it; the stack under it spreads it —
@@ -264,8 +266,8 @@ document.addEventListener('click', e => {
   const pile = e.target.closest('#setCards .card-pile');
   if (!pile) return;
   const label = pile.dataset.pile;
-  if (e.target.closest('.card-pile-hdr')) togglePile(setFanned, label);
-  else if (!setFanned.has(label)) setFanned.add(label);
+  if (e.target.closest('.card-pile-hdr')) togglePile(setSettled, label);
+  else if (setSettled.has(label)) setSettled.delete(label);
   else return;
   renderSetCards();
 });

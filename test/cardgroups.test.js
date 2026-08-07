@@ -11,6 +11,13 @@
  * The shipped public/js/sortui.js is run against stub browser globals, the way
  * test/cardsize.test.js runs the size control, so these assert on the code the
  * browser is served rather than on a copy of it.
+ *
+ * A sort became a sentence, so this file grew a second helper and a section of
+ * its own at the end: the first criterion cuts the piles and the rest order the
+ * cards inside each one. Nothing above it changed except how `piles` is
+ * spelled — it is `chainPiles` of a one-criterion sentence now, which is what
+ * it always was — because the property every one of those tests rests on is
+ * the same property, and a one-word sentence is still a sentence.
  */
 
 const test   = require('node:test');
@@ -34,13 +41,18 @@ function loadSortUi() {
   };
   vm.createContext(sandbox);
   vm.runInContext(read('public/js/sortui.js'), sandbox);
+  /** Stacking as a tab does it: the whole sentence orders the cards, its first
+   *  word cuts them into piles. Spread into an array of this realm's, so that a
+   *  deepStrictEqual on what comes back compares the piles rather than which
+   *  context built them. */
+  const chainPiles = (criteria, cards, ctx) =>
+    [...sandbox.cardGroups(criteria[0]?.field || 'name',
+                           cards.slice().sort(sandbox.cardComparator(criteria, ctx)), ctx)];
   return {
-    label:  (field, card) => sandbox.groupLabel(field, card),
-    /** Grouping as a tab does it: the sorted list, cut into piles. Spread into
-     *  an array of this realm's, so that a deepStrictEqual on what comes back
-     *  compares the piles rather than which context built them. */
-    piles:  (field, cards, dir = 1) =>
-      [...sandbox.cardGroups(field, cards.slice().sort(sandbox.cardComparator(field, dir)))],
+    label:  (field, card, ctx) => sandbox.groupLabel(field, card, ctx),
+    chain:  chainPiles,
+    /** One field and one arrow, which is a sentence of one word. */
+    piles:  (field, cards, dir = 1, ctx) => chainPiles([{ field, dir }], cards, ctx),
   };
 }
 
@@ -134,6 +146,96 @@ test('a field whose every value differs is bucketed, not drawn one pile per card
     ['< €1', '€1–5', '€5–20', '€20+']);
   assert.deepStrictEqual(app.piles('number', SET).map(p => p.label),
     ['#1–99', '#100–199', '#200–299', '#300–399']);
+});
+
+test('a pile cut on a quantity is labelled with the quantity, from the context', () => {
+  /* How many of a card are owned is not on the card — it is in the collections
+     the view hands over. Collections stacks by Total and by one collection's
+     own count, and both used to be translated into a third field on their way
+     here because the grouping had never heard of them. */
+  const owned = [
+    { key: 'csv:1', name: 'Binder',  cards: new Map([['Counterspell', { qty: 4 }], ['Doom Blade', { qty: 1 }]]) },
+    { key: 'csv:2', name: 'Deckbox', cards: new Map([['Doom Blade',   { qty: 3 }], ['Forest',     { qty: 4 }]]) },
+  ];
+  const cards = [card('Counterspell'), card('Doom Blade'), card('Forest'), card('Grave Titan')];
+
+  assert.deepStrictEqual(app.piles('qty', cards, 1, { collections: owned }).map(p => p.label),
+    ['×0', '×4'], 'Grave Titan is owned none times; the other three are owned four');
+  assert.deepStrictEqual(app.piles('col:csv:1', cards, 1, { collections: owned }).map(p => p.label),
+    ['×0', '×1', '×4'], 'one collection is its own stacking, not the total');
+  assert.deepStrictEqual(app.piles('col:csv:9', cards, 1, { collections: owned }).map(p => p.label),
+    ['C', 'D', 'F', 'G'],
+    'a pile cut on a collection that is not loaded is the initial letter, where every unknown field piles');
+  assert.strictEqual(app.label('qty', card('Doom Blade')), '×0',
+    'a quantity with no collections behind it is one pile rather than a thrown error');
+});
+
+// ── The first criterion cuts the piles ────────────────────────────────
+// The rest order the cards inside each one, which is rarity piles each
+// standing in curve order — the arrangement this app could not draw while a
+// sort was one field and one arrow.
+
+/** The piles as they are read off a table: what each is labelled, and what is
+ *  in it top to bottom. A pile's `cards` was built inside the sandbox, so the
+ *  names are copied into an array of this realm's — `deepStrictEqual` compares
+ *  prototypes, and two identical lists from two contexts are not equal. */
+const table = piles => piles.map(p => [p.label, [...p.cards.map(c => c.name)]]);
+
+test('the first criterion cuts the piles, the rest order the cards inside each one', () => {
+  assert.deepStrictEqual(
+    table(app.chain([{ field: 'rarity', dir: 1 }, { field: 'cmc', dir: 1 }], SET)),
+    [['Common',   ['Forest', 'Counterspell', 'Doom Blade']],
+     ['Uncommon', ['Lightning Helix']],
+     ['Rare',     ['Birds of Paradise']],
+     ['Mythic',   ['Ancestral Recall', 'Grave Titan', 'Emrakul, the Aeons Torn']]],
+    'the piles are not cut on rarity, or they are not standing in curve order');
+
+  // The same piles, and every one of them in a different order: the sentence's
+  // first word was left alone and its second one changed.
+  assert.deepStrictEqual(
+    table(app.chain([{ field: 'rarity', dir: 1 }, { field: 'price', dir: -1 }], SET)),
+    [['Common',   ['Counterspell', 'Doom Blade', 'Forest']],
+     ['Uncommon', ['Lightning Helix']],
+     ['Rare',     ['Birds of Paradise']],
+     ['Mythic',   ['Ancestral Recall', 'Emrakul, the Aeons Torn', 'Grave Titan']]]);
+});
+
+test('changing the first criterion restacks the table; changing a later one does not', () => {
+  const labels = criteria => app.chain(criteria, SET).map(p => p.label);
+  const byRarity = [{ field: 'rarity', dir: 1 }, { field: 'cmc', dir: 1 }];
+
+  assert.deepStrictEqual(labels([{ field: 'rarity', dir: 1 }, { field: 'price', dir: -1 }]),
+    labels(byRarity), 'a second word the piles do not read restacked the table');
+  assert.deepStrictEqual(labels([{ field: 'cmc', dir: 1 }, { field: 'rarity', dir: 1 }]),
+    ['0', '1', '2', '6', '7+'], 'a new first word did not restack the table');
+});
+
+test('reversing the first criterion turns the row of piles around and leaves them standing', () => {
+  // Which is the direction doing one thing rather than two: the piles come out
+  // in the order the sort put them in, and what is inside each one is the tail
+  // of the sentence, which did not change.
+  const up   = app.chain([{ field: 'rarity', dir:  1 }, { field: 'cmc', dir: 1 }], SET);
+  const down = app.chain([{ field: 'rarity', dir: -1 }, { field: 'cmc', dir: 1 }], SET);
+  assert.deepStrictEqual(table(down), table(up).slice().reverse());
+});
+
+test('every card is in exactly one pile, however long the sentence is', () => {
+  // The property the whole view rests on does not weaken as criteria are added:
+  // a card is in the pile its first criterion puts it in, and in no other.
+  const chains = [
+    [{ field: 'color', dir: 1 }, { field: 'cmc', dir: 1 }, { field: 'name', dir: 1 }],
+    [{ field: 'cmc', dir: -1 }, { field: 'rarity', dir: -1 }, { field: 'price', dir: -1 }],
+    [{ field: 'type', dir: 1 }, { field: 'price', dir: -1 }],
+    [],   // no sentence at all: name ascending, where every empty chain lands
+  ];
+  for (const criteria of chains) {
+    const piles = app.chain(criteria, SET);
+    const names = piles.flatMap(p => p.cards.map(c => c.name)).sort();
+    assert.deepStrictEqual(names, SET.map(c => c.name).sort(),
+      `sorted by ${JSON.stringify(criteria)}, the piles do not hold the set exactly once`);
+    assert.deepStrictEqual([...new Set(piles.map(p => p.label))], piles.map(p => p.label),
+      `sorted by ${JSON.stringify(criteria)}, two piles carry the same label`);
+  }
 });
 
 test('what the app has not been told is one pile and says so', () => {

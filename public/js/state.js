@@ -50,7 +50,10 @@ const BP_MD = 900;   // nav switches: bottom bar <-> sidebar, card modal <-> car
 const state = {
   collections: [],
   players:     [],
-  sort: { field: 'name', dir: 1 },
+  /* No `sort` here. Every view's sort is a chain in the `mtgtools_sort`
+   * preference, read through getSortChain — this held a mirror of the
+   * Collections tab's first criterion for the table header to write and draw
+   * an arrow on, and the header is a shortcut into that chain now. */
   renderTimer: null,
   version: 0,  // optimistic-concurrency version from server
 };
@@ -87,6 +90,14 @@ function hydrateState(raw) {
     status: 'loaded', entries: d.entries || 0, total: d.total || null,
     error: null, savedAt: d.savedAt || null, updating: false,
   }));
+
+  /* A sort can name one collection's own quantities, so a stored sort is only
+   * readable against the list of collections — which is this line, and only
+   * this line. Asked here rather than when the Collections tab first renders,
+   * because a tab that renders before its collections have arrived would read
+   * every criterion naming one as naming a collection that is gone. See
+   * reconcileColSorts in sortui.js. */
+  reconcileColSorts(state.collections);
 
   state.players = (data.players || []).map(p => ({
     id: p.id, name: p.name, colorIdx: playerSlot(p),

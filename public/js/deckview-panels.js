@@ -211,9 +211,10 @@ function cardCarryDrop(cardNames, targetCategory) {
      vanish out of the hand and a number under a stack would go up. Spreading
      the pile it was put into gives the cards somewhere to land and answers the
      question the drop asks, which is "where did they go?". Unlike a pile
-     settling itself, this is the direct result of an action aimed at that pile,
-     and the arrow settles it again. */
-  if (dbView === 'pile') dbExpandedCats.add(targetCategory);
+     spreading itself, this is the direct result of an action aimed at that
+     pile, and the arrow settles it again. Piles arrive spread, so this is the
+     one that was settled on purpose and is being reopened. */
+  if (dbView === 'pile') dbSettledCats.delete(targetCategory);
   /* A selection carried somewhere is a selection spent, the way it is spent by
      the bulk bar's move: these cards have just been put where they were wanted,
      and leaving them lit afterwards would make the next click on the mat act on

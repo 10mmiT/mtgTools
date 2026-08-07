@@ -187,6 +187,11 @@ function pairs(palette) {
   // active links, the want-quick-add ring.
   add('ui', '--primary', '--surface-1', 'outline button label');
   add('ui', '--primary', '--bg', 'outline button label on the page');
+  /* And on a table head, which is --surface-2: the arrow and position number
+     marking a sorted column. It is the only thing saying which of three
+     criteria a column carries, so it is ink that has to be read rather than
+     decoration that has to be noticed. */
+  add('ui', '--primary', '--surface-2', 'the mark on a sorted column');
 
   // Mana colours are game data, but they are drawn as glyphs and as the
   // active-nav accent, so they are held to the text floor.
