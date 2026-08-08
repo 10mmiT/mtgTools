@@ -62,16 +62,26 @@ db.exec(`
     password_hash TEXT NOT NULL,
     requested_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  -- Whose shelf this is. One owner, and it may have none: a shared box belongs
+  -- to the group, so a null here is the honest answer rather than a row nobody
+  -- got round to filling in — it counts as the group's and never as any one
+  -- person's.
+  --
+  -- No foreign key, because there is no players table to point at: a player
+  -- lives inside the app_state JSON blob. What keeps a dead id from meaning
+  -- anything is routes/state.js, which clears the owner of a collection whose
+  -- player has gone — the collection itself stays, and becomes the group's.
   CREATE TABLE IF NOT EXISTS collections (
-    key        TEXT PRIMARY KEY,
-    name       TEXT NOT NULL,
-    source     TEXT NOT NULL,
-    col_id     TEXT,
-    color      TEXT NOT NULL,
-    cards_json TEXT NOT NULL DEFAULT '{}',
-    entries    INTEGER NOT NULL DEFAULT 0,
-    total      INTEGER,
-    saved_at   TEXT
+    key             TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    col_id          TEXT,
+    color           TEXT NOT NULL,
+    cards_json      TEXT NOT NULL DEFAULT '{}',
+    entries         INTEGER NOT NULL DEFAULT 0,
+    total           INTEGER,
+    saved_at        TEXT,
+    owner_player_id TEXT
   );
   CREATE TABLE IF NOT EXISTS app_state (
     key        TEXT PRIMARY KEY,
@@ -86,13 +96,23 @@ db.exec(`
     expires_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+  -- A card's place in a deck is a board and a category, and the board is the
+  -- coarser of the two: the mainboard is the deck, and the rest — a maybeboard
+  -- of cards being considered, a sideboard, the commander — are cards that are
+  -- *not* in the deck but belong to it. So the key is (deck, board, card): the
+  -- same card can sit in the maybeboard while a copy is in the deck, with a
+  -- quantity of its own on each side.
+  --
+  -- TEXT and no CHECK, deliberately. The set of boards is open — a format that
+  -- wants another one later costs a new value in DB_BOARDS and nothing here.
   CREATE TABLE IF NOT EXISTS deck_cards (
     deck_id   TEXT NOT NULL,
     card_name TEXT NOT NULL,
     qty       INTEGER NOT NULL DEFAULT 1,
     category  TEXT NOT NULL DEFAULT '',
+    board     TEXT NOT NULL DEFAULT 'main',
     position  INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (deck_id, card_name)
+    PRIMARY KEY (deck_id, board, card_name)
   );
   CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id);
   CREATE TABLE IF NOT EXISTS deck_categories (
@@ -102,6 +122,25 @@ db.exec(`
     PRIMARY KEY (deck_id, name)
   );
   CREATE INDEX IF NOT EXISTS idx_deck_categories_deck ON deck_categories(deck_id);
+  -- What a deck used to be. The save path is a full replace of every card row,
+  -- so the state before a save is gone the instant it runs; a row here is a
+  -- copy of that state, taken before something that could lose it.
+  --
+  -- state_json rather than the spec's cards_json: it holds the categories too,
+  -- and a deck restored without them is a deck whose piles are gone.
+  --
+  -- No foreign key, because there is no decks table to point at — a deck lives
+  -- inside the app_state JSON blob, and deck_cards has always been keyed the
+  -- same loose way. deck-history.js is what keeps these rows from outliving
+  -- their deck; see the cap and the tombstone there.
+  CREATE TABLE IF NOT EXISTS deck_snapshots (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    deck_id    TEXT    NOT NULL,
+    taken_at   INTEGER NOT NULL,   -- epoch ms
+    reason     TEXT    NOT NULL,   -- edit | import | category | move | restore | deck-delete
+    state_json TEXT    NOT NULL    -- {cards:[…], categories:[…]}
+  );
+  CREATE INDEX IF NOT EXISTS idx_deck_snapshots_deck ON deck_snapshots(deck_id, taken_at DESC);
   -- Appearance, per person rather than per browser. Keyed by username because
   -- that is what identifies a user here: the users table has no integer id,
   -- and a session carries the name, not a row number. Deleting a user takes
@@ -137,6 +176,151 @@ try {
   db.exec("ALTER TABLE user_prefs ADD COLUMN card_motion TEXT NOT NULL DEFAULT 'on'");
   console.log('[db] Migrated: added card_motion column to user_prefs');
 } catch { /* column already exists — ignore */ }
+
+/* Whose shelf a collection is. Declared in the CREATE above for a database
+ * made from now on, and added here for one made before — where every existing
+ * collection gets a null, which is the group's. That is the migration in
+ * full: nothing else about a collection changes, and a deployment that never
+ * sets an owner reads exactly as it did. */
+try {
+  db.exec('ALTER TABLE collections ADD COLUMN owner_player_id TEXT');
+  console.log('[db] Migrated: added owner_player_id column to collections');
+} catch { /* column already exists — ignore */ }
+
+/* Which board a card is on. Added to a table that predates boards, where every
+ * row is a card in the deck proper — so every existing row is 'main' and
+ * nothing moves.
+ *
+ * A table copy rather than an ALTER, because the primary key changes with the
+ * column: (deck_id, card_name) says a card is in a deck once, and the whole
+ * point of a maybeboard is that it can be in it twice. SQLite cannot alter a
+ * primary key in place, and the rebuild is what the copy is for.
+ *
+ * Guarded by the column rather than by a version number, and run inside one
+ * transaction: a database that already has the column is left alone, and one
+ * that dies halfway through still has its old table. */
+const deckCardCols = db.prepare('PRAGMA table_info(deck_cards)').all();
+if (deckCardCols.length && !deckCardCols.some(c => c.name === 'board')) {
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE deck_cards_boards (
+        deck_id   TEXT NOT NULL,
+        card_name TEXT NOT NULL,
+        qty       INTEGER NOT NULL DEFAULT 1,
+        category  TEXT NOT NULL DEFAULT '',
+        board     TEXT NOT NULL DEFAULT 'main',
+        position  INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (deck_id, board, card_name)
+      );
+      INSERT INTO deck_cards_boards (deck_id, card_name, qty, category, board, position)
+        SELECT deck_id, card_name, qty, category, 'main', position FROM deck_cards;
+      DROP TABLE deck_cards;
+      ALTER TABLE deck_cards_boards RENAME TO deck_cards;
+      CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id);
+    `);
+  })();
+  console.log('[db] Migrated: deck_cards gained a board, keyed (deck_id, board, card_name)');
+}
+
+/* The commander stops being a category and becomes a board.
+ *
+ * Every deck in the app paid for the old arrangement: a category header, a
+ * pile and a row of mat, spent on one card that never moves and never sorts,
+ * and known to the deck already — the record names it, the count leaves it
+ * out, the recommendations key off it. As a board it is one of the things
+ * ticket 04 built, and partners cost nothing: two commanders are two cards in
+ * a board, rather than a decision about a single-string field.
+ *
+ * So the cards move and the category goes. Guarded by a marker row rather than
+ * by looking for the category, because "Commander" is an ordinary category
+ * name from now on — somebody may make one, and a migration that ran again
+ * would take it away from them. One transaction, so a process that dies
+ * halfway leaves a deck whole.
+ *
+ * A deck whose cards say who the commander is but whose record does not adopts
+ * the first of them. That state is reachable — a deck imported from Archidekt
+ * has the category filled in and the field empty — and the field still has two
+ * jobs to do afterwards: it names the tile art, and it is what EDHREC is asked
+ * about. Losing the card instead is the one outcome worth writing code to
+ * avoid. */
+const COMMANDER_MIGRATION = 'migration:commander-board';
+if (!db.prepare('SELECT 1 FROM app_state WHERE key = ?').get(COMMANDER_MIGRATION)) {
+  db.transaction(() => {
+    const promoted = db.prepare(
+      "SELECT deck_id, card_name FROM deck_cards WHERE board = 'main' AND category = 'Commander' ORDER BY position, card_name"
+    ).all();
+
+    // The deck records, which live in the app_state blob rather than in a
+    // table of their own — so this is a read, a walk and a write-back.
+    const stateRow = db.prepare("SELECT value_json FROM app_state WHERE key = 'state'").get();
+    if (stateRow && promoted.length) {
+      const first = new Map();
+      for (const row of promoted) if (!first.has(row.deck_id)) first.set(row.deck_id, row.card_name);
+      try {
+        const state = JSON.parse(stateRow.value_json);
+        let adopted = 0;
+        for (const player of (state.players || [])) {
+          for (const deck of (player.decks || [])) {
+            if ((deck.commander || '').trim() || !first.has(deck.id)) continue;
+            deck.commander = first.get(deck.id);
+            adopted++;
+          }
+        }
+        if (adopted) {
+          /* The version goes up with the value, as every other write to this
+           * row does: a browser left open across the restart holds the state
+           * from before, and it has to be told to refresh rather than allowed
+           * to save the old commanders back over these. */
+          db.prepare("UPDATE app_state SET value_json = ?, version = version + 1 WHERE key = 'state'")
+            .run(JSON.stringify({ players: state.players || [] }));
+          console.log(`[db] Migrated: ${adopted} deck(s) adopted the commander their cards already named`);
+        }
+      } catch (e) {
+        console.warn('[db] Commander adoption skipped:', e.message);
+      }
+    }
+
+    db.exec(`
+      UPDATE deck_cards SET board = 'commander' WHERE board = 'main' AND category = 'Commander';
+      DELETE FROM deck_categories WHERE name = 'Commander';
+    `);
+
+    /* And the commanders that were never in the category. The count this
+     * replaces did not read the category at all — it subtracted the card whose
+     * name the deck record holds, wherever in the deck it happened to be
+     * filed. A deck whose commander drifted into Lands was still a deck of
+     * ninety-nine, and it has to stay one: the same card, taken out of the
+     * mainboard by the same rule, one last time.
+     *
+     * Only where the category left the board empty. A deck that had both — the
+     * category naming one card and the record another — keeps exactly the one
+     * it was already counting, which is the one that was in the category. */
+    if (stateRow) {
+      try {
+        const named = db.prepare(
+          "SELECT 1 FROM deck_cards WHERE deck_id = ? AND board = 'commander'");
+        const move = db.prepare(
+          "UPDATE deck_cards SET board = 'commander' WHERE deck_id = ? AND board = 'main' AND card_name = ?");
+        let loose = 0;
+        for (const player of (JSON.parse(stateRow.value_json).players || [])) {
+          for (const deck of (player.decks || [])) {
+            const name = (deck.commander || '').trim();
+            if (!name || !deck.id || named.get(deck.id)) continue;
+            loose += move.run(deck.id, name).changes;
+          }
+        }
+        if (loose)
+          console.log(`[db] Migrated: ${loose} commander(s) out of the deck itself and onto the board`);
+      } catch (e) {
+        console.warn('[db] Loose commanders skipped:', e.message);
+      }
+    }
+    db.prepare('INSERT INTO app_state (key, value_json, version) VALUES (?, ?, 0)')
+      .run(COMMANDER_MIGRATION, JSON.stringify({ at: Date.now() }));
+    if (promoted.length)
+      console.log(`[db] Migrated: ${promoted.length} commander(s) out of the category and onto the board`);
+  })();
+}
 
 const DEFAULT_CAL_ID = 'default';
 

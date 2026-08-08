@@ -120,10 +120,9 @@ function readScales(source) {
  *                and a `.mob-nav-item:hover` rule that beat them on
  *                specificity — a `-danger` modifier at equal specificity
  *                removes all six.
- *   components.css  one narrows the card grid inside a media query, one
- *                hides the card modal below 900px.
- *   tabs.css     two width overrides on mobile, both fighting the same
- *                desktop `max-width` on form controls. */
+ *   components.css  one hides the card modal below 900px.
+ *   tabs.css     one width override on mobile, fighting the desktop
+ *                `max-width` on form controls. */
 const IMPORTANT_ALLOWLIST = [
   { file: 'public/css/layout.css', selector: '.sidenav-danger', count: 1 },
   { file: 'public/css/layout.css', selector: '.sidenav-danger:hover', count: 1 },
@@ -131,14 +130,15 @@ const IMPORTANT_ALLOWLIST = [
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger', count: 1 },
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger:hover', count: 1 },
   { file: 'public/css/layout.css', selector: '.mob-nav-item-danger svg', count: 1 },
-  { file: 'public/css/components.css', selector: '.cards-grid', count: 1 },
   { file: 'public/css/components.css', selector: '.card-modal-overlay', count: 1 },
   { file: 'public/css/tabs.css', selector: '#sfInput, #searchInput, #setSearchInput', count: 1 },
-  { file: 'public/css/tabs.css', selector: '.dv-url-field', count: 1 },
 ];
-/* 10 rules, 10 declarations. It started at 14 and 16; ticket 19 retired
- * four of them, each in the way this list asks for — not by re-scoping but
- * by removing what they were fighting. Three were mobile width overrides
+/* 8 rules, 8 declarations. It started at 14 and 16; ticket 19 retired four
+ * of them and the deckbuilder-depth clean-up took two more — .cards-grid and
+ * .dv-url-field went with the dead rules that carried them, which is the
+ * cheapest way an entry on this list is ever retired. Each of the rest went
+ * the way this list asks for — not by re-scoping but by removing what they
+ * were fighting. Three were mobile width overrides
  * beating an inline `width` on a form control, and the fix was to make the
  * desktop width a class the media query can match at equal specificity.
  * The fourth, .section-body.closed, went with the last collapsible section

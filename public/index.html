@@ -213,10 +213,22 @@
     <input id="searchInput" type="text" class="search-input" placeholder="Search your cards… (name, or t:creature c:rg mv&lt;=3)" oninput="scheduleRender()">
     <span id="resultInfo" class="result-info"></span>
     <div id="colViewMount"></div>
+    <!-- Whose shelf this tab is showing. Hidden by js/collections.js in a
+         deployment that cannot say who you are — with no logged-in player and
+         no remembered name, there is no "mine" to offer and everything on the
+         tab is the group's. -->
+    <div id="colScopeMount">
+      <select id="colScopeSel" title="Whose collections this tab is showing"
+              aria-label="Whose collections this tab is showing"
+              onchange="setColScope(this.value)">
+        <option value="all">Shelf: Everyone’s</option>
+        <option value="mine">Shelf: Mine</option>
+      </select>
+    </div>
     <div id="colSizeMount"></div>
     <div id="colSortMount"></div>
     <div id="colColumnsMount"></div>
-    <button class="btn-secondary" onclick="openDrawer('addColDrawer')" title="Add a collection">+ Add</button>
+    <button class="btn-secondary" onclick="openAddCollection()" title="Add a collection">+ Add</button>
     <button class="btn-secondary deck-drawer-btn" onclick="openDrawer('deckDrawer')" title="Deck comparison">Deck</button>
   </div>
 
@@ -297,6 +309,13 @@
       <div class="field">
         <label>Label (person's name)</label>
         <input id="nameInput" type="text" class="name-input" placeholder="Tim">
+      </div>
+      <div class="field">
+        <label for="ownerInput">Owner</label>
+        <!-- One owner, and it may have none: a shared box belongs to the
+             group, which is what the first option means. Filled from the
+             player list by openAddCollection(). -->
+        <select id="ownerInput" class="name-input"><option value="">The group (no owner)</option></select>
       </div>
       <div class="field">
         <label>Archidekt URL</label>
@@ -495,6 +514,18 @@
        off it by an inline margin. -->
   <div class="lands-inputs-col">
 
+    <!-- The numbers this tab used to make you count by hand, taken off the deck
+         that is already open one tab away. It fills every field below and then
+         gets out of the way: what it wrote can be typed over, because a mana
+         base you are working out is not always the deck you have. -->
+    <div class="section lands-from-deck">
+      <div class="section-title">From the Deck Builder</div>
+      <div class="lands-field-row">
+        <button class="btn-primary" id="landsUseDeckBtn" onclick="landsUseDeck()">Use this deck</button>
+        <span id="landsDeckNote" class="lands-hint"></span>
+      </div>
+    </div>
+
     <!-- Deck size -->
     <div class="section">
       <div class="section-title">Deck Size</div>
@@ -634,6 +665,16 @@
       <button class="drawer-close" onclick="closeDrawers()" title="Close">✕</button>
     </div>
     <div class="drawer-body">
+      <!-- What tonight is for. Above the decks rather than below them, because
+           it decides which of them the draw can reach — and a deck barred by it
+           is marked in the list underneath, so the restriction is visible as
+           something that happened to these decks. Written from DB_BRACKETS by
+           renderPickBrackets(). -->
+      <div class="pick-bracket-filter">
+        <div class="section-label">Tonight’s brackets</div>
+        <div class="chip-row" id="pickBracketChips"></div>
+        <div class="pick-bracket-note" id="pickBracketNote"></div>
+      </div>
       <div id="pickPoolDeckList"></div>
     </div>
   </div>
@@ -746,44 +787,61 @@
     </div>
     <button class="btn-primary db-when-deck" onclick="dbAddCard()">Add</button>
 
-    <input type="text" id="dbOracleSearchInput" class="search-input db-when-deck"
-           placeholder="Search name or oracle text…" oninput="dbSetOracleFilter(this.value)">
+    <!-- The same query language the Collections search reads (js/cardquery.js),
+         run against the deck in front of you. A bare word is still a plain
+         search of name and rules text, so nothing has to be learned to type
+         "goblin". -->
+    <input type="text" id="dbFilterInput" class="search-input db-when-deck"
+           placeholder="Filter this deck… (name, or t:creature c:rg mv&lt;=3)"
+           oninput="dbSetFilter(this.value)">
 
     <!-- The strip's spacer, where every other tab puts its result count. A
          deck's counts are on the stats bar; what this tab has to say about
          the state of its data is whether the last edit is saved. -->
     <span id="dbSaveStatus" class="db-save-status result-info"></span>
 
-    <div id="dbViewMount" class="db-when-deck"></div>
-    <div id="dbSizeMount" class="db-when-deck"></div>
-    <div id="dbSortMount" class="db-when-deck"></div>
-
-    <button class="btn-secondary db-when-deck" onclick="dbOpenSearchPanel()" title="Search Scryfall / EDHREC">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <!-- Everything else this tab can do, which is now a column beside the mat
+         rather than eleven more things on this line. It is the last control
+         before the way out, so the two that are always here sit together at
+         the end of the strip. -->
+    <button class="btn-secondary db-menu-btn" id="dbMenuBtn" onclick="dbToggleMenu()"
+            aria-expanded="false" aria-controls="dbMenu" title="Deck controls (m)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
 
-    <!-- Everything that is neither a control on the cards nor done often.
-         Only "New deck" survives without a deck loaded: the rest act on one,
-         and each already returns early without one. -->
-    <div class="col-menu-wrap">
-      <button class="col-menu-btn" onclick="dbToggleMoreMenu(event)" title="Deck actions, import and export">⋯</button>
-      <div id="dbMoreMenu" class="col-menu db-more-menu">
-        <div class="db-more-section-label">Deck</div>
-        <button class="col-menu-item" onclick="dbCloseMoreMenu();dbShowNewDeck()">New deck…</button>
-        <button class="col-menu-item db-when-deck" id="dbCategoriesBtn" onclick="dbCloseMoreMenu();dbShowCategoriesModal()">Categories</button>
-        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbLoadForComparison()">Compare</button>
-        <div class="db-more-divider db-when-deck"></div>
-        <div class="db-more-section-label db-when-deck">Import</div>
-        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();document.getElementById('dbCsvInput').click()">Import CSV</button>
-        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbShowImportText()">Paste List</button>
-        <div class="db-more-divider db-when-deck"></div>
-        <div class="db-more-section-label db-when-deck">Export</div>
-        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbExportClipboard()">Copy to clipboard</button>
-        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbExportCsv()">Download CSV</button>
-        <button class="col-menu-item db-when-deck" onclick="dbCloseMoreMenu();dbExportTxt()">Download .txt</button>
-        <div class="db-more-divider db-when-deck"></div>
-        <button class="col-menu-item db-menu-danger db-when-deck" id="dbDeleteDeckBtn" style="display:none" onclick="dbCloseMoreMenu();dbDeleteDeck()">Delete Deck</button>
-      </div>
+    <!-- The way out of the frame, and the way back into it. Everything else on
+         this strip goes on the first press and the readout below goes on the
+         second, so this is the one control that cannot go with them: a mat with
+         no way back is a mat you have to reload the page to leave. Its label is
+         written by _dbSyncFold(), because what it does next depends on how much
+         is already folded away. -->
+    <button class="btn-secondary db-fold db-when-deck" id="dbFoldBtn" onclick="dbFoldChrome()" title="Hide the controls">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
+  </div>
+
+  <!-- The curve, the type breakdown and the permanent/spell split: expanded
+       out of the strip above rather than laid permanently across the mat.
+       All three are written by js/deckview-totals.js off one pass over the
+       deck, whether this is open or not. -->
+  <div class="db-analysis db-when-deck" id="dbAnalysis" style="display:none">
+    <div class="db-analysis-part db-analysis-curve">
+      <span class="db-analysis-label">Curve</span>
+      <div id="dbCurve" class="db-curve"></div>
+      <!-- The same bars, cut into the colours they are made of. One shape read
+           two ways rather than two charts, so it is a toggle on the curve and
+           not a second curve beside it. -->
+      <button class="btn-secondary db-curve-mode" id="dbCurveModeBtn"
+              onclick="dbToggleCurveColors()" aria-pressed="false"
+              title="Cut each bar into the colours it is made of">Colour</button>
+    </div>
+    <div class="db-analysis-part">
+      <span class="db-analysis-label">Types</span>
+      <div id="dbTypes" class="db-counts"></div>
+    </div>
+    <div class="db-analysis-part">
+      <span class="db-analysis-label">Split</span>
+      <div id="dbSplit" class="db-counts"></div>
     </div>
   </div>
 
@@ -793,6 +851,14 @@
     <button class="btn-secondary" onclick="dbBulkMove()">Move to…</button>
     <button class="btn-secondary" onclick="dbClearSelection()">Clear selection</button>
   </div>
+
+  <!-- The mat and the menu beside it. A row, because the menu *pushes* rather
+       than covers: the whole point of putting the view, the size, the sort and
+       the boards in it is that you change one and watch the mat answer, which
+       a panel lying over the mat with a scrim behind it cannot let you do.
+       Below 900px there is no width to push into, so the row becomes a column
+       and the menu takes the top of it (see .db-body in tabs.css). -->
+  <div class="db-body">
 
   <!-- The mat: the surface the cards sit on. Its own per-theme token
        (§15.3), or the user's playmat where one is set — see .db-mat in
@@ -804,6 +870,95 @@
     </div>
   </div>
 
+  <!-- Everything that used to crowd the strip, in the order it is reached for:
+       what the mat looks like, what is on it, what to look at beside it, and
+       what to do to the deck as a whole.
+
+       It is not `db-when-deck` itself, because "New deck…" is in it and a tab
+       with no deck is exactly when that is wanted — the groups that act on a
+       deck carry the attribute instead. Whether it is open is remembered, and
+       it folds away with the rest of the controls on the first press of the
+       fold, because it *is* the rest of the controls. -->
+  <aside id="dbMenu" class="db-menu" aria-label="Deck controls">
+    <div class="db-menu-hdr">
+      <span class="db-menu-title">Deck controls</span>
+      <button class="db-menu-close" onclick="dbCloseMenu()" title="Close">✕</button>
+    </div>
+
+    <!-- What the mat looks like. The three shared controls, mounted by
+         initDeckBuilder() exactly as they were on the strip — a column is a
+         better place for them than a row was, because each can carry the label
+         it never had room for. -->
+    <div class="db-menu-group db-when-deck">
+      <div class="db-menu-label">Mat</div>
+      <!-- Only the view toggle is given a name here. The size control and the
+           sort control each carry their own — "Size ——●——", "Sort: name ↑" —
+           and a second label beside those would be the word twice. The size
+           control also hides its whole mount in list view, where there is no
+           artwork to size, and a name of ours would be left standing over
+           nothing. -->
+      <div class="db-menu-row"><span class="db-menu-name">View</span><div id="dbViewMount"></div></div>
+      <div id="dbSizeMount"></div>
+      <div id="dbSortMount"></div>
+    </div>
+
+    <!-- What is on it. Which boards are drawn, written from DB_BOARDS by
+         _dbRenderBoardToggles(); the ownership filter, written from
+         DB_OWN_CHIPS by _dbRenderOwnChips(); and whose shelves "owned" means,
+         which js/deckview-owned.js hides in a deployment that cannot say who
+         you are. -->
+    <div class="db-menu-group db-when-deck">
+      <div class="db-menu-label">Show</div>
+      <!-- Two rows of chips that look alike and mean different things — which
+           regions of the mat are drawn, and which cards are on it at all — so
+           each says which it is. On the strip they were told apart by being
+           eight inches away from each other. -->
+      <div class="db-menu-sub">Boards</div>
+      <div id="dbBoardMount" class="db-board-toggles"></div>
+      <div class="db-menu-sub">Only cards that are</div>
+      <div id="dbOwnChips" class="db-own-chips"></div>
+      <div id="dbOwnScopeMount">
+        <select id="dbOwnScopeSel" title="Whose collections count as owned"
+                aria-label="Whose collections count as owned"
+                onchange="dbSetOwnScope(this.value)">
+          <option value="mine">Owned: Mine</option>
+          <option value="group">Owned: The group’s</option>
+          <option value="all">Owned: Everyone’s</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- What to look at beside the deck. Analysis still expands as a strip
+         under the toolbar rather than into this column: a curve and three rows
+         of counts are a wide shape, and 264px is not where they go. -->
+    <div class="db-menu-group db-when-deck">
+      <div class="db-menu-label">Look at</div>
+      <button class="db-menu-item" id="dbCurveBtn" onclick="dbToggleAnalysis()"
+              aria-expanded="false" aria-controls="dbAnalysis"
+              title="The curve, the types and the split">Analysis</button>
+      <button class="db-menu-item" onclick="dbOpenSearchPanel()" title="Search Scryfall / EDHREC">Search / EDHREC</button>
+      <button class="db-menu-item" id="dbHistoryBtn" onclick="dbOpenHistoryPanel()">History</button>
+      <button class="db-menu-item" onclick="dbLoadForComparison()">Compare</button>
+      <button class="db-menu-item" id="dbCategoriesBtn" onclick="dbShowCategoriesModal()">Categories</button>
+    </div>
+
+    <!-- What is done to the deck as a whole, which is what the ⋯ popover held.
+         A popover inside a strip existed because the strip had no room; a
+         column has room, so the list is simply here. -->
+    <div class="db-menu-group">
+      <div class="db-menu-label">Deck</div>
+      <button class="db-menu-item" onclick="dbShowNewDeck()">New deck…</button>
+      <button class="db-menu-item db-when-deck" onclick="document.getElementById('dbCsvInput').click()">Import CSV</button>
+      <button class="db-menu-item db-when-deck" onclick="dbShowImportText()">Paste List</button>
+      <button class="db-menu-item db-when-deck" onclick="dbExportClipboard()">Copy to clipboard</button>
+      <button class="db-menu-item db-when-deck" onclick="dbExportCsv()">Download CSV</button>
+      <button class="db-menu-item db-when-deck" onclick="dbExportTxt()">Download .txt</button>
+      <button class="db-menu-item db-menu-danger db-when-deck" id="dbDeleteDeckBtn" style="display:none" onclick="dbDeleteDeck()">Delete Deck</button>
+    </div>
+  </aside>
+
+  </div><!-- /db-body -->
+
   <!-- Add category row -->
   <div class="db-add-cat-row db-when-deck" id="dbAddCatRow">
     <input type="text" id="dbNewCatInput" placeholder="New category name…"
@@ -811,30 +966,82 @@
     <button class="btn-secondary" onclick="dbAddCategory()">+ Category</button>
   </div>
 
-  <!-- Stats bar -->
+  <!-- The readout: one thin line of what the deck *is*, which is the half of
+       the furniture you want while building rather than in between. It is what
+       survives the first fold and what the second one takes away. Every number
+       later tickets produce — legality, bracket, price, ownership — lands here
+       rather than on a strip of its own. -->
   <div class="db-stats-bar db-when-deck" id="dbStatsBar">
     <span id="dbStatCards" class="db-stat-item"></span>
     <span class="db-stat-sep">·</span>
-    <span id="dbStatLands" class="db-stat-item"></span>
+    <!-- Legal, or how many rules it breaks — and beside it what bracket the
+         deck is declared as against what this app makes of it. Both open the
+         same panel, because they are two halves of one question and two panels
+         rising out of this one thin line would cover each other. -->
+    <button id="dbStatLegal" class="db-stat-item db-stat-open"
+            onclick="dbToggleCheckPanel()" aria-expanded="false"
+            aria-controls="dbCheckPanel"></button>
+    <span class="db-stat-sep db-stat-sep-bracket" id="dbStatSepBracket">·</span>
+    <button id="dbStatBracket" class="db-stat-item db-stat-open"
+            onclick="dbToggleCheckPanel()" aria-expanded="false"
+            aria-controls="dbCheckPanel"></button>
+    <span class="db-stat-sep">·</span>
+    <!-- "87 of 99 you own", and it opens: the twelve are the point, and a
+         number you cannot open is a number you have to go and count somewhere
+         else. The panel it opens is a child of this bar so that it rises out of
+         the line it belongs to, and goes with it on the second fold. -->
+    <button id="dbStatOwned" class="db-stat-item db-stat-owned"
+            onclick="dbToggleOwnedPanel()" aria-expanded="false"
+            aria-controls="dbOwnedPanel"></button>
+    <span class="db-stat-sep">·</span>
+    <!-- What the deck costs, and — when you are short of anything — what
+         finishing it costs. The second figure is the one the group argues
+         about, and it follows whichever shelf the readout is counting, exactly
+         as the number beside it does. -->
+    <span id="dbStatPrice" class="db-stat-item"></span>
+    <span class="db-stat-sep">·</span>
+    <!-- How many lands, and what they are for: the comparison between what the
+         deck's spells want and what its lands make. This item opens it rather
+         than the row of colour symbols further along, because those leave the
+         line below 900px and a panel whose only door is hidden on a phone is a
+         panel a phone does not have. -->
+    <button id="dbStatLands" class="db-stat-item db-stat-open"
+            onclick="dbToggleManaPanel()" aria-expanded="false"
+            aria-controls="dbManaPanel"></button>
     <span class="db-stat-sep">·</span>
     <span id="dbStatCmc" class="db-stat-item"></span>
     <span class="db-stat-sep db-stat-sep-colors">·</span>
     <span id="dbStatColors" class="db-stat-item"></span>
-    <span class="db-stat-sep db-stat-sep-curve">·</span>
-    <span class="db-stat-item db-stat-curve-label">Curve:</span>
-    <div id="dbCurve" class="db-curve"></div>
+
+    <!-- What is missing, in two lists: what somebody else has — named, in their
+         own colour — and what nobody has at all. Written by
+         js/deckview-owned.js each time it opens. -->
+    <div id="dbOwnedPanel" class="db-owned-panel" style="display:none"></div>
+
+    <!-- What the deck breaks, and what bracket it looks like — with the
+         reasoning that produced the estimate and the control that declares one.
+         Rises out of the same line as the missing list, which is why opening
+         either puts the other away. Written by js/deckview-legality.js. -->
+    <div id="dbCheckPanel" class="db-check-panel" style="display:none"></div>
+
+    <!-- What the deck's spells want against what its lands make, per colour,
+         and the way through to the Mana Base Calculator with every one of its
+         fields already filled. The third panel out of this line, and the third
+         to put the other two away when it opens. Written by
+         js/deckview-mana.js. -->
+    <div id="dbManaPanel" class="db-mana-panel" style="display:none"></div>
   </div>
 
   <!-- Search / EDHREC drawer panel -->
-  <div id="dbSearchPanel" class="db-search-panel">
-    <div class="db-search-panel-hdr">
+  <div id="dbSearchPanel" class="db-drawer">
+    <div class="db-drawer-hdr">
       <div class="db-left-tabs">
         <button class="db-ltab active" id="db-ltab-search" onclick="dbSetLeftTab('search')">Search</button>
         <button class="db-ltab" id="db-ltab-edhrec" onclick="dbSetLeftTab('edhrec')">EDHREC</button>
       </div>
-      <button class="db-search-close" onclick="dbCloseSearchPanel()" title="Close">✕</button>
+      <button class="db-drawer-close" onclick="dbCloseSearchPanel()" title="Close">✕</button>
     </div>
-    <div id="db-left-search" class="db-search-content">
+    <div id="db-left-search" class="db-drawer-content">
       <div style="display:flex;gap:var(--space-2);padding:var(--space-2) var(--space-3) var(--space-1)">
         <div class="autocomplete-wrap" style="position:relative;flex:1">
           <input type="text" id="dbSearchInput" placeholder="Scryfall query (Enter to search)…" style="width:100%;box-sizing:border-box"
@@ -847,18 +1054,42 @@
         <input type="checkbox" id="dbCiToggle" checked>
         <label for="dbCiToggle">Color identity filter</label>
       </div>
+      <!-- "Build only with cards you own", at the point where it helps. It
+           does not filter results that came back from Scryfall — it asks the
+           shelf instead, in the same query language, because a page of results
+           narrowed to the three you happen to own reads as broken. -->
+      <div class="db-search-scope">
+        <select id="dbSearchOwned" onchange="dbSearch()"
+                aria-label="Search all of Magic, or only cards we own">
+          <option value="">Search: all of Magic</option>
+          <option value="mine">Search: cards I own</option>
+          <option value="group">Search: cards the group owns</option>
+        </select>
+      </div>
       <div id="dbSearchResults" class="db-results">
         <div class="empty-state" style="padding:var(--space-6) var(--space-4)">Type a Scryfall query above</div>
       </div>
     </div>
-    <div id="db-left-edhrec" class="db-search-content" style="display:none">
+    <div id="db-left-edhrec" class="db-drawer-content" style="display:none">
       <div id="dbEdhrecContent" style="padding:var(--space-1) var(--space-3)">
         <div class="empty-state" style="padding:var(--space-6) 0">Load a deck with a commander to see recommendations</div>
       </div>
     </div>
   </div>
   <!-- Backdrop -->
-  <div id="dbSearchBackdrop" onclick="dbCloseSearchPanel()"></div>
+  <div id="dbSearchBackdrop" class="db-drawer-backdrop" onclick="dbCloseSearchPanel()"></div>
+
+  <!-- History drawer panel — what this deck used to be, and putting it back.
+       The same drawer shell as the search panel above; the rows it lists are
+       written by js/deckview-history.js. -->
+  <div id="dbHistoryPanel" class="db-drawer">
+    <div class="db-drawer-hdr">
+      <span class="db-drawer-title">History</span>
+      <button class="db-drawer-close" onclick="dbCloseHistoryPanel()" title="Close">✕</button>
+    </div>
+    <div id="dbHistoryContent" class="db-drawer-content"></div>
+  </div>
+  <div id="dbHistoryBackdrop" class="db-drawer-backdrop" onclick="dbCloseHistoryPanel()"></div>
 
   <!-- New Deck modal -->
   <div id="dbNewDeckOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideNewDeck()">
@@ -1091,10 +1322,16 @@
 <script src="js/wants.js"></script>
 <script src="js/available.js"></script>
 <script src="js/lands.js"></script>
+<script src="js/deckview-boards.js"></script>
 <script src="js/deckview-core.js"></script>
 <script src="js/deckview-render.js"></script>
 <script src="js/deckview-edit.js"></script>
 <script src="js/deckview-panels.js"></script>
+<script src="js/deckview-history.js"></script>
+<script src="js/deckview-owned.js"></script>
+<script src="js/deckview-totals.js"></script>
+<script src="js/deckview-legality.js"></script>
+<script src="js/deckview-mana.js"></script>
 <script src="js/pick.js"></script>
 <script src="js/rss.js"></script>
 <script src="js/admin.js"></script>

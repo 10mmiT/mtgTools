@@ -75,7 +75,7 @@ input[type="number"],
 .sf-collector, .card-price, .card-stats,         /* search + card detail */
 .dv-qty, .dv-price, .dv-section-count,           /* deck rows and headers */
 .db-pile-qty, .db-catmodal-count,                /* deck builder piles */
-.db-stats-bar, .db-stat-curve-label,             /* deck builder stats + curve */
+.db-stats-bar,                                   /* deck builder stats */
 .deck-tile-count,                                /* deck tiles */
 .lands-count, .lands-stat-val,                   /* mana base */
 .day-num, .best-day-count,                       /* availability calendar */

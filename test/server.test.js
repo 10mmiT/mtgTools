@@ -45,6 +45,7 @@ function resetDb() {
     DELETE FROM availability;
     DELETE FROM deck_cards;
     DELETE FROM deck_categories;
+    DELETE FROM deck_snapshots;
     DELETE FROM user_prefs;
   `);
   // Re-seed admin from env
@@ -592,6 +593,237 @@ describe('GET /api/sets', () => {
     assert.equal(typeof res.body.index.sets, 'number');
     assert.equal(typeof res.body.index.indexed, 'number');
     assert.ok(res.body.index.sets >= res.body.index.indexed);
+  });
+});
+
+// ── Deck history over HTTP ────────────────────────────────────────────────────
+// The rules about when a snapshot is written are asserted against the module
+// in test/deckhistory.test.js. What is worth asserting here is the seam: that
+// the ordinary save path writes one without being asked, that a forced one
+// needs the deck to be yours, and that reading and restoring line up.
+describe('Deck history: /api/players/:id/decks/:deckId/snapshots', () => {
+  let playerId, playerCookie, otherCookie;
+  const DECK = 'deck-history-1';
+  const cards = names => names.map((n, i) => ({ card_name: n, qty: 1, category: 'Ramp', position: i }));
+  const body  = names => ({ cards: cards(names), categories: [{ name: 'Ramp', position: 0 }] });
+
+  beforeEach(async () => {
+    resetDb();
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    playerId = uuidv4();
+    dbModule.db.prepare("INSERT OR REPLACE INTO app_state (key, value_json, version) VALUES ('state', ?, 0)")
+      .run(JSON.stringify({ players: [{ id: playerId, name: 'P1', decks: [], wantList: [] }] }));
+    dbModule.db.prepare("INSERT INTO users (username, password_hash, role, player_id) VALUES ('p1user', ?, 'player', ?)")
+      .run(bcrypt.hashSync('pw1', 10), playerId);
+    dbModule.db.prepare("INSERT INTO users (username, password_hash, role, player_id) VALUES ('p2user', ?, 'player', NULL)")
+      .run(bcrypt.hashSync('pw2', 10));
+    playerCookie = await loginAs('p1user', 'pw1');
+    otherCookie  = await loginAs('p2user', 'pw2');
+    require('../deck-history')._forget(DECK);
+  });
+
+  const save = (cookie, names) => request
+    .put(`/api/players/${playerId}/decks/${DECK}/cards`).set('Cookie', cookie).send(body(names));
+  const listSnapshots = cookie => request
+    .get(`/api/players/${playerId}/decks/${DECK}/snapshots`).set('Cookie', cookie);
+
+  test('an ordinary save keeps what it is about to overwrite', async () => {
+    await save(playerCookie, ['Sol Ring']);          // nothing behind it yet
+    require('../deck-history')._forget(DECK);        // …and then a later session
+    await save(playerCookie, ['Sol Ring', 'Forest']);
+
+    const res = await listSnapshots(playerCookie);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.snapshots.length, 1);
+    assert.equal(res.body.snapshots[0].reason, 'edit');
+    assert.equal(res.body.current.cards, 2, 'the deck as it stands is in the list too');
+    assert.deepEqual(res.body.current.changes.added.map(c => c.name), ['Forest']);
+  });
+
+  test('a forced snapshot has to name a reason the server knows', async () => {
+    const res = await request.post(`/api/players/${playerId}/decks/${DECK}/snapshots`)
+      .set('Cookie', playerCookie).send({ reason: 'because', ...body(['Sol Ring']) });
+    assert.equal(res.status, 400);
+  });
+
+  test('and has to be aimed at your own deck', async () => {
+    const res = await request.post(`/api/players/${playerId}/decks/${DECK}/snapshots`)
+      .set('Cookie', otherCookie).send({ reason: 'import', ...body(['Sol Ring']) });
+    assert.equal(res.status, 403);
+  });
+
+  test('a snapshot can be read back whole, and restoring it is an ordinary save', async () => {
+    await save(playerCookie, ['Sol Ring', 'Forest']);
+    const forced = await request.post(`/api/players/${playerId}/decks/${DECK}/snapshots`)
+      .set('Cookie', playerCookie).send({ reason: 'import', ...body(['Sol Ring', 'Forest']) });
+    assert.equal(forced.status, 200);
+
+    await save(playerCookie, ['Island']);            // the import that went wrong
+
+    const id   = forced.body.snapshot.id;
+    const snap = await request.get(`/api/players/${playerId}/decks/${DECK}/snapshots/${id}`)
+      .set('Cookie', playerCookie);
+    assert.equal(snap.status, 200);
+    assert.deepEqual(snap.body.cards.map(c => c.card_name), ['Sol Ring', 'Forest']);
+
+    await save(playerCookie, snap.body.cards.map(c => c.card_name));
+    const back = await request.get(`/api/players/${playerId}/decks/${DECK}/cards`).set('Cookie', playerCookie);
+    assert.deepEqual(back.body.cards.map(c => c.card_name).sort(), ['Forest', 'Sol Ring']);
+  });
+
+  test('a snapshot that is not there is a 404 rather than an empty deck', async () => {
+    const res = await request.get(`/api/players/${playerId}/decks/${DECK}/snapshots/9999`)
+      .set('Cookie', playerCookie);
+    assert.equal(res.status, 404);
+  });
+
+  test('deleting the deck leaves one row and takes the rest with it', async () => {
+    await save(playerCookie, ['Sol Ring']);
+    require('../deck-history')._forget(DECK);
+    await save(playerCookie, ['Sol Ring', 'Forest']);
+    assert.ok((await listSnapshots(playerCookie)).body.snapshots.length >= 1);
+
+    const res = await request.post(`/api/players/${playerId}/decks/${DECK}/snapshots`)
+      .set('Cookie', playerCookie).send({ reason: 'deck-delete', ...body(['Sol Ring', 'Forest']) });
+    assert.equal(res.status, 200);
+
+    const after = await listSnapshots(playerCookie);
+    assert.deepEqual(after.body.snapshots.map(s => s.reason), ['deck-delete']);
+  });
+
+  test('history needs a session at all', async () => {
+    assert.equal((await request.get(`/api/players/${playerId}/decks/${DECK}/snapshots`)).status, 401);
+  });
+});
+
+// ── Boards ────────────────────────────────────────────────────────────────────
+// A card's place in a deck is a board and a category, and the board is what
+// makes the same card able to sit in the maybeboard while a copy is in the
+// deck. The key is (deck, board, card) — so what is worth asserting here is
+// that two rows can share a name, that touching one never touches the other,
+// and that a caller which says nothing about boards goes on meaning the deck.
+describe('Deck boards: /api/players/:id/decks/:deckId/cards', () => {
+  let playerId, playerCookie;
+  const DECK = 'deck-boards-1';
+
+  beforeEach(async () => {
+    resetDb();
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    playerId = uuidv4();
+    dbModule.db.prepare("INSERT OR REPLACE INTO app_state (key, value_json, version) VALUES ('state', ?, 0)")
+      .run(JSON.stringify({ players: [{ id: playerId, name: 'P1', decks: [], wantList: [] }] }));
+    dbModule.db.prepare("INSERT INTO users (username, password_hash, role, player_id) VALUES ('p1user', ?, 'player', ?)")
+      .run(bcrypt.hashSync('pw1', 10), playerId);
+    playerCookie = await loginAs('p1user', 'pw1');
+    require('../deck-history')._forget(DECK);
+  });
+
+  const put = cards => request
+    .put(`/api/players/${playerId}/decks/${DECK}/cards`).set('Cookie', playerCookie)
+    .send({ cards, categories: [{ name: 'Ramp', position: 0 }] });
+  const read = async () => (await request
+    .get(`/api/players/${playerId}/decks/${DECK}/cards`).set('Cookie', playerCookie)).body.cards;
+  const byBoard = (cards, board) => cards.filter(c => c.board === board);
+
+  test('a card that names no board is in the deck', async () => {
+    // Every row written before boards existed, and every client that has not
+    // heard of them: the deck is what a deck was.
+    await put([{ card_name: 'Sol Ring', qty: 1, category: 'Ramp', position: 0 }]);
+    assert.deepEqual(await read(),
+      [{ card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main', position: 0 }]);
+  });
+
+  test('the same card sits in two boards at once, with a quantity of its own on each', async () => {
+    await put([
+      { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main',  position: 0 },
+      { card_name: 'Sol Ring', qty: 3, category: 'Ramp', board: 'maybe', position: 1 },
+    ]);
+    const cards = await read();
+    assert.equal(cards.length, 2, 'the two rows collapsed into one');
+    assert.equal(byBoard(cards, 'main')[0].qty, 1);
+    assert.equal(byBoard(cards, 'maybe')[0].qty, 3);
+  });
+
+  test('a board the app has never heard of is stored as it arrives', async () => {
+    // The set of boards is open on purpose: the column is TEXT and nothing
+    // here validates it, so a format that wants another one costs a value
+    // rather than a migration.
+    await put([{ card_name: 'Sol Ring', qty: 1, category: '', board: 'considering', position: 0 }]);
+    assert.equal((await read())[0].board, 'considering');
+  });
+
+  test('adding a card to a board is a second row, not one copy more', async () => {
+    await put([{ card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main', position: 0 }]);
+    const res = await request.post(`/api/players/${playerId}/decks/${DECK}/cards/add`)
+      .set('Cookie', playerCookie).send({ card_name: 'Sol Ring', qty: 2, board: 'maybe' });
+    assert.equal(res.status, 200);
+    const cards = await read();
+    assert.equal(byBoard(cards, 'main')[0].qty, 1, 'the card in the deck went up');
+    assert.equal(byBoard(cards, 'maybe')[0].qty, 2);
+  });
+
+  test('adding it to the same board again is one copy more', async () => {
+    await put([{ card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'maybe', position: 0 }]);
+    await request.post(`/api/players/${playerId}/decks/${DECK}/cards/add`)
+      .set('Cookie', playerCookie).send({ card_name: 'Sol Ring', qty: 2, board: 'maybe' });
+    const cards = await read();
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0].qty, 3);
+  });
+
+  test('removing a card from one board leaves the other standing', async () => {
+    await put([
+      { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main',  position: 0 },
+      { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'maybe', position: 1 },
+    ]);
+    const res = await request.delete(`/api/players/${playerId}/decks/${DECK}/cards/Sol%20Ring?board=maybe`)
+      .set('Cookie', playerCookie);
+    assert.equal(res.status, 200);
+    assert.deepEqual((await read()).map(c => c.board), ['main']);
+  });
+
+  test('and removing one without saying which takes the one in the deck', async () => {
+    await put([
+      { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main',  position: 0 },
+      { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'maybe', position: 1 },
+    ]);
+    await request.delete(`/api/players/${playerId}/decks/${DECK}/cards/Sol%20Ring`)
+      .set('Cookie', playerCookie);
+    assert.deepEqual((await read()).map(c => c.board), ['maybe']);
+  });
+
+  test('a snapshot carries the boards back with it', async () => {
+    // A deck restored without them is a deck whose maybeboard has been played.
+    await put([
+      { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main',  position: 0 },
+      { card_name: 'Forest',   qty: 1, category: 'Ramp', board: 'maybe', position: 1 },
+    ]);
+    const forced = await request.post(`/api/players/${playerId}/decks/${DECK}/snapshots`)
+      .set('Cookie', playerCookie).send({
+        reason: 'import',
+        cards: [
+          { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main',  position: 0 },
+          { card_name: 'Forest',   qty: 1, category: 'Ramp', board: 'maybe', position: 1 },
+        ],
+        categories: [{ name: 'Ramp', position: 0 }],
+      });
+    const snap = await request.get(`/api/players/${playerId}/decks/${DECK}/snapshots/${forced.body.snapshot.id}`)
+      .set('Cookie', playerCookie);
+    assert.deepEqual(snap.body.cards.map(c => `${c.board}/${c.card_name}`),
+      ['main/Sol Ring', 'maybe/Forest']);
+  });
+
+  test('how big the deck is counts the deck, not what is set aside beside it', async () => {
+    await put([
+      { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main',  position: 0 },
+      { card_name: 'Forest',   qty: 4, category: 'Ramp', board: 'maybe', position: 1 },
+    ]);
+    const res = await request.get(`/api/players/${playerId}/decks/${DECK}/snapshots`)
+      .set('Cookie', playerCookie);
+    assert.equal(res.body.current.cards, 1, 'four maybes made it a five-card deck');
+    assert.equal(res.body.current.distinct, 1);
   });
 });
 

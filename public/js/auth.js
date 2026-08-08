@@ -105,6 +105,35 @@ function isMyPlayer(playerId) {
   return currentUser.playerId === playerId;
 }
 
+/* Which player *you* are, as an id, or null if the app cannot say.
+ *
+ * Not the same question as isMyPlayer(), which asks what you are allowed to
+ * edit and answers yes to everything for an admin. This one asks who you are:
+ * an admin looking at their own shelf is looking at one person's, not at the
+ * eight they may edit.
+ *
+ * Open mode has no logged-in player at all — there is no ADMIN_PASSWORD, so
+ * the session is `guest` with no id — and rather than invent a second idea of
+ * identity, this falls back to the one the app already keeps for exactly that
+ * case: the browser-remembered name behind Available@'s "Who are you?" bar,
+ * matched to a player by name. A name matching nobody is null, and null is
+ * how the caller knows not to offer the distinction at all.
+ *
+ * A logged-in account with no linked player gets null rather than the
+ * remembered name: they have an identity, it just isn't a player yet, and
+ * reading a name out of their browser would quietly hand them somebody
+ * else's shelf. */
+function myPlayerId() {
+  if (!currentUser) return null;
+  if (currentUser.playerId) return currentUser.playerId;
+  if (currentUser.username !== 'guest') return null;
+  let remembered = '';
+  try { remembered = (localStorage.getItem(AVAIL_NAME_KEY) || '').trim().toLowerCase(); } catch {}
+  if (!remembered) return null;
+  const player = state.players.find(p => String(p.name || '').trim().toLowerCase() === remembered);
+  return player ? player.id : null;
+}
+
 // ── Quick "add to my wants" (from search/set browser) ─────────────────────────
 async function quickAddToMyWants(cardName, btn) {
   if (!currentUser?.playerId) {

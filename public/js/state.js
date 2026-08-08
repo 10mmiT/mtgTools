@@ -41,6 +41,14 @@ function playerSlot(player) {
 // resolving it here would freeze the theme in place at render time.
 function playerColor(player) { return `var(--player-${playerSlot(player)})`; }
 
+/* The name this browser remembers, behind Available@'s "Who are you?" bar.
+ *
+ * The key lives here rather than in js/available.js because it is read by two
+ * features now: the calendar it was written for, and myPlayerId() in
+ * js/auth.js, which is how a deployment with no accounts at all still knows
+ * whose shelf is whose. One key, one spelling of it. */
+const AVAIL_NAME_KEY = 'avail_name';
+
 // Breakpoints — the JS half of the three in css/tokens.css (--bp-sm/md/lg).
 // Compare with < and >= so a boundary width lands on the same side here as it
 // does in the stylesheet's (width < 900px) / (width >= 900px) rules.
@@ -58,9 +66,10 @@ const state = {
   version: 0,  // optimistic-concurrency version from server
 };
 
-let viewMode       = window.innerWidth < BP_SM ? 'grid' : 'list';
-let pendingCsvKey  = null;
-let pendingCsvName = null;
+let viewMode        = window.innerWidth < BP_SM ? 'grid' : 'list';
+let pendingCsvKey   = null;
+let pendingCsvName  = null;
+let pendingCsvOwner = null;
 
 // ── Storage (server DB with localStorage fallback) ────────────────────────
 function stateToJSON() {
@@ -89,6 +98,9 @@ function hydrateState(raw) {
     color: d.color || COLORS[0], cards: new Map(Object.entries(d.cards || {})),
     status: 'loaded', entries: d.entries || 0, total: d.total || null,
     error: null, savedAt: d.savedAt || null, updating: false,
+    // Whose shelf it is, or null for the group's. A record written before
+    // collections had owners has no field at all, and that is the same answer.
+    owner: d.owner || null,
   }));
 
   /* A sort can name one collection's own quantities, so a stored sort is only
@@ -149,13 +161,10 @@ async function saveToStorage() {
 }
 
 async function loadFromStorage() {
-  console.log('[load] loadFromStorage called');
   try {
     const res = await fetch('/api/state');
     if (res.ok) {
       const json = await res.json();
-      const deckSummary = (json.players || []).map(p => `${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
-      console.log(`[load] server returned — players: ${deckSummary || '(none)'}, version: ${json.version}`);
       if (typeof json.version === 'number') state.version = json.version;
       hydrateState(json);
       return;
@@ -165,7 +174,7 @@ async function loadFromStorage() {
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { console.log('[load] using localStorage fallback'); hydrateState(JSON.parse(raw)); }
+    if (raw) hydrateState(JSON.parse(raw));
   } catch {}
 }
 

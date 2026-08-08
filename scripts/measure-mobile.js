@@ -48,6 +48,12 @@ const VIEWPORT = { name: 'phone', width: 390, height: 844 };
  * hiding a row two pixels short. */
 const EXTRA_VIEWS = {
   'deckview-search':  'deckview',
+  'deckview-history': 'deckview',
+  'deckview-owned':   'deckview',
+  'deckview-analysis': 'deckview',
+  'deckview-legality': 'deckview',
+  'deckview-mana':    'deckview',
+  'deckview-menu':    'deckview',
   'rss-panel':        'available',
   'collections-list': 'collections',
   'collections-pile': 'collections',
@@ -57,7 +63,11 @@ const EXTRA_VIEWS = {
  * behind an open drawer is unreachable by design — that is what an overlay
  * is for — and counting its controls as unhittable would report the drawer
  * working as a fault. */
-const SCOPES = { 'deckview-search': '#dbSearchPanel', 'rss-panel': '#rssPanel' };
+const SCOPES = {
+  'deckview-search':  '#dbSearchPanel',
+  'deckview-history': '#dbHistoryPanel',
+  'rss-panel':        '#rssPanel',
+};
 
 const TARGET_MIN = 44;   // px, per the mobile criterion
 
@@ -133,6 +143,109 @@ const PREP = {
     sel.dispatchEvent(new Event('change', { bubbles: true }));
     if (typeof dbOpenSearchPanel !== 'function') return 'false';
     dbOpenSearchPanel();
+    return 'true';
+  })()`,
+  /* The other drawer, and the one whose rows are written rather than laid
+     out: a snapshot's date, what it was taken in front of and a Restore
+     button share a line, and a phone is where that line runs out of room.
+     A deck with no history at all draws an empty state and nothing to
+     measure, so this waits for a row before reporting itself ready. */
+  'deckview-history': `(() => {
+    const sel = document.getElementById('dbDeckSel');
+    const opt = sel && [...sel.options].find(o => o.value);
+    if (!opt) return 'false';
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof dbOpenHistoryPanel !== 'function') return 'false';
+    /* A deck this app has never edited has no snapshots, and an empty state
+       is not a row — the Restore button is the control worth measuring. One
+       is taken here rather than seeded into the fixture so the row measured
+       is a row the app wrote. */
+    _dbForceSnapshot('edit').then(dbOpenHistoryPanel);
+    return 'true';
+  })()`,
+  /* The curve, the type breakdown and the split, expanded out of the toolbar.
+     Closed when the tab arrives — it is asked for rather than owed mat space —
+     so an unopened analysis strip passes this measurement by not being there,
+     and the curve's colour toggle is a control only this state has. */
+  'deckview-analysis': `(() => {
+    const sel = document.getElementById('dbDeckSel');
+    const opt = sel && [...sel.options].find(o => o.value);
+    if (!opt) return 'false';
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof dbToggleAnalysis !== 'function') return 'false';
+    /* The deck's cards arrive over the network, and a deck with none of them
+       yet draws an empty strip with nothing on it to hit. */
+    setTimeout(() => { if (!dbAnalysisOpen) dbToggleAnalysis(); }, 1500);
+    return 'true';
+  })()`,
+  /* What of the deck you own, opened out of the readout. Not a drawer — it
+     rises out of the bottom line rather than covering the page — so it is not
+     scoped: the mat behind it is still reachable and its controls still count.
+     Every card missing carries a + that puts it on a want list, which is the
+     densest row this ticket added and the one a thumb has to find. */
+  'deckview-owned': `(() => {
+    const sel = document.getElementById('dbDeckSel');
+    const opt = sel && [...sel.options].find(o => o.value);
+    if (!opt) return 'false';
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof dbToggleOwnedPanel !== 'function') return 'false';
+    /* The deck's cards arrive over the network, and a deck with none of them
+       yet is a readout saying "0 of 0" with nothing under it to measure. */
+    const open = () => { if (!_dbOwnedPanelOpen) dbToggleOwnedPanel(); };
+    setTimeout(open, 1500);
+    return 'true';
+  })()`,
+  /* What the deck breaks and what bracket it looks like, out of the same line
+     as the missing list. It carries two controls nothing else on this tab has —
+     the ✕ that closes it, and the select that declares a bracket — and on a
+     phone it is the *only* way to either of them, because the readout's bracket
+     item is one of the things that width takes away. */
+  'deckview-legality': `(() => {
+    const sel = document.getElementById('dbDeckSel');
+    const opt = sel && [...sel.options].find(o => o.value);
+    if (!opt) return 'false';
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof dbToggleCheckPanel !== 'function') return 'false';
+    /* The deck's cards arrive over the network, and a deck with none of them
+       yet is a panel with one line in it and no reasoning to measure. */
+    setTimeout(() => { if (!_dbCheckPanelOpen) dbToggleCheckPanel(); }, 1500);
+    return 'true';
+  })()`,
+  /* What the deck's spells want against what its lands make, out of the same
+     line again. Two controls in its header — the ✕ and the way through to the
+     calculator — and the second is the small one: a button that stands beside
+     a title on a desktop rather than beside other buttons is the kind that
+     arrives on a phone too short to hit. */
+  'deckview-mana': `(() => {
+    const sel = document.getElementById('dbDeckSel');
+    const opt = sel && [...sel.options].find(o => o.value);
+    if (!opt) return 'false';
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof dbToggleManaPanel !== 'function') return 'false';
+    /* The deck's cards arrive over the network, and a deck with none of them
+       yet is a panel saying it has nothing to compare. */
+    setTimeout(() => { if (!_dbManaPanelOpen) dbToggleManaPanel(); }, 1500);
+    return 'true';
+  })()`,
+  /* Every control this tab has that is not the picker, the add field or the
+     filter. It arrives closed at this width — a column that takes the top of
+     the page is asked for rather than owed it — so without its own view the
+     whole of it would pass this measurement by not being on screen. */
+  'deckview-menu': `(() => {
+    const sel = document.getElementById('dbDeckSel');
+    const opt = sel && [...sel.options].find(o => o.value);
+    if (!opt) return 'false';
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof dbToggleMenu !== 'function') return 'false';
+    /* After the deck's cards arrive: the size control hides its own mount in
+       list view, and the board toggles are drawn from what the deck holds. */
+    setTimeout(() => { if (!dbMenuOpen) dbToggleMenu(); }, 1500);
     return 'true';
   })()`,
   pick: `(() => {

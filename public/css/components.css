@@ -236,6 +236,33 @@
 }
 .chip-close:hover { background: var(--surface-3); color: var(--text); }
 
+/* Whose shelf it is, on the chip that stands for it — the owner's name, and
+   only when there is one. A collection with no owner is the group's, which is
+   the state every collection in the app was in before owners existed, and a
+   chip that says nothing about it is the same chip it always was.
+
+   Not in the player's slot colour: the dot to its left is already carrying a
+   colour (the collection's own), and a second one beside it reads as two
+   facts about the same thing. --text-muted is the token every caption on a
+   --surface-2 chip is measured on. */
+.chip-owner {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* A collection that is loaded but is not on the shelf being looked at. Its
+   chip stays — the ⋯ menu on it is where an owner is set, and a chip you
+   cannot reach is an owner you cannot fix — and says so by going hollow.
+
+   A dashed border and a lighter label rather than an opacity: everything
+   here is still text somebody may need to read, and fading it is how a
+   measured contrast ratio stops being the one on screen. */
+.chip--off { border-style: dashed; }
+.chip--off .chip-label { font-weight: 500; color: var(--text-muted); }
+
 /* Status is the count's colour, not a badge beside it: "1,240 / 5,600" in
    --warning already says loading, and a count that failed says so in
    --danger with the reason on the chip's tooltip. */
@@ -341,8 +368,12 @@
 .drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity calc(var(--motion-ui) * .2s), visibility 0s; }
 
 /* ── Search bar ──────────────────────────────────────────────────────── */
-.search-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .search-input { flex: 1; min-width: 200px; max-width: 480px; }
+/* A box holding something that is not a query yet — a filter the local card
+   data cannot answer, a half-typed colour. The border says it while the
+   message under the cards says what; it outranks :focus on purpose, because
+   the box being typed into is the box that is wrong. */
+.search-input.is-invalid { border-color: var(--danger); }
 .result-info { font-size: var(--text-sm); color: var(--text-muted); flex: 1; min-width: 80px; }
 
 /* ── View toggle ─────────────────────────────────────────────────────── */
@@ -428,8 +459,7 @@ td { padding: var(--space-2) var(--space-3); }
 .td-name { font-weight: 500; }
 .card-link { color: var(--text); text-decoration: none; }
 .card-link:hover { color: var(--primary); text-decoration: underline; }
-.td-type { color: var(--text-muted); font-size: var(--text-sm); }
-/* .td-mana was here — one of the two 'Courier New' sites §6.3 names. No markup
+/* .td-type and .td-mana were here — one of the two 'Courier New' sites §6.3 names. No markup
    in the app has carried the class for some time (the mana column renders
    mana-font glyphs through renderMana), so it is deleted rather than restacked
    onto --font-mono. */
@@ -1065,9 +1095,6 @@ td { padding: var(--space-2) var(--space-3); }
 .ac-item { padding: var(--space-2) var(--space-3); font-size: var(--text-base); cursor: pointer; }
 .ac-item:hover { background: var(--surface-2); }
 @media (width < 640px) {
-  /* View toggles always on the right in search rows */
-  .search-row .view-toggle { margin-left: auto; flex-shrink: 0; }
-
   .autocomplete-wrap { min-width: 0; }
 
   /* A phone starts two cards across rather than one and a half. It is still
@@ -1177,7 +1204,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
      not floating in the middle of the page — it has one visible edge,
      and the hairline is what marks it. The shadow tokens all cast
      downward anyway, so what this drew was a haze over the content
-     rather than an edge. Same reasoning on .db-search-panel. */
+     rather than an edge. Same reasoning on .db-drawer. */
 }
 .rss-panel.open { width: 310px; }
 
@@ -1308,13 +1335,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .rss-toggle-btn.active { background: color-mix(in srgb, var(--hdr-fg) 25%, transparent); }
 
 /* ── Sort control + column menu (shared across views) ────────────────── */
-.view-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-top: var(--space-3);
-}
 /* The sort control is one button whose label is the whole sort —
    "Sort: Color → Mana Value → Name" — and a .col-menu of criterion rows
    under it. It is a .col-menu-btn opening a .col-menu, which is exactly
@@ -1409,6 +1429,13 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
    tabs which hide this mount for a reason of their own — no deck loaded, no
    set chosen — still win: their rules are an attribute and a class. */
 .size-mount-hidden { display: none; }
+
+/* The shelf control, in a deployment that has no way to say who you are: no
+   logged-in player and no remembered name means there is no "mine" to offer,
+   so the distinction is not offered at all and every collection reads as the
+   group's. The whole mount goes, for the same reason the size control's
+   does — an emptied host is still an item in the strip's flex row. */
+.scope-mount-hidden { display: none; }
 
 .col-menu-wrap { position: relative; display: inline-block; flex-shrink: 0; }
 .col-menu-btn {
@@ -1671,14 +1698,9 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   tr { height: 44px; }
 
   /* Overflowing tables/card lists: allow horizontal scroll within the container */
-  .table-wrap, .col-table-wrap {
+  .table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-  }
-
-  /* Collection card grid on narrow screens: slightly larger min-width per card */
-  .cards-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
   }
 
   /* Modal/popup sizing on narrow: shouldn't appear, but as defensive CSS */
@@ -1757,18 +1779,9 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   transition: transform calc(var(--motion-ui) * .08s);
 }
 
-/* Loading indicator on slow Scryfall/Archidekt fetches */
-.loading-spinner {
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  border: 2px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: var(--radius-full);
-  animation: spin calc(var(--motion-ui) * .6s) linear infinite;
-  vertical-align: middle;
-  margin-right: var(--space-2);
-}
+/* The one spinner left in the app: a deck tile loading its card list, in
+   tabs.css. .loading-spinner was the shared one and nothing has worn it for
+   some time. */
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Shared kebab / overflow menu button (mounted by kebabMenuHtml, sortui.js) ── */

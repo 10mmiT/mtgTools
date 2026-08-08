@@ -133,6 +133,21 @@ function createLinkedPlayer(username) {
   } catch (e) { console.warn('State migration skipped:', e.message); }
 })();
 
+/* Removing a player does not remove their shelf. The cards are still in the
+ * house, so the collection stays exactly as it was and becomes the group's —
+ * which is what a null owner has meant all along, and is why this is a column
+ * to clear rather than a row to delete.
+ *
+ * Run after every whole-state write, because that is the only way a player is
+ * ever removed: the state is a JSON blob the client replaces wholesale, so
+ * there is no delete-player endpoint to hang this off. */
+function disownGonePlayers(players) {
+  const ids = new Set((players || []).map(p => p.id).filter(Boolean));
+  const owned = db.prepare('SELECT key, owner_player_id FROM collections WHERE owner_player_id IS NOT NULL').all();
+  const clear = db.prepare('UPDATE collections SET owner_player_id = NULL WHERE key = ?');
+  for (const row of owned) if (!ids.has(row.owner_player_id)) clear.run(row.key);
+}
+
 // ── GET /api/state ─────────────────────────────────────────────────────────────
 router.get('/state', requireAuth, (req, res) => {
   try {
@@ -143,6 +158,7 @@ router.get('/state', requireAuth, (req, res) => {
           key: r.key, name: r.name, source: r.source, id: r.col_id,
           color: r.color, cards: JSON.parse(r.cards_json || '{}'),
           entries: r.entries, total: r.total, savedAt: r.saved_at,
+          owner: r.owner_player_id || null,
         };
       } catch (e) { console.error(`Failed to parse collection ${r.key}:`, e.message); return null; }
     }).filter(Boolean);
@@ -176,6 +192,7 @@ router.post('/state', requireAuth, express.json({ limit: '10mb' }), (req, res) =
   try {
     const clientVersion = typeof req.body.version === 'number' ? req.body.version : undefined;
     const newVersion    = writeState({ ...current, players }, clientVersion);
+    disownGonePlayers(players);
     res.json({ ok: true, version: newVersion });
   } catch (e) {
     if (e.status === 409) return res.status(409).json({ error: 'Conflict: state was modified by another session. Please refresh.' });
@@ -220,21 +237,58 @@ router.delete('/players/:playerId/wants/:cardName', requirePlayerAccess, (req, r
 });
 
 // ── Collections ────────────────────────────────────────────────────────────────
+/* An owner, as the database wants it: a player id, or null for the group's.
+ *
+ * Anything that is not a player we have heard of is refused rather than
+ * stored, because an id nobody answers to reads as the group's anyway — and a
+ * silent one is a collection that says it belongs to somebody and cannot say
+ * who. Returns `false` for that case; null and '' both mean the group. */
+function readOwner(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (typeof raw !== 'string') return false;
+  return (readState().players || []).some(p => p.id === raw) ? raw : false;
+}
+
 router.post('/collections', requireAuth, express.json({ limit: '10mb' }), (req, res) => {
   const { key, name, source, id, color, cards, entries, total, savedAt } = req.body || {};
   if (!key || !name || !source) return res.status(400).json({ error: 'key, name, source required' });
+  /* Whether the owner was *said*, not what it came out as. This route is the
+   * whole-collection write — adding one, refreshing one, re-importing a CSV —
+   * and a client that does not mention the owner must not have it cleared as
+   * a side effect of a refresh. So an absent field leaves the column alone,
+   * and only a stated one (a player, or null for the group) writes it. */
+  const given = Object.prototype.hasOwnProperty.call(req.body || {}, 'owner');
+  const owner = given ? readOwner(req.body.owner) : null;
+  if (owner === false) return res.status(400).json({ error: 'Unknown player' });
   try {
     db.prepare(`
-      INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at, owner_player_id)
+      VALUES (@key, @name, @source, @id, @color, @cards, @entries, @total, @savedAt, @owner)
       ON CONFLICT(key) DO UPDATE SET
         name=excluded.name, source=excluded.source, col_id=excluded.col_id,
         color=excluded.color, cards_json=excluded.cards_json,
-        entries=excluded.entries, total=excluded.total, saved_at=excluded.saved_at
-    `).run(key, name, source, id || null, color || '#a855f7',
-      JSON.stringify(cards || {}), entries || 0, total || null, savedAt || null);
-    res.json({ ok: true });
+        entries=excluded.entries, total=excluded.total, saved_at=excluded.saved_at,
+        owner_player_id = CASE WHEN @given THEN @owner ELSE collections.owner_player_id END
+    `).run({
+      key, name, source, id: id || null, color: color || '#a855f7',
+      cards: JSON.stringify(cards || {}), entries: entries || 0,
+      total: total || null, savedAt: savedAt || null,
+      owner, given: given ? 1 : 0,
+    });
+    res.json({ ok: true, owner });
   } catch (e) { console.error('Collection save error:', e.message); res.status(500).json({ error: e.message }); }
+});
+
+/* Changing whose shelf it is, on its own. A route of its own and not the POST
+ * above, because a collection is its cards: re-uploading five thousand of them
+ * to say a different name is what an owner change would otherwise cost. */
+router.put('/collections/:key/owner', requireAuth, express.json(), (req, res) => {
+  const key   = decodeURIComponent(req.params.key);
+  const owner = readOwner((req.body || {}).owner);
+  if (owner === false) return res.status(400).json({ error: 'Unknown player' });
+  const { changes } = db.prepare('UPDATE collections SET owner_player_id = ? WHERE key = ?').run(owner, key);
+  if (!changes) return res.status(404).json({ error: 'Collection not found' });
+  res.json({ ok: true, owner });
 });
 
 router.delete('/collections/:key', requireAuth, (req, res) => {

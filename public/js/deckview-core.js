@@ -6,6 +6,7 @@ let dbCards     = [];        // [{card_name, qty, category, position}]
 let dbCats      = [];        // [{name, position}]
 let dbCardData  = new Map(); // card name → Scryfall card object
 let dbView      = 'list';
+let dbFold      = 'full';    // how much of the frame is showing — see DB_FOLDS
 let dbLeftTab   = 'search';
 let dbSrResults = [];        // Scryfall search results
 let _dbLandedCards = null;   // the cards this one render draws landing, after being carried there
@@ -23,16 +24,61 @@ let _dbBulkMoveMode = false; // true when the move modal is acting on dbSelected
 let _dbRenamingCat = null;   // category name being renamed
 let _dbCatModalReturnTo = null; // 'categories' when rename was opened from the Manage Categories modal
 let _dbEdhrecLoaded = false; // whether EDHREC has been fetched for the current deck
-let dbOracleFilter = '';     // lowercased search filter — matches card name or oracle text
+let dbFilterText  = '';      // what is in the filter box, as typed
+let dbFilterQuery = null;    // that, compiled — see dbSetFilter()
+let dbFilterError = '';      // why what is in the box isn't a query yet, if it isn't
+let _dbNamingCat = null;     // a category just made by a drop, being named in place
+let dbAnalysisOpen = false;  // whether the curve is expanded out of the toolbar
 const dbCollapsedCats = new Set(); // categories collapsed by user
 const dbSelectedCards = new Set(); // card names currently selected for bulk move
 const dbSettledCats = new Set(); // the categories settled into a stack, in pile view; the rest are fanned out
 
+/* No Commander among them: the commander is a board now, drawn at the head of
+ * the mat, and a category of the same name would be a second place for it to
+ * be. Every deck used to spend a header, a pile and a row of mat on one card
+ * that never moves and never sorts. */
 const DB_DEFAULT_CATS = [
-  'Commander', 'Creatures', 'Planeswalkers', 'Instants', 'Sorceries',
+  'Creatures', 'Planeswalkers', 'Instants', 'Sorceries',
   'Enchantments', 'Artifacts', 'Battles', 'Lands', 'Other',
 ];
+
+/* Which of this deck's boards are on the mat. Off by default and remembered
+ * per deck — see getShownBoards() in js/sortui.js. A board that is off is
+ * still drawn into the mat and hidden by the stylesheet, because a hidden
+ * board has to reveal itself the moment a card is picked up: a board you
+ * cannot put anything in is not somewhere to put things.
+ *
+ * What a board *is* — the list of them, and the two strings that say where a
+ * card is and where it is going — is js/deckview-boards.js's. */
+let dbShownBoards = new Set();
 const DB_SORT_FIELDS = ['name', 'cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price'];
+
+/* ── How much of the frame is showing ──────────────────────────────────────
+ *
+ * Three states rather than a toggle, because "chrome" is two different things
+ * and they are wanted at different moments:
+ *
+ *   full     everything — the controls, the readout, the mat
+ *   readout  every control gone, and one thin line of what the deck *is*
+ *   bare     the mat and the cards on it, and the way back
+ *
+ * The order is the order the presses go in, and it wraps: a third press on a
+ * bare mat brings the whole tab back, so the control is one button rather than
+ * two and nothing is ever more than one press from being reachable.
+ *
+ * It is *not* revealed by pointing at anything. The mat is a drag surface, and
+ * a card carried towards a category high on the screen would trip a
+ * reveal-on-hover every time — which is the accidental-hover problem
+ * spec-cards-as-objects.md was careful to design out. Folding is asked for. */
+const DB_FOLDS = ['full', 'readout', 'bare'];
+
+/* What the next press does, which is the only thing the button can honestly
+ * say about itself: it is the same button in all three states. */
+const DB_FOLD_LABELS = {
+  full:    'Hide the controls (f)',
+  readout: 'Hide the deck’s readout too (f)',
+  bare:    'Bring the controls back (f)',
+};
 
 // The empty mat, taken from the markup at boot rather than written out a
 // second time here: putting a deck down has to land on the same thing a cold
@@ -45,7 +91,6 @@ function initDeckBuilder() {
     _dbEmptyMat = document.getElementById('dbDeckContent').innerHTML;
     document.getElementById('dbCsvInput').addEventListener('change', _dbHandleCsvImport);
     document.addEventListener('click', e => {
-      if (!e.target.closest('#dbMoreMenu') && !e.target.closest('.col-menu-wrap')) dbCloseMoreMenu();
       if (!e.target.closest('.db-cat-kebab-wrap')) dbCloseCatMenus();
       if (!e.target.closest('#dbCardMenu')) dbCloseCardMenu();
       dbStackClick(e);
@@ -78,6 +123,15 @@ function initDeckBuilder() {
     else if (savedView && ['list','grid','pile'].includes(savedView)) dbView = savedView;
     _dbAdoptLegacyScale();
 
+    /* A deck read at full mat comes back at full mat. Restored before the mat
+     * is drawn rather than after, so a folded tab is never briefly unfolded. */
+    dbFold = getChromeFold('deckbuild', DB_FOLDS);
+    _dbSyncFold();
+    /* And the menu beside the mat, for the same reason and at the same moment:
+     * the mat is about to be drawn and it is drawn into whatever width the menu
+     * leaves it. */
+    _dbLoadMenu();
+
     // Keyboard shortcuts (only when deck builder tab is active and not typing in a field)
     document.addEventListener('keydown', e => {
       const dbTabActive = document.getElementById('tab-deckview')?.style.display !== 'none';
@@ -86,6 +140,16 @@ function initDeckBuilder() {
 
       if (e.key === 'Escape') {
         dbCloseCardMenu();
+      } else if (e.key === 'f' || e.key === 'F') {
+        /* Every control the fold hides is one press from being back, without
+         * reaching for the one button left on the strip. */
+        e.preventDefault();
+        if (dbDeck) dbFoldChrome();
+      } else if (e.key === 'm' || e.key === 'M') {
+        /* The controls, without reaching for the strip either. The column is
+         * where they all live now, so it earns a key beside the fold's. */
+        e.preventDefault();
+        dbToggleMenu();
       } else if (e.key === '/') {
         e.preventDefault();
         dbOpenSearchPanel();
@@ -135,6 +199,11 @@ function initDeckBuilder() {
      variable the browsing tabs size their grids by. #dbDeckContent is the
      element the width is set on, so grids, piles and stacks all inherit it. */
   _dbSizeSync = mountSizeControl('dbSizeMount', 'deckbuild', 'dbDeckContent', () => dbView);
+  /* Whose collections count as owned, and the chips that filter the mat by the
+     answer. Written from their own lists rather than out of the markup, the
+     way the board toggles are. */
+  dbSyncOwnScope();
+  _dbRenderOwnChips();
   dbPopulateDeckSel();
 }
 
@@ -182,15 +251,28 @@ function _dbPopulateNewDeckPlayers() {
 
 // ── Deck selection ────────────────────────────────────────────────────────────
 async function dbSelectDeck(value) {
+  dbCloseHistoryPanel();  // one deck's history is not another's
+  dbCloseOwnedPanel();    // and one deck's missing twelve are not another's
+  dbCloseCheckPanel();    // nor is one deck's colour identity another's
   dbSelectedCards.clear();
+  _dbNamingCat = null;    // a half-typed name belongs to the deck it was typed on
   dbSettledCats.clear();  // another deck's settled piles are not this one's, and a mat arrives spread
-  dbOracleFilter = '';
-  const oracleInput = document.getElementById('dbOracleSearchInput');
-  if (oracleInput) oracleInput.value = '';
+  /* One deck's filter is not another's — and a box left reading `t:goblin`
+   * over a deck with no goblins in it is a deck that looks empty. */
+  const filterBox = document.getElementById('dbFilterInput');
+  if (filterBox) filterBox.value = '';
+  _dbCompileFilter('');
+  /* The ownership chip goes with it, and for the same reason: a mat left
+     showing only what you are missing, over a deck you own all of, is a deck
+     that looks empty. */
+  dbOwnChip = null;
+  _dbRenderOwnChips();
 
   if (!value) {
     dbDeck = null; dbCards = []; dbCats = []; dbCardData = new Map();
     dbSortMounted = false; dbEdhrecData = null; _dbEdhrecLoaded = false;
+    dbShownBoards = new Set();  // another deck's boards are not this one's
+    _dbRenderBoardToggles();
     _dbHideDeckUI();
     return;
   }
@@ -211,6 +293,8 @@ async function dbSelectDeck(value) {
   dbDeck = { id: stableId, playerId, playerName: player.name,
              name: deck.name, commander: deck.commander || '', commanderImg: deck.commanderImg || null };
   dbEdhrecData = null; _dbEdhrecLoaded = false;
+  dbShownBoards = new Set();      // the last deck's boards are not this one's
+  _dbRenderBoardToggles();
 
   document.getElementById('dbDeckContent').innerHTML =
     '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading deck…</div>';
@@ -220,8 +304,15 @@ async function dbSelectDeck(value) {
     const res  = await fetch(`/api/players/${encodeURIComponent(playerId)}/decks/${encodeURIComponent(stableId)}/cards`);
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const data = await res.json();
-    dbCards = data.cards || [];
+    /* A row that names no board is in the deck. Filled in on the way in rather
+     * than everywhere it is read: a card carries its board from here on, so
+     * nothing below has to keep asking what a missing one meant. */
+    dbCards = (data.cards || []).map(c => ({ ...c, board: c.board || DB_MAIN_BOARD }));
     dbCats  = data.categories?.length ? data.categories : DB_DEFAULT_CATS.map((n, i) => ({ name: n, position: i }));
+    /* Which boards this deck was left showing — after its cards, because a
+     * head board is on by default when it holds something and there is nothing
+     * to ask that of until they have arrived. */
+    _dbLoadShownBoards(stableId);
 
     // Auto-import Archidekt cards when the deck has never been built locally
     if (dbCards.length === 0 && deck.source === 'archidekt' && deck.deckId) {
@@ -230,6 +321,7 @@ async function dbSelectDeck(value) {
       const imported = await _dbImportArchidekt(deck.deckId);
       if (imported.length) {
         dbCards = imported;
+        _dbLoadShownBoards(stableId);   // a deck that arrived with a commander shows it
         // Resolve categories that need Scryfall type data
         await dbFetchCardData([...new Set(dbCards.map(c => c.card_name))]);
         for (const card of dbCards) {
@@ -269,6 +361,189 @@ function _dbSetMode(mode) {
   document.getElementById('tab-deckview')?.setAttribute('data-db-mode', mode);
 }
 
+// ── Folding the frame away ────────────────────────────────────────────────────
+/* One press further into the mat, and round again. The tiers are DB_FOLDS and
+ * the wrap is what makes one button enough. */
+function dbFoldChrome() {
+  const at = DB_FOLDS.indexOf(dbFold);
+  dbSetFold(DB_FOLDS[(at + 1) % DB_FOLDS.length]);
+}
+
+function dbSetFold(fold) {
+  dbFold = DB_FOLDS.includes(fold) ? fold : DB_FOLDS[0];
+  saveChromeFold('deckbuild', dbFold);
+  _dbSyncFold();
+}
+
+/* What is showing, said once on the pane so the stylesheet can do the hiding —
+ * the same call [data-db-mode] makes for the controls that need a deck. Six
+ * style.display writes would be six places for the two tiers to disagree.
+ *
+ * The button's own label is written here too, because it is the same button in
+ * all three states and the only thing it can say is what the next press does. */
+function _dbSyncFold() {
+  document.getElementById('tab-deckview')?.setAttribute('data-db-fold', dbFold);
+  const btn = document.getElementById('dbFoldBtn');
+  if (!btn) return;
+  btn.title = DB_FOLD_LABELS[dbFold];
+  btn.setAttribute('aria-label', DB_FOLD_LABELS[dbFold]);
+}
+
+// ── The menu beside the mat ───────────────────────────────────────────────
+/* The strip had grown to fourteen controls and wrapped to three rows on an
+ * ordinary window. What was on it that is *not* the deck picker, the add field
+ * or the filter is now a column at the right-hand edge of the mat: the view,
+ * the size, the sort, the boards, the ownership chips and scope, the analysis
+ * strip's switch, the drawers, and everything the ⋯ popover used to hold.
+ *
+ * It **pushes rather than covers**, which is the whole argument for a column
+ * over the drawer shell already on this tab. Every one of those controls is
+ * answered by the mat — change the size and the cards resize, press a board
+ * and a region appears, filter by what you are missing and cards leave — and a
+ * panel lying over the mat behind a scrim would make you close it to see what
+ * you did. The two drawers on this tab cover the mat because what they hold is
+ * somewhere *else*: search results, and a list of past versions.
+ *
+ * Open or closed is remembered the way the fold is, and the same press of `f`
+ * takes it away with the rest of the controls, because it is the rest of the
+ * controls. */
+let dbMenuOpen = true;
+
+/* Below this the row becomes a column and the menu takes the top of it, which
+ * is a screenful on a phone — so a narrow window arrives closed however this
+ * browser left it. The preference is not overwritten: it is a desktop
+ * preference being read on a phone, not a decision the phone gets to make. */
+const DB_MENU_PUSH_WIDTH = 900;
+
+function _dbLoadMenu() {
+  const saved = localStorage.getItem('dbMenu');
+  dbMenuOpen = saved === null ? true : saved === 'open';
+  if (window.innerWidth < DB_MENU_PUSH_WIDTH) dbMenuOpen = false;
+  _dbSyncMenu();
+}
+
+function dbToggleMenu() {
+  dbMenuOpen = !dbMenuOpen;
+  localStorage.setItem('dbMenu', dbMenuOpen ? 'open' : 'closed');
+  _dbSyncMenu();
+}
+
+function dbCloseMenu() {
+  if (!dbMenuOpen) return;
+  dbToggleMenu();
+}
+
+/* One attribute on the pane, the same call [data-db-mode] and [data-db-fold]
+ * make: the stylesheet does the showing, so there is one place for "the menu is
+ * open" to be true rather than one per element it changes. */
+function _dbSyncMenu() {
+  document.getElementById('tab-deckview')?.setAttribute('data-db-menu', dbMenuOpen ? 'open' : 'closed');
+  const btn = document.getElementById('dbMenuBtn');
+  if (!btn) return;
+  btn.setAttribute('aria-expanded', dbMenuOpen ? 'true' : 'false');
+  btn.classList.toggle('db-analysis-open', dbMenuOpen);
+  btn.title = dbMenuOpen ? 'Hide the deck controls (m)' : 'Deck controls (m)';
+}
+
+// ── Showing a board ───────────────────────────────────────────────────────
+/* The toggles, written from DB_BOARDS rather than out of the markup, so that a
+ * board added later arrives on the strip with the rest of it. The mainboard
+ * has no toggle: it is the deck, and a deck you can switch off is a blank tab
+ * with a card count on it.
+ *
+ * They are buttons rather than checkboxes because that is what the rest of
+ * this strip is, and `aria-pressed` is what says a button is a state rather
+ * than an action — the same pair the view toggle uses. */
+function _dbRenderBoardToggles() {
+  const mount = document.getElementById('dbBoardMount');
+  if (!mount) return;
+  mount.innerHTML = DB_BOARDS.filter(b => b.id !== DB_MAIN_BOARD).map(b => {
+    const on = dbShownBoards.has(b.id);
+    return `<button class="btn-secondary db-board-toggle${on ? ' db-board-on' : ''}"
+      onclick="dbToggleBoard('${jsAttr(b.id)}')" aria-pressed="${on ? 'true' : 'false'}"
+      title="${esc(b.hint || b.label)}">${esc(b.label)}</button>`;
+  }).join('');
+}
+
+/* On the mat, or off it — and remembered against this deck, because whether
+ * you are sideboarding is a fact about the deck you are looking at. Written as
+ * the press happens, the way the fold is: a browser closed a moment later
+ * comes back showing the same boards. */
+function dbToggleBoard(board) {
+  if (!dbDeck) return;
+  if (dbShownBoards.has(board)) dbShownBoards.delete(board);
+  else dbShownBoards.add(board);
+  _dbSaveShownBoards();
+  _dbRenderBoardToggles();
+  dbRender();
+}
+
+/* ── What is stored is what differs from the default ───────────────────────
+ *
+ * Not "which boards are showing". A maybeboard is off unless asked for and a
+ * commander board is on as soon as it holds a commander, so a list of what is
+ * *on* could not say "this deck's commander board is hidden" at all — and a
+ * board that came back every time you closed it is not a board that hides.
+ *
+ * The stored value is unchanged for the boards that were there before: their
+ * default is off, so a name in the list still means on. It is read the other
+ * way round for a head board, and that is the whole of the migration. */
+function _dbDeviatingBoards() {
+  return DB_BOARDS
+    .filter(b => b.id !== DB_MAIN_BOARD && dbShownBoards.has(b.id) !== dbBoardOnByDefault(b))
+    .map(b => b.id);
+}
+
+function _dbSaveShownBoards() {
+  if (dbDeck) saveShownBoards(dbDeck.id, _dbDeviatingBoards());
+}
+
+/* Which boards this deck is showing: each board's default, flipped where this
+ * deck says so. Filtered against DB_BOARDS on the way in for localStorage's
+ * usual reason, and the mainboard is never in the set — it has no toggle and
+ * is never hidden, so keeping it there would be a second way to say something
+ * that is already always true.
+ *
+ * Read *after* the deck's cards are in hand, because a head board's default
+ * asks whether it holds anything. */
+function _dbLoadShownBoards(deckId) {
+  const flipped = new Set(getShownBoards(deckId));
+  dbShownBoards = new Set(DB_BOARDS
+    .filter(b => b.id !== DB_MAIN_BOARD && (dbBoardOnByDefault(b) !== flipped.has(b.id)))
+    .map(b => b.id));
+  _dbRenderBoardToggles();
+}
+
+/* A card has landed on a head board, so the head board is on. Called from the
+ * move, because a commander dropped into a region that was switched off would
+ * disappear out of the hand — and the stored preference is rewritten with it,
+ * so a board switched on by hand and *then* filled does not come back reading
+ * as "the owner hid this one". */
+function _dbRevealHeadBoard(boardId) {
+  const board = DB_BOARDS.find(b => b.id === boardId);
+  if (!board?.head) return;
+  const was = dbShownBoards.has(boardId);
+  dbShownBoards.add(boardId);
+  /* Saved even when it was already showing, because what has just changed is
+   * the *default*: an empty commander board switched on by hand is a deck
+   * deviating from off, and the moment a card lands on it that same stored
+   * entry would start reading as "hidden". */
+  _dbSaveShownBoards();
+  if (!was) _dbRenderBoardToggles();
+}
+
+/* The curve, out of the toolbar and back into it. In memory rather than
+ * stored: a panel you opened to look at something is not a preference, and it
+ * is inside the tier that folds away with the rest of the controls. */
+function dbToggleAnalysis() {
+  dbAnalysisOpen = !dbAnalysisOpen;
+  const panel = document.getElementById('dbAnalysis');
+  const btn   = document.getElementById('dbCurveBtn');
+  if (panel) panel.style.display = dbAnalysisOpen ? '' : 'none';
+  btn?.setAttribute('aria-expanded', dbAnalysisOpen ? 'true' : 'false');
+  btn?.classList.toggle('db-analysis-open', dbAnalysisOpen);
+}
+
 function _dbShowDeckUI() {
   _dbSetMode('deck');
   document.getElementById('dbDeleteDeckBtn').style.display =
@@ -286,6 +561,13 @@ async function dbDeleteDeck() {
   if (!confirm(`Delete "${dbDeck.name}"? This removes the deck and all its cards. You can re-add it (e.g. from Archidekt) afterwards.`)) return;
 
   const { id: deckId, playerId } = dbDeck;
+
+  /* First, and awaited, because the wipe below is what it is protecting
+   * against. It also ends this deck's history: rows keyed by a deck nothing
+   * will ask for again are orphans, so the server keeps only this one — what
+   * the deck was as it went. A deck re-added afterwards under the same id, as
+   * the confirmation above invites, finds it in the History panel. */
+  await _dbForceSnapshot('deck-delete');
 
   // Wipe server-side cards/categories for this deck (no dedicated delete-deck
   // endpoint — reuse the full-replace endpoint with empty arrays).
@@ -308,8 +590,10 @@ async function dbDeleteDeck() {
 }
 
 // ── Archidekt import ──────────────────────────────────────────────────────────
+/* No commander here: Archidekt's Commander category is a board of ours, not a
+ * pile, and it is read out of rawCats below. */
 const _ARCH_CAT = {
-  commander: 'Commander', creatures: 'Creatures', creature: 'Creatures',
+  creatures: 'Creatures', creature: 'Creatures',
   planeswalkers: 'Planeswalkers', planeswalker: 'Planeswalkers',
   instants: 'Instants', instant: 'Instants',
   sorceries: 'Sorceries', sorcery: 'Sorceries',
@@ -328,9 +612,19 @@ async function _dbImportArchidekt(archidektId) {
     const name = item.card?.oracleCard?.name || item.card?.name || '';
     const qty  = item.quantity || 1;
     if (!name || qty <= 0) continue;
-    // Skip sideboard / maybeboard
+    /* A sideboard or maybeboard card used to be dropped on the floor here,
+     * because there was nowhere in a deck to put a card that is not in it.
+     * There is now, so it arrives on the board it was already on — and its
+     * category rides along with it, which is what makes promoting one land in
+     * a pile rather than in "Other".
+     *
+     * Archidekt's Commander is one of those boards rather than one of its
+     * categories, which is also how two commanders arrive as two cards. */
     const rawCats = (item.categories || []).map(c => c.trim());
-    if (rawCats.some(c => /sideboard|maybeboard/i.test(c))) continue;
+    const boarded = rawCats.find(c => /sideboard|maybeboard|^commander$/i.test(c));
+    const board   = !boarded ? DB_MAIN_BOARD
+                  : /^commander$/i.test(boarded) ? DB_COMMANDER_BOARD
+                  : /side/i.test(boarded) ? 'side' : 'maybe';
     // Map to our standard categories where the name matches one of ours;
     // otherwise keep Archidekt's own category name as-is (e.g. "Ramp",
     // "Removal" from their community auto-categorize feature) rather than
@@ -340,8 +634,8 @@ async function _dbImportArchidekt(archidektId) {
       const mapped = _ARCH_CAT[c.toLowerCase()];
       if (mapped) { category = mapped; break; }
     }
-    if (!category && rawCats.length) category = rawCats[0];
-    cards.push({ card_name: name, qty, category, position: cards.length });
+    if (!category && rawCats.length) category = rawCats.find(c => c !== boarded) || '';
+    cards.push({ card_name: name, qty, category, board, position: cards.length });
   }
   return cards;
 }
@@ -392,8 +686,12 @@ const DB_FUNCTION_CATEGORY = {
   'swiftfoot boots': 'Protection', 'lightning greaves': 'Protection',
 };
 
+/* What pile a card belongs in, which is a question about the card. It no
+ * longer answers "Commander" for the deck's commander: where the commander
+ * goes is a board and not a pile, and dbAddCard() asks that question one level
+ * coarser before it gets here. A commander that ever does land in the deck
+ * proper is filed by what it is, like anything else. */
 function dbAutoCategory(cardName) {
-  if (cardName === dbDeck?.commander) return 'Commander';
   const fnCat = DB_FUNCTION_CATEGORY[cardName.toLowerCase()];
   if (fnCat) return fnCat;
   const sf = dbCardData.get(cardName);
@@ -416,16 +714,73 @@ function dbEnsureCat(name) {
   }
 }
 
-// ── Oracle/name text filter ────────────────────────────────────────────────────
-function dbSetOracleFilter(value) {
-  dbOracleFilter = (value || '').trim().toLowerCase();
+// ── The deck's filter ─────────────────────────────────────────────────────────
+/* The box over the mat reads the same query language the Collections search
+ * does — js/cardquery.js, Scryfall's syntax run against the card facts this
+ * tab already has in hand. It used to be one substring test against name and
+ * oracle text, which answers one question; the rest of them ("what am I
+ * holding under two mana", "which of these are red") had to be counted by eye.
+ *
+ * A bare word still means what it has always meant here: name *or* rules text,
+ * which is CQ_BARE's `text` and the reason that option exists. Nobody has to
+ * learn a language to type "goblin".
+ *
+ * Compiled once per keystroke rather than per card, which is the parser's own
+ * design; a deck is sixty cards, so the running of it is free. */
+function dbSetFilter(value) {
+  _dbCompileFilter(value);
   dbRender();
 }
 
-function _dbMatchesFilter(cardName) {
-  if (!dbOracleFilter) return true;
-  if (cardName.toLowerCase().includes(dbOracleFilter)) return true;
-  const sf = dbCardData.get(cardName);
-  const text = sf?.oracle_text || (sf?.card_faces || []).map(f => f.oracle_text || '').join(' ');
-  return (text || '').toLowerCase().includes(dbOracleFilter);
+/* The same, without the repaint, for the moments the mat is about to be drawn
+ * anyway — putting one deck down and picking another one up. */
+function _dbCompileFilter(value) {
+  dbFilterText = String(value || '').trim();
+  try {
+    dbFilterQuery = parseCardQuery(dbFilterText, { bare: 'text' });
+    dbFilterError = '';
+  } catch (e) {
+    /* Not a query — yet, or at all. `c:pin` is half of `c:pink` and `c:pink`
+     * is not a colour; `f:commander` is a filter the local cache cannot
+     * answer. Either way the deck goes on being drawn exactly as it was and
+     * the mat says why, because a box typed into a character at a time cannot
+     * empty the mat between two keystrokes. */
+    dbFilterQuery = null;
+    dbFilterError = e.message;
+  }
+  const box = document.getElementById('dbFilterInput');
+  if (box) {
+    box.classList.toggle('is-invalid', !!dbFilterError);
+    box.setAttribute('aria-invalid', dbFilterError ? 'true' : 'false');
+  }
+}
+
+/* A card as js/cardquery.js wants to see one: the name off the mat, and the
+ * card's facts out of this tab's cache in the one shape the app keeps them in
+ * — cardMetaOf()'s, which is what the sort and the metadata columns read too.
+ * A card whose data has not arrived yet is an empty card: it answers about its
+ * own name and honestly nothing else.
+ *
+ * `owned` is the one field on here that is not a fact about the card at all —
+ * it is a fact about our collections, which is why `is:owned` waited for the
+ * ownership work to land before it could be answered. It is asked of the *row*
+ * rather than of the name, so a deck asking for four Forests with two on the
+ * shelf does not read as owned. js/deckview-owned.js says what the shelf is. */
+function dbQueryCard(card) {
+  const sf = dbCardData.get(card.card_name);
+  return {
+    name: card.card_name,
+    ...(sf ? cardMetaOf(sf) : {}),
+    owned: dbShortOf(card) === 0,
+  };
+}
+
+/* Which cards the mat draws, which is two questions and not one: what is in
+ * the filter box, and which of the ownership chips is pressed. Both are off by
+ * default and neither ever reaches outside the deck — a card the mat is not
+ * drawing is still in the deck, still counted and still exported. */
+function _dbMatchesFilter(card) {
+  if (!dbOwnChipShows(card)) return false;
+  if (!dbFilterQuery) return true;   // an empty box, or one that means nothing yet
+  return dbFilterQuery.match(dbQueryCard(card));
 }

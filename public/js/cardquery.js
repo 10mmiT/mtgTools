@@ -32,6 +32,11 @@
 // and is kept rather than improved on. Lower-case `or` is a word in a card
 // name — "Now or Never" — and a search language that quietly changes what a
 // typed name means is worse than one that asks for a shift key.
+//
+// Two boxes read this file now: the Collections search and the Deck Builder's
+// filter. They differ in one word — what a *bare* word asks about; see
+// CQ_BARE — and in nothing else, which is the point of pointing the second box
+// at the first box's parser rather than growing a second syntax.
 
 /* Two card names that mean the same field. Scryfall's aliases, plus the
  * spellings this app's own UI uses elsewhere (`mv`, `price`). */
@@ -205,7 +210,22 @@ function cqStat(v) {
 /* The `is:` values the local card cache can actually decide. Every one of
  * these reads a field the app already stores; the ones that would need a
  * printing (`is:foil`, `is:promo`, `is:reprint`) are absent by the same rule
- * as CQ_ABSENT and are refused by name below. */
+ * as CQ_ABSENT and are refused by name below.
+ *
+ * `is:owned` is the exception and is now in it: it is a fact about the
+ * collections rather than about the card, so the *caller* supplies it on the
+ * card it hands in — `true` on the Collections tab, where a row is on the shelf
+ * being looked at by definition, and "the deck has every copy it asks for" in
+ * the Deck Builder, where the shelf is whichever of the three the strip is
+ * scoped to. A caller that says nothing about it gets `false`, which is what a
+ * box with no collections behind it can honestly answer.
+ *
+ * `is:gamechanger` is the newest of them and reads Wizards' list off the card,
+ * which the cache has carried since the trimmed shape went to version 2. It is
+ * the one filter here that is about a *format's* opinion of a card rather than
+ * about the card, and it earns its place beside the others because the bracket
+ * a deck is in turns on counting them: "which of these are Game Changers" is a
+ * question somebody with the readout open now actually has. */
 const CQ_IS = {
   permanent:  c => /\b(artifact|creature|enchantment|land|planeswalker|battle)\b/i.test(c.type || ''),
   spell:      c => !!(c.type || '') && !/\bland\b/i.test(c.type),
@@ -226,11 +246,15 @@ const CQ_IS = {
   adventure:  c => c.layout === 'adventure',
   leveler:    c => c.layout === 'leveler',
   saga:       c => /\bsaga\b/i.test(c.type || ''),
+  owned:      c => !!c.owned,
+  gamechanger: c => !!c.gameChanger,
 };
 const CQ_IS_ALIASES = {
   multicolored: 'multicolor', multicolour: 'multicolor', multicoloured: 'multicolor',
   colourless: 'colorless', mono: 'monocolor', monocolored: 'monocolor',
   doublefaced: 'dfc', 'double-faced': 'dfc', modaldfc: 'mdfc',
+  /* Scryfall writes it as one word; the app's own prose does not. */
+  'game-changer': 'gamechanger', gamechangers: 'gamechanger',
 };
 
 // ── Terms ─────────────────────────────────────────────────────────────────
@@ -374,11 +398,43 @@ function cqSplitTerm(tok) {
   return { key: m[1].toLowerCase(), op, value: m[3] };
 }
 
+// ── What a bare word asks about ───────────────────────────────────────────
+/* Scryfall's answer is the name, and Collections keeps it: a collection is
+ * thousands of rows, and a word that read the rules text as well would match
+ * half of them — `draw` is in a third of Magic.
+ *
+ * The Deck Builder's filter box has always searched the name *and* the rules
+ * text, and at sixty cards that is the better answer: the deck is small enough
+ * that the wider net still lands on a handful, and it is how everyone using
+ * that box already types. So the caller says which it wants, and the language
+ * is otherwise one language — `o:` is still the way to ask about rules text on
+ * purpose, in either box.
+ *
+ * Reading the oracle text is reading a fact off the card, so `text` needs the
+ * cache filled where `name` does not. That is what `needsMeta` is for. */
+const CQ_BARE = {
+  name: word => ({ needsMeta: false,
+    match: c => (c.name || '').toLowerCase().includes(word) }),
+  text: word => ({ needsMeta: true,
+    match: c => (c.name || '').toLowerCase().includes(word) ||
+                (c.oracle || '').toLowerCase().includes(word) }),
+};
+
+/* The language, said in eight examples, for showing beside a box that has just
+ * refused what was typed into it. It lives here rather than in either tab
+ * because it describes this file; two copies would be two syntaxes as soon as
+ * one of them gained a filter. */
+const CQ_SYNTAX_HELP = `<div class="help-text syntax-tip">
+  <code>t:creature</code> · <code>c:rg</code> · <code>mv&lt;=2</code> ·
+  <code>o:draw</code> · <code>r:mythic</code> · <code>-t:land</code> ·
+  <code>"exact phrase"</code> · <code>t:goblin OR t:elf</code>
+</div>`;
+
 // ── Parser ────────────────────────────────────────────────────────────────
 /* Recursive descent over the grammar at the top of the file. Each level hands
  * back a `{ needsMeta, match }` of the same shape a single term has, so an
  * `OR` of two filters is indistinguishable from a filter to whoever runs it. */
-function cqParse(tokens) {
+function cqParse(tokens, bare) {
   let pos = 0;
   const peek = () => tokens[pos];
   const isWord = (tok, word) => tok?.k === 'term' && !tok.opened && tok.raw === word;
@@ -418,10 +474,7 @@ function cqParse(tokens) {
     if (tok.k === ')') throw new Error('Unmatched ) in search.');
     pos++;
     const { key, op, value } = cqSplitTerm(tok);
-    if (key === null) {
-      const lower = value.toLowerCase();
-      return { needsMeta: false, match: c => c.name.toLowerCase().includes(lower) };
-    }
+    if (key === null) return bare(value.toLowerCase());
     /* A filter with nothing after it yet — the `t:` of a `t:creature` still
        being typed — matches everything rather than failing, so the results
        don't flash an error between two keystrokes. */
@@ -446,9 +499,12 @@ function cqParse(tokens) {
  * which is not an error and not a filter either.
  *
  * `card` is `{ name, ...cardMetaOf(card) }`: the name off the row and the
- * facts out of the cache the sort already fills. */
-function parseCardQuery(text) {
+ * facts out of the cache the sort already fills.
+ *
+ * `opts.bare` is which of CQ_BARE a word with no filter on it means, and
+ * defaults to Scryfall's own answer — the name. */
+function parseCardQuery(text, opts = {}) {
   const tokens = cqTokenize(String(text || '').trim());
   if (!tokens.length) return null;
-  return cqParse(tokens);
+  return cqParse(tokens, CQ_BARE[opts.bare] || CQ_BARE.name);
 }

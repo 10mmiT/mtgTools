@@ -101,6 +101,12 @@ function cardMetaOf(obj) {
       mana:      obj.mana_cost || faces.map(f => f.mana_cost).filter(Boolean).join('') || '',
       set:       obj.set    || '',
       layout:    obj.layout || '',
+      /* On Wizards' Game Changers list, which the local cache has carried
+       * since the trimmed shape went to version 2. Nothing sorts by it — it
+       * is here because `is:gamechanger` is asked of this shape and not of a
+       * Scryfall object, and a card that predates the field is honestly not
+       * one rather than unknown, which is what `false` says. */
+      gameChanger: !!obj.game_changer,
     };
   }
   return scryfallMetaCache.get(obj.name) || {};
@@ -1201,6 +1207,55 @@ function mountSizeControl(containerId, view, targetId, getMode) {
 
   sync();
   return sync;
+}
+
+// ── Per-view persisted chrome fold ──────────────────────────────────────────
+// How much of a tab's furniture is showing. A tab folds its controls away in
+// tiers — everything you act *with* first, then what the content *is* — and
+// which tier a tab was left at is a preference about that tab, so it is stored
+// the way the sort field, the visible columns and the card size already are:
+// one key per view, in one object, in one localStorage entry.
+//
+// The tiers themselves are the caller's: this knows only that a fold is one of
+// a list of names, and that the first of them is what a tab looks like before
+// anyone has folded anything.
+const _foldState = readPrefs('mtgtools_fold');
+
+function getChromeFold(view, folds) {
+  const saved = _foldState[view];
+  return folds.includes(saved) ? saved : folds[0];
+}
+function saveChromeFold(view, fold) {
+  _foldState[view] = fold;
+  localStorage.setItem('mtgtools_fold', JSON.stringify(_foldState));
+}
+
+// ── Which of a deck's boards are being looked at ────────────────────────────
+// A maybeboard is consulted occasionally and holds cards that are *not in the
+// deck*, so it is off until it is asked for — and asking is per deck, because
+// whether you are sideboarding is a fact about the deck in front of you and
+// not about this browser. One entry, keyed by deck id, in the same
+// `{ key: value }` shape the sort, the columns, the card size and the fold are
+// kept in.
+//
+// The boards themselves are the caller's: what is stored is whatever names it
+// asks to store, which is what lets a board added later cost a value and
+// nothing else. What is refused is a stored entry that is not a list of
+// strings — every other preference here is read the same defensive way, for
+// the same reason.
+const _boardState = readPrefs('mtgtools_boards');
+
+function getShownBoards(deckId) {
+  const saved = _boardState[deckId];
+  return Array.isArray(saved) ? saved.filter(b => typeof b === 'string' && b) : [];
+}
+function saveShownBoards(deckId, boards) {
+  /* A deck showing nothing but its mainboard is the default, and a default
+   * worth no entry: this keeps the store from growing a row per deck anybody
+   * has ever glanced at a board on and then closed. */
+  if (boards.length) _boardState[deckId] = [...boards];
+  else delete _boardState[deckId];
+  localStorage.setItem('mtgtools_boards', JSON.stringify(_boardState));
 }
 
 // ── Shared card-name autocomplete ───────────────────────────────────────────

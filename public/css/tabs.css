@@ -198,13 +198,6 @@
 .btn-load-tile:hover:not(:disabled) { background: rgba(255,255,255,.22); }
 .btn-load-tile:disabled { opacity: .4; cursor: not-allowed; }
 
-.btn-remove-tile {
-  background: transparent; color: rgba(255,255,255,.3);
-  border: none; font-size: var(--text-sm); cursor: pointer; padding: var(--space-1);
-  font-family: inherit; flex-shrink: 0;
-}
-.btn-remove-tile:hover { color: var(--danger); }
-
 .btn-edit-tile {
   background: transparent; color: rgba(255,255,255,.45);
   border: 1px solid rgba(255,255,255,.2); border-radius: var(--radius-sm);
@@ -599,9 +592,6 @@
      sharing it with the hint, which wraps under it. */
   .toolbar .avail-name-input { flex: 1 1 100%; }
 
-  /* Deck View URL wrapper: remove min-width so it stacks cleanly */
-  .dv-url-field { min-width: 0 !important; width: 100%; }
-
   /* Wants — the card field takes the whole of its row on a phone rather than
      sharing it with the player select, which needs the width to show a name.
      The old grid that placed all five controls by hand went with .want-add-bar;
@@ -924,23 +914,6 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   gap: var(--space-2);
 }
 
-.lands-pip-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-full);
-  border: 2px solid;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.lands-color-letter {
-  font-size: var(--text-base);
-  font-weight: 700;
-  line-height: 1;
-}
-
 .lands-pip-name {
   font-size: var(--text-2xs);
   font-weight: 700;
@@ -1010,13 +983,6 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   align-items: center;
   gap: var(--space-3);
 }
-
-.lands-row-icon {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-}
-.lands-row-icon .lands-color-letter { font-size: var(--text-xs); }
 .lands-row-mana { font-size: var(--text-lg); flex-shrink: 0; line-height: 1; }
 
 .lands-name {
@@ -1185,35 +1151,40 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .pick-pool-chip:hover { border-color: var(--primary); }
 .pick-pool-chip-off { opacity: .35; text-decoration: line-through; }
 
-/* ── Deck Viewer ────────────────────────────────────────────────────────── */
-.dv-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
+/* ── Tonight's brackets ──────────────────────────────────────────────────────
+   The restriction, above the decks it restricts. Its own row and its own note,
+   parted from the list by a hairline rather than by space alone: it is a
+   different kind of thing from the deck chips under it — a filter over them
+   rather than one more of them. */
+.pick-bracket-filter {
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
 }
-.dv-summary-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  background: var(--surface-2);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-full);
-  padding: var(--space-1) var(--space-3);
+.pick-bracket-note {
+  margin-top: var(--space-2);
   font-size: var(--text-xs);
-  cursor: pointer;
-  transition: border-color calc(var(--motion-ui) * .15s);
+  color: var(--text-muted);
 }
-.dv-summary-pill:hover { border-color: var(--primary); }
-.dv-summary-cat { font-weight: 600; }
-.dv-summary-n {
-  background: var(--primary-lt);
-  color: var(--primary-tx);
-  border-radius: var(--radius-full);
-  padding: 0 var(--space-2);
-  font-size: var(--text-xs);
+/* A deck's own bracket, on the chip that puts it in the pool: the answer to
+   "why is that one barred" is the number it has, or has not got. */
+.pick-pool-bracket {
+  margin-left: var(--space-1);
+  font-size: var(--text-2xs);
   font-weight: 700;
+  color: var(--text-muted);
 }
+/* In the pool, and outside tonight's draw. Distinct from .pick-pool-chip-off,
+   which means "not chosen": this deck *was* chosen, and the bracket is what is
+   keeping it out — so it is dimmed and outlined in the warning colour rather
+   than struck through. */
+.pick-pool-chip-barred {
+  opacity: .55;
+  border-color: var(--warning);
+  border-style: dashed;
+}
+
+/* ── Deck Viewer ────────────────────────────────────────────────────────── */
 
 .dv-section { margin-bottom: var(--space-4); }
 
@@ -1225,6 +1196,14 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border-bottom: 2px solid var(--border);
   margin-bottom: var(--space-2);
 }
+/* The half of the heading that folds the category — the arrow, the name and
+   the count — gathered so that a finger has one target instead of three.
+
+   display:contents above the touch breakpoint, so that gathering them costs
+   nothing: the three pieces stay direct children of the header's flex line and
+   lay out exactly as they did when they were. It becomes a box of its own only
+   where a box is the point, which is the phone rule further down. */
+.dv-section-fold { display: contents; }
 .dv-section-title {
   font-size: var(--text-sm);
   font-weight: 700;
@@ -1502,11 +1481,6 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    components.css beside the shared control vocabulary. What is left here
    is the controls only one tab has. */
 @media (width < 900px) {
-  /* Deck comparison table: prevent narrow columns from squashing text */
-  .deck-compare table {
-    min-width: 480px;
-  }
-
   /* Grown. The month and week arrows on Available@. This rule used to name
      .avail-nav-btn, .cal-nav button and .cal-nav-btn — three classes, none
      of which the app has ever put in its markup, so it had been a 44px
@@ -1525,7 +1499,40 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      width. The builder's category buttons and its drawer close are the
      same case a tab over. */
   .want-rm { min-width: 44px; min-height: 44px; }
-  .db-cat-btn, .db-search-close { min-width: 44px; }
+  .db-cat-btn, .db-drawer-close { min-width: 44px; }
+
+  /* And the one control a history row carries. A snapshot is a thing you
+     reach for once and want to hit first time. */
+  .db-hist-restore { min-height: 44px; }
+
+  /* Grown, all three. The readout's "87 of 99 you own" has the bottom line to
+     itself apart from text, the ✕ that closes the missing list is alone at the
+     end of its header, and a want button is the only control on its row — so
+     none of them has a neighbour to take the height from. The bar is in the
+     flow of the page at this width rather than fixed to the bottom of it,
+     which is what makes there be somewhere for the height to come from. */
+  .db-stat-owned, .db-stat-open { min-height: 44px; }
+  .db-owned-close { min-width: 44px; min-height: 44px; }
+  .db-owned-want { min-width: 44px; min-height: 44px; }
+
+  /* The same three shapes again, on the panel that says what the deck breaks:
+     its ✕ is alone at the end of its header, and the select that declares a
+     bracket is the one control in its row. */
+  .db-check-close { min-width: 44px; min-height: 44px; }
+
+  /* And again on the mana panel, whose header carries two: the ✕ and the way
+     through to the calculator. The second is a small button by design on a
+     desktop — it stands beside a title and not beside other buttons — which is
+     exactly the kind that arrives here too short. */
+  .db-mana-close { min-width: 44px; min-height: 44px; }
+  .db-mana-calc  { min-height: 44px; }
+
+  /* The menu beside the mat is a stack of full-width rows here, and every one
+     of them is a thumb target — the ⋯ popover they replaced was measured the
+     same way. Its ✕ is alone at the end of its header again. */
+  .db-menu-item  { min-height: 44px; }
+  .db-menu-close { min-width: 44px; min-height: 44px; }
+  .db-menu-btn   { min-height: 44px; }
 
   /* Grown. A whole row of the week list is the tap target for a day. */
   .avail-week-row { min-height: 44px; }
@@ -1548,12 +1555,18 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .deck-tile-overlay { position: relative; }
 
   /* Padded. "View ↗" sits in the corner of a deck tile, over commander
-     artwork, and a category heading folds its pile — neither can take
-     44px of box without covering the thing it labels. */
-  .deck-tile-link, .dv-section-title.db-collapsible {
+     artwork, and cannot take 44px of box without covering the thing it
+     labels.
+
+     What it can do, and what this technique needs, is have the row to
+     itself: the only things beside it in .deck-tile-top are two badges,
+     which are text and not targets, so the pad has nothing to overlap.
+     The category heading below used to be padded the same way and did not
+     have the row to itself — see .dv-section-fold. */
+  .deck-tile-link {
     position: relative;
   }
-  .deck-tile-link::after, .dv-section-title.db-collapsible::after {
+  .deck-tile-link::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -1564,6 +1577,34 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
     height: 100%;
     min-height: 44px;
   }
+
+  /* Grown, because it could be: a category heading is a whole row rather
+     than a glyph in a corner, so the target is the row and there is no pad
+     to collide with anything.
+
+     It was two pads, and they collided. The chevron and the category name
+     both fold the pile, each carried an invisible 44px square, and the
+     gutter between them is eight pixels — so the squares overlapped, and
+     the name, later in DOM order at the same stacking level, is what a hit
+     test finds in the overlap. The chevron kept the half of its pad nobody
+     contested and measured 36–41px wide, the short names being the worst
+     because their pad is wider than their text and reaches furthest back.
+     Nobody noticed, because both pieces do the same thing.
+
+     The chevron's own pad goes with them: inside the fold it would only
+     hang eleven pixels out past the left edge of the section, over the
+     mat. It stays for Collections' piles, where the arrow really is alone
+     in its row — that is components.css's rule, and this one does not
+     touch it. */
+  .dv-section-fold {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+  }
+  .dv-section-fold .pile-toggle::after { content: none; }
 
   /* Padded, from the other side. The colour-identity toggle in the
      builder's search drawer is 14px of browser widget with its label
@@ -1584,18 +1625,6 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Wants list table: allow scroll on narrow */
-  .want-list-table-wrap, .want-table {
-    overflow-x: auto;
-    display: block;
-    max-width: 100%;
-  }
-
-  /* Pick Night table: allow scroll */
-  .pick-table-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
 }
 
 /* Deck tile loading state feedback */
@@ -1615,12 +1644,6 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 /* Card detail modal: small spacing improvements */
 .card-modal-box .card-detail-top {
   gap: var(--space-5);
-}
-
-/* Collections table: prevent awkward column cuts at mid-widths */
-.col-header-row {
-  min-width: 0;
-  overflow: hidden;
 }
 
 /* ── Deck Builder ────────────────────────────────────────────────────────── */
@@ -1672,6 +1695,127 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      one, and the strip is furniture above the mat rather than its lid. */
   margin-top: var(--space-2);
 }
+
+/* ── The mat, and the menu beside it ────────────────────────────────────────
+   A row so that the menu *pushes* the mat rather than lying over it. Every
+   control in that column is answered by the mat — the size resizes the cards,
+   a board adds a region, the ownership filter takes cards away — and a panel
+   you have to close to see what it did is a panel you use twice and then stop
+   using. The two drawers on this tab cover the mat on purpose, because what
+   they hold is somewhere else; this holds the mat's own settings.
+
+   `align-items: flex-start` is what lets the menu be sticky: a stretched flex
+   item is as tall as the row and has nowhere to stick to. */
+.db-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+/* The mat takes what is left. `min-width: 0` because it holds grids and piles
+   that are perfectly happy to be wider than their box and would otherwise
+   refuse to give the column its width. */
+.db-body > .db-mat { flex: 1 1 auto; min-width: 0; }
+
+/* The column itself. Hidden until asked for, and asked for once — whether it
+   is open is remembered, so this is furniture you set rather than a popover
+   you keep re-opening.
+
+   It scrolls with the page rather than being sticky with a scroll of its own,
+   and that is a decision about one control: the sort menu is an absolutely
+   positioned popover, and a column with `overflow-y: auto` on it would clip the
+   popover at its own bottom edge. The strip these controls came from scrolled
+   away too, so nothing is lost that was there before. */
+.db-menu {
+  display: none;
+  flex: 0 0 264px;
+  margin-top: var(--space-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+.db-pane[data-db-menu="open"] .db-menu { display: block; }
+
+.db-menu-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.db-menu-title { font-weight: 700; }
+.db-menu-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+}
+.db-menu-close:hover { color: var(--text); }
+
+/* One group — what the mat looks like, what is on it, what to look at beside
+   it, what to do to the deck. A hairline between them and nothing else: four
+   boxes inside a box is the thing §7.1 took off every other tab. */
+.db-menu-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border);
+}
+.db-menu-label {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+/* A control that needs a word in front of it. The column is the first place
+   these have ever had room for one — on the strip they were three unlabelled
+   shapes in a row of eleven. */
+.db-menu-row { display: flex; align-items: center; gap: var(--space-2); }
+.db-menu-name, .db-menu-sub { font-size: var(--text-sm); color: var(--text-muted); }
+
+/* An action. Full width, so the column reads as a list of things you can do
+   rather than as buttons that happen to be stacked. */
+.db-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.db-menu-item:hover { background: var(--surface-2); }
+
+/* The two mounts that carry lists of small buttons — the boards, and the
+   ownership filter — wrap inside the column instead of running off it. */
+.db-menu .db-board-toggles, .db-menu .db-own-chips { flex-wrap: wrap; }
+/* The two that are one control each take the column's width, so they line up
+   with the actions below them rather than ending wherever their text does. The
+   group's items shrink-wrap by default, which is what the view toggle and the
+   size slider want and what these two do not. */
+.db-menu #dbSortMount, .db-menu #dbOwnScopeMount { align-self: stretch; }
+/* Up to the 240px the shared sort control caps itself at — a sort sentence is
+   allowed to be shorter than the column, and that cap is not this tab's to
+   overrule. */
+.db-menu #dbOwnScopeSel, .db-menu .sort-control, .db-menu .sort-btn { width: 100%; }
+
+/* Below the width where there is anything to push into, the row becomes a
+   column and the menu takes the top of it — above the mat, not below it, which
+   is the whole reason for the order: a menu under a 99-card mat is a menu you
+   scroll past the deck to reach. It is still the same panel, in the flow,
+   pushing the mat down rather than covering it. */
+@media (width < 900px) {
+  .db-body { flex-direction: column; }
+  .db-menu { order: -1; flex: 0 0 auto; align-self: stretch; }
+}
 /* Someone with no decks at all lands on the empty mat, and the ⋯ menu is a
    poor place to discover the one action that gets them out of it. */
 .db-empty-action { margin-top: var(--space-3); }
@@ -1681,6 +1825,104 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    style.display writes in dbShowDeckUI/dbHideDeckUI, the same way the Set
    Browser switches between its picker and its cards. */
 [data-db-mode="none"] .db-when-deck { display: none; }
+
+/* ── The frame, folded ──────────────────────────────────────────────────────
+   Two tiers, because "chrome" is two different things. What you act *with* —
+   the picker, the add field, the filter, the view toggle, the size slider, the
+   sort, the curve, the ⋯, the bulk bar, the add-category row, and the board and
+   scope controls later tickets add — goes on the first press. Not a narrower
+   toolbar: gone. What the deck *is* stays, as one thin line, because that is
+   the half you want while building rather than in between. The second press
+   takes that too, for a mat with nothing on it but cards.
+
+   One attribute on the pane rather than a display write per element, for the
+   reason [data-db-mode] above is one: two tiers spread across a dozen
+   style.display calls are two tiers that will disagree.
+
+   Only ever while a deck is loaded. Folded with no deck the picker would be
+   hidden — and the picker is the one control that gets you a deck — so the
+   preference is kept and simply does not apply until there is something on the
+   mat to look at. */
+.db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .toolbar > :not(.db-fold):not(.db-save-status),
+.db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .db-analysis,
+.db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .db-bulk-bar,
+.db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .db-add-cat-row,
+/* The menu beside the mat is not on the strip, so it needs saying here — and
+   it is exactly what this tier is for: it *is* the controls now. It comes back
+   open, because the fold is about the frame and not about what you had set. */
+.db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .db-menu {
+  display: none;
+}
+/* Whether the last edit is saved is a readout, not a control: it says what the
+   deck's data is doing, which is the tier that survives the first press. */
+.db-pane[data-db-mode="deck"][data-db-fold="bare"] .toolbar > .db-save-status,
+.db-pane[data-db-mode="deck"][data-db-fold="bare"] .db-stats-bar {
+  display: none;
+}
+/* The way back sits at the far end of the strip, so folding does not move it:
+   the button you just pressed is under the pointer for the second press. */
+.db-fold { margin-left: auto; }
+/* On a bare mat the same arrow points the other way, because the same press
+   now brings everything back. */
+.db-pane[data-db-fold="bare"] .db-fold svg { rotate: 180deg; }
+
+/* Analysis expanded out of the strip. Never a permanent band across the mat —
+   that is the whole argument of this frame — so it is laid out as a strip that
+   is there when asked for and absent otherwise.
+
+   Three parts now rather than one, and they wrap: a phone has room for the
+   curve and then has to put the counts under it. */
+.db-analysis {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+/* One part — its label, and whatever it draws. A part of running text sits its
+   label on the same baseline as the counts beside it, which is what makes
+   "Types 45 creatures" read as one line rather than as a heading that has
+   drifted up off it. */
+.db-analysis-part {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.db-analysis-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+/* The curve is the exception, because bars have no baseline: its part lines up
+   on the bottom of the tallest bar instead, and its label is nudged down onto
+   that line rather than floating at the top of it. */
+.db-analysis-curve { align-items: flex-end; }
+.db-analysis-curve .db-analysis-label { padding-bottom: var(--space-1); }
+/* The counts either part draws: a number and the thing it counts, wrapping
+   rather than pushing the strip sideways. */
+.db-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+.db-count-item { color: var(--text-muted); white-space: nowrap; }
+.db-count-item strong { color: var(--text); }
+.db-analysis-none { font-size: var(--text-sm); color: var(--text-subtle); }
+/* The curve's own control. It stands beside 32px of bars, so it is the one
+   thing on this strip that would set the row's height on a desktop — kept to
+   the label's size there, and left to the phone's 44px rule below 900. */
+.db-curve-mode {
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-2);
+}
+/* The button while its panel is open, said the way the view toggle says which
+   view you are in — the same pair, so "this control is on" reads the same
+   everywhere. */
+.db-analysis-open { background: var(--primary); color: var(--primary-fg); }
 
 /* Strip members. The picker is this tab's subject, so it leads the strip and
    is the one thing on it that is always there. */
@@ -1928,9 +2170,10 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .db-edh-inc { font-size: var(--text-xs); color: var(--text-muted); }
 
-/* Topbar "More" menu (sectioned dropdown — Archidekt-style consolidation
-   of what used to be 5+ separate always-visible buttons) */
-.db-more-menu { min-width: 210px; }
+/* The section label and the rule between sections, which the Deck Builder's ⋯
+   popover named first and which outlived it: the Appearance popover and the
+   shared kebab in js/sortui.js draw both. The popover itself is gone — its
+   items are a group in the menu beside the mat now (see .db-menu above). */
 .db-more-section-label {
   font-size: var(--text-2xs);
   font-weight: 700;
@@ -2001,16 +2244,51 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   transition: opacity calc(var(--motion-ui) * .15s);
 }
 .db-curve-bar:hover { opacity: 1; }
-.db-stat-curve-label { font-size: var(--text-xs); color: var(--text-muted); }
+/* The same bar, cut into the colours it is made of. It keeps the height it had
+   merged — the toggle is one shape read two ways — so what changes is only
+   what fills it: no fill of its own, and the bands stacked up from the
+   baseline, which is the end a bar chart is read from. */
+.db-curve-stack {
+  background: none;
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: hidden;
+}
+.db-curve-band { display: block; width: 100%; }
+
+/* Copies we could not put a price on. Said rather than folded into the total
+   as nought: a figure that is quietly short by however many of those the deck
+   holds looks exactly like a figure that is right. */
+.db-stat-unpriced { color: var(--text-muted); font-size: var(--text-xs); }
 
 /* Mobile. Was ~1023px, which overlapped the 861px sidebar rule below — a
    tablet-width window got a static stats bar and a sidebar offset on it at
    the same time. Both sit on 900 now, so they cannot disagree. */
 @media (width < 900px) {
   .db-results { max-height: 40vh; }
-  .db-stats-bar { position: static; margin-top: var(--space-3); border-top: 1px solid var(--border); padding-top: var(--space-2); }
-  .db-stat-sep-colors, .db-stat-sep-curve { display: none; }
-  #dbStatColors, .db-stat-curve-label, #dbCurve { display: none; }
+  /* In the flow of the page rather than fixed to the bottom of the window —
+     and `relative` rather than `static`, because the missing list is anchored
+     to this bar and has to rise out of the line it belongs to rather than out
+     of whatever happens to be positioned further up the page. With no offsets
+     given, a relative box lies exactly where a static one would. */
+  .db-stats-bar { position: relative; margin-top: var(--space-3); border-top: 1px solid var(--border); padding-top: var(--space-2); }
+  /* The pip counts are the one thing on the readout that is a picture rather
+     than a number, and the line is thin here. The curve is no longer on this
+     bar at all — it expands out of the toolbar now, on every width, which is
+     what makes it readable on a phone for the first time. */
+  .db-stat-sep-colors { display: none; }
+  #dbStatColors { display: none; }
+  /* And the bracket line goes with them. It is two facts written side by side
+     — declared, and estimated — which is the widest thing on a line that is
+     already wrapping to three rows on a phone. Nothing is lost: the legality
+     item beside it opens the same panel, and that panel is where the estimate's
+     reasoning and the declaration control live in any case.
+
+     It works because the two are shown by *clearing* their inline display
+     rather than by setting one: a cleared property is no property, so this
+     rule is what is left to decide. */
+  .db-stat-sep-bracket { display: none; }
+  #dbStatBracket { display: none; }
 }
 
 /* Sidebar offset for the fixed stats bar. It named these two tokens before
@@ -2023,17 +2301,22 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   body.sidenav-collapsed .db-stats-bar { left: var(--sidenav-collapsed-width); }
 }
 
-/* ── Search/EDHREC drawer panel ─────────────────────────────────────────────── */
-#dbSearchBackdrop {
+/* ── The builder's drawers ───────────────────────────────────────────────────
+   Two of them now — Search/EDHREC, and History — and they are the same
+   surface: a full-height panel off the right edge over a scrim. Written once
+   as .db-drawer rather than twice, because the second one arriving is exactly
+   when a copied panel starts drifting from the one it was copied from. What
+   differs between them is what is inside, which is below. */
+.db-drawer-backdrop {
   display: none;
   position: fixed;
   inset: 0;
   background: var(--scrim);
   z-index: 200;
 }
-#dbSearchBackdrop.open { display: block; }
+.db-drawer-backdrop.open { display: block; }
 
-.db-search-panel {
+.db-drawer {
   position: fixed;
   top: 0;
   right: 0;
@@ -2048,7 +2331,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   transition: transform calc(var(--motion-ui) * .22s) ease;
   /* Border, not shadow — see .rss-panel for the reasoning. */
 }
-.db-search-panel.open { transform: translateX(0); }
+.db-drawer.open { transform: translateX(0); }
 
 /* Half the window is a desktop answer. min(50vw, 95vw) reads as "half the
    screen, and never more than nearly all of it" — sensible at 1440, where
@@ -2063,10 +2346,10 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    overrides — an @media wrapper adds no specificity, so the override has
    to win on source order. */
 @media (width < 900px) {
-  .db-search-panel { width: 92vw; }
+  .db-drawer { width: 92vw; }
 }
 
-.db-search-panel-hdr {
+.db-drawer-hdr {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -2075,7 +2358,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   background: var(--surface-2);
   flex-shrink: 0;
 }
-.db-search-close {
+.db-drawer-title {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+.db-drawer-close {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -2085,13 +2372,58 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   margin-left: auto;
   line-height: 1;
 }
-.db-search-close:hover { color: var(--text); }
-.db-search-content {
+.db-drawer-close:hover { color: var(--text); }
+.db-drawer-content {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
+
+/* ── History rows ────────────────────────────────────────────────────────────
+   A column of states the deck has been in, newest first, each with what
+   changed after it. Rows rather than a table: the third line is a sentence of
+   variable length, and on a phone the drawer is one column wide. */
+.db-hist-row {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.db-hist-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.db-hist-when {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.db-hist-what {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  min-width: 0;
+}
+.db-hist-diff {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.db-hist-restore {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* The deck as it stands. Marked rather than merely first, because "Now" and
+   "11 min ago" are the same shape of row and only one of them is the deck you
+   are looking at. */
+.db-hist-now {
+  background: var(--surface-2);
+}
+.db-hist-now .db-hist-when { color: var(--primary); }
 
 /* ── A pile being offered a card ──────────────────────────────────────────────
    The pile that would receive the card currently in hand, said before the card
@@ -2103,12 +2435,480 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    is components.css's .card-carried and its neighbours — a card is a card on
    every tab. What is here is the one thing only this tab has: a place to put
    one down. */
-.dv-section.card-drop-target {
+.dv-section.card-drop-target,
+.db-ghost.card-drop-target {
   background: color-mix(in srgb, var(--primary) 15%, transparent);
   outline: 2px dashed var(--primary);
   outline-offset: -2px;
   border-radius: var(--radius-sm);
 }
+
+/* ── The ghost pile ──────────────────────────────────────────────────────────
+   An empty outline sitting after the last category: drop cards on it and it
+   becomes a real one, with those cards in it and its name waiting to be typed.
+
+   Faint at rest and lit while a card is in hand. Drawn at rest rather than
+   only while carrying, which is the whole point of it — an affordance you can
+   see with your hands empty is one that can be found, where one that appears
+   only mid-drag is one you have to already know about. Lit from the carry's
+   own .card-carrying on the root, so it brightens for a card picked up
+   anywhere on the mat rather than only for one dragged near it. */
+.db-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  padding: var(--space-3);
+  margin-top: var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  transition: border-color calc(var(--motion-ui) * .15s),
+              color        calc(var(--motion-ui) * .15s);
+}
+.card-carrying .db-ghost {
+  border-color: var(--primary);
+  color: var(--text);
+}
+/* In pile view it is a column like the categories beside it, so the mat reads
+   as a row of piles with an empty space at the end of it rather than a band
+   underneath them. */
+.db-pile-layout > .db-ghost {
+  width: calc(var(--card-width, 150px) + 24px);
+  min-width: 0;
+  margin-top: 0;
+}
+
+/* ── What the filter has to say ──────────────────────────────────────────────
+   The filter box reads Scryfall syntax (js/cardquery.js), and a query language
+   has two things to say back that a substring test never did: that what was
+   typed is not a query, and that a pile is empty because of it.
+
+   Both are said on the mat, among the cards, rather than beside the box: the
+   toolbar folds away and the mat does not, and the answer to a search belongs
+   where the results of it are. */
+.db-filter-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+}
+/* The pile the filter emptied. Its header stays — it is still one of the
+   deck's categories and still somewhere a card can be dropped — and this is
+   the gap underneath it saying so. */
+.db-cat-filtered {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-style: italic;
+  padding: var(--space-1) var(--space-2);
+}
+
+/* ── Boards ──────────────────────────────────────────────────────────────────
+   Somewhere on the mat to put a card that is not in the deck: a maybeboard of
+   cards being considered, a sideboard. A region below the categories, worked
+   with the same carry — not a modal and not a second tab, because the pile
+   metaphor already says the right thing about a maybeboard. It is a stack of
+   cards sitting to one side of the table.
+
+   Drawn flat: one region, one count, no category headers. A holding area is
+   not a second deck, and ten headers to scroll past is exactly the vertical
+   spend the frame exists to fight.
+
+   Its heading is dashed rather than solid where a category's is, which is the
+   whole of how a board says it is not one: these cards are alongside the deck
+   rather than in it. */
+.db-board > .db-board-hdr {
+  border-bottom-style: dashed;
+  border-bottom-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+.db-board > .db-board-hdr .dv-section-title { color: var(--text-muted); }
+.db-board-empty {
+  padding: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* The head of the deck, which is the one board that is not off to one side of
+   it: the commander is what the ninety-nine are built around, and it is drawn
+   above them. So it takes its heading back — solid, and in the text colour the
+   categories use — because the dashed muted one is how a board says "these are
+   alongside the deck rather than in it", and that is the one thing the
+   commander is not. */
+.db-board-head > .db-board-hdr {
+  border-bottom-style: solid;
+  border-bottom-color: var(--primary);
+}
+.db-board-head > .db-board-hdr .dv-section-title { color: var(--text); }
+
+/* A board that is switched off, and a board that is switched off while a card
+   is in hand.
+
+   Off is the default: the board exists in the data whether or not it is on
+   screen, and nothing about the mainboard's layout depends on whether you are
+   looking at it. But a board you cannot put anything in is not somewhere to
+   put things — so a hidden one comes back for as long as something is being
+   carried, and goes again when it is let go. js/carddrag.js says the class
+   before it measures the mat, so the region that appears here is a region a
+   card can actually be dropped on. */
+.db-board-off { display: none; }
+.card-carrying .db-board-off { display: block; }
+
+/* The toggles on the strip. A group so they read as one control with two
+   states in it rather than as two more buttons among nine. */
+.db-board-toggles { display: flex; gap: var(--space-1); }
+/* A board that is showing, said the way the view toggle and the Curve button
+   say a control is on — one pair, so "this is switched on" reads the same
+   everywhere on the strip. */
+.db-board-on { background: var(--primary); color: var(--primary-fg); }
+
+/* ── Ownership ─────────────────────────────────────────────────────────────
+   The three chips that filter the mat by what is on the shelf. Grouped like
+   the board toggles above and switched on the same way, because on this strip
+   "pressed" has to look like one thing however many controls learn to be. */
+.db-own-chips { display: flex; gap: var(--space-1); }
+.db-own-chip-on { background: var(--primary); color: var(--primary-fg); }
+
+/* A badge naming somebody who has a card you do not. It is the same badge the
+   collections draw, in that person's own colour and set back a step: what you
+   have is a fact, and what somebody else has is a phone call. */
+.db-badge-elsewhere { opacity: .75; }
+
+/* "87 of 99 you own", which is a button in a line of text. It keeps the line's
+   type and ink — a readout that suddenly grew a button-shaped box would be
+   louder than the count beside it — and says it is pressable by underlining
+   the way a link does. */
+/* A figure on the readout that opens something. Three of them now — what of
+   the deck is missing, what it breaks, and what bracket it is — so the rule is
+   about the shape rather than about the item: a number written as running text,
+   dotted-underlined to say it can be pressed. */
+.db-stat-owned, .db-stat-open {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.db-stat-owned:hover, .db-stat-open:hover { color: var(--primary); }
+
+/* The missing list, rising out of the readout it belongs to. Anchored to the
+   bar rather than to the page so that it goes where the bar goes: fixed to the
+   bottom on a desktop, in the flow of the page on a phone, and gone with it on
+   the second fold. */
+.db-owned-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  font-size: var(--text-sm);
+}
+.db-owned-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.db-owned-title { font-weight: 700; }
+.db-owned-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+}
+.db-owned-close:hover { color: var(--text); }
+
+.db-owned-group { padding-bottom: var(--space-2); }
+.db-owned-group-hdr {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: var(--space-1) 0;
+}
+.db-owned-note { font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+.db-owned-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+.db-owned-name { flex: 0 1 auto; min-width: 0; }
+.db-owned-qty { color: var(--text-muted); font-weight: 700; }
+.db-owned-holders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.db-owned-want { flex-shrink: 0; }
+
+/* ── What the deck breaks, and what bracket it looks like ────────────────────
+   The second panel to rise out of the readout, positioned exactly as the
+   missing list is and for the same reason: it belongs to the line it was opened
+   from, so it goes where that line goes and folds away with it. Only one of the
+   two is ever open — js/deckview-owned.js and js/deckview-legality.js close
+   each other — because they would otherwise lie on top of one another. */
+.db-check-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  font-size: var(--text-sm);
+}
+.db-check-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.db-check-title { font-weight: 700; }
+.db-check-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+}
+.db-check-close:hover { color: var(--text); }
+
+.db-check-group { padding-bottom: var(--space-2); }
+.db-check-group-hdr {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: var(--space-1) 0;
+}
+.db-check-note { font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+/* One finding. The mark is a glyph and not only a colour — a row that says
+   "broken" by being red says nothing at all to a quarter of the people reading
+   it — and it holds its own column so the sentences line up down the panel. */
+.db-check-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+}
+.db-check-mark { flex: 0 0 auto; width: 1em; font-weight: 700; }
+.db-check-mark-bad     { color: var(--danger); }
+.db-check-mark-ok      { color: var(--success); }
+.db-check-mark-found   { color: var(--warning); }
+.db-check-mark-unknown { color: var(--text-muted); }
+.db-check-said { flex: 0 1 auto; min-width: 0; }
+.db-check-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.db-check-card { font-weight: 600; }
+
+/* The declaration and the estimate on one line, and never in the same clothes:
+   the declared bracket wears the app's bracket badge, the estimate is a caption
+   beside it. That difference is the point — one of them is what the player says
+   their deck is, and the other is what a heuristic makes of the cards. */
+.db-check-verdict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-1) 0 var(--space-2);
+}
+.db-check-declare { display: flex; align-items: center; gap: var(--space-2); font-weight: 700; }
+.db-check-declared { font-weight: 700; }
+.db-check-estimate { color: var(--text-muted); }
+.db-check-limit {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  padding: var(--space-1) 0 0;
+}
+/* On the readout itself: how many cards could not be checked, and the deck
+   nobody has declared a bracket for. Both are captions on a line of figures. */
+.db-check-unknown, .db-check-est { color: var(--text-muted); font-size: var(--text-xs); }
+.db-check-undeclared { color: var(--text-muted); }
+
+/* ── What the spells want, against what the lands make ───────────────────────
+   The third panel to rise out of the readout, positioned exactly as the other
+   two are: it belongs to the line it was opened from, so it goes where that
+   line goes and folds away with it. Only one of the three is ever open — each
+   closes the other two — because they are anchored to the same edge of the
+   same bar. */
+.db-mana-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  font-size: var(--text-sm);
+}
+.db-mana-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.db-mana-title { font-weight: 700; }
+/* The way through to the calculator, with every one of its fields already
+   filled. It sits in the header rather than at the foot of the panel because
+   it is what this panel is *for* on the days you are not just reading it, and
+   because the foot of a panel that scrolls is not a place a control can live. */
+.db-mana-calc { margin-left: auto; font-size: var(--text-xs); padding: var(--space-1) var(--space-2); }
+.db-mana-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+}
+.db-mana-close:hover { color: var(--text); }
+
+.db-mana-group { padding-bottom: var(--space-2); }
+.db-mana-group-hdr {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: var(--space-1) 0;
+}
+.db-mana-note { font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+/* One colour: what it costs the deck, the two shares as a shape, and what the
+   deck makes of it. The row wraps rather than squeezing — on a phone the bars
+   drop under the figures, which is the one thing here that can afford to. */
+.db-mana-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+}
+.db-mana-sym { flex: 0 0 auto; }
+.db-mana-fig { color: var(--text-muted); white-space: nowrap; }
+.db-mana-fig strong { color: var(--text); }
+.db-mana-pct { color: var(--text-subtle); font-size: var(--text-xs); }
+/* The deck asks for a colour and nothing in it makes that colour. The only
+   finding this panel is willing to call a fault, so it is the only thing on it
+   drawn in the colour a fault is drawn in. */
+.db-mana-warn { color: var(--danger); font-size: var(--text-xs); }
+
+/* Two bars, one over the other, in the colour's own ink: the share of the
+   deck's pips this colour is, and the share of its sources. Reading one
+   against the other is the whole of what this panel is for, and a shape does
+   that faster than two numbers ever will. */
+.db-mana-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 120px;
+  min-width: 80px;
+}
+.db-mana-bar {
+  display: block;
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.db-mana-bar > span { display: block; height: 100%; }
+
+.db-mana-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-1) 0;
+}
+/* How the numbers above were arrived at, said once underneath them rather than
+   hedged into every line — the same footing the bracket estimate's limits get,
+   and for the same reason: a convention that is not written down is a claim. */
+.db-mana-limit {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  padding: var(--space-1) 0 0;
+}
+.db-mana-none { color: var(--text-subtle); padding: var(--space-2) 0; }
+/* On the readout itself: the colours the deck asks for and nothing in it
+   makes. A caption on a line of figures, in the colour of the thing it is. */
+.db-mana-gap { color: var(--danger); font-size: var(--text-xs); }
+
+/* The one control the calculator gained, and the line beside it that says what
+   was taken off the deck. The line wraps under the button on a narrow column
+   rather than pushing the button off the edge. */
+.lands-from-deck .lands-field-row { flex-wrap: wrap; }
+#landsDeckNote { flex: 1 1 200px; }
+
+/* The one control the drawer's search box gained: which shelf a query is
+   asked of, or all of Magic. Beside the colour-identity toggle it sits under,
+   in the same padded strip. */
+.db-search-scope { padding: 0 var(--space-3) var(--space-2); }
+.db-search-scope select { width: 100%; }
+
+/* How many of the shelf matched, when the shelf had more than one page of
+   them. The answer to a shelf with four hundred hits in it is a narrower
+   query, not a longer scroll. */
+.db-sr-note { padding: var(--space-1) var(--space-3); }
+
+/* The two halves of the Move to… list: the boards a card can be sent to, and
+   the piles of the deck itself. */
+.db-move-group-label {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: var(--space-1) 0 0;
+}
+
+/* Naming a pile made by a drop, in the heading it has just been given. Sized
+   like the heading it replaces so the mat does not jolt as the box appears
+   and again as it goes. */
+.db-cat-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.db-pile-layout .db-cat-name { font-size: var(--text-xs); }
 
 /* The card-size slider that used to be written here is .size-control in
    components.css: this tab built it, and every tab that draws card art carries
@@ -2191,15 +2991,21 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-ci-toggle label { cursor: pointer; }
 
 /* ── Category Collapse ───────────────────────────────────────────────────────── */
+/* On .dv-section-fold, which is the whole of the heading except the "⋯" menu:
+   the chevron this heading used to draw in front of itself is .pile-toggle in
+   components.css now, a real button standing beside the name rather than glued
+   to the front of it, and the same one every pile in the app has. The name
+   still folds the category when clicked, because a heading you can click is a
+   bigger target than a heading you cannot — it just no longer does it with a
+   handler of its own. */
 .db-collapsible {
   cursor: pointer;
   user-select: none;
 }
-/* The chevron this heading used to draw in front of itself is .pile-toggle in
-   components.css now: a real button standing beside the name rather than
-   glued to the front of it, and the same one every pile in the app has. The
-   name still does the same thing when clicked, because a heading you can
-   click is a bigger target than a heading you cannot. */
+/* Except while the heading is being named, where it is an input, and an input
+   whose text cannot be selected is not one. */
+.db-collapsible .db-cat-name { user-select: text; }
+
 .dv-section.collapsed .dv-list,
 .dv-section.collapsed .sf-grid,
 .dv-section.collapsed .db-pile {

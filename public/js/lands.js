@@ -10,7 +10,10 @@ const LAND_COLORS = { W: 'var(--mc-w)', U: 'var(--mc-u)', B: 'var(--mc-b)', R: '
 let _landsInited = false;
 
 function initLands() {
-  if (_landsInited) return;
+  /* Whether there is a deck to read is asked every time this tab is shown
+     rather than once when it is built: a person opens the Deck Builder, loads
+     a deck and comes here, which is the whole path this ticket exists for. */
+  if (_landsInited) { landsSyncDeckBtn(); return; }
   _landsInited = true;
 
   const recalc = () => landsRecalc();
@@ -29,7 +32,82 @@ function initLands() {
     });
   });
 
+  landsSyncDeckBtn();
   landsRecalc();
+}
+
+// ── The deck, read ────────────────────────────────────────────────────────
+/* This tab did the right maths and then made a person count the white pips in
+ * their deck by hand, while the deck holding every one of those numbers sat one
+ * tab away. What follows is the two of them speaking.
+ *
+ * It is one direction only. The calculator goes on working with nothing loaded
+ * — working out a mana base before there is a deck is a real thing to want, and
+ * it is why this tab is not folded into the builder — so what arrives here is a
+ * fill of the fields, not a binding of them: every number can be typed over
+ * afterwards, and nothing writes back. */
+
+/** What the open deck answers, or null when there is no deck open. */
+const landsDeckFacts = () =>
+  (typeof dbManaForCalculator === 'function' ? dbManaForCalculator() : null);
+
+/* The button says whether there is anything to press it for, and the line
+ * beside it says why not. A control that is simply dead is a control a person
+ * presses twice and then goes looking for a bug. */
+function landsSyncDeckBtn() {
+  const btn  = document.getElementById('landsUseDeckBtn');
+  const note = document.getElementById('landsDeckNote');
+  if (!btn) return;
+  const from = landsDeckFacts();
+  btn.disabled = !from;
+  if (note && !note.dataset.filled) {
+    note.textContent = from
+      ? `from “${from.deckName}”`
+      : 'Open a deck in the Deck Builder to fill these in';
+  }
+}
+
+/* Fill every field from the deck. The three non-basic boxes are summed and
+ * never told apart, so the deck's non-basics go in "other" rather than being
+ * guessed at: this app cannot tell a fetch land from a dual without inventing a
+ * definition of both, and the sum is what the maths reads. */
+function landsUseDeck() {
+  const from = landsDeckFacts();
+  if (!from) return;
+
+  const preset = [...document.querySelectorAll('.land-preset-btn')]
+    .find(b => parseInt(b.dataset.size) === from.size);
+  document.querySelectorAll('.land-preset-btn').forEach(b => b.classList.toggle('active', b === preset));
+  document.getElementById('landsCustomSize').value = preset ? '' : from.size;
+
+  document.getElementById('landsCount').value = from.lands;
+  document.getElementById('nb-other').value = from.nonBasics;
+  ['dual', 'fetch'].forEach(k => { document.getElementById(`nb-${k}`).value = ''; });
+
+  /* Nought is left blank rather than typed in, because blank is what this tab
+     has always meant by "no pips of this colour" — a 0 in the box and an empty
+     box compute the same and only one of them looks like an answer. */
+  for (const [c, n] of Object.entries(from.pips)) {
+    const input = document.getElementById(`pip-${c}`);
+    if (input) input.value = n > 0 ? n : '';
+  }
+
+  landsSaidFromDeck(from);
+  landsRecalc();
+}
+
+/* What was taken, and what could not be. The unknown count is the honest half:
+ * a deck whose cards have not arrived yet fills in short, and a person who is
+ * not told that reads the shortfall as their deck's. */
+function landsSaidFromDeck(from) {
+  const note = document.getElementById('landsDeckNote');
+  if (!note) return;
+  note.dataset.filled = '1';
+  const short = from.unknown
+    ? ` — ${from.unknown} card${from.unknown === 1 ? '' : 's'} had no facts yet and went uncounted`
+    : '';
+  note.textContent = `Filled from “${from.deckName}”: ${from.size} cards, ${from.lands} lands` +
+                     ` (${from.nonBasics} non-basic)${short}`;
 }
 
 // Wrap each number input with custom − / + stepper buttons.
@@ -202,5 +280,10 @@ function landsReset() {
   document.getElementById('landsCustomSize').value = '';
   document.getElementById('landsCount').value = '';
   document.querySelectorAll('.land-preset-btn').forEach((b, i) => b.classList.toggle('active', i === 1));
+  /* Including what a deck put here. "Reset all" that left a line saying the
+     fields came from a deck would be describing numbers that are gone. */
+  const note = document.getElementById('landsDeckNote');
+  if (note) delete note.dataset.filled;
+  landsSyncDeckBtn();
   landsRecalc();
 }
