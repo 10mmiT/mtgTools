@@ -161,13 +161,10 @@ async function saveToStorage() {
 }
 
 async function loadFromStorage() {
-  console.log('[load] loadFromStorage called');
   try {
     const res = await fetch('/api/state');
     if (res.ok) {
       const json = await res.json();
-      const deckSummary = (json.players || []).map(p => `${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
-      console.log(`[load] server returned — players: ${deckSummary || '(none)'}, version: ${json.version}`);
       if (typeof json.version === 'number') state.version = json.version;
       hydrateState(json);
       return;
@@ -177,7 +174,7 @@ async function loadFromStorage() {
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { console.log('[load] using localStorage fallback'); hydrateState(JSON.parse(raw)); }
+    if (raw) hydrateState(JSON.parse(raw));
   } catch {}
 }
 

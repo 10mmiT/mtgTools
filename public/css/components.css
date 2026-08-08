@@ -368,7 +368,6 @@
 .drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity calc(var(--motion-ui) * .2s), visibility 0s; }
 
 /* ── Search bar ──────────────────────────────────────────────────────── */
-.search-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .search-input { flex: 1; min-width: 200px; max-width: 480px; }
 /* A box holding something that is not a query yet — a filter the local card
    data cannot answer, a half-typed colour. The border says it while the
@@ -460,8 +459,7 @@ td { padding: var(--space-2) var(--space-3); }
 .td-name { font-weight: 500; }
 .card-link { color: var(--text); text-decoration: none; }
 .card-link:hover { color: var(--primary); text-decoration: underline; }
-.td-type { color: var(--text-muted); font-size: var(--text-sm); }
-/* .td-mana was here — one of the two 'Courier New' sites §6.3 names. No markup
+/* .td-type and .td-mana were here — one of the two 'Courier New' sites §6.3 names. No markup
    in the app has carried the class for some time (the mana column renders
    mana-font glyphs through renderMana), so it is deleted rather than restacked
    onto --font-mono. */
@@ -1097,9 +1095,6 @@ td { padding: var(--space-2) var(--space-3); }
 .ac-item { padding: var(--space-2) var(--space-3); font-size: var(--text-base); cursor: pointer; }
 .ac-item:hover { background: var(--surface-2); }
 @media (width < 640px) {
-  /* View toggles always on the right in search rows */
-  .search-row .view-toggle { margin-left: auto; flex-shrink: 0; }
-
   .autocomplete-wrap { min-width: 0; }
 
   /* A phone starts two cards across rather than one and a half. It is still
@@ -1340,13 +1335,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .rss-toggle-btn.active { background: color-mix(in srgb, var(--hdr-fg) 25%, transparent); }
 
 /* ── Sort control + column menu (shared across views) ────────────────── */
-.view-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-top: var(--space-3);
-}
 /* The sort control is one button whose label is the whole sort —
    "Sort: Color → Mana Value → Name" — and a .col-menu of criterion rows
    under it. It is a .col-menu-btn opening a .col-menu, which is exactly
@@ -1710,14 +1698,9 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   tr { height: 44px; }
 
   /* Overflowing tables/card lists: allow horizontal scroll within the container */
-  .table-wrap, .col-table-wrap {
+  .table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-  }
-
-  /* Collection card grid on narrow screens: slightly larger min-width per card */
-  .cards-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
   }
 
   /* Modal/popup sizing on narrow: shouldn't appear, but as defensive CSS */
@@ -1796,18 +1779,9 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   transition: transform calc(var(--motion-ui) * .08s);
 }
 
-/* Loading indicator on slow Scryfall/Archidekt fetches */
-.loading-spinner {
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  border: 2px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: var(--radius-full);
-  animation: spin calc(var(--motion-ui) * .6s) linear infinite;
-  vertical-align: middle;
-  margin-right: var(--space-2);
-}
+/* The one spinner left in the app: a deck tile loading its card list, in
+   tabs.css. .loading-spinner was the shared one and nothing has worn it for
+   some time. */
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Shared kebab / overflow menu button (mounted by kebabMenuHtml, sortui.js) ── */

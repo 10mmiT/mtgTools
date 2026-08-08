@@ -151,16 +151,6 @@ header {
    heading and the whitespace do the grouping. */
 .section { margin-bottom: var(--space-5); }
 
-/* The opt-in box, for the few surfaces that genuinely need containment —
-   a form, a collapsed drawer. A fill and a hairline, and still no
-   shadow. */
-.section--boxed {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4) var(--space-5);
-}
-
 /* ── Section heading (§7.2) ───────────────────────────────────────────
    The 3px mana-coloured bar that used to sit in front of every heading
    is deleted. It was the largest source of accent on an idle screen —
@@ -523,5 +513,3 @@ header {
 }
 .user-badge-admin::before { color: var(--warning); }
 
-/* Spacing fix: buttons in forms could use more breathing room */
-.section-actions { gap: var(--space-2); display: flex; flex-wrap: wrap; }

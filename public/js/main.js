@@ -300,21 +300,15 @@ document.addEventListener('click', e => {
 let _lastRefresh = 0;
 let _lastStateSig = null;
 
+/* Three reasons to say no, and they are the whole of why this is not just a
+ * fetch: a poll that lands while a collection or a deck is still arriving
+ * would hydrate over the half of it that is in memory, and one that lands
+ * every time a tab is switched would do it several times a second. */
 async function refreshState() {
   if (document.visibilityState === 'hidden') return;
-  if (state.collections.some(c => c.status === 'loading' || c.status === 'updating')) {
-    console.log('[refresh] skipped — collection loading');
-    return;
-  }
-  if (state.players.some(p => p.decks.some(d => d.nameStatus === 'loading'))) {
-    console.log('[refresh] skipped — deck loading');
-    return;
-  }
-  if (Date.now() - _lastRefresh < 15_000) {
-    console.log(`[refresh] skipped — rate limited (${Math.round((Date.now()-_lastRefresh)/1000)}s since last)`);
-    return;
-  }
-  console.log('[refresh] FIRING — will call hydrateState', new Error().stack.split('\n')[2]?.trim());
+  if (state.collections.some(c => c.status === 'loading' || c.status === 'updating')) return;
+  if (state.players.some(p => p.decks.some(d => d.nameStatus === 'loading'))) return;
+  if (Date.now() - _lastRefresh < 15_000) return;
   _lastRefresh = Date.now();
   try {
     const res = await fetch('/api/state');

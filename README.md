@@ -375,13 +375,16 @@ mtgtools/
 │   │   ├── ui.md                    # The "Cards on a Table" interactivity brief — the
 │   │   │                            # design intent behind how cards behave; built
 │   │   ├── spec-cards-as-objects.md # The PRD that work was specified from
-│   │   └── spec-sorting.md          # The PRD for multi-criteria sorting
+│   │   ├── spec-sorting.md          # The PRD for multi-criteria sorting
+│   │   └── spec-deckbuilder-depth.md # What the deck builder still couldn't do, surveyed
+│   │                                 # against Moxfield, Archidekt and the rest
 │   └── records/         # …and what was actually built, written after delivery
 │       ├── ui-redesign.md           # The visual redesign that came first
 │       ├── cards-as-objects.md
 │       ├── sorting.md               # A sort becomes a sentence of up to three criteria
 │       ├── piles-expanded.md        # A table of stacks arrives spread
-│       └── collection-query.md      # Scryfall syntax, run against the cards you own
+│       ├── collection-query.md      # Scryfall syntax, run against the cards you own
+│       └── deckbuilder-depth.md     # The deck builder answers questions about the deck
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -407,7 +410,7 @@ Deleting `scryfall.db` costs nothing but the refill.
 
 ## Design records
 
-Five pieces of work were large enough to be worth writing up afterwards, and each has a record in [docs/records/](docs/records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
+Six pieces of work were large enough to be worth writing up afterwards, and each has a record in [docs/records/](docs/records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
 
 | document | what it covers |
 |---|---|
@@ -416,16 +419,15 @@ Five pieces of work were large enough to be worth writing up afterwards, and eac
 | [docs/records/sorting.md](docs/records/sorting.md) | Sorting by more than one thing — a sort as a chain of up to three criteria, every field a real criterion, seeded sentences and who owns them, the control that says the sentence, and the table header as a shortcut into it |
 | [docs/records/piles-expanded.md](docs/records/piles-expanded.md) | Piles land expanded — a table of stacks arrives spread, and settling one is the thing you do |
 | [docs/records/collection-query.md](docs/records/collection-query.md) | Scryfall syntax in the Collections search — the query language parsed and run locally against the cards you own, one cache of card facts for the sort and the search both, and the filters that are refused by name because the local data can't answer them |
+| [docs/records/deckbuilder-depth.md](docs/records/deckbuilder-depth.md) | The deck builder answers questions — boards and a commander board, deck history, ownership and price, legality and bracket, the mana base read off the deck, the frame that folds and the menu beside the mat |
 
-What each was planned from is kept beside them in [docs/design/](docs/design/): [ui.md](docs/design/ui.md), the interactivity brief the second of those was written against, [spec-cards-as-objects.md](docs/design/spec-cards-as-objects.md), its PRD, and [spec-sorting.md](docs/design/spec-sorting.md), the PRD for the third. Where any of them disagrees with its record, the record is what happened.
+What each was planned from is kept beside them in [docs/design/](docs/design/): [ui.md](docs/design/ui.md), the interactivity brief the second of those was written against, [spec-cards-as-objects.md](docs/design/spec-cards-as-objects.md), its PRD, [spec-sorting.md](docs/design/spec-sorting.md), the PRD for the third, and [spec-deckbuilder-depth.md](docs/design/spec-deckbuilder-depth.md), the survey the sixth was cut from. Where any of them disagrees with its record, the record is what happened.
 
-Work large enough to need planning is cut into tickets first — one shippable, testable change each — under a `docs/tickets/<effort>/` directory that exists only while that effort is in flight. A ticket set is retired into a record once it lands.
-
-One effort is in flight: [docs/tickets/deckbuilder-depth/](docs/tickets/deckbuilder-depth/), eleven tickets cut from [spec-deckbuilder-depth.md](docs/design/spec-deckbuilder-depth.md) — the deck builder's analysis surface, the boards it has never had, and the frame that keeps the cards the content while all of it lands. Each ticket names the tickets that block it; six are blocked by nothing. A twelfth was added to the same directory rather than cut from the spec: a pre-existing mobile touch-target failure on the builder's category headings, found while building ticket 02, which the last checkbox of every other ticket here trips over.
+Work large enough to need planning is cut into tickets first — one shippable, testable change each — under a `docs/tickets/<effort>/` directory that exists only while that effort is in flight. A ticket set is retired into a record once it lands, which is why there is no such directory here now.
 
 ## Testing
 
-The project ships a test suite using Node's built-in `node:test` runner and `supertest` — over 450 tests across 21 files, needing no browser and no network.
+The project ships a test suite using Node's built-in `node:test` runner and `supertest` — over 750 tests across 28 files, needing no browser and no network.
 
 ```bash
 npm test
