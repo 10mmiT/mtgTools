@@ -218,6 +218,26 @@ test('is: asks about the shape of a card', () => {
   assert.deepStrictEqual(found('not:land'),     ['Lightning Bolt', 'Goblin Guide', 'Ghalta, Primal Hunger', 'Fires of Victory']);
 });
 
+test('and one thing a format thinks about it: is:gamechanger', () => {
+  /* The one `is:` that is not a fact about the card itself. It reads Wizards'
+     list off the cached card, which is what the deck's bracket estimate counts,
+     so "which of these are Game Changers" can be asked of a shelf and of a deck
+     in the language both boxes already speak. */
+  const gc = card('Rhystic Study', { type: 'Enchantment', gameChanger: true });
+  const q  = parseCardQuery('is:gamechanger');
+  assert.strictEqual(q.match(gc), true);
+  assert.strictEqual(q.match(BOLT), false, 'a card that is not on the list read as one');
+  assert.strictEqual(parseCardQuery('is:game-changer').match(gc), true, 'the hyphen is not the same question');
+  assert.strictEqual(parseCardQuery('-is:gamechanger').match(gc), false);
+});
+
+test('a card cached before the list was carried is not on it', () => {
+  // The field arrived with version 2 of the trimmed shape. A row still in the
+  // old one is honestly not a Game Changer, which is what `false` says — the
+  // same reading scryfall-db.js fills in on the way out of the cache.
+  assert.strictEqual(parseCardQuery('is:gamechanger').match(card('Old Row')), false);
+});
+
 // ── Putting terms together ────────────────────────────────────────────────
 test('terms side by side all have to hold', () => {
   assert.deepStrictEqual(found('t:creature c:r'), ['Goblin Guide']);
@@ -244,6 +264,31 @@ test('AND may be said out loud', () => {
  * quietly rewrites a typed name is worse than one that wants a shift key. */
 test('lower-case or is a word in a name, not an operator', () => {
   assert.deepStrictEqual(found('t:goblin or t:dinosaur'), []);
+});
+
+// ── The one word the two boxes disagree on ────────────────────────────────
+/* A bare word is a name here and in Collections, which is Scryfall's own
+ * answer. The Deck Builder asks for the other one — name *or* rules text —
+ * because that is what its filter box has always meant and a deck is small
+ * enough for the wider net to still land on a handful. Everything else about
+ * the language is the same language, which is the point of the option. */
+test('a bare word can be asked to read the rules text as well', () => {
+  const deck = text => ALL.filter(c => parseCardQuery(text, { bare: 'text' }).match(c)).map(c => c.name);
+  assert.deepStrictEqual(deck('draw'), ['Fires of Victory'],
+    'a bare word did not reach the rules text');
+  assert.deepStrictEqual(found('draw'), [], 'and it must not reach it in Collections');
+  assert.deepStrictEqual(deck('bolt'), ['Lightning Bolt'], 'a name is still a name');
+  assert.deepStrictEqual(deck('"top card"'), ['Goblin Guide'], 'a quoted phrase reads the text too');
+});
+
+test('reading the rules text is reading the cache', () => {
+  assert.strictEqual(parseCardQuery('draw', { bare: 'text' }).needsMeta, true);
+  assert.strictEqual(parseCardQuery('draw').needsMeta, false);
+});
+
+test('a bare word nobody asked about is still a name', () => {
+  // An unknown option is not a third language: it falls back to Scryfall's.
+  assert.strictEqual(parseCardQuery('draw', { bare: 'sideways' }).match(FIRES), false);
 });
 
 // ── Anything that reads a card needs the cache filled ─────────────────────

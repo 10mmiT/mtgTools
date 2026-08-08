@@ -22,6 +22,10 @@ if (ADMIN_PASSWORD) {
 
 const { createLinkedPlayer } = require('./routes/state');
 
+// Deck history's age cap, applied to every deck rather than only the ones
+// edited today. One DELETE, at startup, before anything is served.
+require('./deck-history').init();
+
 // ── App setup ──────────────────────────────────────────────────────────────────
 const app = express();
 

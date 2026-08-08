@@ -236,6 +236,33 @@
 }
 .chip-close:hover { background: var(--surface-3); color: var(--text); }
 
+/* Whose shelf it is, on the chip that stands for it — the owner's name, and
+   only when there is one. A collection with no owner is the group's, which is
+   the state every collection in the app was in before owners existed, and a
+   chip that says nothing about it is the same chip it always was.
+
+   Not in the player's slot colour: the dot to its left is already carrying a
+   colour (the collection's own), and a second one beside it reads as two
+   facts about the same thing. --text-muted is the token every caption on a
+   --surface-2 chip is measured on. */
+.chip-owner {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* A collection that is loaded but is not on the shelf being looked at. Its
+   chip stays — the ⋯ menu on it is where an owner is set, and a chip you
+   cannot reach is an owner you cannot fix — and says so by going hollow.
+
+   A dashed border and a lighter label rather than an opacity: everything
+   here is still text somebody may need to read, and fading it is how a
+   measured contrast ratio stops being the one on screen. */
+.chip--off { border-style: dashed; }
+.chip--off .chip-label { font-weight: 500; color: var(--text-muted); }
+
 /* Status is the count's colour, not a badge beside it: "1,240 / 5,600" in
    --warning already says loading, and a count that failed says so in
    --danger with the reason on the chip's tooltip. */
@@ -343,6 +370,11 @@
 /* ── Search bar ──────────────────────────────────────────────────────── */
 .search-row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .search-input { flex: 1; min-width: 200px; max-width: 480px; }
+/* A box holding something that is not a query yet — a filter the local card
+   data cannot answer, a half-typed colour. The border says it while the
+   message under the cards says what; it outranks :focus on purpose, because
+   the box being typed into is the box that is wrong. */
+.search-input.is-invalid { border-color: var(--danger); }
 .result-info { font-size: var(--text-sm); color: var(--text-muted); flex: 1; min-width: 80px; }
 
 /* ── View toggle ─────────────────────────────────────────────────────── */
@@ -1177,7 +1209,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
      not floating in the middle of the page — it has one visible edge,
      and the hairline is what marks it. The shadow tokens all cast
      downward anyway, so what this drew was a haze over the content
-     rather than an edge. Same reasoning on .db-search-panel. */
+     rather than an edge. Same reasoning on .db-drawer. */
 }
 .rss-panel.open { width: 310px; }
 
@@ -1409,6 +1441,13 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
    tabs which hide this mount for a reason of their own — no deck loaded, no
    set chosen — still win: their rules are an attribute and a class. */
 .size-mount-hidden { display: none; }
+
+/* The shelf control, in a deployment that has no way to say who you are: no
+   logged-in player and no remembered name means there is no "mine" to offer,
+   so the distinction is not offered at all and every collection reads as the
+   group's. The whole mount goes, for the same reason the size control's
+   does — an emptied host is still an item in the strip's flex row. */
+.scope-mount-hidden { display: none; }
 
 .col-menu-wrap { position: relative; display: inline-block; flex-shrink: 0; }
 .col-menu-btn {

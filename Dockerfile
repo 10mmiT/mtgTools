@@ -3,12 +3,13 @@ RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --loglevel=error
-COPY server.js .
-COPY available-db.js .
-COPY scryfall-db.js .
-COPY scryfall-queue.js .
-COPY set-index.js .
-COPY playmat-store.js .
+# Every module at the root, rather than a list of them. The root holds nothing
+# but the app's own modules — the tests, the scripts and the docs are in
+# directories of their own and none of them is copied — and a list is a list
+# somebody has to remember to add to. deck-history.js was added to the app and
+# not to this file, which built an image whose server.js required a module that
+# was not in it.
+COPY *.js ./
 COPY middleware/ middleware/
 COPY routes/ routes/
 COPY public/ public/

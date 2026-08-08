@@ -83,8 +83,15 @@ function removePlayer(playerId) {
   const nDecks = (player.decks || []).length;
   if (!confirm(`Remove player "${player.name}"${nDecks ? ` and their ${nDecks} deck${nDecks !== 1 ? 's' : ''}` : ''}? This cannot be undone.`)) return;
   state.players = state.players.filter(p => p.id !== playerId);
+  /* Their decks go with them; their collections do not. The cards are still
+   * in the house, so a collection they owned becomes the group's — the same
+   * clearing routes/state.js does to the row a moment later, done here so the
+   * chip stops naming somebody who is gone before the next load. */
+  for (const col of state.collections) if (col.owner === playerId) col.owner = null;
   saveToStorage();
   renderPlayers();
+  renderCollections();
+  renderResults();
 }
 
 // ── Deck management ───────────────────────────────────────────────────────
@@ -344,7 +351,10 @@ function renderPlayers() {
       const busy         = d.nameStatus === 'loading';
       const nameClass    = d.nameStatus === 'loading' ? 'loading' : d.nameStatus === 'error' ? 'error' : '';
       const bgStyle      = d.commanderImg ? `background-image:url('${d.commanderImg}')` : '';
-      const bracketBadge = d.bracket != null ? `<span class="badge-bracket">Bracket ${d.bracket}</span>` : '';
+      /* What bracket its owner says it is. Drawn by js/deckview-legality.js,
+         which is where the five brackets are named and where the declaration is
+         made — this tile is one of the places the answer is read. */
+      const bracketBadge = dbBracketBadgeHtml(d.bracket);
       const viewLink     = d.deckUrl
         ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener">View ↗</a>` : '';
       // The count sits with the name and the commander rather than on the

@@ -332,22 +332,45 @@ test('the card in the hand is aimed at the hand itself', () => {
 function loadDeck(cards) {
   const sandbox = {
     dbDeck:  { id: 'd1', playerId: 'p1' },
-    dbCards: cards.map(c => ({ qty: 1, ...c })),
+    dbCards: cards.map(c => ({ qty: 1, board: 'main', ...c })),
+    dbCats:  [],
+    dbShownBoards: new Set(),
     dbSaveTimer: 0,
     isMyPlayer: id => id === 'p1',
     document: { getElementById: () => null },
     clearTimeout() {},
+    /* Moving a handful of cards is one of the operations the deck is
+     * snapshotted in front of, so the history module is loaded beside the
+     * edit module and its request is answered rather than stubbed out — a
+     * drop that quietly stopped taking one would still pass here otherwise.
+     * What the snapshot contains is test/deckhistory.test.js's question. */
+    fetch: async () => ({ ok: true, json: async () => ({ ok: true }) }),
     renders: 0, saves: 0,
   };
   sandbox.dbRender   = () => { sandbox.renders++; };
+  /* deckview-core.js's: a card landing on the head of the deck puts that board
+   * on the mat. Which board is showing is not this file's question. */
+  sandbox._dbRevealHeadBoard = () => {};
   sandbox.setTimeout = () => { sandbox.saves++; return 1; };
   vm.createContext(sandbox);
+  /* What a card's place in a deck is — the boards, and the two strings that
+   * name a card and a pile. Loaded rather than stubbed, so that the refs and
+   * places these tests hand the edit module are the ones the mat writes. */
+  vm.runInContext(read('public/js/deckview-boards.js'), sandbox);
   vm.runInContext(read('public/js/deckview-edit.js'), sandbox);
+  vm.runInContext(read('public/js/deckview-history.js'), sandbox);
+  const run = expr => vm.runInContext(expr, sandbox);
+  /* These decks are decks: every card in them is in the mainboard, and every
+   * pile named here is a pile of it. What boards add is asserted in
+   * test/deckboards.test.js; what is needed here is that the carry's names go
+   * on meaning what they meant. */
+  const ref   = name => run(`dbPlace(DB_MAIN_BOARD, ${JSON.stringify(name)})`);
+  const place = cat  => run(`dbPlace(DB_MAIN_BOARD, ${JSON.stringify(cat)})`);
   return {
     sandbox,
     /** A card carried onto a pile, as cardCarryDrop() spends it. */
-    move: (names, cat) => vm.runInContext(
-      `dbMoveCardsTo(${JSON.stringify(names)}, ${JSON.stringify(cat)})`, sandbox),
+    move: (names, cat) => run(
+      `dbMoveCardsTo(${JSON.stringify(names.map(ref))}, ${JSON.stringify(place(cat))})`),
     categories: () => Object.fromEntries(sandbox.dbCards.map(c => [c.card_name, c.category])),
     renders: () => sandbox.renders,
     saves:   () => sandbox.saves,
@@ -437,32 +460,48 @@ test('the cards in a handful that were already there do not stop the rest', () =
 function loadMat(cards, selected = []) {
   const sandbox = {
     dbDeck:  { id: 'd1', playerId: 'p1' },
-    dbCards: cards.map(c => ({ qty: 1, ...c })),
-    dbSelectedCards: new Set(selected),
+    dbCards: cards.map(c => ({ qty: 1, board: 'main', ...c })),
+    dbCats:  [],
+    dbSelectedCards: new Set(selected.map(n => `main/${n}`)),
     dbSettledCats:   new Set(),
+    dbShownBoards:   new Set(),
     dbView: 'list',
     _dbLandedCards: null,
+    _dbNamingCat: null,
     dbSaveTimer: 0,
     isMyPlayer: id => id === 'p1',
     document: { addEventListener() {}, getElementById: () => null },
     window:   { addEventListener() {} },
     clearTimeout() {},
+    fetch: async () => ({ ok: true, json: async () => ({ ok: true }) }),
     renders: 0, saves: 0,
   };
   sandbox.dbRender   = () => { sandbox.renders++; };
+  /* deckview-core.js's: a card landing on the head of the deck puts that board
+   * on the mat. Which board is showing is not this file's question. */
+  sandbox._dbRevealHeadBoard = () => {};
   sandbox.setTimeout = () => { sandbox.saves++; return 1; };
   vm.createContext(sandbox);
+  vm.runInContext(read('public/js/deckview-boards.js'), sandbox);
   vm.runInContext(read('public/js/deckview-edit.js'), sandbox);
   vm.runInContext(read('public/js/deckview-panels.js'), sandbox);
+  vm.runInContext(read('public/js/deckview-history.js'), sandbox);
   const run = expr => vm.runInContext(expr, sandbox);
+  /* Every card on this mat is in the deck, so the ref of one is its name on
+   * the mainboard and a pile named here is a pile of the mainboard. Built by
+   * asking the module rather than by spelling the grammar out a second time. */
+  const ref   = name => run(`dbPlace(DB_MAIN_BOARD, ${JSON.stringify(name)})`);
+  const named = r    => run(`dbReadRef(${JSON.stringify(r)}).name`);
   return {
     sandbox,
     /** What the hand closes on, picking this card up. */
-    handful: name => JSON.parse(run(`JSON.stringify(cardCarryHandful(${JSON.stringify(name)}))`)),
+    handful: name => JSON.parse(run(
+      `JSON.stringify(cardCarryHandful(${JSON.stringify(ref(name))}))`)).map(named),
     /** And what letting go of it over a pile does. */
-    drop: (names, cat) => run(`cardCarryDrop(${JSON.stringify(names)}, ${JSON.stringify(cat)})`),
+    drop: (names, cat) => run(
+      `cardCarryDrop(${JSON.stringify(names.map(ref))}, ${JSON.stringify(ref(cat))})`),
     categories: () => Object.fromEntries(sandbox.dbCards.map(c => [c.card_name, c.category])),
-    selection:  () => [...sandbox.dbSelectedCards],
+    selection:  () => [...sandbox.dbSelectedCards].map(named),
     renders: () => sandbox.renders,
     saves:   () => sandbox.saves,
   };

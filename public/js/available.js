@@ -3,7 +3,8 @@
 const AVAIL_MONTHS    = ['January','February','March','April','May','June',
                          'July','August','September','October','November','December'];
 const AVAIL_WEEK_DAYS = ['Mo','Tu','We','Th','Fr','Sa','Su'];
-const AVAIL_NAME_KEY  = 'avail_name';
+// AVAIL_NAME_KEY is in js/state.js: the name behind this bar is what a
+// deployment with no accounts uses as an identity, so two features read it.
 
 let availCalId      = null;
 let availCalData    = null;
@@ -203,6 +204,10 @@ function availRenderBestDays() {
 function availOnNameChange(val) {
   availName = val.trim();
   localStorage.setItem(AVAIL_NAME_KEY, availName);
+  /* In open mode this bar is the only thing that says who you are, so typing
+   * a name into it is what makes "my shelf" mean something — and the control
+   * that offers it is on another tab, drawn before this was answered. */
+  if (typeof colIdentityChanged === 'function') colIdentityChanged();
   const removeBtn = document.getElementById('availRemoveBtn');
   const nameHint  = document.getElementById('availNameHint');
   const hasEntries = availName && availCalData?.availability.some(a => a.person_name === availName);

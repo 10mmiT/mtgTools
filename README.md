@@ -19,6 +19,9 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 ### Collections tab
 - Add collections from Archidekt (URL or CSV export) or Moxfield (CSV export only — Moxfield's API blocks automated access)
 - Results table shows card name, a column per collection, and a total; scrolls horizontally when many collections are loaded
+- **A collection has an owner** — chosen when it is added, changed later from its `⋯` menu — and it may have none: a shared box belongs to the group, so it counts as the group's and never as any one person's. The **Shelf** control switches the tab between *everyone's* collections and *your own*, and remembers which. Chips for collections that are loaded but off the shelf you are looking at stay on the row (their `⋯` menu is where an owner is set) and go hollow. Collections that existed before owners did have none, and nothing else about them changed
+  - With no password set there is no logged-in player, so "yours" falls back to the name you type into Available@'s **"Who are you?"** bar, matched to a player. If it matches nobody the distinction is not offered at all and everything reads as the group's
+  - Removing a player never removes their collections: the cards are still in the house, so the shelf becomes the group's
 - **Search in Scryfall syntax.** A bare word is still a card-name search, so `sol ring` means what it always did — but the box now reads the same query language as the Scryfall tab, run against the cards you actually own: `t:creature c:r mv<=2`, `o:"draw a card" -t:land`, `r:mythic`, `t:goblin OR t:elf`, `c=wu`, `m:{G}{G}`, `is:mdfc`, `eur>=50`, `!"Sol Ring"`. Filters combine with spaces (all must hold), `-` for not, `OR` and parentheses for the rest. Supported: `name` `t`(ype) `o`(racle) `m`(ana) `mv`/`cmc` `c`(olor) `id`entity `r`(arity) `pow` `tou` `s`(et) `is`/`not` `layout` `usd` `eur`, each with `: = != < <= > >=`
   - It runs entirely on the local card database — nothing is sent to Scryfall, and typing filters ~13,000 cards in well under a frame. The first non-name search in a session pauses for a second to read the card data it needs
   - Filters that need data the local oracle-card cache doesn't carry (`f:` format legality, `a:`rtist, `year:`, `kw:` …) are refused **by name** rather than quietly matching nothing, and point you at the Scryfall tab. So are typos: `zzz:1` says *Unknown filter "zzz:"*
@@ -96,10 +99,11 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 
 ### Deck Builder tab
 - Full-width editing workspace for a single deck — select an existing deck or **+ New Deck** (player, name, optional commander)
-- **More ▾** menu (Deck / Import / Export sections) consolidates Categories, Compare, Import CSV, Paste List, Export (clipboard/CSV/.txt), and Delete Deck, keeping the toolbar itself to just "+ New Deck" and "Search / EDHREC"
-- **Delete Deck** removes the deck and its saved cards/categories entirely, so you can re-add it (e.g. re-import the same Archidekt URL from the Players & Decks tab) with a clean slate
+- **The deck menu, beside the mat.** The control strip had grown to fourteen things and wrapped to three rows, so it keeps only what is used while building — the deck picker, the add-card field and the deck filter — and everything else is a column at the right-hand edge of the mat, opened from the ☰ (or `m`): **Mat** (view, size, sort), **Show** (which boards are drawn, and the missing/owned/borrowable filter with the shelf it counts against), **Look at** (Analysis, Search / EDHREC, History, Compare, Categories) and **Deck** (New deck, Import CSV, Paste List, the three exports, Delete Deck). It **pushes the mat rather than covering it** — every one of those controls is answered by the mat, so a panel you had to close to see what you did would be the wrong shape — and whether it is open is remembered. Below 900px the row becomes a column and the menu takes the top of it, arriving closed. The old **⋯** popover is gone: it existed because the strip had no room
+- **Delete Deck** removes the deck and its saved cards/categories entirely, so you can re-add it (e.g. re-import the same Archidekt URL from the Players & Decks tab) with a clean slate. Its history goes with it, apart from one snapshot of what the deck was as it went — an Archidekt deck re-added under the same URL finds that waiting in the History panel
+- **History** drawer — what this deck used to be, and putting it back. The deck saves by replacing every card row, so before this the state a save overwrote was gone about a second after the edit. Now a snapshot is taken **once per sitting** (the first save after a few minutes' gap, holding what the deck looked like before you started), **plus one immediately before anything that can lose work** — an import, a deleted category, a bulk move, a restore, a deleted deck — tagged with which. The panel lists them newest first with the deck as it stands at the top, each row saying what changed relative to the one below it (`+12 · −1 · 3 moved`, with the card names in the tooltip), and **Restore** puts any of them back. Restoring saves the deck it is replacing first, so undoing an undo works. Kept per deck: the newest 50, and nothing older than 90 days except the last few — about 7.7 KB a snapshot for a Commander deck
 - Cards grouped into categories — Commander, Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Battles, Lands, Other by default — with custom categories, rename, and delete via each category's "⋯" menu, or all at once from the **Manage Categories** modal; deleting a category with cards in it moves them to "Uncategorised" instead of losing the grouping
-- **Search name or oracle text** box filters the visible cards across every category live as you type
+- **Filter box in Scryfall syntax** — the same query language the Collections search reads (`js/cardquery.js`), run against the deck in front of you and applied live as you type: `t:creature mv<=2`, `c:r OR c:g`, `-t:land`, `o:draw`, `r:mythic`, `"exact phrase"`. A bare word is still a plain search of card name *and* rules text, exactly as this box has always worked, so nothing has to be learned to type `goblin`. A filter the local card data can't answer (`f:commander`, `a:artist`) or one that isn't a filter at all is named and explained above the cards rather than silently matching nothing, and the deck stays drawn while you're still typing. A category the filter empties keeps its header — it is still one of the deck's piles, and still somewhere a card can be dropped
 - **Multiselect**: click/tap a card (List/Grid/Pile) to select it, Ctrl/Cmd-A to select all visible, or "Select all" from a category's "⋯" menu — selected cards get a **Move to…** bulk action
 - **Right-click a card** (or hold a finger on it) for what can be done to it: **Inspect**, **Move to…**, **Remove**. Grid tiles and pile cards carry no buttons of their own — the picture is the card — while list rows keep their inline ⓘ ⇄ × as well
 - **Move to…** (single card or bulk) can also **✨ Auto-categorize** — sorts staples into functional categories the way Archidekt's community auto-categories do (Sol Ring → Ramp, Swords to Plowshares → Removal, etc.), falling back to card type — or create a brand-new category and move into it in one step
@@ -112,10 +116,18 @@ Search across multiple Magic: The Gathering collections at once, compare deck li
 - **Search / EDHREC** drawer panel:
   - **Search** tab — Scryfall query search (with an optional commander color-identity filter) to find and add cards, each shown with a thumbnail
   - **EDHREC** tab — recommendations for the deck's commander, split into the same type-based categories as Archidekt (Creatures, Planeswalkers, Instants, Sorceries, Enchantments, Artifacts, Lands) plus High Synergy, Top Cards, Game Changers, and New Cards, each card shown with a thumbnail, type line, synergy %, and deck-inclusion count
-- Stats bar: card/land counts vs. format target (60 or 99 for Commander), average CMC, color pip counts, and a mana curve
-- **Compare** button (in the More menu) sends the deck to the Collections tab comparison panel
+- **The readout line**: card/land counts vs. format target (60 or 99 for Commander), average CMC and color pip counts — one thin line of what the deck *is*, which is where the numbers the rest of the builder produces end up
+- **The lands figure opens the mana panel**: what the deck's spells want against what its lands make, colour by colour — the pips counted off actual mana costs (commander included, a hybrid symbol half a pip to each colour that pays it) against the sources counted off what each card produces, so a mana rock and a dual land are both in it. A colour the deck asks for and nothing in it makes is said on the line as well as in the panel. **Open in the calculator** carries all of it to the Mana Base Calculator with every field filled
+- **Analysis** expands the curve, the type breakdown and the split out of the toolbar rather than laying them permanently across the mat, so it is there when you ask for it — including on a phone, where it used to be hidden outright
+- **The frame folds, in two tiers.** One press on the ⌃ at the end of the strip hides everything you act *with* — the picker, the add field, the filter, the whole deck menu beside the mat, the analysis strip, the bulk bar and the add-category row — leaving the readout line. A second press hides that too, for a mat with nothing on it but cards. A third brings it all back, and `f` does the same from the keyboard. Where you left it is remembered, so a deck read at full mat comes back at full mat. Nothing is ever revealed by pointing at it: the mat is a drag surface, and a card carried towards a category near the top of the screen must not trip anything
+- **The ghost pile**: an empty outline after the last category, faint at rest and lit while a card is in hand. Drop cards on it and it becomes a real category with those cards in it, its name waiting to be typed in the heading it has just been given — the only way to make a category without going through a modal first. Being visible when your hands are empty is the point, and it is on the mat rather than in the toolbar, because a drop target inside chrome that folds away is one you cannot reach. Releasing a card anywhere else on the mat still means cancel
+- **Boards — a maybeboard and a sideboard on the mat.** Somewhere to put a card that is not in the deck: before this, a card you were considering either went in and broke the count, or lived in your head. Each is a region below the categories, worked with the same carry — drop a card on the **Maybeboard** and it leaves the deck without leaving the deck record; drop it back on the deck, or on any category, and it is in again. **The card count, the curve, the average mana value and the export all read the mainboard alone**, so setting a card aside costs the deck nothing. **The same card can sit in a board and in the deck at once**, with a quantity of its own on each side — and carrying one onto a board that already holds it adds the copies together rather than claiming the card twice
+- **Boards are off until you ask for one**, toggled from the deck menu and remembered against that deck, so a deck you never sideboard for is never asked to spend mat space on one. **A hidden board reveals itself while a card is in hand** and hides again when you let go — a board you switched off is still somewhere you can put something. On a phone, where a finger scrolls the mat rather than picking cards up, the boards are at the head of the **Move to…** list
+- **A board draws flat** — one region, one count, no category headers. A maybeboard is a holding area, not a second deck. Each card keeps the category it was filed under while it lies there, so **one promoted back into the deck lands in the pile it came from** rather than arriving uncategorised
+- **Compare** (in the deck menu) sends the deck to the Collections tab comparison panel
 
 ### Mana Base Calculator tab
+- **Use this deck** fills every field from the deck open in the Deck Builder — the size it is built to, its land count, its non-basics, and the pips its costs actually ask for. The fields can be typed over afterwards, and the tab still works with no deck loaded at all, which is the case it exists for
 - Choose a deck size preset — 40 (Limited), 60 (Constructed), 100 (Commander) — or enter a custom size
 - Enter the count of each colored mana pip (W/U/B/R/G) and colorless (C/Wastes) across your non-land cards; colour icons use proper mana-font symbols
 - Enter how many non-basic lands (duals, fetches, other) you're already including
@@ -223,7 +235,7 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | `AUTH_RATE_LIMIT_MAX` | Override the login rate-limit window max (default: 30 requests per 15 min per IP) |
 | `UPLOAD_RATE_LIMIT_MAX` | Override the playmat-upload rate-limit window max (default: 20 uploads per 15 min per IP) |
 
-Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All app data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). Uploaded playmat backgrounds are the one thing kept outside it, as files under `data/playmats/` — one per user, at most 5 MB each, deleted when the user replaces the image or the account goes. A second database, `scryfall.db`, holds the local Scryfall bulk-data cache: on first startup the server downloads Scryfall's `oracle_cards` file (~24 MB gzipped, ~38k cards) in the background and refreshes it daily — watch for `[scryfall-db] imported … cards` in the log. The app works during/without the download; card lookups just fall back to live (proxied) Scryfall until it completes. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
+Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All app data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). Uploaded playmat backgrounds are the one thing kept outside it, as files under `data/playmats/` — one per user, at most 5 MB each, deleted when the user replaces the image or the account goes. A second database, `scryfall.db`, holds the local Scryfall bulk-data cache: on first startup the server downloads Scryfall's `oracle_cards` file (~24 MB gzipped, ~38k cards) in the background and refreshes it daily — watch for `[scryfall-db] imported … cards` in the log. It costs about 95 MB on disk. The app works during/without the download; card lookups just fall back to live (proxied) Scryfall until it completes. An upgrade that changes what the cache keeps per card re-downloads the file once even though Scryfall has published nothing new — `[scryfall-db] cached card shape is v… — re-importing` in the log is that, and it needs nothing from you. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
 
 ### Stop
 
@@ -255,6 +267,7 @@ Moxfield collection URLs are not supported — their API is behind Cloudflare bo
 mtgtools/
 ├── server.js          # Express entry point — wires up middleware, routes, and /healthz
 ├── available-db.js    # SQLite setup (all persistent app data)
+├── deck-history.js    # Deck snapshots — when one is written, the caps, and the diff on read
 ├── scryfall-db.js     # Scryfall bulk-data cache — daily oracle_cards download into SQLite
 ├── scryfall-queue.js  # One rate-limited Scryfall queue for the whole process (~9 req/s, Retry-After)
 ├── set-index.js       # What is in each set — background-filled, for the Set Browser's owned counts
@@ -267,14 +280,14 @@ mtgtools/
 │   ├── auth.js        # Auth API — login, logout, account request, change password
 │   ├── available.js   # Availability calendar API
 │   ├── cards.js       # Local card endpoints — /api/cards/collection + /api/cards/autocomplete (from scryfall-db)
-│   ├── decks.js       # Deck Builder API — a deck's cards and its categories
+│   ├── decks.js       # Deck Builder API — a deck's cards, its categories, and its snapshots
 │   ├── prefs.js       # Per-account preferences — theme, playmat, card motion
 │   ├── scryfall-proxy.js # Live Scryfall proxy — shared rate-limit queue, Retry-After handling, 10-min GET cache
 │   ├── proxy.js       # Archidekt/Moxfield collection + deck proxy, EDHREC proxy
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
-├── test/              # 16 files, run by `npm test`
+├── test/              # 24 files, run by `npm test`
 │   ├── server.test.js       # HTTP seam — auth, state, admin, decks, prefs
 │   ├── prefs-open-mode.test.js  # Preferences with no accounts to hang them on
 │   ├── tokens.test.js       # Token-contract lint, asserted over the delivered CSS
@@ -291,7 +304,16 @@ mtgtools/
 │   ├── cardsize.test.js     # The size store, keyed per tab and per view
 │   ├── cardmove.test.js     # What travels on a re-render, and what is skipped
 │   ├── carddrag.test.js     # Hit-testing piles, the fan, the drop's effect
-│   └── cardmenu.test.js     # Where a menu asked for at a point is drawn
+│   ├── cardmenu.test.js     # Where a menu asked for at a point is drawn
+│   ├── cardcache.test.js    # The cached card's shape, and the version that re-imports it
+│   ├── deckhistory.test.js  # When a deck is snapshotted, the caps, and what a restore puts back
+│   ├── deckframe.test.js    # The builder's frame — what folds away, and what stays
+│   ├── deckboards.test.js   # Two Sol Rings — the maybeboard, the sideboard, and the count
+│   ├── deckcommander.test.js # The commander as a board rather than a category
+│   ├── deckfilter.test.js   # The deck's filter box — the query language run over one deck
+│   ├── collectionowner.test.js # Whose shelf is whose — the column, the shelf, the open-mode name
+│   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and who has them
+│   └── decklegality.test.js # Legal or the reason it is not, the bracket estimate, and tonight's bracket
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -335,11 +357,17 @@ mtgtools/
 │       ├── lands.js       # Mana base calculator tab
 │       ├── auth.js        # Session auth, quick-add wants, change password
 │       ├── admin.js       # Admin panel (user management, account requests)
-│       ├── deckview-core.js    # Deck Builder: state, init, deck selection, Archidekt import, auto-categorize
+│       ├── deckview-boards.js   # Deck Builder: what a card's place in a deck is — the boards, and the strings that name a card and a pile
+│       ├── deckview-core.js    # Deck Builder: state, init, deck selection, board visibility, Archidekt import, auto-categorize
 │       ├── deckview-render.js   # Deck Builder: rendering, tiles/rows, multiselect, stats, view toggle
 │       ├── deckview-edit.js     # Deck Builder: card/category edits, move modal, autosave
 │       ├── deckview-panels.js   # Deck Builder: search/autocomplete, drag/drop, EDHREC, import/export
-│       ├── pick.js        # Pick Night tab (random deck assignment)
+│       ├── deckview-history.js  # Deck Builder: snapshots, the History drawer, restoring
+│       ├── deckview-owned.js    # Deck Builder: what of the deck you own — the scopes, the missing list, the want-list send
+│       ├── deckview-totals.js   # Deck Builder: one pass over the deck — what it costs, what finishing it costs, the curve, the types, the split
+│       ├── deckview-legality.js # Deck Builder: whether the deck is legal, and the bracket it looks like — with the reasoning
+│       ├── deckview-mana.js     # Deck Builder: the pips the deck's costs ask for against the sources its lands make, and the calculator filled from it
+│       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
@@ -393,11 +421,11 @@ What each was planned from is kept beside them in [docs/design/](docs/design/): 
 
 Work large enough to need planning is cut into tickets first — one shippable, testable change each — under a `docs/tickets/<effort>/` directory that exists only while that effort is in flight. A ticket set is retired into a record once it lands.
 
-One effort is in flight: [docs/tickets/deckbuilder-depth/](docs/tickets/deckbuilder-depth/), eleven tickets cut from [spec-deckbuilder-depth.md](docs/design/spec-deckbuilder-depth.md) — the deck builder's analysis surface, the boards it has never had, and the frame that keeps the cards the content while all of it lands. Each ticket names the tickets that block it; six are blocked by nothing.
+One effort is in flight: [docs/tickets/deckbuilder-depth/](docs/tickets/deckbuilder-depth/), eleven tickets cut from [spec-deckbuilder-depth.md](docs/design/spec-deckbuilder-depth.md) — the deck builder's analysis surface, the boards it has never had, and the frame that keeps the cards the content while all of it lands. Each ticket names the tickets that block it; six are blocked by nothing. A twelfth was added to the same directory rather than cut from the spec: a pre-existing mobile touch-target failure on the builder's category headings, found while building ticket 02, which the last checkbox of every other ticket here trips over.
 
 ## Testing
 
-The project ships a test suite using Node's built-in `node:test` runner and `supertest` — 338 tests across 16 files, needing no browser and no network.
+The project ships a test suite using Node's built-in `node:test` runner and `supertest` — over 450 tests across 21 files, needing no browser and no network.
 
 ```bash
 npm test
@@ -481,7 +509,7 @@ npm run measure:mobile -- --data .scratch/ui-redesign/capture-data/state.json
 
 One pixel of slack is allowed on the target size, and it is the ruler's rather than the design's: Firefox snaps the far edge of a hit region down to a whole pixel, so a control laid out on a fractional boundary hit-tests up to a pixel narrower than the 44 its computed style says it is.
 
-Three views have no tab of their own and are measured as extra passes, listed in `EXTRA_VIEWS`. The Deck Builder's search drawer and the RSS panel are full-height surfaces on a phone carrying controls nothing else does, and each is scoped to itself — the page behind an open drawer is unreachable by design, and counting its controls as unhittable would report the drawer working as a fault. Collections' list view is there for the opposite reason: a tab is measured as it arrives, and Collections arrives as a grid of card art, so its table — the densest in the app — was not being looked at at all. Otherwise the sweep still sees each tab in its default view, so a control that appears only after switching views is not covered; add it to `EXTRA_VIEWS` with a `PREP` step that opens it.
+Five views have no tab of their own and are measured as extra passes, listed in `EXTRA_VIEWS`. The Deck Builder's two drawers — Search/EDHREC and History — and the RSS panel are full-height surfaces on a phone carrying controls nothing else does, and each is scoped to itself — the page behind an open drawer is unreachable by design, and counting its controls as unhittable would report the drawer working as a fault. Collections' list view is there for the opposite reason: a tab is measured as it arrives, and Collections arrives as a grid of card art, so its table — the densest in the app — was not being looked at at all. Otherwise the sweep still sees each tab in its default view, so a control that appears only after switching views is not covered; add it to `EXTRA_VIEWS` with a `PREP` step that opens it.
 
 It exits non-zero on either count. Like `measure:layout` it needs a browser and a populated database, so it is not part of `npm test`.
 

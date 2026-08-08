@@ -81,6 +81,151 @@ function sourceLabel(source) {
            'csv-archidekt': 'CSV (Archidekt)', 'csv-moxfield': 'CSV (Moxfield)' }[source] || source;
 }
 
+// ── Whose shelf ───────────────────────────────────────────────────────────
+// A collection has one owner and may have none. The null case is the real
+// answer for a shared box rather than a row nobody filled in: it belongs to
+// the group, so it counts as the group's and never as any one person's.
+//
+// Everything below reads the owner through these three, and nothing else
+// reads `col.owner` directly — an id is not a person until the player list
+// says it is.
+
+/* The player a collection belongs to, or null for the group's. Resolved
+ * rather than trusted: an id naming a player who has been removed is the
+ * group's, which is what routes/state.js makes of it in the database the
+ * moment that removal is saved. */
+function colOwner(col) {
+  if (!col?.owner) return null;
+  return state.players.find(p => p.id === col.owner) || null;
+}
+
+/* Which shelf this tab is showing — 'mine' or 'all' — and the one place that
+ * decides it. "Mine" needs somebody to be, so an app that cannot say who you
+ * are reads 'all' whatever is stored: the control is not offered at all in
+ * that case, and a stored preference from a browser that once knew must not
+ * quietly hide every collection from somebody who cannot switch it back. */
+const COL_SCOPE_KEY = 'mtgtools_col_scope';
+
+function colScope() {
+  if (!myPlayerId()) return 'all';
+  try { return localStorage.getItem(COL_SCOPE_KEY) === 'mine' ? 'mine' : 'all'; }
+  catch { return 'all'; }
+}
+
+function setColScope(scope) {
+  try { localStorage.setItem(COL_SCOPE_KEY, scope === 'mine' ? 'mine' : 'all'); } catch {}
+  renderCollections();
+  renderResults();
+}
+
+/* The collections this tab is *about*: every loaded one, or the ones that are
+ * yours. Every count, column, quantity and card on the tab comes from this
+ * list, and the indices into it are what the quantity columns are keyed by —
+ * so it is asked for once per render and read in the same order throughout.
+ *
+ * The chip row is deliberately not filtered by it; see renderCollections. */
+function colShelf() {
+  const me = myPlayerId();
+  if (!me || colScope() !== 'mine') return state.collections;
+  return state.collections.filter(c => c.owner === me);
+}
+
+/* Whose shelf it is, changed from the ⋯ menu the chip already carries. A
+ * route of its own rather than a re-save of the collection: the cards are the
+ * collection, and none of them changed. */
+async function setCollectionOwner(key, ownerId) {
+  const col = state.collections.find(c => c.key === key);
+  if (!col) return;
+  const previous = col.owner;
+  col.owner = ownerId || null;
+  renderCollections();
+  renderResults();
+  try {
+    const res = await fetch(`/api/collections/${encodeURIComponent(key)}/owner`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ owner: col.owner }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+  } catch (e) {
+    col.owner = previous;
+    renderCollections();
+    renderResults();
+    alert(`Could not change the owner: ${e.message}`);
+  }
+}
+
+/* The owner rows on a collection's ⋯ menu: the group, then every player, with
+ * a tick on the one it is. Every player and not only you, because an owner is
+ * a fact about the shelf rather than a claim on it — somebody adds the box
+ * that lives in the cupboard and says whose it is. */
+function colOwnerMenuItems(col) {
+  const items = [{ section: 'Owner' }, {
+    label: `${col.owner ? '' : '✓ '}The group`,
+    onclick: `setCollectionOwner('${jsAttr(col.key)}', null)`,
+  }];
+  for (const player of state.players) {
+    items.push({
+      label: `${col.owner === player.id ? '✓ ' : ''}${esc(player.name)}`,
+      onclick: `setCollectionOwner('${jsAttr(col.key)}', '${jsAttr(player.id)}')`,
+    });
+  }
+  return items;
+}
+
+/* The player list, wherever a collection's owner is chosen from a select: the
+ * Add drawer's field, and nowhere else so far. Yours is preselected, because
+ * a shelf you are adding is usually yours — the group is one click up the
+ * list, and it is what an app that cannot say who you are opens on. */
+function colFillOwnerSelect(id, selected) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const chosen = selected === undefined ? (myPlayerId() || '') : (selected || '');
+  sel.innerHTML = `<option value="">The group (no owner)</option>` +
+    state.players.map(p =>
+      `<option value="${esc(p.id)}"${p.id === chosen ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  sel.value = chosen;
+}
+
+/* The + Add button's own handler rather than openDrawer directly: the owner
+ * field is a list of players, and the players are known by then. */
+function openAddCollection() {
+  colFillOwnerSelect('ownerInput');
+  openDrawer('addColDrawer');
+}
+
+/* What the Add drawer's owner field is set to, as the record wants it. */
+function colChosenOwner() {
+  return document.getElementById('ownerInput')?.value || null;
+}
+
+/* Mounted once, synced on every render. Hidden — not disabled — when the app
+ * cannot say who you are, per the ticket: no ownership distinction is offered
+ * at all, and everything reads as the group's. The whole mount goes, the same
+ * way the size control's does, so the strip does not keep a gap for it. */
+function syncColScope() {
+  const host = document.getElementById('colScopeMount');
+  if (!host) return;
+  const me = myPlayerId();
+  host.classList.toggle('scope-mount-hidden', !me);
+  const sel = document.getElementById('colScopeSel');
+  if (sel) sel.value = colScope();
+}
+
+/* Who you are can change while the app is open — in open mode it is a name
+ * typed into another tab's "Who are you?" bar — and it is what decides
+ * whether this tab offers the distinction at all. Called from there. */
+let _colIdentity = null;
+function colIdentityChanged() {
+  const now = myPlayerId();
+  if (now === _colIdentity) return;
+  _colIdentity = now;
+  if (!_colControlsMounted) return;   // the first render will read it
+  syncColScope();
+  renderCollections();
+  renderResults();
+}
+
 // ── Add from URL ──────────────────────────────────────────────────────────
 function addFromUrl() {
   const urlEl  = document.getElementById('urlInput');
@@ -102,6 +247,7 @@ function addFromUrl() {
     source:   parsed.source,
     id:       parsed.id,
     color:    COLORS[state.collections.length % COLORS.length],
+    owner:    colChosenOwner(),
     cards:    new Map(),
     status:   'loading',
     entries:  0,
@@ -203,8 +349,11 @@ function parseCard(item, source) {
 
 // ── CSV Import ────────────────────────────────────────────────────────────
 function openCsvPicker(updateKey) {
-  pendingCsvKey  = updateKey;
-  pendingCsvName = updateKey ? null : document.getElementById('nameInput').value.trim();
+  pendingCsvKey   = updateKey;
+  pendingCsvName  = updateKey ? null : document.getElementById('nameInput').value.trim();
+  // Read now, not in the reader's callback: the drawer that carries the field
+  // is closed by the time the file has been read.
+  pendingCsvOwner = updateKey ? null : colChosenOwner();
   document.getElementById('csvInput').click();
 }
 
@@ -243,6 +392,7 @@ document.getElementById('csvInput').addEventListener('change', e => {
           source,
           id:       null,
           color:    COLORS[state.collections.length % COLORS.length],
+          owner:    pendingCsvOwner,
           cards,
           status:   'loaded',
           entries:  total,
@@ -254,6 +404,7 @@ document.getElementById('csvInput').addEventListener('change', e => {
         state.collections.push(col);
         await saveCollection(col);
         document.getElementById('nameInput').value = '';
+        pendingCsvOwner = null;
         closeDrawers();
       }
 
@@ -281,6 +432,7 @@ async function saveCollection(col) {
       key: col.key, name: col.name, source: col.source, id: col.id,
       color: col.color, cards: Object.fromEntries(col.cards),
       entries: col.entries, total: col.total, savedAt: col.savedAt,
+      owner: col.owner || null,
     }),
   });
   if (!res.ok) {
@@ -320,14 +472,29 @@ function removeCollection(key) {
 // a card.
 function renderCollections() {
   renderDeck();
+  syncColScope();
+  /* The Deck Builder's readout counts these collections — "87 of 99 owned" —
+     so a shelf that has just finished loading, been given an owner or been
+     removed changes a number on another tab. Guarded because this file is
+     loaded on its own in the tests that assert this tab. */
+  if (typeof dbShelvesChanged === 'function') dbShelvesChanged();
   const row = document.getElementById('collectionsChips');
 
   if (!state.collections.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
   row.style.display = '';
 
+  /* Every loaded collection, including the ones whose cards this tab is not
+   * showing. The chip row is the inventory — what is loaded, how big it is,
+   * and the ⋯ menu that refreshes, removes and says whose it is — and a
+   * collection you cannot see the menu of is one whose owner you cannot fix.
+   * A chip that is off the shelf being looked at says so instead. */
+  const shown = new Set(colShelf().map(c => c.key));
+
   row.innerHTML = state.collections.map(col => {
     const isCSV  = col.source.startsWith('csv-');
     const isBusy = col.status === 'loading' || col.updating;
+    const owner  = colOwner(col);
+    const off    = !shown.has(col.key);
 
     // The count is also the progress bar: while pages are coming in it reads
     // "1,240 / 5,600", and the left number climbs on every render.
@@ -339,17 +506,23 @@ function renderCollections() {
 
     const tip = col.status === 'error'
       ? col.error
-      : `${sourceLabel(col.source)}${col.savedAt ? ` · updated ${relTime(col.savedAt)}` : ''}`;
+      : [sourceLabel(col.source),
+         owner ? `${owner.name}’s` : 'the group’s',
+         col.savedAt ? `updated ${relTime(col.savedAt)}` : '',
+         off ? 'not on the shelf you are looking at' : ''].filter(Boolean).join(' · ');
 
-    const cls = col.status === 'error' ? ' chip--error' : isBusy ? ' chip--busy' : '';
+    const cls = (col.status === 'error' ? ' chip--error' : isBusy ? ' chip--busy' : '')
+              + (off ? ' chip--off' : '');
 
     return `
       <span class="chip${cls}" title="${esc(tip)}">
         <span class="chip-dot" style="background:${col.color}"></span>
         <span class="chip-label">${esc(col.name)}</span>
+        ${owner ? `<span class="chip-owner">${esc(owner.name)}</span>` : ''}
         <span class="chip-count">${count}</span>
         ${isBusy ? '' : kebabMenuHtml([
           { label: isCSV ? 'Re-import CSV' : 'Refresh', onclick: `updateCollection('${col.key}')` },
+          ...colOwnerMenuItems(col),
           { divider: true },
           { label: 'Remove', onclick: `removeCollection('${col.key}')`, danger: true },
         ], { title: 'Collection actions' })}
@@ -382,13 +555,13 @@ const COL_SORT_FIELDS = ['name', 'qty', 'cmc', 'color', 'power', 'toughness', 'r
  * collection, and only the word in the select and the header changes. */
 function colSortFields() {
   return [...COL_SORT_FIELDS,
-          ...state.collections.map(col => ({ key: colQtyField(col.key), label: col.name }))];
+          ...colShelf().map(col => ({ key: colQtyField(col.key), label: col.name }))];
 }
 
 /* What the sort needs that a card cannot answer: how many of it are owned. The
  * Total column, the Quantity field and each collection's own count all read
  * this rather than a number stamped onto every row before sorting. */
-function colSortContext() { return { collections: state.collections }; }
+function colSortContext() { return { collections: colShelf() }; }
 
 /* The sentence this tab is sorted by, and the one answer to what it is sorted
  * by: the rows' order, the piles the stack view cuts from its first word, and
@@ -427,7 +600,14 @@ function mountColSortControl() {
  * reconciled against the list as it now is, and this tab re-reads what that
  * left. Silently, and with no modal — a sort naming a column that is not on
  * the table is the tab falling back to name ascending, which is where every
- * unanswerable sort lands. */
+ * unanswerable sort lands.
+ *
+ * Gone means *removed*, and the reconcile is against every loaded collection
+ * rather than the ones on the shelf being looked at. Looking at your own
+ * shelf hides columns without deleting anything, so a criterion naming a
+ * hidden one is filtered out of the reading — getSortChain does that against
+ * the field list, and writes nothing — and comes back with the collection
+ * when the scope does. Reconciling against the shelf would throw it away. */
 function syncColSortFields() {
   if (!_colControlsMounted || JSON.stringify(colSortFields()) === _colSortFieldSig) return;
   reconcileColSorts(state.collections);
@@ -435,6 +615,8 @@ function syncColSortFields() {
 }
 
 function initCollectionsControls() {
+  _colIdentity = myPlayerId();
+  syncColScope();
   mountColSortControl();
   mountColumnMenu('colColumnsMount', 'collections', COL_COLUMNS, renderResults);
   /* #colResults, the box the views are drawn in, rather than the grid inside
@@ -477,11 +659,9 @@ function ensureSortMeta(rows) {
  * empty result, and under a query that didn't parse. Same reasoning as the
  * Scryfall tab's own empty state — a permanent second toolbar row of syntax
  * tips is in front of everyone who already knows. */
-const COL_SYNTAX_HELP = `<div class="help-text syntax-tip">
-  <code>t:creature</code> · <code>c:rg</code> · <code>mv&lt;=2</code> ·
-  <code>o:draw</code> · <code>r:mythic</code> · <code>-t:land</code> ·
-  <code>"exact phrase"</code> · <code>t:goblin OR t:elf</code>
-</div>`;
+/* The syntax tip is the language's own — CQ_SYNTAX_HELP in js/cardquery.js —
+ * because the Deck Builder's filter box shows the same one, and a second copy
+ * here would go stale the first time the parser learned a filter. */
 
 /* A row as js/cardquery.js wants to see it: the name off the row, and the
  * card facts out of the cache the sort and the metadata columns fill. A name
@@ -489,7 +669,12 @@ const COL_SYNTAX_HELP = `<div class="help-text syntax-tip">
  * nothing but its own name, which is what an unresolved card can honestly
  * answer. */
 function colQueryCard(name) {
-  return { name, ...(scryfallMetaCache.get(name) || {}) };
+  /* `owned` is the one field the cache cannot supply, because it is a fact
+     about the collections. Every row on this tab is a row of the shelf being
+     looked at, so on this tab the answer is always yes — which makes `is:owned`
+     a filter that means nothing here and everything in the Deck Builder,
+     where the deck is full of cards the shelf has never seen. */
+  return { name, ...(scryfallMetaCache.get(name) || {}), owned: true };
 }
 
 /* Every name across every loaded collection needs its facts before a query
@@ -507,7 +692,7 @@ function colQueryCard(name) {
 let _colQueryMetaFetching = false;
 function colQueryMetaReady() {
   const missing = new Set();
-  for (const col of state.collections) {
+  for (const col of colShelf()) {
     for (const name of col.cards.keys()) if (!scryfallMetaCache.has(name)) missing.add(name);
   }
   if (!missing.size) return true;
@@ -523,14 +708,18 @@ function colQueryMetaReady() {
 
 function buildRows(query) {
   const merged = new Map();
-  state.collections.forEach((col, ci) => {
+  /* The shelf, not every loaded collection: a row's `qtys` are its quantities
+     in the collections this tab is showing, in their order, which is what the
+     table's columns, the grid's badges and the Total all read by index. */
+  const shelf = colShelf();
+  shelf.forEach((col, ci) => {
     col.cards.forEach((card, name) => {
       if (!merged.has(name)) {
         merged.set(name, { name: card.name, type: card.type, mana: card.mana,
-                            qtys: new Array(state.collections.length).fill(0) });
+                            qtys: new Array(shelf.length).fill(0) });
       } else {
         const e = merged.get(name);
-        while (e.qtys.length < state.collections.length) e.qtys.push(0);
+        while (e.qtys.length < shelf.length) e.qtys.push(0);
       }
       merged.get(name).qtys[ci] = card.qty;
     });
@@ -594,6 +783,15 @@ function renderResults() {
     return;
   }
 
+  /* Collections are loaded, and none of them is yours. Not an error and not
+     "no results": a person with no collection of their own is an ordinary
+     thing to be, so this says which of the two questions is being asked and
+     where the other one is. */
+  if (!colShelf().length) {
+    colSayInstead('None of the loaded collections is yours yet — set an owner from a collection’s ⋯ menu, or switch the shelf to everyone’s.', 'No collections of yours');
+    return;
+  }
+
   /* What was typed, as a filter. A search that cannot mean anything says so —
      the message names the filter it choked on — rather than quietly matching
      no cards, which is what an unknown `f:standard` would otherwise look like
@@ -602,7 +800,7 @@ function renderResults() {
   try {
     query = parseCardQuery(raw);
   } catch (e) {
-    colSayInstead(`${esc(e.message)}${COL_SYNTAX_HELP}`, 'Invalid search');
+    colSayInstead(`${esc(e.message)}${CQ_SYNTAX_HELP}`, 'Invalid search');
     return;
   }
 
@@ -668,7 +866,7 @@ function renderListView(rows, MAX) {
   if (cols.rarity) h += '<th data-sort="rarity">Rarity</th>';
   if (cols.pt)     h += '<th data-sort="power">P/T</th>';
   if (cols.price)  h += '<th data-sort="price">Price</th>';
-  state.collections.forEach(col => {
+  colShelf().forEach(col => {
     h += `<th data-sort="${esc(colQtyField(col.key))}" style="border-bottom:3px solid ${col.color}">${esc(col.name)}</th>`;
   });
   /* Total and the sort control's "Quantity" are one field: how many of this
@@ -714,7 +912,7 @@ function renderListView(rows, MAX) {
   });
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="100" class="empty-state">No cards match your search.${COL_SYNTAX_HELP}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="100" class="empty-state">No cards match your search.${CQ_SYNTAX_HELP}</td></tr>`;
     return;
   }
 
@@ -793,7 +991,7 @@ async function renderPileView(rows) {
   const host = document.getElementById('pileView');
 
   if (!rows.length) {
-    host.innerHTML = `<div class="empty-state">No cards match your search.${COL_SYNTAX_HELP}</div>`;
+    host.innerHTML = `<div class="empty-state">No cards match your search.${CQ_SYNTAX_HELP}</div>`;
     return;
   }
 
@@ -859,7 +1057,7 @@ async function renderGridView(rows, MAX) {
   const grid = document.getElementById('cardGrid');
 
   if (!rows.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No cards match your search.${COL_SYNTAX_HELP}</div>`;
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No cards match your search.${CQ_SYNTAX_HELP}</div>`;
     return;
   }
 
@@ -874,7 +1072,7 @@ async function renderGridView(rows, MAX) {
         : `<div class="grid-img-placeholder">
              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
            </div>`;
-      const qtyBadges = state.collections.map((col, i) => {
+      const qtyBadges = colShelf().map((col, i) => {
         const q = r.qtys[i] || 0;
         if (!q) return '';
         return `<span class="grid-qty">

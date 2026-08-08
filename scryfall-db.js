@@ -38,6 +38,19 @@ const BULK_INDEX_URL = 'https://api.scryfall.com/bulk-data';
 const BULK_TYPE      = 'oracle_cards';
 const REFRESH_MS     = 24 * 60 * 60 * 1000;
 
+// ── The shape of a cached card ────────────────────────────────────────────────
+// Bump SHAPE_VERSION whenever trimCard's output changes. The refresh below
+// skips the download when Scryfall's `updated_at` is unchanged, so without a
+// version of our own a shape change would never reach an install whose cache
+// is already current: the new field would read `undefined` from a database
+// that believes it is up to date, and the feature reading it would be quietly
+// wrong rather than loudly broken. A mismatch here forces a full re-import
+// independently of whether Scryfall has published anything new.
+//
+//   1  the original trim
+//   2  + legalities, game_changer, produced_mana
+const SHAPE_VERSION = 2;
+
 let _refreshing = false;
 
 // Keep only the fields the client actually uses — cuts the DB (and response
@@ -47,6 +60,13 @@ function trimImageUris(u) {
   return { small: u.small, normal: u.normal, large: u.large, art_crop: u.art_crop };
 }
 
+// The kept fields are copied verbatim, never reshaped or compacted. A card the
+// client cannot find here it fetches from api.scryfall.com instead, so the two
+// have to be the same object: `legalities` keeps its two dozen `not_legal`
+// entries and `game_changer` keeps its `false` because that is what the live
+// API answers with, and a check that reads one source must read the other the
+// same way. `produced_mana` is absent on cards that make no mana — there too,
+// because that is Scryfall's own shape.
 function trimCard(c) {
   return {
     object:            'card',
@@ -60,9 +80,12 @@ function trimCard(c) {
     oracle_text:       c.oracle_text,
     colors:            c.colors,
     color_identity:    c.color_identity,
+    produced_mana:     c.produced_mana,
     power:             c.power,
     toughness:         c.toughness,
     rarity:            c.rarity,
+    legalities:        c.legalities,
+    game_changer:      c.game_changer,
     set:               c.set,
     set_name:          c.set_name,
     collector_number:  c.collector_number,
@@ -124,9 +147,13 @@ async function refreshBulk(force = false) {
     const entry = (idx.data || []).find(d => d.type === BULK_TYPE);
     if (!entry) throw new Error(`no "${BULK_TYPE}" entry in bulk index`);
 
-    if (!force && getMeta('updated_at') === entry.updated_at && cardCount() > 0) {
+    const shapeCurrent = getMeta('shape_version') === String(SHAPE_VERSION);
+    if (!force && shapeCurrent && getMeta('updated_at') === entry.updated_at && cardCount() > 0) {
       console.log('[scryfall-db] bulk data already up to date');
       return { upToDate: true };
+    }
+    if (!shapeCurrent && cardCount() > 0) {
+      console.log(`[scryfall-db] cached card shape is v${getMeta('shape_version') ?? 1}, this build wants v${SHAPE_VERSION} — re-importing`);
     }
 
     const url   = entry.jsonl_download_uri || entry.download_uri;
@@ -167,8 +194,12 @@ async function refreshBulk(force = false) {
     if (batch.length) { insertBatch(batch); imported += batch.length; }
 
     if (imported === 0) throw new Error(`imported 0 cards (${failed} unparseable lines) — file format changed?`);
+    // Written only once the last batch is in, so a run that dies halfway leaves
+    // the old version behind and the next start re-imports rather than
+    // believing a half-converted table.
     _setMeta.run('updated_at', entry.updated_at);
     _setMeta.run('imported_at', new Date().toISOString());
+    _setMeta.run('shape_version', String(SHAPE_VERSION));
     console.log(`[scryfall-db] imported ${imported.toLocaleString()} cards${failed ? ` (${failed} lines skipped)` : ''}`);
     return { imported, failed };
   } catch (e) {
@@ -189,10 +220,31 @@ function isReady() { return cardCount() > 0; }
 const _byName  = db.prepare('SELECT json FROM cards WHERE name = ?');
 const _byFront = db.prepare('SELECT json FROM cards WHERE front_name = ?');
 
+// Rows written by an older build are missing whatever the shape has gained
+// since, and they are readable for as long as it takes the re-import to run —
+// on a container that starts, serves, and downloads 24 MB in the background,
+// that is minutes, and it is every row for the first of them. Filling the gap
+// on the way out means a caller reading `card.legalities[fmt]` gets `undefined`
+// (unknown) instead of a TypeError. The defaults say "we don't know of any",
+// which is the honest reading of a field that was never imported: a stale row
+// is a card with no known legalities, never a banned card and never a Game
+// Changer.
+//
+// Only the two fields live Scryfall always sends are filled. An absent
+// `produced_mana` is Scryfall's own way of saying "makes no mana", so leaving
+// it absent keeps the two sources identical, and it is read as a list rather
+// than indexed into — `card.produced_mana || []` cannot be made to throw.
+function hydrate(json) {
+  const card = JSON.parse(json);
+  if (card.legalities   === undefined) card.legalities   = {};
+  if (card.game_changer === undefined) card.game_changer = false;
+  return card;
+}
+
 function getCard(name) {
   const row = _byName.get(name) || _byFront.get(name) ||
               (name.includes(' // ') ? (_byName.get(name.split(' // ')[0]) || _byFront.get(name.split(' // ')[0])) : null);
-  return row ? JSON.parse(row.json) : null;
+  return row ? hydrate(row.json) : null;
 }
 
 // Mimics Scryfall's POST /cards/collection response shape
@@ -253,4 +305,8 @@ function init() {
   setInterval(() => refreshBulk().catch(() => {}), REFRESH_MS).unref();
 }
 
-module.exports = { db, init, refreshBulk, isReady, cardCount, getCard, getCollection, autocomplete };
+module.exports = {
+  db, init, refreshBulk, isReady, cardCount, getCard, getCollection, autocomplete,
+  // For the tests, which weigh the trimmed shape and the version that guards it.
+  trimCard, SHAPE_VERSION,
+};

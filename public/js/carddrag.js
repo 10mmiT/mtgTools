@@ -41,9 +41,14 @@
 // about it:
 //
 //   data-carry   a thing that can be picked up. Its value is what it is: a
-//                card's name.
+//                card, named the way the mat names one.
 //   data-drop    a place something can be put down. Its value is where that
-//                is: a category.
+//                is.
+//
+// Neither value is read here beyond being handed back. What a card *is* and
+// what a place *means* belong to the tab that drew them — on the Deck Builder
+// both are "board, then the thing on it", which is js/deckview-core.js's to
+// say and not this file's.
 //
 // What a card released on a pile *means* is not this file's to know. It calls
 // cardCarryDrop(), which the tab that owns the piles defines — the Deck
@@ -388,6 +393,12 @@ function beginCarry(press) {
       };
     }),
   };
+  /* Said before the zones are measured, not after. Some places only exist
+   * while something is in hand — a board the mat is keeping folded away
+   * reveals itself off this class, so that a board you switched off is still
+   * somewhere you can put something — and a zone measured before it appeared
+   * is a box of no size that nothing can ever be dropped on. */
+  document.documentElement.classList.add('card-carrying');
   carryZones = cardCarryZones();
   for (const card of carry.cards) card.el.classList.add('card-carried');
   /* The card the hand closed on is the card on top of the handful, and the one
@@ -395,7 +406,6 @@ function beginCarry(press) {
    * the mat is not drawing, because they are going where it goes. */
   press.el.classList.add('card-carried-lead');
   if (names.length > 1) press.el.dataset.carryCount = names.length;
-  document.documentElement.classList.add('card-carrying');
   try { press.el.setPointerCapture(press.id); } catch { /* the pointer is already gone */ }
   if (!carryFrame) carryFrame = requestAnimationFrame(paintCarry);
 }
