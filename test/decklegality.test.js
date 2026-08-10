@@ -77,6 +77,66 @@ const CARDS = {
     name: 'Slime Against Humanity', type_line: 'Sorcery', cmc: 2, colors: ['G'], color_identity: ['G'],
     oracle_text: 'Create a 0/0 green Ooze creature token…\nA deck can have any number of cards named Slime Against Humanity.',
     legalities: legal(), game_changer: false },
+  /* Two commanders, and the cards that let a deck have two. Real oracle text,
+     because what judges a pair reads the cards rather than a list of pairs —
+     a fixture that paraphrased them would be asserting against a paraphrase.
+     Both of these first two are mono-green so that a deck of Forests stays
+     inside their identity and the pair is the only thing under test. */
+  'Gilanra, Caller of Wirewood': {
+    name: 'Gilanra, Caller of Wirewood', type_line: 'Legendary Creature — Elf Druid',
+    cmc: 3, colors: ['G'], color_identity: ['G'],
+    oracle_text: '{T}: Add {G}. When you spend this mana to cast a spell with mana value 6 or greater, draw a card.\nPartner (You can have two commanders if both have partner.)',
+    legalities: legal(), game_changer: false },
+  'Numa, Joraga Chieftain': {
+    name: 'Numa, Joraga Chieftain', type_line: 'Legendary Creature — Elf Warrior',
+    cmc: 3, colors: ['G'], color_identity: ['G'],
+    oracle_text: 'At the beginning of combat on your turn, you may pay {X}{X}. When you do, distribute X +1/+1 counters among any number of target Elves.\nPartner (You can have two commanders if both have partner.)',
+    legalities: legal(), game_changer: false },
+  'Pir, Imaginative Rascal': {
+    name: 'Pir, Imaginative Rascal', type_line: 'Legendary Creature — Human',
+    cmc: 3, colors: ['G'], color_identity: ['G'],
+    oracle_text: 'Partner with Toothy, Imaginary Friend (When this creature enters, target player may put Toothy into their hand from their library, then shuffle.)\nIf one or more counters would be put on a permanent your team controls, that many plus one of each of those kinds of counters are put on that permanent instead.',
+    legalities: legal(), game_changer: false },
+  'Toothy, Imaginary Friend': {
+    name: 'Toothy, Imaginary Friend', type_line: 'Legendary Creature — Illusion',
+    cmc: 4, colors: ['U'], color_identity: ['U'],
+    oracle_text: 'Partner with Pir, Imaginative Rascal (When this creature enters, target player may put Pir into their hand from their library, then shuffle.)\nWhenever you draw a card, put a +1/+1 counter on Toothy.',
+    legalities: legal(), game_changer: false },
+  /* Restricted partner — four kinds of it exist, and each pairs only with its
+     own kind. Two of them here, so that "the same keyword" can be told apart
+     from "the word Partner". */
+  'Sarah Jane Smith': {
+    name: 'Sarah Jane Smith', type_line: 'Legendary Creature — Human Detective',
+    cmc: 3, colors: ['G'], color_identity: ['G'],
+    oracle_text: 'Partner—Friends forever (You can have two commanders if both have friends forever.)',
+    legalities: legal(), game_changer: false },
+  'Ellie and Alan': {
+    name: 'Ellie and Alan', type_line: 'Legendary Creature — Human Scout',
+    cmc: 3, colors: ['G'], color_identity: ['G'],
+    oracle_text: 'Partner—Survivors (You can have two commanders if both have Partner—Survivors.)',
+    legalities: legal(), game_changer: false },
+  /* The two asymmetric mechanics: one card takes a second commander of a kind,
+     and the other is of that kind. */
+  'Wilson, Refined Grizzly': {
+    name: 'Wilson, Refined Grizzly', type_line: 'Legendary Creature — Bear Warrior',
+    cmc: 4, colors: ['G'], color_identity: ['G'],
+    oracle_text: 'Ward {2}\nChoose a Background (You can have a Background as a second commander.)',
+    legalities: legal(), game_changer: false },
+  'Raised by Giants': {
+    name: 'Raised by Giants', type_line: 'Legendary Enchantment — Background',
+    cmc: 4, colors: ['G'], color_identity: ['G'],
+    oracle_text: 'Commander creatures you own are Giants in addition to their other types and have base power and toughness 10/10.',
+    legalities: legal(), game_changer: false },
+  'Romana II': {
+    name: 'Romana II', type_line: 'Legendary Creature — Time Lord Doctor',
+    cmc: 3, colors: ['G'], color_identity: ['G'],
+    oracle_text: 'Whenever you attack, you may pay {1}. When you do, draw a card.',
+    legalities: legal(), game_changer: false },
+  'K9, Mark I': {
+    name: 'K9, Mark I', type_line: 'Legendary Artifact Creature — Robot Dog',
+    cmc: 3, colors: [], color_identity: [],
+    oracle_text: 'Doctor’s companion (You can have two commanders if the other is the Doctor.)',
+    legalities: legal(), game_changer: false },
   'Relentless Rats': {
     name: 'Relentless Rats', type_line: 'Creature — Rat', cmc: 3, colors: ['B'], color_identity: ['B'],
     oracle_text: 'Relentless Rats gets +1/+1 for each other creature on the battlefield named Relentless Rats.\nA deck can have any number of cards named Relentless Rats.',
@@ -110,6 +170,12 @@ const DECK = [
   { card_name: 'Cultivate', category: 'Ramp' },
 ];
 const COMMANDER = { card_name: 'Omnath, Locus of Mana', category: 'Creatures', board: 'commander' };
+
+/** A pair the rules actually allow: both have plain Partner, both mono-green. */
+const PARTNERS = [
+  { card_name: 'Gilanra, Caller of Wirewood', category: 'Creatures', board: 'commander' },
+  { card_name: 'Numa, Joraga Chieftain',      category: 'Creatures', board: 'commander' },
+];
 
 const PLAYERS = [
   { id: 'p-tim',  name: 'Tim',  colorIdx: 0, wantList: [],
@@ -247,8 +313,7 @@ test('the readout and the legality line agree about how big the deck should be',
 });
 
 test('a pair of partners is a deck of ninety-eight, and a hundred all told', () => {
-  const tab = loadTab({ deck: [...DECK.slice(1), { ...COMMANDER },
-    { card_name: 'Relentless Rats', category: 'Creatures', board: 'commander' },
+  const tab = loadTab({ deck: [...DECK.slice(1), ...PARTNERS,
     { card_name: 'Forest', category: 'Lands', qty: 96 }] });
   assert.strictEqual(tab.run('dbDeckTarget()'), 98);
   assert.deepStrictEqual(ids(tab.legality()), []);
@@ -823,4 +888,100 @@ test('the mobile measurement knows the panel exists', () => {
   const script = read('scripts/measure-mobile.js');
   assert.match(script, /'deckview-legality': 'deckview'/);
   assert.match(script, /dbToggleCheckPanel/);
+});
+
+// ── What lets a deck have two commanders ──────────────────────────────────
+// The commander board has always held two. What is judged now is whether the
+// two on it are a pair Magic allows — three rules, read off the cards, and
+// asserted here against real oracle text rather than against a list of pairs.
+
+/** What pairs these two, by name, or null. */
+const pairing = (a, b) => {
+  const tab = loadTab();
+  return tab.run(`(() => {
+    const p = dbPartnerPairing(dbCardData.get(${JSON.stringify(a)}),
+                               dbCardData.get(${JSON.stringify(b)}));
+    return p ? p.how : null;
+  })()`);
+};
+
+test('two cards with the same partner keyword are a pair', () => {
+  assert.strictEqual(pairing('Gilanra, Caller of Wirewood', 'Numa, Joraga Chieftain'), 'partner');
+});
+
+test('and restricted partner pairs only with its own kind', () => {
+  /* Four kinds of it are printed — Friends forever, Character select,
+     Survivors, Father & son — and the rule that gets all four right is that
+     the whole keyword line has to match, not that the word "Partner" appears
+     in both. */
+  assert.strictEqual(pairing('Sarah Jane Smith', 'Sarah Jane Smith'), 'partner—friends forever');
+  assert.strictEqual(pairing('Sarah Jane Smith', 'Ellie and Alan'), null,
+    'a Friends forever was paired with a Survivor');
+  assert.strictEqual(pairing('Sarah Jane Smith', 'Gilanra, Caller of Wirewood'), null,
+    'a restricted partner was paired with a plain one');
+});
+
+test('Partner with is a pair, read from either card', () => {
+  assert.strictEqual(pairing('Pir, Imaginative Rascal', 'Toothy, Imaginary Friend'), 'partner with');
+  assert.strictEqual(pairing('Toothy, Imaginary Friend', 'Pir, Imaginative Rascal'), 'partner with');
+});
+
+test('but only with the card it names', () => {
+  assert.strictEqual(pairing('Pir, Imaginative Rascal', 'Gilanra, Caller of Wirewood'), null);
+});
+
+test('a Background and a Doctor’s companion are the two asymmetric pairs', () => {
+  // One card may take a second commander of a kind, and the other is of that
+  // kind — which is a different shape of sentence from the two above, and the
+  // only one that needs a table.
+  assert.strictEqual(pairing('Wilson, Refined Grizzly', 'Raised by Giants'), 'a Background');
+  assert.strictEqual(pairing('Raised by Giants', 'Wilson, Refined Grizzly'), 'a Background');
+  assert.strictEqual(pairing('K9, Mark I', 'Romana II'), 'a Doctor');
+  assert.strictEqual(pairing('Romana II', 'K9, Mark I'), 'a Doctor');
+});
+
+test('and neither pairs with another of itself', () => {
+  // Two Backgrounds are not a deck, and neither are two companions: each of
+  // these rules needs one of each side.
+  assert.strictEqual(pairing('Raised by Giants', 'Raised by Giants'), null);
+  assert.strictEqual(pairing('K9, Mark I', 'K9, Mark I'), null);
+});
+
+test('two ordinary legends are not a pair, and neither is a legend and a Sol Ring', () => {
+  assert.strictEqual(pairing('Omnath, Locus of Mana', 'Relentless Rats'), null);
+  assert.strictEqual(pairing('Omnath, Locus of Mana', 'Sol Ring'), null);
+});
+
+test('a deck with two commanders that cannot pair is told so, and told first', () => {
+  /* Before the size line, because a pair that is not a pair is a deck of
+     ninety-nine and one — so the arithmetic underneath, which counts it as
+     ninety-eight and two, is about a deck that does not exist yet. */
+  const tab = loadTab({ deck: [...DECK.slice(1), { ...COMMANDER },
+    { card_name: 'Relentless Rats', category: 'Creatures', board: 'commander' },
+    { card_name: 'Forest', category: 'Lands', qty: 96 }] });
+  assert.strictEqual(ids(tab.legality())[0], 'partners');
+  assert.deepStrictEqual(problem(tab.legality(), 'partners').cards,
+    ['Omnath, Locus of Mana', 'Relentless Rats'],
+    'the two it is about were not named');
+});
+
+test('one commander is never asked the question', () => {
+  assert.ok(!ids(loadTab().legality()).includes('partners'));
+});
+
+test('nor is a pair whose cards this app has no facts for', () => {
+  /* The same principle as the ban list: unknown is unknown, and a confident
+     wrong answer is the failure worth avoiding. */
+  const tab = loadTab({ deck: [...DECK.slice(1), { ...COMMANDER },
+    { card_name: 'A Card From Nowhere', category: 'Creatures', board: 'commander' },
+    { card_name: 'Forest', category: 'Lands', qty: 96 }] });
+  assert.ok(!ids(tab.legality()).includes('partners'),
+    'a card nobody has facts for was judged unable to partner');
+  assert.ok(tab.legality().unchecked.includes('A Card From Nowhere'));
+});
+
+test('the pair that is a pair says nothing at all', () => {
+  const tab = loadTab({ deck: [...DECK.slice(1), ...PARTNERS,
+    { card_name: 'Forest', category: 'Lands', qty: 96 }] });
+  assert.strictEqual(tab.legality().legal, true);
 });

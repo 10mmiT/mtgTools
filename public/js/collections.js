@@ -1009,8 +1009,17 @@ async function renderPileView(rows) {
   const groups = cardGroups(colSortCriteria()[0]?.field || 'name', rows, colSortContext());
   forgetGonePiles(_colSettledPiles, groups);
 
-  const draw = () => cardPilesHtml(groups, { settled: _colSettledPiles, cardOf: _colStackCard });
-  host.innerHTML = draw();
+  /* Drawn and then put down: cardPilesHtml() hands back the piles and
+     layOutPiles() decides where each one goes, so that a pile starts where the
+     pile above it ended instead of in a row beginning under the tallest one.
+     Both halves run on every paint, including the second one below — the piles
+     are new elements, and where they went is not something new elements
+     know. */
+  const draw = () => {
+    host.innerHTML = cardPilesHtml(groups, { settled: _colSettledPiles, cardOf: _colStackCard });
+    layOutPiles(host.querySelector('.card-piles'));
+  };
+  draw();
 
   /* Only what is actually drawn needs a picture: the cards each spread pile
      fans, and the one card on top of each settled one. A spread pile is a fan
@@ -1026,7 +1035,7 @@ async function renderPileView(rows) {
   if (missing.length) {
     await ensureScryfallImages(missing);
     // Only re-render if the stack view is still the one on screen
-    if (document.getElementById('pileView').style.display !== 'none') host.innerHTML = draw();
+    if (document.getElementById('pileView').style.display !== 'none') draw();
   }
 }
 

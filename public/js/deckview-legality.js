@@ -168,6 +168,88 @@ function _dbCopyLimit(sf, format) {
   return format.copies;
 }
 
+/* ── What lets a deck have two commanders ─────────────────────────────────
+ *
+ * The commander board holds however many the format allows, and has since it
+ * was a board — nothing in this app had to be told that partners exist for a
+ * pair to be counted, coloured, exported and judged as two. What was never
+ * asked is whether the two on it are a pair Magic allows, and now that adding
+ * one is a thing you can do from a menu, an app that let you make that mistake
+ * silently would be an app that helped you make it.
+ *
+ * Three rules, and every way two cards may be commanders together is one of
+ * them. They are written as three because they are three different shapes of
+ * sentence on the cards themselves, not because the mechanics were enumerated:
+ *
+ *   the same keyword on both     Partner, and Partner—Survivors
+ *   one names the other          Partner with Toothy, Imaginary Friend
+ *   one takes a kind, the other  Choose a Background / a Background;
+ *     is of that kind              Doctor's companion / a Time Lord Doctor
+ *
+ * The first is why the keyword is compared as a *whole line* rather than
+ * matched as the word "Partner". Restricted partner is real and there are four
+ * kinds of it in the card data — Partner—Friends forever, Partner—Character
+ * select, Partner—Survivors, Partner—Father & son — and each pairs only with
+ * its own kind. Comparing the lines gets every one of them right without
+ * knowing any of them exists, where a `/partner/` test would cheerfully pair a
+ * Survivor with a Doctor's companion. It is also why there is no rule here for
+ * Friends forever: no card carries it alone, it is a restricted partner, and
+ * the rule already written is the one that judges it.
+ *
+ * The third is a table so that the next printed mechanic of that shape is a
+ * row. The first two need nothing.
+ *
+ * This is read off the cards, like the copy limit and the bracket inputs above
+ * it, and for the same reason: a list of every legal pair is a list somebody
+ * has to maintain, and the cards say it themselves. */
+
+/* A keyword line both cards must share, taken whole and without its reminder
+ * text — the words up to the bracket, which is where the rules stop and the
+ * explanation starts. */
+const DB_PAIR_KEYWORD = /^(Partner(?!\s+with\b)[^(\n]*)/mi;
+
+/* One card naming another. */
+const DB_PAIR_NAMES = /^Partner with ([^(\n]+)/mi;
+
+/* One card that may take a second commander of a kind, and what that kind is
+ * on the other card's type line. */
+const DB_PAIR_KINDS = [
+  { takes: /^Choose a Background\b/mi,  kind: /\bbackground\b/,        how: 'a Background' },
+  { takes: /^Doctor.s companion\b/mi,   kind: /\btime lord doctor\b/,  how: 'a Doctor' },
+];
+
+/* Is this card the one that text named? Both faces, because a transforming
+ * card is named by its front. */
+function _dbNamed(text, sf) {
+  const said = String(text || '').trim().toLowerCase();
+  return [sf.name, ...(sf.card_faces || []).map(f => f.name)]
+    .filter(Boolean).some(name => name.trim().toLowerCase() === said);
+}
+
+/* What lets these two be a deck's commanders, or null if nothing does.
+ *
+ * Null is "no rule found", not "illegal": the caller reports it only when it
+ * has both cards' facts in hand, on the same principle as the ban-list check
+ * above — a confident wrong answer is the failure worth avoiding. */
+function dbPartnerPairing(a, b) {
+  if (!a || !b) return null;
+  const textA = _dbOracle(a), textB = _dbOracle(b);
+
+  const keyA = textA.match(DB_PAIR_KEYWORD)?.[1].trim().toLowerCase();
+  const keyB = textB.match(DB_PAIR_KEYWORD)?.[1].trim().toLowerCase();
+  if (keyA && keyA === keyB) return { how: keyA };
+
+  const withA = textA.match(DB_PAIR_NAMES)?.[1];
+  const withB = textB.match(DB_PAIR_NAMES)?.[1];
+  if ((withA && _dbNamed(withA, b)) || (withB && _dbNamed(withB, a))) return { how: 'partner with' };
+
+  for (const rule of DB_PAIR_KINDS) {
+    if (rule.takes.test(textA) && rule.kind.test(_dbTypeLineOf(b))) return { how: rule.how };
+    if (rule.takes.test(textB) && rule.kind.test(_dbTypeLineOf(a))) return { how: rule.how };
+  }
+  return null;
+}
+
 /* ── What the bracket estimate looks for ──────────────────────────────────
  *
  * Three of Wizards' four soft inputs, read out of oracle text. They are
@@ -298,10 +380,23 @@ function _dbComputeCheck() {
     if (_dbIsTutor(oracle))          tutors.push(name);
   }
 
+  /* Two commanders, and whether anything lets them be two. Asked only of a
+     pair — one commander needs no rule, and three of them are already over the
+     hundred and reported as that — and only when both cards' facts are here,
+     so a cache mid-refresh reads as unchecked rather than as an illegal pair. */
+  let unpaired = null;
+  if (format.id === 'commander') {
+    const pair = dbCommanderCards();
+    if (pair.length === 2) {
+      const [a, b] = pair.map(c => dbCardData.get(c.card_name));
+      if (a && b && !dbPartnerPairing(a, b)) unpaired = [a.name, b.name];
+    }
+  }
+
   return {
     format,
     cards,
-    legality: _dbLegality(format, cards, { unchecked, tooMany, outside, banned, notLegal, identity }),
+    legality: _dbLegality(format, cards, { unchecked, tooMany, outside, banned, notLegal, identity, unpaired }),
     bracket: format.brackets
       ? _dbEstimate({ gameChangers, extraTurns, landDenial, tutors })
       : null,
@@ -314,9 +409,20 @@ function _dbComputeCheck() {
  * order is the order they are worth fixing in: how big the deck is, then how
  * many of a thing it holds, then which colours, then the two ban lists. */
 function _dbLegality(format, cards, found) {
-  const { unchecked, tooMany, outside, banned, notLegal, identity } = found;
+  const { unchecked, tooMany, outside, banned, notLegal, identity, unpaired } = found;
   const problems = [];
   const say = (id, text, names = []) => problems.push({ id, text, cards: names });
+
+  /* Before the size, and it is the one problem that comes before it: a pair
+     that cannot be a pair is a deck of ninety-nine and one, so the sentence
+     underneath — which counts it as ninety-eight and two — is arithmetic about
+     a deck that does not exist until this is fixed. */
+  if (unpaired) {
+    say('partners',
+      'two commanders, and nothing lets them be a pair — Commander wants Partner, ' +
+      'Partner with, a Background or a Doctor’s companion',
+      unpaired);
+  }
 
   if (format.size) {
     /* The hundred, commanders included — and ninety-nine for a deck whose

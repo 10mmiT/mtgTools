@@ -319,3 +319,166 @@ function cardPilesHtml(groups, { settled = new Set(), cardOf } = {}) {
   }).join('');
   return `<div class="card-piles">${piles}</div>`;
 }
+
+// ── Where the piles go ─────────────────────────────────────────────────────
+// A pile starts where the pile above it ended.
+//
+// Piles wrapped as flex items before this, and a wrapped row is as tall as the
+// tallest thing in it: a table sorted by mana value put its two-card pile of
+// eights beside its forty-card pile of twos, and the next row began below the
+// forty. Every short pile paid for the tallest one on its row, and a table of
+// twelve piles could be most of a screen of nothing. What was wanted is what a
+// real table does — you put the next pile down in the first gap, not in the
+// next row.
+//
+// Both tables get it, because they are the same arrangement: the Deck Builder's
+// categories and the browsing tabs' stacks. The layout is measured and written
+// rather than declared, because there is no stylesheet that does this — CSS
+// masonry is still not something that can be shipped, and multi-column would
+// fill down each column in turn, which would take the row of piles the sort
+// cut left-to-right and read it top-to-bottom instead. The order piles are in
+// is the whole meaning of a table of them: by mana value it is the curve.
+//
+// The decision is pileMasonryPlan(), a function of the sizes it is given and
+// nothing else, so it can be asserted rather than eyeballed. layOutPiles() is
+// the measuring and the writing around it.
+
+/* The class the stylesheet reads: while it is on, the container positions its
+ * own children and nothing else does. Off — no script, or a view that is not
+ * piles — and the flex wrap underneath it is still a table of piles, just one
+ * with the gaps back. */
+const PILE_LAID_OUT = 'piles-laid-out';
+
+/* Where each pile goes, from how big they are and how much room there is.
+ *
+ *   items    [{ width, height }] in the order they are to be read
+ *   width    the room across
+ *   column   what one pile column is wide — the piles are all this wide, and
+ *            anything wider is something else on the table (a message about
+ *            the filter, an empty mat) rather than a pile
+ *   gap      between columns
+ *   lead     between one pile and the next one under it; the same as the gap
+ *            unless the stylesheet says otherwise
+ *
+ * One rule, and the two cases fall out of it: an item takes as many columns as
+ * it is wide, and goes in the leftmost run of that many columns whose lowest
+ * point is highest. A pile is one column wide, so that reads "the shortest
+ * column, and the leftmost of them when two are level" — which is what puts
+ * the first row left-to-right in the order the sort cut them. Something as
+ * wide as the table takes every column, so it goes below everything on the
+ * table and everything after it goes below that: a band, without a rule of its
+ * own.
+ *
+ * `height` is the table's, which is what the container has to be told: with
+ * every pile positioned, nothing is left in the flow to give it one. */
+function pileMasonryPlan(items, { width, column, gap = 0, lead = gap } = {}) {
+  const step    = Math.max(1, (column || 0) + gap);
+  const columns = Math.max(1, Math.floor((Math.max(0, width) + gap) / step));
+  const bottoms = new Array(columns).fill(0);
+
+  const places = (items || []).map(item => {
+    const span = Math.min(columns,
+      Math.max(1, Math.round(((item.width || column || 0) + gap) / step)));
+    let at = 0;
+    let top = Infinity;
+    for (let first = 0; first + span <= columns; first++) {
+      let lowest = 0;
+      for (let i = first; i < first + span; i++) lowest = Math.max(lowest, bottoms[i]);
+      /* Half a pixel, so that two columns a rounding apart still count as
+       * level and the leftmost of them wins — the reading order is worth more
+       * than a fraction of a pixel of tidiness. */
+      if (lowest < top - 0.5) { top = lowest; at = first; }
+    }
+    if (!Number.isFinite(top)) top = 0;
+    for (let i = at; i < at + span; i++) bottoms[i] = top + (item.height || 0) + lead;
+    return { left: at * step, top, span };
+  });
+
+  /* The trailing lead is under the lowest pile and not part of the table. */
+  return { columns, places, height: Math.max(0, Math.max(0, ...bottoms) - lead) };
+}
+
+/* Lay the piles out, and keep them laid out.
+ *
+ * Every measurement is taken before anything is written, which keeps the whole
+ * pass to one layout: reading a height after writing a position would make the
+ * browser settle the table between every pair of piles.
+ *
+ * The class goes on *first*, because it is what decides some of the sizes
+ * being measured — a band is as wide as the table only once it is positioned.
+ * Nothing is painted in between: the reading and the writing are one turn.
+ *
+ * A container with no width has nothing to lay out and is left alone, which is
+ * also what a hidden tab and a mat that is not drawn yet look like. */
+function layOutPiles(container) {
+  if (!container || !container.children || typeof getComputedStyle !== 'function') return;
+  const kids = [...container.children];
+  const room = container.clientWidth;
+  if (!(room > 0) || !kids.length) return;
+
+  container.classList.add(PILE_LAID_OUT);
+  const style = getComputedStyle(container);
+  const gap   = parseFloat(style.columnGap) || 0;
+  const lead  = parseFloat(style.rowGap)    || 0;
+  const items = kids.map(kid => ({ width: kid.offsetWidth, height: kid.offsetHeight }));
+  /* What a pile column is wide, asked of the piles rather than of the
+   * stylesheet: they are all one width, and the narrowest thing on the table
+   * is one of them whenever there is one at all. */
+  const column = Math.min(...items.map(item => item.width));
+
+  const plan = pileMasonryPlan(items, { width: room, column, gap, lead });
+  kids.forEach((kid, i) => {
+    kid.style.left = `${plan.places[i].left}px`;
+    kid.style.top  = `${plan.places[i].top}px`;
+  });
+  container.style.height = `${plan.height}px`;
+
+  _watchPiles(container, kids);
+}
+
+/* Give the table back to the stylesheet: the view is no longer piles, or the
+ * tab has been emptied. Everything this wrote comes back off, including the
+ * watch — a container whose children are gone has nothing to keep in place.
+ *
+ * A table that was never laid out has nothing to give back, which is the same
+ * answer for a list view that has always been a list and for a mat that is not
+ * a drawing surface at all. */
+function clearPileLayout(container) {
+  if (!container?.classList?.contains?.(PILE_LAID_OUT)) return;
+  container.classList.remove(PILE_LAID_OUT);
+  container._pileWatch?.disconnect();
+  container._pileWatched = null;
+  container.style.removeProperty('height');
+  for (const kid of container.children || []) {
+    kid.style.removeProperty('left');
+    kid.style.removeProperty('top');
+  }
+}
+
+/* What makes the table lay itself out again, and it is not a render.
+ *
+ * Two things move a pile without redrawing one. The table gets narrower or
+ * wider — a window resized, or the Deck Builder's menu pushing the mat, which
+ * is not a window resize at all — and the piles get taller or shorter, which
+ * is the card-size slider: it writes one custom property and every card on the
+ * table changes size without a single element being replaced.
+ *
+ * So both are watched, the container for the first and each pile for the
+ * second.
+ *
+ * Only ever re-hung when the piles themselves have been replaced, and that is
+ * load-bearing rather than an optimisation: observing a thing reports its size
+ * once straight away, so a watch re-hung on every pass would answer its own
+ * callback for ever. Re-laying an unchanged table changes no size this reacts
+ * to, so a resize settles after a single repeat instead of chasing itself. */
+function _watchPiles(container, kids) {
+  if (typeof ResizeObserver !== 'function') return;
+  const watched = container._pileWatched;
+  if (watched && watched.length === kids.length && watched.every((el, i) => el === kids[i])) return;
+
+  const watch = container._pileWatch ||= new ResizeObserver(() => layOutPiles(container));
+  watch.disconnect();
+  watch.observe(container);
+  for (const kid of kids) watch.observe(kid);
+  container._pileWatched = kids;
+}

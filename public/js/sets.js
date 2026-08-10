@@ -226,6 +226,10 @@ function renderSetCards() {
     cardsEl.innerHTML = `<div class="sf-grid">${displayed.map(renderSetCardGrid).join('')}</div>`;
   } else if (setView === 'pile') {
     cardsEl.innerHTML = renderSetPiles(displayed, field);
+    /* Each pile put down where the one above it ended — js/cardstack.js, the
+       same pass the Collections table and the Deck Builder's mat get. After
+       the markup because it measures the piles it is placing. */
+    layOutPiles(cardsEl.querySelector('.card-piles'));
   } else {
     cardsEl.innerHTML = `<div class="sf-results">${displayed.map(renderSetCardList).join('')}</div>`;
   }

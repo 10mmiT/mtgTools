@@ -86,6 +86,7 @@ const DB_HISTORY_REASON = {
   import:        'Before an import',
   category:      'Before a category was deleted',
   move:          'Before a bulk move',
+  commander:     'Before the commander was switched',
   restore:       'Before a restore',
   'deck-delete': 'Before the deck was deleted',
 };
