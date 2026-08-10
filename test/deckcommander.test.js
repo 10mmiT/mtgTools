@@ -197,6 +197,9 @@ function loadTab(cards, { commander = '', cats = ['Ramp', 'Lands'], stored = {} 
     innerHTML: '', textContent: '', title: '', value: '', style: {},
     setAttribute(k, v) { (this.attrs ||= {})[k] = v; },
     classList: { toggle() {}, add() {}, remove() {} },
+    /* A menu measures itself to work out which way to open. Nothing here has a
+       size, and where it opens is test/cardmenu.test.js's subject anyway. */
+    getBoundingClientRect: () => ({ width: 0, height: 0, left: 0, top: 0 }),
   });
 
   const sandbox = {
@@ -228,13 +231,33 @@ function loadTab(cards, { commander = '', cats = ['Ramp', 'Lands'], stored = {} 
     /* What js/deckview-owned.js reaches outside the tab for: the collections,
        whose each of them is, and who you are. None of these decks is owned by
        anybody here — that is test/deckowned.test.js's subject — so the shelf is
-       empty, nothing is owned, and the ownership chip is off. */
-    state: { collections: [], players: [] },
+       empty, nothing is owned, and the ownership chip is off.
+
+       The players carry the *record* of this deck, which is a different thing
+       from the deck the tab is holding: the tab has a copy, and the record is
+       what the tile art, the recommendations and the Players & Decks tab read.
+       Switching a commander is the one edit that writes to both. */
+    state: {
+      collections: [],
+      players: [{ id: 'p1', name: 'Someone', decks: [
+        { id: 'd1', name: 'A deck', commander, commanderImg: null },
+      ] }],
+    },
     myPlayerId: () => null, colOwner: () => null, playerColor: () => '',
     scryfallMetaCache: new Map(),
     openCardByName() {},
     animateCardMove: (_el, paint) => paint(),
+    /* The record's side of the app: redrawing the tiles, saving them, and the
+       art fetch that a new commander sets off. */
+    renderPlayers: () => { sandbox.repaints++; },
+    savePlayerDecks: async id => { sandbox.deckSaves.push(id); },
+    ensureScryfallImages: async names => { sandbox.artFor.push(...names); },
+    scryfallArtCache: new Map([
+      ['Atraxa', 'art/atraxa'], ['Krark', 'art/krark'],
+      ['Sakashima', 'art/sakashima'], ['Doom Blade', 'art/doom-blade'],
+    ]),
   };
+  sandbox.repaints = 0; sandbox.deckSaves = []; sandbox.artFor = [];
   sandbox.setTimeout = fn => { sandbox.saves++; return 1; };
   sandbox.dbFetchCardData = async () => {};
   vm.createContext(sandbox);
@@ -267,6 +290,12 @@ function loadTab(cards, { commander = '', cats = ['Ramp', 'Lands'], stored = {} 
     at:    (board, name) => answer(`dbFindCard(dbPlace(${JSON.stringify(board)}, ${JSON.stringify(name)})) || null`),
     paint: () => { run('dbRender()'); return mat.innerHTML; },
     calls: () => sandbox.calls,
+    /* The deck as the tab holds it, and the deck as the app records it. Two
+       objects, and what the switch has to keep saying the same thing. */
+    deck:   () => answer('dbDeck'),
+    record: () => sandbox.state.players[0].decks[0],
+    saves:  () => sandbox.deckSaves,
+    artFor: () => sandbox.artFor,
   };
 }
 
@@ -548,4 +577,214 @@ test('the head of the deck is not drawn as a holding area beside it', () => {
   const CSS = read('public/css/tabs.css');
   assert.match(CSS, /\.db-board-head > \.db-board-hdr \{[^}]*border-bottom-style:\s*solid/,
     'the commander’s heading is dashed, which is how a board says it is not in the deck');
+});
+
+// ── Switching commanders ──────────────────────────────────────────────
+// Changing what a deck is built around used to be the one thing about a deck
+// that could not be done from the Deck Builder: the board was the mat's and the
+// record's single-string `commander` was the Players & Decks tab's, and only
+// one of them could be reached from here. What is asserted is that the two
+// stay one answer.
+
+/** The switch, and the art fetch it sets off, both landed. */
+const switchTo = async (tab, ref) => {
+  tab.run(`dbMakeCommander(${JSON.stringify(ref)})`);
+  await new Promise(resolve => setImmediate(resolve));
+};
+
+test('the card that is made commander is on the board, and the old one is in the deck', async () => {
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  await switchTo(tab, 'main/Doom Blade');
+  assert.strictEqual(tab.at('commander', 'Doom Blade')?.card_name, 'Doom Blade',
+    'the new commander is not on the commander board');
+  assert.strictEqual(tab.at('commander', 'Atraxa'), null, 'both of them are commanders');
+  assert.strictEqual(tab.at('main', 'Atraxa')?.category, 'Creatures',
+    'the old commander did not go back into the deck, in the pile it belongs in');
+});
+
+test('and the deck record follows the board, so the tile is not left showing the old one', async () => {
+  // The whole reason this is one action and not two: the record names the art
+  // the deck's tile is drawn on and the card EDHREC is asked about, and a deck
+  // whose tile shows a commander it no longer runs is a deck lying about itself.
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  await switchTo(tab, 'main/Doom Blade');
+  assert.strictEqual(tab.record().commander, 'Doom Blade');
+  assert.strictEqual(tab.deck().commander, 'Doom Blade', 'the tab is holding a stale copy');
+  assert.strictEqual(tab.record().commanderImg, 'art/doom-blade',
+    'the tile is still drawn on the art of the card that was replaced');
+  assert.deepStrictEqual(tab.artFor(), ['Doom Blade'], 'the new art was never asked for');
+  assert.deepStrictEqual(tab.saves(), ['p1', 'p1'],
+    'the record was not saved — once as it changes, and again when its art lands');
+});
+
+test('the deck it is saved into is the deck it was moved in, and its cards are saved too', async () => {
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  await switchTo(tab, 'main/Doom Blade');
+  assert.strictEqual(tab.record().id, 'd1');
+  const snapshot = tab.calls().find(c => c.url.includes('/snapshots'));
+  assert.ok(snapshot, 'the deck as it was before the switch was not kept');
+  assert.strictEqual(snapshot.body.reason, 'commander');
+});
+
+test('a commander made from a card in the maybeboard leaves the maybeboard', async () => {
+  const tab = loadTab([CMD, ...DECK, { card_name: 'Krark', category: 'Creatures', board: 'maybe' }],
+    { commander: 'Atraxa' });
+  await switchTo(tab, 'maybe/Krark');
+  assert.strictEqual(tab.at('maybe', 'Krark'), null, 'it is in two places at once');
+  assert.strictEqual(tab.record().commander, 'Krark');
+});
+
+test('switching clears both commanders, because the board is what the deck holds', async () => {
+  // Not a swap of two cards: partners are two rows on that board, so "make
+  // this the commander" means the board holds this one now.
+  const tab = loadTab([CMD2, CMD3, ...DECK], { commander: 'Krark' });
+  await switchTo(tab, 'main/Doom Blade');
+  assert.deepStrictEqual(tab.answer('dbCommanderCards().map(c => c.card_name)'), ['Doom Blade']);
+  assert.strictEqual(tab.at('main', 'Krark')?.card_name, 'Krark');
+  assert.strictEqual(tab.at('main', 'Sakashima')?.card_name, 'Sakashima');
+});
+
+test('a commander still carrying the category the migration left on it is filed by what it is', async () => {
+  // `Commander` is not one of the deck's piles any more, so a card demoted
+  // still wearing it would land in a pile nothing answers to.
+  const tab = loadTab([{ card_name: 'Atraxa', category: 'Commander', board: 'commander' }, ...DECK],
+    { commander: 'Atraxa' });
+  await switchTo(tab, 'main/Doom Blade');
+  assert.strictEqual(tab.at('main', 'Atraxa')?.category, 'Creatures');
+  assert.ok(tab.answer('dbCats.map(c => c.name)').includes('Creatures'),
+    'it was filed into a pile the deck does not have');
+});
+
+test('making the commander the commander changes nothing', async () => {
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  const before = tab.cards();
+  assert.strictEqual(tab.answer(`dbMakeCommander('commander/Atraxa')`), false);
+  assert.deepStrictEqual(tab.cards(), before);
+  assert.deepStrictEqual(tab.saves(), [], 'the record was written for a change that did not happen');
+});
+
+test('somebody else’s deck cannot be switched', () => {
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  tab.run(`dbDeck.playerId = 'p2'`);
+  assert.strictEqual(tab.answer(`dbMakeCommander('main/Doom Blade')`), false);
+  assert.strictEqual(tab.at('commander', 'Atraxa')?.card_name, 'Atraxa');
+});
+
+test('the record follows a card carried onto the board, not only the menu', async () => {
+  /* Move to… and the carry both go through dbMoveCardsTo, which is the other
+     way a commander board changes — and a record that followed one and not the
+     other would be two answers again. This deck is the ordinary imported one:
+     its record names a commander it has no card for until one lands. */
+  const tab = loadTab(DECK, { commander: 'Atraxa' });
+  tab.run(`dbMoveCardsTo(['main/Doom Blade'], 'commander')`);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.strictEqual(tab.record().commander, 'Doom Blade');
+});
+
+test('but a second commander carried on leaves the first one the deck’s', async () => {
+  // The record holds one string and the board holds however many the format
+  // allows, so it names the first of them — which is the same card EDHREC is
+  // asked about, and nothing has to be decided about partners.
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  tab.run(`dbMoveCardsTo(['main/Doom Blade'], 'commander')`);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepStrictEqual(tab.answer('dbCommanderCards().map(c => c.card_name).sort()'),
+    ['Atraxa', 'Doom Blade'], 'carrying a second commander on took the first one off');
+  assert.strictEqual(tab.record().commander, 'Atraxa');
+});
+
+test('taking one of two commanders off leaves the other one the deck’s', async () => {
+  const tab = loadTab([CMD2, CMD3, ...DECK], { commander: 'Krark' });
+  tab.run(`dbRemoveCard('commander/Krark')`);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.strictEqual(tab.record().commander, 'Sakashima');
+});
+
+test('but emptying the board leaves the record alone', async () => {
+  /* A deck whose record names a commander it has no card for is an ordinary
+     deck — one added on the Players tab with a name and nothing else, or an
+     import that has not landed. Clearing the record because the mat is empty
+     would throw away the only thing such a deck knows about itself. */
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  tab.run(`dbRemoveCard('commander/Atraxa')`);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.strictEqual(tab.record().commander, 'Atraxa');
+  assert.deepStrictEqual(tab.saves(), [], 'the record was rewritten for an empty board');
+});
+
+test('the switch is offered on the mat, and not on the card already holding the job', () => {
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  tab.run(`dbOpenCardMenu(0, 0, 'main/Doom Blade')`);
+  assert.ok(tab.el('dbCardMenu').innerHTML.includes('dbMakeCommander('),
+    'a card in the deck cannot be made the commander');
+  tab.run(`dbOpenCardMenu(0, 0, 'commander/Atraxa')`);
+  assert.ok(!tab.el('dbCardMenu').innerHTML.includes('dbMakeCommander('),
+    'the commander is offered the job it already has');
+});
+
+// ── Adding a partner ──────────────────────────────────────────────────
+// The board has always held two — that is what made partners free the day the
+// commander stopped being a category — and carrying a second card onto it has
+// always worked. What it had was no name, and a capability whose only door is
+// a drag onto a region is a capability nobody finds.
+
+test('a partner joins the commander rather than replacing it', () => {
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  assert.strictEqual(tab.answer(`dbAddPartner('main/Doom Blade')`), true);
+  assert.deepStrictEqual(tab.answer('dbCommanderCards().map(c => c.card_name)'),
+    ['Atraxa', 'Doom Blade'], 'the commander that was there was cleared off');
+});
+
+test('and the deck goes on being named after the first of them', async () => {
+  // The record holds one string. A partner arriving does not change what the
+  // deck is called or whose art its tile wears.
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  tab.run(`dbAddPartner('main/Doom Blade')`);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.strictEqual(tab.record().commander, 'Atraxa');
+  assert.deepStrictEqual(tab.saves(), [], 'the record was rewritten for a partner');
+});
+
+test('there is no partner for a deck that has no commander yet', () => {
+  // That is "make commander", and the menu says so instead.
+  const tab = loadTab(DECK, { commander: '' });
+  assert.strictEqual(tab.answer(`dbAddPartner('main/Doom Blade')`), false);
+  assert.deepStrictEqual(tab.answer('dbCommanderCards()'), []);
+});
+
+test('and no third commander for a deck that already has two', () => {
+  const tab = loadTab([CMD2, CMD3, ...DECK], { commander: 'Krark' });
+  assert.strictEqual(tab.answer(`dbAddPartner('main/Doom Blade')`), false);
+  assert.strictEqual(tab.answer('dbCommanderCards().length'), 2);
+});
+
+test('somebody else’s deck gets no partner either', () => {
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  tab.run(`dbDeck.playerId = 'p2'`);
+  assert.strictEqual(tab.answer(`dbAddPartner('main/Doom Blade')`), false);
+});
+
+test('the partner keeps its pile, for when it goes back into the deck', () => {
+  // The same promise every board makes: a card keeps the category it was filed
+  // under while it lies there, so demoting it lands it where it came from.
+  const tab = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  tab.run(`dbAddPartner('main/Doom Blade')`);
+  assert.strictEqual(tab.at('commander', 'Doom Blade')?.category, 'Removal');
+});
+
+test('the menu offers a partner beside a commander, and not otherwise', () => {
+  const withOne = loadTab([CMD, ...DECK], { commander: 'Atraxa' });
+  withOne.run(`dbOpenCardMenu(0, 0, 'main/Doom Blade')`);
+  assert.ok(withOne.el('dbCardMenu').innerHTML.includes('dbAddPartner('),
+    'a deck with a commander was not offered a partner for it');
+
+  const withNone = loadTab(DECK, { commander: '' });
+  withNone.run(`dbOpenCardMenu(0, 0, 'main/Doom Blade')`);
+  assert.ok(!withNone.el('dbCardMenu').innerHTML.includes('dbAddPartner('),
+    'a deck with no commander was offered a partner for it');
+
+  const withTwo = loadTab([CMD2, CMD3, ...DECK], { commander: 'Krark' });
+  withTwo.run(`dbOpenCardMenu(0, 0, 'main/Doom Blade')`);
+  assert.ok(!withTwo.el('dbCardMenu').innerHTML.includes('dbAddPartner('),
+    'a deck with two commanders was offered a third');
 });

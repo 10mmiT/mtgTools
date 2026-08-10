@@ -2930,6 +2930,16 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   width: calc(var(--card-width, 150px) + 24px);
   min-width: 0;
 }
+/* The two things on the mat that are not piles: what the filter has to say
+   about itself, and the mat saying it holds nothing. Both are sentences about
+   the whole table rather than about one column of it, so once the piles are
+   being put down (.piles-laid-out, components.css) they are the width of the
+   table — which is also how the layout knows to treat them as a band and start
+   the piles below them, rather than as one more pile in the row. */
+.db-pile-layout.piles-laid-out > .db-filter-error,
+.db-pile-layout.piles-laid-out > .empty-state {
+  width: 100%;
+}
 .db-pile-layout .dv-section-hdr {
   flex-wrap: wrap;
 }

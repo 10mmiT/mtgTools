@@ -384,3 +384,104 @@ test('a pile the table no longer has is forgotten rather than held settled', () 
   assert.deepStrictEqual(kept(['Common', 'Rare'], ['Rare', 'Common']), ['Common', 'Rare'],
     'and a table that still has them all keeps them all');
 });
+
+// ── Where the piles go ────────────────────────────────────────────────
+// A pile starts where the pile above it ended, rather than in a new row that
+// begins below the tallest pile of the last one. What is asserted is the
+// decision — where each pile goes, from how big they all are — and not the
+// measuring or the writing around it, which are the browser's.
+
+const plan = (items, room) => JSON.parse(app.evaluate(
+  `JSON.stringify(pileMasonryPlan(${JSON.stringify(items)}, ${JSON.stringify(room)}))`));
+
+/* Three columns of a hundred, with a gap of ten between them. */
+const table = { width: 320, column: 100, gap: 10 };
+const piles = (...heights) => heights.map(height => ({ width: 100, height }));
+
+test('three piles of a hundred go side by side in three columns', () => {
+  const laid = plan(piles(60, 60, 60), table);
+  assert.strictEqual(laid.columns, 3);
+  assert.deepStrictEqual(laid.places.map(p => p.left), [0, 110, 220]);
+  assert.deepStrictEqual(laid.places.map(p => p.top), [0, 0, 0]);
+});
+
+test('the fourth pile starts under the shortest of them, not under the tallest', () => {
+  // The whole thing. Before this the fourth pile began a new row below the
+  // three-hundred-tall one, and the two short piles paid for it.
+  const laid = plan(piles(300, 40, 80, 50), table);
+  assert.deepStrictEqual(laid.places[3], { left: 110, top: 50, span: 1 },
+    'the fourth pile did not go under the shortest column');
+});
+
+test('and the one after that under whichever is shortest now', () => {
+  const laid = plan(piles(300, 40, 80, 50), table);
+  // Columns now stand at 300, 40+10+50 = 100, and 80.
+  assert.deepStrictEqual(plan(piles(300, 40, 80, 50, 20), table).places[4],
+    { left: 220, top: 90, span: 1 });
+  assert.strictEqual(laid.places.length, 4);
+});
+
+test('the first row reads left to right, in the order the piles were cut', () => {
+  // A table of piles is read as a row — by mana value it is the curve — so
+  // filling the gaps must never come at the cost of the order they arrive in.
+  const laid = plan(piles(10, 10, 10, 10, 10, 10), table);
+  assert.deepStrictEqual(laid.places.slice(0, 3).map(p => p.left), [0, 110, 220],
+    'level columns did not fill left to right');
+  assert.deepStrictEqual(laid.places.slice(3).map(p => p.left), [0, 110, 220],
+    'and the second row did not either');
+});
+
+test('no two piles in a column overlap, and none hangs off the table', () => {
+  const heights = [300, 40, 80, 50, 20, 260, 15, 15, 90, 120, 33, 7];
+  const laid = plan(piles(...heights), table);
+  const spent = new Map();
+  laid.places.forEach((place, i) => {
+    assert.ok(place.left >= 0 && place.left + 100 <= table.width,
+      `pile ${i} at ${place.left} is off the table`);
+    const from = spent.get(place.left) ?? -Infinity;
+    assert.ok(place.top >= from, `pile ${i} at ${place.top} lands on the pile above it`);
+    spent.set(place.left, place.top + heights[i] + table.gap);
+  });
+});
+
+test('the table is as tall as its lowest pile, and no taller', () => {
+  const laid = plan(piles(300, 40, 80), table);
+  assert.strictEqual(laid.height, 300, 'a gap was left hanging under the lowest pile');
+  assert.strictEqual(plan([], table).height, 0);
+});
+
+test('something as wide as the table is a band, and the piles go under it', () => {
+  // What the filter has to say about itself, and the mat saying it holds
+  // nothing: sentences about the whole table rather than about one column of
+  // it. They fall out of the same rule — an item takes as many columns as it
+  // is wide — rather than out of a case of their own.
+  const laid = plan([{ width: 320, height: 30 }, ...piles(60, 60, 60)], table);
+  assert.deepStrictEqual(laid.places[0], { left: 0, top: 0, span: 3 });
+  assert.deepStrictEqual(laid.places.slice(1).map(p => p.top), [40, 40, 40],
+    'a pile was drawn over the band');
+});
+
+test('a band closes every column, however uneven they were', () => {
+  const laid = plan([...piles(300, 40, 80), { width: 320, height: 30 }, ...piles(20)], table);
+  assert.strictEqual(laid.places[3].top, 310, 'the band was drawn over the tallest pile');
+  assert.strictEqual(laid.places[4].top, 350, 'and a pile after it did not start below it');
+});
+
+test('a table with room for one column is a column', () => {
+  // Which is what a phone is, and it needs no case of its own: one column,
+  // and every pile starts where the one above it ended.
+  const laid = plan(piles(60, 40, 50), { width: 140, column: 100, gap: 10 });
+  assert.strictEqual(laid.columns, 1);
+  assert.deepStrictEqual(laid.places.map(p => p.top), [0, 70, 120]);
+  assert.deepStrictEqual(plan(piles(60), { width: 0, column: 100, gap: 10 }).columns, 1,
+    'a table with no room at all still has somewhere to put a pile');
+});
+
+test('the gap across and the lead down are asked for separately', () => {
+  // Both are the stylesheet's, read off the container rather than carried
+  // here as a number — and a stylesheet may say the two are different.
+  const laid = plan(piles(60, 60, 60, 20), { width: 320, column: 100, gap: 10, lead: 30 });
+  assert.strictEqual(laid.places[3].top, 90, 'the lead down was not the one asked for');
+  assert.strictEqual(laid.places[1].left, 110, 'and the gap across was');
+  assert.strictEqual(laid.height, 110);
+});

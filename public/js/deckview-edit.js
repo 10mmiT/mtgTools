@@ -57,11 +57,15 @@ async function dbRemoveCard(ref) {
   if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
   const card = dbFindCard(ref);
   if (!card) return;
+  const wasCommander = (card.board || DB_MAIN_BOARD) === DB_COMMANDER_BOARD;
   dbCards = dbCards.filter(c => c !== card);
   dbSelectedCards.delete(ref);
   dbRender();
   dbRenderStats();
   _dbScheduleSave();
+  /* Taking one of two commanders off the board leaves the other one the card
+     the deck is named after. */
+  if (wasCommander) _dbSyncCommanderRecord();
 }
 
 async function dbChangeQty(ref, delta) {
@@ -72,6 +76,157 @@ async function dbChangeQty(ref, delta) {
   dbRender();
   dbRenderStats();
   _dbScheduleSave();
+}
+
+// ── Switching commanders ──────────────────────────────────────────────────
+// Building a Commander deck starts with choosing what it is built around, and
+// changing your mind about that is an ordinary thing to do. Until now it was
+// the one thing about a deck that could not be done from the Deck Builder: the
+// commander board was the mat's and the deck record's `commander` field was the
+// Players & Decks tab's, so switching meant editing on one tab, coming back to
+// the other, carrying the old commander out and the new one in — and in between
+// the deck's tile showed the art of a card it no longer ran.
+//
+// One card is the whole of it now, from the same menu everything else about a
+// card is asked from.
+
+/* Make this card the commander. It comes onto the commander board and whatever
+ * was lying there goes back into the deck.
+ *
+ * Not a swap of two cards. The board holds however many the format allows —
+ * partners, a Background, a Doctor's Companion are two cards on it — so what
+ * "switching" means is that the board now holds this one, which is a clear-out
+ * and an arrival rather than a trade. A second commander is added the way it
+ * always was, by carrying it onto the board or filing it there from Move to…,
+ * neither of which goes through here. */
+function dbMakeCommander(ref) {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return false;
+  const card = dbFindCard(ref);
+  if (!card || (card.board || DB_MAIN_BOARD) === DB_COMMANDER_BOARD) return false;
+
+  /* One press moving several cards, from a menu, and the thing it replaces is
+     the decision the whole deck was built around. Worth being able to get
+     back. */
+  _dbForceSnapshot('commander');
+
+  for (const held of dbCommanderCards()) {
+    held.board = DB_MAIN_BOARD;
+    /* Filed under the pile it belongs in. A card keeps its category while it
+       lies on a board, which is what makes promoting one land it back where it
+       came from — but a commander that has been on that board since the day
+       the board was made may still carry `Commander`, the category the
+       migration left on it, and that is not one of the deck's piles any more.
+       So what it is is asked again rather than trusted. */
+    if (!dbCats.some(c => c.name === held.category)) {
+      held.category = dbAutoCategory(held.card_name);
+      dbEnsureCat(held.category);
+    }
+  }
+  card.board = DB_COMMANDER_BOARD;
+  _dbRevealHeadBoard(DB_COMMANDER_BOARD);
+
+  dbRender();
+  dbRenderStats();
+  _dbScheduleSave();
+  _dbSyncCommanderRecord();
+  return true;
+}
+
+/* Run this card *alongside* the commander, rather than instead of it.
+ *
+ * The board has always been able to hold two — that is what made partners, a
+ * Background and a Doctor's Companion free the day it stopped being a category
+ * — and carrying a second card onto it has always worked. What it had was no
+ * name. "Make commander" clears the board, which is the right thing for the
+ * word it uses and exactly wrong for the deck you are actually building, and a
+ * capability whose only door is a drag onto a region is a capability nobody
+ * finds.
+ *
+ * The record is untouched on purpose: it holds one string, it names the first
+ * of them, and a partner arriving does not change what the deck is called or
+ * whose art the tile wears. _dbSyncCommanderRecord() already says the same
+ * thing from the other side — it reads the first card on the board — so this
+ * calls it and nothing happens, which is better than this knowing why.
+ *
+ * Whether the two may actually be a pair is not asked here. It is the legality
+ * panel's, which reads it off the cards (dbPartnerPairing in
+ * js/deckview-legality.js) and says so where the deck's other rule-breaking is
+ * said. That split is the app's habit rather than a compromise: a card that is
+ * banned goes in the deck too, and the panel is where a deck is told what is
+ * wrong with it. */
+function dbAddPartner(ref) {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return false;
+  const card = dbFindCard(ref);
+  if (!card || (card.board || DB_MAIN_BOARD) === DB_COMMANDER_BOARD) return false;
+  /* A second commander, and only a second. With the board empty this is
+     "make commander" and says so; with two on it there is no third to add. */
+  if (dbCommanderCards().length !== 1) return false;
+
+  card.board = DB_COMMANDER_BOARD;
+  _dbRevealHeadBoard(DB_COMMANDER_BOARD);
+
+  dbRender();
+  dbRenderStats();
+  _dbScheduleSave();
+  _dbSyncCommanderRecord();
+  return true;
+}
+
+/* ── The record follows the board ──────────────────────────────────────────
+ *
+ * A deck holds its commanders on a board, and the deck *record* names one as a
+ * single string. That string is not decoration: it is the art the deck's tile
+ * is drawn on, the card EDHREC is asked about, and the colour identity the
+ * search panel filters by. Two places, and before this only one of them could
+ * be changed from the Deck Builder, so they could disagree — and a deck whose
+ * tile shows a commander it does not run is a deck lying about itself on the
+ * one screen where decks are read at a glance.
+ *
+ * So there is a truth and a follower: **the board is what the deck holds, and
+ * the record follows it.** Whatever lies first on the commander board is what
+ * the deck is named after — the same card EDHREC is already asked about, so a
+ * deck with partners does not have to decide anything the record cannot hold.
+ *
+ * An **empty board changes nothing.** A deck whose record names a commander it
+ * has no card for is an ordinary deck, not a broken one — added on the Players
+ * tab with a name and nothing else, or an Archidekt import that has not landed
+ * yet — and clearing the record because the mat is empty would throw away the
+ * only thing such a deck knows about itself. It is also what keeps the
+ * following one-way: the board is where a commander is chosen, and emptying it
+ * is not choosing anything.
+ *
+ * The art is a fetch, so it arrives after the switch rather than with it. The
+ * record is written twice for that reason and the tab redrawn twice, which is
+ * exactly what saving an edited commander on the Players & Decks tab does. */
+async function _dbSyncCommanderRecord() {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  const name = dbCommanderCards()[0]?.card_name;
+  if (!name || name === dbDeck.commander) return;
+
+  const entry = state.players.find(p => p.id === dbDeck.playerId)
+    ?.decks.find(d => d.id === dbDeck.id);
+
+  const write = (commander, commanderImg) => {
+    dbDeck.commander = commander;
+    dbDeck.commanderImg = commanderImg;
+    if (entry) { entry.commander = commander; entry.commanderImg = commanderImg; }
+    renderPlayers();
+    savePlayerDecks(dbDeck.playerId);
+  };
+
+  write(name, null);
+
+  /* The recommendations were for the card that is no longer the commander.
+     Dropped rather than refetched, unless the panel is open on them — where
+     dropping them alone would leave the last commander's list on the screen
+     under the new commander's name. */
+  dbEdhrecData = null;
+  const showing = _dbEdhrecLoaded && dbLeftTab === 'edhrec';
+  _dbEdhrecLoaded = false;
+  if (showing) dbLoadEdhrec();
+
+  await ensureScryfallImages([name]);
+  write(name, scryfallArtCache.get(name) || null);
 }
 
 // ── Category operations ───────────────────────────────────────────────────────
@@ -375,6 +530,12 @@ function dbMoveCardsTo(refs, place) {
     });
   if (!moving.length) return false;
 
+  /* Asked before anything moves, for the same reason the list above is: a card
+     arriving on the commander board or leaving it changes what the deck is
+     named after, and afterwards there is no telling which it was. */
+  const commanders = dbReadPlace(place).board === DB_COMMANDER_BOARD
+    || moving.some(card => (card.board || DB_MAIN_BOARD) === DB_COMMANDER_BOARD);
+
   if (moving.length > 1) _dbForceSnapshot('move');
   for (const card of moving) _dbPutCard(card, place);
 
@@ -385,6 +546,7 @@ function dbMoveCardsTo(refs, place) {
 
   dbRender();
   _dbScheduleSave();
+  if (commanders) _dbSyncCommanderRecord();
   return true;
 }
 

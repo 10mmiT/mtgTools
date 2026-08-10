@@ -142,6 +142,15 @@ function _dbPaint() {
     + (canEdit ? _dbGhostPileHtml() : '')
     + beside;
   _dbContent.classList.toggle('db-pile-layout', dbView === 'pile');
+  /* Each pile put down where the one above it ended, rather than in a row as
+     tall as the tallest category on it — js/cardstack.js, the same pass the
+     browsing tabs' tables of piles get. Here rather than after the paint,
+     because the mat is measured twice around this function for the movement
+     (js/cardmove.js) and the second reading has to be of piles that are where
+     they are going to be. Before the scroll is put back, for the same reason:
+     laying the piles out is what decides how tall the mat is. */
+  if (dbView === 'pile') layOutPiles(_dbContent);
+  else clearPileLayout(_dbContent);
 
   _dbRenderBulkBar();
 
@@ -305,10 +314,25 @@ function dbOpenCardMenu(x, y, ref) {
      about this copy of it, which is why one takes the name and the others take
      the ref. */
   const n = jsAttr(dbReadRef(ref).name);
+  /* Nothing to offer a card that is already the commander: this is how a deck
+     is switched to a different one, and switching to the card you are pointing
+     at is not a change. Going the other way is Move to…, which every card on
+     every board has. */
+  const isCommander = dbReadRef(ref).board === DB_COMMANDER_BOARD;
+  /* Offered only alongside a commander there already is. With none, adding a
+     partner is making a commander and the entry above says so; with two, there
+     is no third to add. */
+  const canPartner = !isCommander && dbCommanderCards().length === 1;
   menu.innerHTML = `
     <button class="col-menu-item" onclick="dbCloseCardMenu();openCardByName('${n}')">ⓘ Inspect</button>
     ${canEdit ? `
     <button class="col-menu-item" onclick="dbCloseCardMenu();dbShowMoveCard('${r}')">⇄ Move to…</button>
+    ${isCommander ? '' :
+    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbMakeCommander('${r}')"
+       title="Build the deck around this card — whatever is on the commander board goes back into the deck">♛ Make commander</button>`}
+    ${!canPartner ? '' :
+    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbAddPartner('${r}')"
+       title="Run this card as a second commander alongside the one you have — Partner, a Background, a Doctor’s companion">♛ Add as partner</button>`}
     <button class="col-menu-item db-menu-danger" onclick="dbCloseCardMenu();dbRemoveCard('${r}')">× Remove</button>` : ''}`;
   menu.classList.add('open');
   const box = menu.getBoundingClientRect();
