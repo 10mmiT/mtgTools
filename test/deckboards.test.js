@@ -559,3 +559,140 @@ test('a board region is on the mat, where a drop target has to be', () => {
   assert.match(render, /_dbContent\.innerHTML = \w+ \+ head[\s\S]*?\+ beside;/,
     'the boards are not drawn onto the mat');
 });
+
+// ── Adding a card somewhere other than the deck ───────────────────────────
+// The drawer's Search and EDHREC halves both hand back a grid with a + on
+// every card, and what the + meant was the deck and only the deck — so a card
+// you were merely considering had to go into the ninety-nine and be dragged
+// back out, which is the deck being broken on the way to not breaking it.
+
+test('the boards a card can be added to are the boards, less the head of the deck', () => {
+  // A rule about the flag rather than a list of ids: the commander is chosen
+  // from the mat, by ♛ Make commander on a card in front of you, and offering
+  // it here would be a second answer to a question already answered better.
+  const tab = loadTab(DECK);
+  assert.deepStrictEqual(tab.answer('dbAddBoards().map(b => b.id)'), ['main', 'maybe', 'side']);
+});
+
+test('a card added to the maybeboard goes to the maybeboard, and not into the deck', async () => {
+  // The deck already runs a Doom Blade, which is the case worth asserting: the
+  // copy being considered is a row of its own and the deck's is untouched.
+  const tab = loadTab(DECK);
+  await tab.run(`dbAddCard('Doom Blade', 'maybe')`);
+  assert.strictEqual(tab.at('maybe', 'Doom Blade')?.qty, 1);
+  assert.strictEqual(tab.at('main', 'Doom Blade')?.qty, 1,
+    'the deck’s own copy went up, or moved');
+});
+
+test('and the board it landed in is on the mat, because nothing else said where it went', () => {
+  /* A card added by name has none of what a card put there by hand has — no
+     carry, no board lighting up to receive it — so a maybeboard that stayed
+     switched off would answer the press with a deck that looks unchanged. */
+  const tab = loadTab(DECK, ['Ramp', 'Lands'], []);
+  assert.ok(!tab.answer('[...dbShownBoards]').includes('maybe'), 'it was already showing');
+  tab.run(`dbAddCard('Doom Blade', 'maybe')`);
+  assert.ok(tab.answer('[...dbShownBoards]').includes('maybe'));
+  assert.deepStrictEqual(JSON.parse(tab.store.get('mtgtools_boards')).d1, ['maybe'],
+    'the deck did not remember that its maybeboard is open');
+});
+
+test('but carrying one onto a hidden board still leaves it hidden', () => {
+  /* Deliberately not the same rule. A hidden board shows itself for as long as
+     a card is in hand and goes back to hidden when you let go — that is what
+     makes a board you switched off still somewhere you can put something, and
+     it is a decision about carrying rather than about adding. */
+  const tab = loadTab(DECK, ['Ramp', 'Lands'], []);
+  tab.run(`dbMoveCardsTo(['main/Doom Blade'], 'maybe')`);
+  assert.strictEqual(tab.at('maybe', 'Doom Blade')?.card_name, 'Doom Blade');
+  assert.ok(!tab.answer('[...dbShownBoards]').includes('maybe'),
+    'the drop path started switching boards on');
+});
+
+test('an asked-for board beats the guess about where a bare name belongs', async () => {
+  // Adding your commander by name puts it where the commander goes — unless
+  // you have said where. A guess does not overrule an instruction.
+  const tab = loadTab(DECK);
+  tab.run(`dbDeck.commander = 'Doom Blade'`);
+  await tab.run(`dbAddCard('Doom Blade', 'maybe')`);
+  assert.strictEqual(tab.at('maybe', 'Doom Blade')?.qty, 1);
+  assert.strictEqual(tab.at('commander', 'Doom Blade'), null);
+});
+
+test('and with nothing asked for, the guess is the one it always was', async () => {
+  // The toolbar's Add a card field passes no board, and must go on behaving
+  // exactly as it did.
+  const tab = loadTab(DECK);
+  tab.run(`dbDeck.commander = 'Doom Blade'`);
+  await tab.run(`dbAddCard('Doom Blade')`);
+  assert.strictEqual(tab.at('commander', 'Doom Blade')?.qty, 1);
+  await tab.run(`dbAddCard('Forest')`);
+  assert.strictEqual(tab.at('main', 'Forest')?.qty, 5,
+    'a plain add stopped going into the deck — the deck already ran four');
+});
+
+test('a board nothing answers to is the deck', async () => {
+  const tab = loadTab(DECK);
+  await tab.run(`dbAddCard('Doom Blade', 'nowhere')`);
+  assert.strictEqual(tab.at('main', 'Doom Blade')?.qty, 2);
+});
+
+test('the same card in the deck and in the maybeboard is two rows with two quantities', async () => {
+  // The whole of what a second copy is for, now reachable from the drawer.
+  const tab = loadTab(DECK);
+  await tab.run(`dbAddCard('Doom Blade', 'maybe')`);
+  await tab.run(`dbAddCard('Doom Blade', 'maybe')`);
+  assert.strictEqual(tab.at('maybe', 'Doom Blade')?.qty, 2);
+  assert.strictEqual(tab.at('main', 'Doom Blade')?.qty, 1, 'the deck’s copy moved with it');
+});
+
+// ── Where the + puts things ───────────────────────────────────────────────
+
+test('the drawer puts cards in the deck until it is told otherwise', () => {
+  assert.strictEqual(loadTab(DECK).run('dbAddTo()'), 'main');
+});
+
+test('and remembers being told, because filling a maybeboard is an evening’s work', () => {
+  const tab = loadTab(DECK);
+  tab.run(`dbSetAddTo('side')`);
+  assert.strictEqual(tab.store.get('mtgtools_db_add_to'), 'side');
+  assert.strictEqual(tab.run('dbAddTo()'), 'side');
+});
+
+test('a stored destination that is not a board is the deck', () => {
+  // localStorage's usual reason: a stored id nothing answers to must not
+  // become a region of the mat nobody can reach.
+  const tab = loadTab(DECK, ['Ramp'], [], { mtgtools_db_add_to: 'nowhere' });
+  assert.strictEqual(tab.run('dbAddTo()'), 'main');
+  const head = loadTab(DECK, ['Ramp'], [], { mtgtools_db_add_to: 'commander' });
+  assert.strictEqual(head.run('dbAddTo()'), 'main',
+    'the drawer offered to add straight to the commander board');
+});
+
+test('a card the deck already holds says so on its tile, and says where', async () => {
+  /* Pressing + used to change nothing you could see, so a second press was the
+     obvious thing to do and it silently made two copies. */
+  const tab = loadTab(DECK);
+  const tile = () => tab.run(`_dbDrawerTile('Sol Ring', { img: '', canAdd: true })`);
+  assert.ok(tile().includes('✓'), 'a card already in the deck offers a bare +');
+
+  tab.run(`dbSetAddTo('maybe')`);
+  assert.ok(!tile().includes('✓'),
+    'a card in the deck reads as already in the maybeboard');
+  assert.ok(tile().includes('Deck'), 'the tile does not say where the deck has it');
+
+  await tab.run(`dbAddCard('Sol Ring', 'maybe')`);
+  assert.ok(tile().includes('✓'), 'adding it to the maybeboard did not show on the tile');
+});
+
+test('the + says what pressing it will do', () => {
+  const tab = loadTab(DECK);
+  tab.run(`dbSetAddTo('side')`);
+  assert.ok(tab.run(`_dbDrawerTile('Doom Blade', { img: '', canAdd: true })`)
+    .includes('Add to Sideboard'));
+});
+
+test('somebody else’s deck gets no + at all', () => {
+  const tab = loadTab(DECK);
+  assert.ok(!tab.run(`_dbDrawerTile('Doom Blade', { img: '', canAdd: false })`)
+    .includes('dbAddFromDrawer'));
+});

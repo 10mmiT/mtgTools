@@ -1039,24 +1039,28 @@
         <button class="db-ltab active" id="db-ltab-search" onclick="dbSetLeftTab('search')">Search</button>
         <button class="db-ltab" id="db-ltab-edhrec" onclick="dbSetLeftTab('edhrec')">EDHREC</button>
       </div>
+      <!-- Where the + on a card puts it. In the header because it is a fact
+           about the drawer rather than about either way of finding a card:
+           Search and EDHREC both hand back a grid with a + on every tile, and
+           one control for both is what keeps it from being a menu asked on
+           each of two hundred of them. Written by _dbRenderAddTo() off
+           dbAddBoards(), so the list is the boards. -->
+      <div id="dbAddToWrap" class="db-add-to-wrap"></div>
       <button class="db-drawer-close" onclick="dbCloseSearchPanel()" title="Close">✕</button>
     </div>
     <div id="db-left-search" class="db-drawer-content">
-      <div style="display:flex;gap:var(--space-2);padding:var(--space-2) var(--space-3) var(--space-1)">
-        <div class="autocomplete-wrap" style="position:relative;flex:1">
-          <input type="text" id="dbSearchInput" placeholder="Scryfall query (Enter to search)…" style="width:100%;box-sizing:border-box"
+      <div class="db-search-bar">
+        <div class="autocomplete-wrap db-search-field">
+          <input type="text" id="dbSearchInput" placeholder="Scryfall query (Enter to search)…"
                  oninput="dbAcInput()" onkeydown="if(event.key==='Enter'){closeDbAc();dbSearch()}">
           <div id="dbAcDrop" class="ac-dropdown" style="display:none"></div>
         </div>
-        <button class="btn-primary" style="flex-shrink:0" onclick="dbSearch()">Search</button>
+        <button class="btn-primary" onclick="dbSearch()">Search</button>
       </div>
-      <div class="db-ci-toggle">
-        <input type="checkbox" id="dbCiToggle" checked>
-        <label for="dbCiToggle">Color identity filter</label>
-      </div>
-      <!-- "Build only with cards you own", at the point where it helps. It
-           does not filter results that came back from Scryfall — it asks the
-           shelf instead, in the same query language, because a page of results
+      <!-- What the search is *of*, on one line rather than on two of its own.
+           "Build only with cards you own" at the point where it helps: it does
+           not filter results that came back from Scryfall — it asks the shelf
+           instead, in the same query language, because a page of results
            narrowed to the three you happen to own reads as broken. -->
       <div class="db-search-scope">
         <select id="dbSearchOwned" onchange="dbSearch()"
@@ -1065,6 +1069,14 @@
           <option value="mine">Search: cards I own</option>
           <option value="group">Search: cards the group owns</option>
         </select>
+        <!-- The label points at the checkbox with `for` rather than wrapping
+             it: a linked label is part of the control's tap target, which is
+             what gets this to 44px on a phone without the checkbox itself
+             having to be finger-sized. -->
+        <span class="db-ci-toggle">
+          <input type="checkbox" id="dbCiToggle" checked>
+          <label for="dbCiToggle">Color identity</label>
+        </span>
       </div>
       <div id="dbSearchResults" class="db-results">
         <div class="empty-state" style="padding:var(--space-6) var(--space-4)">Type a Scryfall query above</div>
@@ -1222,7 +1234,10 @@
 <input type="file" id="wantCsvInput" accept=".csv,.txt"     style="display:none">
 
 <!-- Card image tooltip (list view only) -->
-<div id="cardTooltip"><img id="tooltipImg" class="card-img" alt=""></div>
+<!-- The card held over the page when you point at a card's name. Its contents
+     are written per hover by js/main.js — one picture, or the two a
+     transforming card has — so it starts empty. -->
+<div id="cardTooltip"></div>
 
 <!-- One scrim for every drawer — it is what a click outside them lands on -->
 <div id="drawerScrim" class="drawer-scrim" onclick="closeDrawers()"></div>

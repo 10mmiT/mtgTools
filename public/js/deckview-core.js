@@ -160,36 +160,12 @@ function initDeckBuilder() {
       }
     });
 
-    // Hover card preview (list view only). Re-checks the element under the
-    // cursor on every mousemove (rather than relying on mouseover/mouseout),
-    // so it self-heals once the mouse moves again after a re-render destroys
-    // the hovered row. The remaining gap — re-render happens while the mouse
-    // is perfectly stationary (e.g. right after a click) — is covered by the
-    // global click/scroll/visibility handlers in main.js.
-    const preview = document.createElement('img');
-    preview.id = 'dbHoverPreview';
-    preview.className = 'db-hover-preview card-img';
-    preview.style.display = 'none';
-    document.body.appendChild(preview);
-
-    document.getElementById('dbDeckContent')?.addEventListener('mousemove', e => {
-      if (dbView !== 'list') { preview.style.display = 'none'; return; }
-      const link = e.target.closest('.card-link');
-      if (!link) { preview.style.display = 'none'; return; }
-      const name = link.dataset.name;
-      const sf = dbCardData.get(name);
-      const face = sf?.card_faces?.[0];
-      const imgUrl = sf?.image_uris?.normal || face?.image_uris?.normal || '';
-      if (!imgUrl) { preview.style.display = 'none'; return; }
-      if (preview.dataset.name !== name) { preview.src = imgUrl; preview.dataset.name = name; }
-      preview.style.display = 'block';
-      preview.style.left = (e.clientX + 16) + 'px';
-      preview.style.top  = Math.min(e.clientY - 40, window.innerHeight - 320) + 'px';
-    });
-
-    document.getElementById('dbDeckContent')?.addEventListener('mouseleave', () => {
-      preview.style.display = 'none';
-    });
+    /* No hover preview here. This tab used to draw its own — its own element,
+       its own cache, its own mousemove — beside the one main.js draws on every
+       .card-link in the app, and since the mat's rows carry .card-link both of
+       them fired: two copies of the same card, twenty pixels apart and ten
+       pixels different in width, which reads as a rendering fault. The one in
+       js/main.js is the survivor, and it is better than either was. */
 
     _dbInitDone = true;
   }
@@ -514,22 +490,35 @@ function _dbLoadShownBoards(deckId) {
   _dbRenderBoardToggles();
 }
 
-/* A card has landed on a head board, so the head board is on. Called from the
- * move, because a commander dropped into a region that was switched off would
- * disappear out of the hand — and the stored preference is rewritten with it,
- * so a board switched on by hand and *then* filled does not come back reading
- * as "the owner hid this one". */
-function _dbRevealHeadBoard(boardId) {
-  const board = DB_BOARDS.find(b => b.id === boardId);
-  if (!board?.head) return;
+/* A board has been given something, so the board is on.
+ *
+ * The stored preference is rewritten with it, even when the board was already
+ * showing, because what has just changed is the *default*: an empty commander
+ * board switched on by hand is a deck deviating from off, and the moment a card
+ * lands on it that same stored entry would start reading as "hidden".
+ *
+ * The mainboard is not a board that can be hidden, so it is not one that can be
+ * revealed either. */
+function _dbRevealBoard(boardId) {
+  if (boardId === DB_MAIN_BOARD || !_dbBoardExists(boardId)) return;
   const was = dbShownBoards.has(boardId);
   dbShownBoards.add(boardId);
-  /* Saved even when it was already showing, because what has just changed is
-   * the *default*: an empty commander board switched on by hand is a deck
-   * deviating from off, and the moment a card lands on it that same stored
-   * entry would start reading as "hidden". */
   _dbSaveShownBoards();
   if (!was) _dbRenderBoardToggles();
+}
+
+/* The narrower rule the *drop* path wants: only a head board.
+ *
+ * A commander dropped into a region that was switched off would disappear out
+ * of the hand, so the head of the deck comes on. The holding areas deliberately
+ * do not — a hidden board shows itself for as long as a card is in hand and
+ * goes back to hidden when you let go, which is what makes a board you switched
+ * off still somewhere you can put something. That is a decision about carrying,
+ * and it is why this is not simply _dbRevealBoard(): adding a card *by name*
+ * has no hand and no reveal, so it reveals whatever it filled. */
+function _dbRevealHeadBoard(boardId) {
+  if (!DB_BOARDS.find(b => b.id === boardId)?.head) return;
+  _dbRevealBoard(boardId);
 }
 
 /* The curve, out of the toolbar and back into it. In memory rather than
