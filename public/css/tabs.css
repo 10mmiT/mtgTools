@@ -1612,6 +1612,9 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      renders no ::after of its own, so the pad is the *label's*, stretched
      over the whole row — which is the behaviour you want anyway: on a
      phone the row is the switch. */
+  /* The checkbox is 14px and cannot grow without looking like a button, so its
+     label carries the target: an overlay across the whole toggle, which a
+     linked label may do because clicking anywhere on it is clicking the box. */
   .db-ci-toggle { position: relative; min-height: 44px; }
   .db-ci-toggle label::before {
     content: '';
@@ -1859,6 +1862,35 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-pane[data-db-mode="deck"][data-db-fold="bare"] .db-stats-bar {
   display: none;
 }
+/* ── And the strip itself goes with them ─────────────────────────────────────
+   Hiding the controls used to leave the strip standing. Its children went to
+   `display: none` and the toolbar kept its own padding and the 35px arrow, so
+   the mat went on starting 68 pixels down the page whether every control was
+   showing or none of them was: pressing "hide the controls" reclaimed exactly
+   nothing, on a frame whose entire argument is what the chrome costs above the
+   cards.
+
+   So the strip leaves the flow when it is folded, and the mat rises into the
+   space. The arrow is all that is left in it, and it keeps its place at the top
+   right of the tab — over the corner of the mat now rather than above it, which
+   is the trade a mat with nothing on it but cards is worth.
+
+   Absolute against the pane rather than fixed to the window, and the difference
+   matters at the breakpoint: below 900px the nav is a header in the flow above
+   this tab, so a window-fixed arrow would need to know how tall that header is
+   and would sit on top of it whenever it guessed wrong. The pane's own top is
+   the right answer at every width and needs nothing to be told to it. */
+.db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .toolbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  padding: 0;
+  background: none;
+}
+/* The box the line above places against. */
+.db-pane { position: relative; }
+
 /* The way back sits at the far end of the strip, so folding does not move it:
    the button you just pressed is under the pointer for the second press. */
 .db-fold { margin-left: auto; }
@@ -2111,32 +2143,49 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-add-btn:hover { background: var(--primary-dk); }
 .db-add-btn-in { background: var(--success); cursor: default; }
 
-/* Search results list */
-.db-results { overflow-y: auto; max-height: calc(100vh - 250px); }
-.db-sr-row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-1);
-  border-bottom: 1px solid var(--border);
+/* ── What the drawer found ───────────────────────────────────────────────────
+   Search results and EDHREC recommendations, which were two lists of the same
+   thing written twice: a 120px picture beside three short lines, in a row 186px
+   tall of which most was empty. Four fitted on a screen, and EDHREC hands back
+   two hundred and forty.
+
+   One grid of card art now, and the app's own .sf-grid rather than a grid of
+   this drawer's — a page of cards looks the same here as on Collections, on
+   Scryfall and in the Set Browser, because it is the same page of cards. All
+   this adds is the column width: the drawer is half a window and the tiles are
+   being scanned rather than read, so they are narrower than the mat's. */
+.db-results { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--space-3) var(--space-3); }
+.db-find-grid { --card-width: 118px; }
+.db-find-tile { min-width: 0; }
+/* The picture is the positioning context for the one control on it. */
+.db-find-art { position: relative; }
+/* The + sits on the artwork, top right, where a badge sits on every other card
+   tile in the app. On the picture rather than beside it because the tile is a
+   card and the whole card is the target: there is no row left for a button to
+   have a column of its own in. */
+.db-find-add {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  z-index: 5;
 }
-.db-sr-row:last-child { border-bottom: none; }
-.db-sr-thumb, .db-edh-thumb {
-  width: 120px;
-  flex-shrink: 0;
-}
-.db-sr-info { flex: 1; min-width: 0; }
-.db-sr-name {
+.db-find-foot { padding: var(--space-1) 0 0; }
+.db-find-badges {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--text-base);
-  font-weight: 600;
-  flex-wrap: wrap;
-  margin-bottom: var(--space-1);
+  font-size: var(--text-2xs);
 }
-.db-sr-type { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-1); }
-.db-sr-foot { display: flex; align-items: center; gap: var(--space-2); }
+/* Where the deck already has this card, when that is somewhere other than
+   where the + would put it. A quiet chip: it is an answer to a question you
+   did not ask, and it must not read as a warning. */
+.db-find-where {
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
 
 /* EDHREC section */
 .db-edh-section { margin-bottom: var(--space-3); }
@@ -2146,21 +2195,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   color: var(--text-muted);
   padding: var(--space-1) 0;
   border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
 }
-.db-edh-row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-1);
-  border-bottom: 1px solid var(--border);
-  font-size: var(--text-sm);
-}
-.db-edh-row:last-child { border-bottom: none; }
-.db-edh-info { flex: 1; min-width: 0; padding-top: var(--space-1); }
-.db-edh-name { display: block; font-weight: 600; margin-bottom: var(--space-1); }
-.db-edh-type { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-1); }
-.db-edh-meta { display: flex; gap: var(--space-2); align-items: center; }
 .db-edh-syn {
   font-size: var(--text-xs);
   background: var(--primary);
@@ -2265,7 +2301,10 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    tablet-width window got a static stats bar and a sidebar offset on it at
    the same time. Both sit on 900 now, so they cannot disagree. */
 @media (width < 900px) {
-  .db-results { max-height: 40vh; }
+  /* No cap here any more. The results are the flexible part of a drawer that
+     is already a full-height flex column, so they take what the controls above
+     them leave — which is what a 40vh cap was standing in for while the
+     max-height above it was a constant that had to guess the chrome's height. */
   /* In the flow of the page rather than fixed to the bottom of the window —
      and `relative` rather than `static`, because the missing list is anchored
      to this bar and has to rise out of the line it belongs to rather than out
@@ -2347,11 +2386,18 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    to win on source order. */
 @media (width < 900px) {
   .db-drawer { width: 92vw; }
+  /* The header carries three things and a phone fits two, so where cards go
+     takes a line of its own under the tabs rather than being squeezed between
+     them and the ✕. `order` puts it after the close button, which is what
+     makes it the second line and not the middle of the first. */
+  .db-add-to-wrap { order: 1; flex-basis: 100%; }
+  .db-add-to select { flex: 1; min-width: 0; }
 }
 
 .db-drawer-hdr {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
@@ -2882,8 +2928,31 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 /* The one control the drawer's search box gained: which shelf a query is
    asked of, or all of Magic. Beside the colour-identity toggle it sits under,
    in the same padded strip. */
-.db-search-scope { padding: 0 var(--space-3) var(--space-2); }
-.db-search-scope select { width: 100%; }
+/* ── The drawer's controls ───────────────────────────────────────────────────
+   Three stacked bands — the query, a checkbox on a line of its own, and the
+   scope select on another — came to 176px of chrome above the results in a
+   900px drawer, which is most of a card. Two lines now: what to search for,
+   and what to search. */
+.db-search-bar {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-1);
+}
+.db-search-field { position: relative; flex: 1; min-width: 0; }
+.db-search-field input { width: 100%; box-sizing: border-box; }
+.db-search-bar .btn-primary { flex-shrink: 0; }
+
+.db-search-scope {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-2);
+}
+/* The select takes the room the checkbox beside it does not want, down to the
+   width at which the two stop fitting on one line — a phone, where the toggle
+   drops below rather than being pushed off the edge. */
+.db-search-scope select { flex: 1 1 11rem; min-width: 0; }
 
 /* How many of the shelf matched, when the shelf had more than one page of
    them. The answer to a shelf with four hundred hits in it is a narrower
@@ -2985,20 +3054,46 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   padding: 0 var(--space-1); border-radius: var(--radius-sm); z-index: 5;
 }
 
-/* ── Color Identity Toggle ───────────────────────────────────────────────────── */
+/* ── Color Identity Toggle ─────────────────────────────────────────────────────
+   Stands beside the scope select on one line rather than owning a band of the
+   drawer to itself. The label is linked to the checkbox with `for` and is
+   therefore part of its tap target, which is what the phone rule below
+   stretches to a finger. */
 .db-ci-toggle {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3) var(--space-2);
+  flex-shrink: 0;
+  gap: var(--space-1);
   font-size: var(--text-xs);
   color: var(--text-muted);
+  white-space: nowrap;
 }
 .db-ci-toggle input[type="checkbox"] {
   accent-color: var(--primary);
   cursor: pointer;
 }
 .db-ci-toggle label { cursor: pointer; }
+
+/* ── Where the drawer's + puts a card ──────────────────────────────────────────
+   In the header, beside the two tabs, because it applies to both of them —
+   Search and EDHREC each hand back a grid with a + on every tile, and the
+   alternative to one control here is the same menu on two hundred tiles.
+   The tabs take the free space instead of the close button's `margin-left:
+   auto` taking it, so the order across the header is tabs, then this, then ✕.
+   Two auto margins would have split the gap between them and stood the control
+   in the middle of nothing. */
+.db-left-tabs { flex: 1; min-width: 0; }
+.db-add-to-wrap { flex-shrink: 0; }
+.db-add-to {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.db-add-to select { font-size: var(--text-xs); }
 
 /* ── Category Collapse ───────────────────────────────────────────────────────── */
 /* On .dv-section-fold, which is the whole of the heading except the "⋯" menu:
@@ -3022,13 +3117,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   display: none;
 }
 
-/* ── Hover Card Preview ──────────────────────────────────────────────────────── */
-/* A card held above the page, so it drops the deeper of the two shadows —
-   the corner and the edges come from .card-img with everything else. */
-.db-hover-preview {
-  position: fixed;
-  width: 220px;
-  filter: var(--card-shadow-raised);
-  pointer-events: none;
-  z-index: 9999;
-}
+/* No hover preview rule here any more. This tab drew its own card-above-the-
+   page beside the one #cardTooltip already draws on every .card-link in the
+   app, and on the mat both of them fired at once. What is left is in
+   components.css, with the rest of the preview. */

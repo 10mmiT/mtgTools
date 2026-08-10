@@ -92,6 +92,22 @@ function dbReadPlace(key) {
 
 const dbCardRef = card => `${card.board || DB_MAIN_BOARD}/${card.card_name}`;
 
+/* Is this one of the boards? Asked wherever a board id arrives from outside the
+ * tab — a stored preference, a control's value — so that an id nothing answers
+ * to falls back rather than making a region of the mat nobody can reach. */
+const _dbBoardExists = id => DB_BOARDS.some(b => b.id === id);
+
+/* The boards a card can be *added* to, in the order they are offered.
+ *
+ * Every board except the ones at the head of the deck. A head board is what
+ * the deck is built around rather than somewhere cards go — the commander is
+ * chosen from the mat, by ♛ Make commander on a card that is already in front
+ * of you, and offering it in a list beside "Maybeboard" would be a second
+ * answer to a question that is already answered better. Which is a rule about
+ * the flag and not a list of ids, so a board added to DB_BOARDS is offered
+ * here the moment it exists. */
+const dbAddBoards = () => DB_BOARDS.filter(b => !b.head);
+
 function dbReadRef(ref) {
   const { board, category } = dbReadPlace(ref);
   return { board, name: category ?? '' };

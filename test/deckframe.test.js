@@ -188,6 +188,27 @@ test('the controls hide, the readout survives the first press and not the second
   assert.ok(bare && bare[0].includes('.db-stats-bar'), 'the second press left the readout up');
 });
 
+test('and the strip they were in stops taking a row of the page', () => {
+  /* The bug this pins. Folding hid the toolbar's *children* and left the
+     toolbar itself standing: its own padding plus a 35px arrow, so the mat
+     went on starting 68px down the page whether the controls were showing or
+     not. Pressing "hide the controls" reclaimed nothing, which is the whole
+     point of a frame that folds.
+     Measured in a browser rather than here — this only pins that the rule
+     taking the strip out of the flow still exists. */
+  const strip = CSS.match(
+    /^\.db-pane\[data-db-mode="deck"\]:not\(\[data-db-fold="full"\]\) \.toolbar \{[^}]*\}/ms);
+  assert.ok(strip, 'the folded strip is back in the flow, holding a row open for one arrow');
+  assert.match(strip[0], /position:\s*absolute/,
+    'the folded strip is in the flow again');
+  assert.match(strip[0], /padding:\s*0/,
+    'the strip keeps padding it no longer has anything to pad');
+  // Absolute against the pane, so the arrow lands at the top of *this tab*
+  // rather than at the top of whatever happens to be positioned above it.
+  assert.match(CSS, /^\.db-pane \{[^}]*position:\s*relative/ms,
+    'nothing makes the pane the box the folded strip is placed in');
+});
+
 test('the way back is never one of the things that hides', () => {
   // A mat with no way out of it is a mat you have to reload the page to leave.
   const hidden = CSS.match(/:not\(\[data-db-fold="full"\]\) \.toolbar > :not\(([^)]*)\)/);

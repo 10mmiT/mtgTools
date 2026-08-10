@@ -126,6 +126,27 @@ const scryfallArtCache = new Map();
  * and where the reasons for what is in it are written down — this file only
  * fills the map. */
 const scryfallMetaCache = new Map();
+/* name → [front, back] when the card really has two pictures, and nothing when
+ * it has one. Kept apart from scryfallCache rather than folded into it because
+ * "the picture of this card" is what almost everything wants — a grid tile, a
+ * pile, a deck tile — and only the hover preview wants "every picture this
+ * card has". */
+const scryfallFacesCache = new Map();
+
+/* The faces of a card that has more than one of them, as URLs.
+ *
+ * Two pictures, not two halves of a card: a transforming card, a modal
+ * double-faced one, a battle. A split card and a Room also have `card_faces`,
+ * and they are one physical card printed once — the image lives on the card
+ * rather than on its faces, so asking each face for a picture correctly finds
+ * none and this hands back nothing. That is the whole test, and it is the
+ * card's own answer rather than a list of layouts we would have to keep. */
+function _scryfallFaces(card) {
+  const faces = (card.card_faces || [])
+    .map(f => f.image_uris?.normal)
+    .filter(Boolean);
+  return faces.length > 1 ? faces : null;
+}
 
 /* Fills all three caches for `names`, and the postcondition is that every name
  * handed in is in every one of them when this resolves — a picture or a null,
@@ -151,6 +172,7 @@ async function ensureScryfallImages(names) {
       card.image_uris?.normal    || face?.image_uris?.normal    || null);
     scryfallArtCache.set(card.name,
       card.image_uris?.art_crop  || face?.image_uris?.art_crop  || null);
+    scryfallFacesCache.set(card.name, _scryfallFaces(card));
     /* One reading of a Scryfall card into meta, in js/sortui.js. This used to
        be a second copy of that object literal, which is how a field added for
        one reader — the search's oracle text — would have reached the cards
@@ -160,8 +182,12 @@ async function ensureScryfallImages(names) {
   // Mark any still-missing names so we don't retry them (both caches, so
   // metadata-driven sorts/columns don't keep re-requesting unresolved cards)
   for (const name of missing) {
-    if (!scryfallCache.has(name))     scryfallCache.set(name, null);
-    if (!scryfallMetaCache.has(name)) scryfallMetaCache.set(name, {});
+    if (!scryfallCache.has(name))      scryfallCache.set(name, null);
+    if (!scryfallMetaCache.has(name))  scryfallMetaCache.set(name, {});
+    /* A name that came back with nothing has no second face either, and saying
+       so is what keeps the preview from asking again for every card it draws:
+       absent means unknown here, exactly as it does above. */
+    if (!scryfallFacesCache.has(name)) scryfallFacesCache.set(name, null);
   }
 }
 

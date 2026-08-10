@@ -1115,8 +1115,17 @@ td { padding: var(--space-2) var(--space-3); }
   position: fixed;
   z-index: 1000;
   pointer-events: none;
+  gap: var(--space-2);
 }
-#tooltipImg { width: 210px; filter: var(--card-shadow-raised); }
+/* One card, or the two a transforming card is. A row rather than a single
+   image, because showing only the front of a double-faced card is the preview
+   being wrong about what the card is — and the gap is what makes two cards
+   read as two cards rather than as one wide picture.
+
+   210px each: it has to be wider than the largest thing this replaces
+   (js/main.js compares against it by name, TIP_CARD_WIDTH) and narrow enough
+   that two of them fit side by side on a laptop. */
+.tip-face { width: 210px; filter: var(--card-shadow-raised); }
 .autocomplete-wrap { position: relative; flex: 1; min-width: 200px; }
 .ac-dropdown {
   display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0;

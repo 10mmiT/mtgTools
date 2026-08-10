@@ -4,7 +4,12 @@
 // visible here and functions stay global for inline onclick handlers.
 
 // ── Card operations ───────────────────────────────────────────────────────────
-async function dbAddCard(nameOverride) {
+/* Add a card by name.
+ *
+ * `board` is where it is being put, and the whole of what the drawer's "Add to"
+ * control does. Left out — the toolbar's Add a card field, and every caller
+ * that predates the control — it is answered the way it always was, below. */
+async function dbAddCard(nameOverride, board) {
   if (!dbDeck) return;
   const input   = document.getElementById('dbAddCardInput');
   const name    = (nameOverride || input?.value || '').trim();
@@ -25,14 +30,27 @@ async function dbAddCard(nameOverride) {
      level down, by dbAutoCategory() handing back the Commander category; the
      commander is a board now, so it is answered here — and it is the same
      rule, which is why adding your commander by name still puts it where the
-     commander goes rather than in with the creatures. */
-  const board = name === (dbDeck.commander || '').trim() ? DB_COMMANDER_BOARD : DB_MAIN_BOARD;
-  const ref = dbPlace(board, name);
+     commander goes rather than in with the creatures.
+
+     An asked-for board beats both. Somebody who has said "maybeboard" and then
+     typed the name of their own commander means the maybeboard: the rule above
+     is a guess about where a bare name belongs, and a guess does not get to
+     overrule an instruction. */
+  const into = _dbBoardExists(board)
+    ? board
+    : (name === (dbDeck.commander || '').trim() ? DB_COMMANDER_BOARD : DB_MAIN_BOARD);
+  const ref = dbPlace(into, name);
   const existing = dbFindCard(ref);
   if (existing) { existing.qty = (existing.qty || 1) + 1; }
   else {
-    dbCards.push({ card_name: name, qty: 1, category: cat, board, position: dbCards.length });
-    _dbRevealHeadBoard(board);
+    dbCards.push({ card_name: name, qty: 1, category: cat, board: into, position: dbCards.length });
+    /* Whatever it landed in is on the mat now. A card added by *name* has none
+       of what a card put there by hand has — no carry, no board lighting up to
+       receive it, nothing on screen that moved — so a maybeboard that stayed
+       switched off would answer the press with a deck that looks unchanged and
+       a card nowhere in it. That is the reason a head board is revealed on a
+       drop, and it is the same reason. */
+    _dbRevealBoard(into);
   }
 
   // Fetch card data if we don't have it yet

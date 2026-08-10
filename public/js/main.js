@@ -457,17 +457,42 @@ document.addEventListener('click', e => {
 
 // auth functions are in auth.js (logout, authInit)
 
-// ── Card image tooltip (list view) ────────────────────────────────────
-// Relies on mouseover/mouseout on the hovered .card-link to show/hide. This
-// app re-renders lists by replacing innerHTML wholesale, so if that happens
-// while the cursor sits over a link (e.g. clicking +/- qty, a checkbox, or
-// the 30s background refresh), the element is destroyed without ever firing
-// mouseout — the tooltip would otherwise be stuck on screen indefinitely.
-// _tipLink + the isConnected check below catch that on the next mousemove;
-// the click/scroll/visibility listeners catch it immediately even if the
-// cursor never moves again.
+// ── The card held over the page ───────────────────────────────────────
+// Pointing at a card's name and being shown the card. One implementation, and
+// that is worth saying out loud: there used to be two. This one, on .card-link
+// anywhere in the app, and a second inside the Deck Builder that drew its own
+// picture from its own cache on its own mousemove — so hovering a card on the
+// mat produced two copies of the same card, twenty pixels and ten pixels of
+// width apart, which read as a rendering fault rather than as a feature.
+//
+// Two things it now gets right that neither of them did:
+//
+//   both faces  A transforming card is two pictures. Showing only the front
+//               was the preview quietly lying about what the card is — the one
+//               thing a picture of a card must not do.
+//   not always  A name needs a picture; a card you are already looking at does
+//               not. The rule is a size rather than a list of views: show the
+//               preview when it would be bigger than what is on screen. That
+//               covers the Deck Builder's grid at full size without knowing
+//               the Deck Builder exists, and it leaves the drawer's 118px
+//               tiles and the Scryfall list's thumbnails alone, because those
+//               are too small to read and the preview is the point of them.
+//
+// Held on with mouseover/mouseout. This app re-renders lists by replacing
+// innerHTML wholesale, so if that happens while the cursor sits over a link
+// (a quantity edit, a checkbox, the 30s background refresh) the element is
+// destroyed without ever firing mouseout, and the preview would be stuck on
+// screen. _tipLink + the isConnected check catch that on the next mousemove;
+// the click/scroll/visibility listeners catch it even if the cursor never
+// moves again.
+
+/* How wide one card is drawn in the preview. It is here as well as in
+ * components.css because the decision below is a comparison against it — what
+ * is on screen versus what this would draw — and a number that only the
+ * stylesheet knew could not be compared with anything. */
+const TIP_CARD_WIDTH = 210;
+
 const _tip    = document.getElementById('cardTooltip');
-const _tipImg = document.getElementById('tooltipImg');
 let _tipTimer = null;
 let _tipLink  = null;
 
@@ -477,6 +502,56 @@ function _hideCardTooltip() {
   _tip.style.display = 'none';
 }
 
+/* How big this card's own picture already is beside the name being pointed at,
+ * in pixels across, or 0 for a name standing on its own.
+ *
+ * Every tile in the app draws its art as an <img class="card-img"> whose alt
+ * text is the card's name, so the question can be asked of what is actually on
+ * the screen rather than of a list of tile classes that would go stale the next
+ * time somebody adds a grid. The search is bounded to the handful of ancestors
+ * a tile is deep, because the point is a picture *beside this name* — a table
+ * with a hundred card images in it is not one of them. */
+function tipArtBeside(link, name, levels = 4) {
+  let widest = 0;
+  let el = link.parentElement;
+  for (let up = 0; el && up < levels; el = el.parentElement, up++) {
+    for (const img of el.querySelectorAll('img.card-img')) {
+      if (img.alt === name) widest = Math.max(widest, img.getBoundingClientRect().width);
+    }
+    if (widest) break;
+  }
+  return widest;
+}
+
+/* Whether the preview is worth drawing: only when it would show you more of
+ * the card than you can already see. Written as a comparison of two numbers so
+ * that it can be asserted rather than eyeballed. */
+function tipWanted(artWidth, tipWidth = TIP_CARD_WIDTH) {
+  return !(artWidth >= tipWidth);
+}
+
+/* Where the preview goes, from where the pointer is and how big the thing
+ * being placed turned out to be.
+ *
+ * Measured rather than assumed. It used to carry a written-down 216×300, which
+ * was the size of one card and is not the size of two — a transforming card
+ * would have hung off the right of the window every time. */
+function tipPlacement(at, box, view, pad = 14) {
+  const left = at.x + pad + box.width > view.width ? at.x - pad - box.width : at.x + pad;
+  const top  = at.y - 20 + box.height > view.height ? view.height - box.height - 8 : at.y - 20;
+  return { left: Math.max(0, left), top: Math.max(0, top) };
+}
+
+/* The card, or both of its cards. A second <img> only when the card really has
+ * a second picture — see _scryfallFaces() in js/scryfall.js, where a split card
+ * correctly answers "one". */
+function _tipCardsHtml(name) {
+  const faces = scryfallFacesCache.get(name);
+  const uris  = faces?.length ? faces : [scryfallCache.get(name)];
+  return uris.filter(Boolean)
+    .map(uri => `<img class="card-img tip-face" src="${uri}" alt="${esc(name)}">`).join('');
+}
+
 document.addEventListener('mouseover', e => {
   const link = e.target.closest('.card-link');
   if (!link) return;
@@ -484,11 +559,15 @@ document.addEventListener('mouseover', e => {
   _tipLink = link;
   _tipTimer = setTimeout(async () => {
     const name = link.dataset.name;
+    if (!name) return;
+    /* Asked before the fetch, so a card you are already looking at costs
+       nothing at all rather than costing a round trip and then being thrown
+       away. */
+    if (!tipWanted(tipArtBeside(link, name))) return;
     if (!scryfallCache.has(name)) await ensureScryfallImages([name]);
-    const uri = scryfallCache.get(name);
-    if (!uri || !link.isConnected) return;
-    _tipImg.src = uri;
-    _tip.style.display = 'block';
+    if (!scryfallCache.get(name) || !link.isConnected) return;
+    _tip.innerHTML = _tipCardsHtml(name);
+    _tip.style.display = 'flex';
   }, 120);
 });
 
@@ -500,14 +579,17 @@ document.addEventListener('mouseout', e => {
 document.addEventListener('mousemove', e => {
   if (_tip.style.display === 'none') return;
   if (_tipLink && !_tipLink.isConnected) { _hideCardTooltip(); return; }
-  const W = 216, H = 300, pad = 14;
-  const left = (e.clientX + pad + W > window.innerWidth)  ? e.clientX - pad - W : e.clientX + pad;
-  const top  = (e.clientY - 20 + H > window.innerHeight)  ? window.innerHeight - H - 8 : e.clientY - 20;
-  _tip.style.left = left + 'px';
-  _tip.style.top  = top  + 'px';
+  const box = _tip.getBoundingClientRect();
+  const at  = tipPlacement({ x: e.clientX, y: e.clientY }, box,
+                           { width: window.innerWidth, height: window.innerHeight });
+  _tip.style.left = at.left + 'px';
+  _tip.style.top  = at.top  + 'px';
 });
 
-_tipImg.addEventListener('error', _hideCardTooltip);
+/* A picture that will not load takes the preview with it, however many faces
+ * it was going to have. Bound to the container in the capture phase because
+ * the images are written fresh on every hover and `error` does not bubble. */
+_tip.addEventListener('error', _hideCardTooltip, true);
 
 // Belt-and-suspenders: hide any open card tooltip/preview on click, scroll,
 // or tab-hide, since those are the moments a stuck tooltip is most likely
@@ -516,8 +598,6 @@ _tipImg.addEventListener('error', _hideCardTooltip);
 // again after the click that triggered a re-render).
 function _hideAllCardPreviews() {
   _hideCardTooltip();
-  const dbPreview = document.getElementById('dbHoverPreview');
-  if (dbPreview) dbPreview.style.display = 'none';
 }
 document.addEventListener('click', _hideAllCardPreviews, { capture: true });
 document.addEventListener('scroll', _hideAllCardPreviews, { capture: true, passive: true });

@@ -96,6 +96,142 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#dbNewDeckCommander') && !e.target.closest('#dbCmdAcDrop')) _closeDbCmdAc();
 });
 
+// ── Where the drawer puts things ──────────────────────────────────────────
+// The drawer is two ways of finding a card and one way of taking it: Search
+// asks Magic or the shelf, EDHREC asks what other people run, and both hand
+// back a grid of cards with a + on each. What the + *meant* was the deck, and
+// only the deck — so a card you were merely considering had to go into the
+// ninety-nine and be dragged out to the maybeboard afterwards, which is the
+// deck being broken on the way to not breaking it.
+//
+// So the + has a destination, and it is one control for the whole drawer
+// rather than a choice on every tile. Choosing where cards go is a mode you
+// are in for a while — you sit down to fill a maybeboard, or to build — and a
+// menu on each of two hundred tiles would be asking the same question two
+// hundred times. It is in the drawer's header, above both tabs, because it is
+// a fact about the drawer and not about either way of searching.
+//
+// The options are dbAddBoards(), so the commander is deliberately not among
+// them and a board added to DB_BOARDS appears here without this file changing.
+
+const DB_ADD_TO_KEY = 'mtgtools_db_add_to';
+
+/* Where the + puts a card. Stored rather than reset per deck: it is a way of
+ * working, and somebody filling maybeboards is filling them for the evening.
+ * Read through the board list on the way out for localStorage's usual reason —
+ * a stored id nothing answers to is the mainboard, not a region of the mat
+ * nobody can reach. */
+function dbAddTo() {
+  let stored = null;
+  try { stored = localStorage.getItem(DB_ADD_TO_KEY); } catch {}
+  return dbAddBoards().some(b => b.id === stored) ? stored : DB_MAIN_BOARD;
+}
+
+function dbSetAddTo(board) {
+  try { localStorage.setItem(DB_ADD_TO_KEY, board); } catch {}
+  /* Both panes say where a card already is, per board, so both are wrong the
+     moment this changes. */
+  _dbRefreshDrawer();
+}
+
+/* The control itself, written once into a header both tabs share. */
+function _dbRenderAddTo() {
+  const el = document.getElementById('dbAddToWrap');
+  if (!el) return;
+  const now = dbAddTo();
+  el.innerHTML = `<label class="db-add-to">Add to
+    <select id="dbAddToSel" onchange="dbSetAddTo(this.value)"
+            title="Where the + on a card puts it">
+      ${dbAddBoards().map(b =>
+        `<option value="${esc(b.id)}"${b.id === now ? ' selected' : ''}>${esc(
+          b.id === DB_MAIN_BOARD ? 'Deck' : b.label)}</option>`).join('')}
+    </select></label>`;
+}
+
+/* Whatever the drawer is showing, drawn again.
+ *
+ * Adding a card used to change nothing you could see. The mat redrew behind
+ * the drawer, and the tile you had just pressed went on saying + — so a second
+ * press was the obvious thing to do and it silently made two copies. The
+ * drawer is a view of the deck as much as the mat is, and this is what makes
+ * it one. */
+function _dbRefreshDrawer() {
+  if (dbLeftTab === 'edhrec') { if (dbEdhrecData) _dbRenderEdhrec(); }
+  else if (dbSrResults.length) _dbRenderSearch();
+  _dbRenderAddTo();
+}
+
+// ── One card, in either half of the drawer ────────────────────────────────
+// Search results and EDHREC recommendations were two lists of the same thing
+// drawn twice, each a 186-pixel row of a big picture beside three short lines
+// and a lot of nothing. Four fitted on a screen. EDHREC hands back two hundred
+// and forty cards, which was forty thousand pixels of scrolling.
+//
+// They are one grid of card art now — the app's own .sf-grid, the same one the
+// Collections, Scryfall and Set Browser tabs draw, so a page of cards looks
+// like a page of cards everywhere in the app. What differs between the two
+// halves is what a card has to say about itself: a price here, a synergy
+// percentage and a deck count there. That is the `badges` argument and it is
+// the whole of the difference.
+
+/* Where the deck already has this card, board by board. Every board, not just
+ * the mainboard: the point of a destination is that a card can be in the deck
+ * *and* set aside, and a tile that only knew about the deck would say nothing
+ * about the copy you put in the maybeboard a minute ago. */
+function _dbHeldOn(name) {
+  return dbCards
+    .filter(c => c.card_name === name)
+    .map(c => ({ board: c.board || DB_MAIN_BOARD, qty: c.qty || 1 }));
+}
+
+const _dbBoardLabel = id => id === DB_MAIN_BOARD
+  ? 'Deck' : (DB_BOARDS.find(b => b.id === id)?.label || id);
+
+/* One card in the drawer: the picture, its name, whatever this half of the
+ * drawer knows about it, and the + that takes it.
+ *
+ * The + says where it would go and what is already there. It stays pressable
+ * once the card is in — a second Forest is a real thing to want, and in a
+ * sixty-card deck so is a fourth Lightning Bolt — but it can no longer be
+ * pressed *blindly*: the count is on it, so a second copy is something you
+ * chose rather than something that happened while you were clicking. */
+function _dbDrawerTile(name, { img, badges = '', canAdd }) {
+  const into  = dbAddTo();
+  const held  = _dbHeldOn(name);
+  const here  = held.find(h => h.board === into);
+  const there = held.filter(h => h.board !== into)
+    .map(h => `<span class="db-find-where">${esc(_dbBoardLabel(h.board))}${
+      h.qty > 1 ? ` ×${h.qty}` : ''}</span>`).join('');
+
+  const add = canAdd
+    ? `<button class="db-add-btn db-find-add${here ? ' db-add-btn-in' : ''}"
+         onclick="dbAddFromDrawer('${jsAttr(name)}')"
+         title="${here ? `${here.qty} already in ${_dbBoardLabel(into)} — add another`
+                       : `Add to ${_dbBoardLabel(into)}`}"
+        >${here ? `✓${here.qty > 1 ? here.qty : ''}` : '+'}</button>` : '';
+
+  return `<div class="db-find-tile">
+    <div class="db-find-art">
+      <a href="#" class="card-open" data-name="${esc(name)}">
+        ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(name)}">`
+              : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
+      </a>
+      ${add}
+    </div>
+    <div class="sf-card-lg-footer db-find-foot">
+      <a class="sf-card-lg-name card-link" href="#" data-name="${esc(name)}">${esc(name)}</a>
+      <div class="db-find-badges">${badges}${there}</div>
+    </div>
+  </div>`;
+}
+
+/* The + pressed. The drawer redraws itself afterwards, which is what turns a
+ * press into something you can see happen. */
+async function dbAddFromDrawer(name) {
+  await dbAddCard(name, dbAddTo());
+  _dbRefreshDrawer();
+}
+
 // ── Scryfall search panel ─────────────────────────────────────────────────────
 async function dbSearch() {
   const input = document.getElementById('dbSearchInput');
@@ -211,7 +347,14 @@ async function _dbSearchShelf(q, resultsEl) {
  * that is a narrower query, not a longer scroll. */
 const DB_SHELF_RESULTS = 175;
 
-function _dbRenderSearch(note = '') {
+/* What the last search had to say about itself — that the shelf holds more
+ * than a page of them — kept so that redrawing the grid does not lose it. The
+ * grid is redrawn on every add now, and a note that vanished on the first
+ * press would read as the search having changed. */
+let _dbSearchNote = '';
+
+function _dbRenderSearch(note = _dbSearchNote) {
+  _dbSearchNote = note;
   const el = document.getElementById('dbSearchResults');
   if (!dbSrResults.length) {
     el.innerHTML = `<div class="empty-state" style="padding:var(--space-4)">${
@@ -221,35 +364,18 @@ function _dbRenderSearch(note = '') {
   const noteHtml = note
     ? `<div class="help-text db-sr-note">${esc(note)}</div>` : '';
   const canAdd = !!(dbDeck && isMyPlayer(dbDeck.playerId));
-  el.innerHTML = noteHtml + dbSrResults.map(card => {
+  el.innerHTML = noteHtml + `<div class="sf-grid db-find-grid">` + dbSrResults.map(card => {
     const face  = card.card_faces?.[0];
-    const mana  = card.mana_cost || face?.mana_cost || '';
-    const type  = card.type_line || face?.type_line || '';
-    const img   = card.image_uris?.small || face?.image_uris?.small || '';
-    const price = renderPrice(card);
-    /* "Already in deck" means in the deck: a card you have set aside in the
-       maybeboard is one you have not put in, and the ✓ would be telling you
-       otherwise. */
-    const inDeck = dbMainCards().some(c => c.card_name === card.name);
-    const addBtn = canAdd
-      ? `<button class="db-add-btn${inDeck ? ' db-add-btn-in' : ''}"
-           onclick="dbAddCard('${jsAttr(card.name)}')" title="${inDeck ? 'Already in deck' : 'Add to deck'}">
-           ${inDeck ? '✓' : '+'}
-         </button>` : '';
-    return `<div class="db-sr-row">
-      ${img ? `<a href="#" class="card-open" data-name="${esc(card.name)}">
-        <img class="db-sr-thumb card-img" src="${img}" alt="${esc(card.name)}"></a>` : ''}
-      <div class="db-sr-info">
-        <div class="db-sr-name">
-          <a class="card-link" href="#" data-name="${esc(card.name)}">${esc(card.name)}</a>
-          ${mana ? renderMana(mana) : ''}
-        </div>
-        <div class="db-sr-type">${esc(type)}</div>
-        <div class="db-sr-foot">${price}${wantBtnHtml(card.name)}</div>
-      </div>
-      ${addBtn}
-    </div>`;
-  }).join('');
+    const img   = card.image_uris?.normal || face?.image_uris?.normal || '';
+    /* The price and the want-list button, which are what this half of the
+       drawer knows about a card beyond its picture. The mana cost and the type
+       line are gone from the tile and not lost: they are on the card, which is
+       the picture, and a type line under a full-art thumbnail is the app
+       reading the card out to you. */
+    return _dbDrawerTile(card.name, {
+      img, canAdd, badges: `${renderPrice(card)}${wantBtnHtml(card.name)}`,
+    });
+  }).join('') + `</div>`;
 }
 
 // ── Search drawer ─────────────────────────────────────────────────────────────
@@ -257,6 +383,11 @@ function dbOpenSearchPanel() {
   document.getElementById('dbSearchPanel')?.classList.add('open');
   document.getElementById('dbSearchBackdrop')?.classList.add('open');
   document.body.style.overflow = 'hidden';
+  /* Drawn on the way in rather than at boot: the boards it lists are a fact
+     about this deck's tab, and the drawer is where somebody is about to use
+     it. Redrawing what the deck holds with it, because the deck may have moved
+     on since the drawer was last looked at. */
+  _dbRefreshDrawer();
 }
 
 function dbCloseSearchPanel() {
@@ -381,6 +512,11 @@ function dbSetLeftTab(tab) {
 
   if (tab === 'edhrec' && !_dbEdhrecLoaded) {
     dbLoadEdhrec();
+  } else {
+    /* The half being switched to was drawn against a deck that may have
+       changed while the other half was showing — a card added over there is a
+       ✓ over here. */
+    _dbRefreshDrawer();
   }
 }
 
@@ -447,33 +583,28 @@ function _dbRenderEdhrec() {
       const seen  = new Set();
       const views = tags.flatMap(t => byTag.get(t)?.cardviews || [])
         .filter(c => !seen.has(c.name) && seen.add(c.name));
+      /* A recommendation for a card already in the deck is not a
+         recommendation, so the mainboard is filtered out — but only the
+         mainboard. A card you have set aside in the maybeboard is one you have
+         *not* put in, and dropping it here would answer "should I run this?"
+         by hiding the question; it stays, wearing what the tile says about
+         where it already is. */
       const cards = views
           .filter(c => !dbMainCards().some(d => d.card_name === c.name))
           .slice(0, DB_EDHREC_PER_SECTION).map(c => {
         const sf     = dbCardData.get(c.name);
         const face   = sf?.card_faces?.[0];
-        const img    = sf?.image_uris?.small || face?.image_uris?.small || '';
-        const type   = sf?.type_line || face?.type_line || '';
+        const img    = sf?.image_uris?.normal || face?.image_uris?.normal || '';
         const synPct   = c.synergy != null ? `${Math.round(c.synergy * 100)}%` : '';
         const incCount = c.num_decks != null ? `${c.num_decks.toLocaleString()} decks` : '';
-        const addBtn   = canAdd
-          ? `<button class="db-add-btn"
-               onclick="dbAddCard('${jsAttr(c.name)}')">+</button>` : '';
-        return `<div class="db-edh-row">
-          ${img ? `<a href="#" class="card-open" data-name="${esc(c.name)}">
-            <img class="db-edh-thumb card-img" src="${img}" alt="${esc(c.name)}"></a>` : ''}
-          <div class="db-edh-info">
-            <a class="card-link db-edh-name" href="#" data-name="${esc(c.name)}">${esc(c.name)}</a>
-            ${type ? `<div class="db-edh-type">${esc(type)}</div>` : ''}
-            <span class="db-edh-meta">${synPct ? `<span class="db-edh-syn">${synPct}</span>` : ''}${incCount ? `<span class="db-edh-inc">${incCount}</span>` : ''}</span>
-          </div>
-          ${addBtn}
-        </div>`;
+        return _dbDrawerTile(c.name, { img, canAdd, badges:
+          `${synPct ? `<span class="db-edh-syn">${synPct}</span>` : ''}${
+            incCount ? `<span class="db-edh-inc">${incCount}</span>` : ''}` });
       }).join('');
       if (!cards) return '';
       return `<div class="db-edh-section">
         <div class="db-edh-header">${esc(header)}</div>
-        ${cards}
+        <div class="sf-grid db-find-grid">${cards}</div>
       </div>`;
     }).join('');
 
