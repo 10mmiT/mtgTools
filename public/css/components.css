@@ -723,6 +723,23 @@ td { padding: var(--space-2) var(--space-3); }
    above it, which is the direction a thumb comes from anyway. */
 .card-fan-slot .card-turn::after { inset: -20px -11px -2px -11px; }
 
+/* And in the card detail view, where a card is drawn at nearly the size it is
+   printed. The corner is still the foot of the card, but 4px into a 320px card
+   is not the same place as 4px into a grid tile: at this size a card's own
+   black border is 13px wide and the collector line, the set code and the
+   artist's name below the text box are type you can read rather than the grey
+   noise they are on a tile. A control 4px in lands on both.
+
+   So the inset is stated as a fraction of the card instead of as a distance,
+   which is what makes it the same place on a card at every size the view is
+   drawn at — 320px beside the text, 280px on a phone, and whatever the modal
+   is given. It puts the control at the foot of the printed text box, inside
+   the frame and clear of the small print under it. */
+.card-detail-imgcol .card-turn {
+  bottom: 11%;
+  left: 7%;
+}
+
 /* Perspective is the property of the thing a rotation happens *in*, so it goes
    on the element the card hangs in and is taken off again when the turn ends —
    the same two-element split as the lift, and the same promise that picking a
