@@ -238,9 +238,13 @@
      What separates them is mass, and mass shows up in exactly one place:
      whether a thing rings as it lands.
 
-       --ease-panel    Heavy and damped, no ring. A drawer is a slab: it takes
-                       a moment to get going and a long moment to stop, and it
-                       does not bounce when it arrives.
+       --ease-panel    Heavy and damped, no ring. A drawer is a slab that has
+                       been shoved: it leaves fast and takes a long moment to
+                       stop, and it does not bounce when it arrives. Measured
+                       against the real drawers, two-thirds of the travel is
+                       gone in the first 40ms of the 200 and the last 8% takes
+                       the remaining 120 — which is what reads as weight, since
+                       what a heavy thing is slow at is stopping.
        --ease-control  Light, with a tight ring. A knob or a key is spring
                        steel — quick in both directions, and it rattles a
                        little as it settles. Deliberately half the overshoot a

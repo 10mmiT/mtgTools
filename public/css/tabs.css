@@ -255,10 +255,11 @@
   border-left: 1px solid var(--border);
   transform: translateX(100%);
   visibility: hidden;
-  /* The delay is in the closing direction only — see .drawer. */
-  transition: transform calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
+  /* The delay is in the closing direction only, and the panel curve is on
+     both directions — see .drawer for why each. */
+  transition: transform var(--dur-panel) var(--ease-panel), visibility 0s var(--dur-panel);
 }
-.deck-col.open { transform: none; visibility: visible; transition: transform calc(var(--motion-ui) * .2s), visibility 0s; }
+.deck-col.open { transform: none; visibility: visible; transition: transform var(--dur-panel) var(--ease-panel), visibility 0s; }
 
 .deck-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
 
@@ -2367,7 +2368,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   flex-direction: column;
   z-index: 201;
   transform: translateX(100%);
-  transition: transform calc(var(--motion-ui) * .22s) ease;
+  /* One rule for both directions, so the .open rule below only has to say
+     where it lands. The .22s it used to run for was its own number and is
+     now the panels' — 20ms nobody can see, in exchange for the three
+     drawers in the app being one weight. */
+  transition: transform var(--dur-panel) var(--ease-panel);
   /* Border, not shadow — see .rss-panel for the reasoning. */
 }
 .db-drawer.open { transform: translateX(0); }

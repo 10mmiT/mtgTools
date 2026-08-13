@@ -280,6 +280,79 @@ test('the press reaches every control that presses', () => {
   }
 });
 
+// ── The panels ────────────────────────────────────────────────────────
+// The heavy end of the mass model. A drawer is a slab: it is damped, it does
+// not ring, and it leaves the way it arrived. The last of those is the one a
+// stylesheet can lose quietly, because each panel writes its two directions as
+// two rules — the closed rule and the .open rule — which can drift apart
+// without anything looking wrong in either one alone.
+
+const tabs = () => read('public/css/tabs.css');
+
+/** The rules that move each sliding panel, in whichever direction. A panel
+ *  that states its travel once, on the rule both directions inherit, is as
+ *  correct as one that states it twice; what matters is that every rule that
+ *  does state it says the same thing. */
+function panelRules() {
+  const all = [...rules(components()), ...rules(tabs())];
+  return ['.drawer', '.deck-col', '.db-drawer'].map(panel => ({
+    panel,
+    movers: all.filter(r =>
+      selectorList(r.selector).some(s => s === panel || s === `${panel}.open`) &&
+      /transition:\s*[^;]*transform/.test(r.body)),
+  }));
+}
+
+test('the three sliding panels arrive with weight', () => {
+  for (const { panel, movers } of panelRules()) {
+    assert.ok(movers.length, `${panel} travels`);
+    for (const rule of movers) {
+      assert.match(rule.body, /transition:[^;]*transform\s+var\(--dur-panel\)\s+var\(--ease-panel\)/,
+        `${rule.selector} moves on the panel duration and the panel curve, ` +
+        'not on whatever a browser picks when a stylesheet says nothing');
+    }
+  }
+});
+
+test('a panel leaves the way it arrived', () => {
+  for (const { panel, movers } of panelRules()) {
+    const travels = movers.map(r =>
+      /transition:[^;]*?(transform\s+[^,;]+)/.exec(r.body)[1].replace(/\s+/g, ' '));
+    assert.strictEqual(new Set(travels).size, 1,
+      `${panel} opens and closes on one curve, so the two directions are one ` +
+      `reversible action: ${travels.join(' / ')}`);
+  }
+});
+
+test('a closing panel is unfocusable exactly when it has finished leaving', () => {
+  // visibility flips in one step, and only the closing direction waits for the
+  // travel to finish — see .drawer for why the opening direction must not. The
+  // delay and the travel name the same token, which is the only way they
+  // cannot drift: too short and a tab stop walks into a panel that is still
+  // sliding away, too long and the panel is still focusable after it is gone.
+  for (const { movers } of panelRules()) {
+    for (const rule of movers.filter(r => /visibility/.test(r.body))) {
+      const closing = !/\.open\b/.test(rule.selector);
+      assert.match(rule.body,
+        closing ? /visibility\s+0s\s+var\(--dur-panel\)\s*[,;]?\s*$/ : /visibility\s+0s\s*[,;]?\s*$/,
+        closing
+          ? `${rule.selector} holds visibility for exactly the length of the travel`
+          : `${rule.selector} takes focus the instant it opens, so its ` +
+            'visibility carries no delay at all');
+    }
+  }
+});
+
+test('a panel is damped: its curve does not pass its mark', () => {
+  const def = /--ease-panel:\s*([^;]+);/.exec(tokens());
+  assert.ok(def, 'the panel curve is a token');
+  const points = /cubic-bezier\(([^)]*)\)/.exec(def[1])[1].split(',').map(Number);
+  for (const y of [points[1], points[3]]) {
+    assert.ok(y >= 0 && y <= 1,
+      `${def[1].trim()} rings, and a drawer that bounced would read as light`);
+  }
+});
+
 test('the system override outranks a preference of on', () => {
   const css = tokens();
   const pref  = css.search(/:root\[data-motion=['"]off['"]\]/);

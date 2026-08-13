@@ -313,7 +313,15 @@
    duration, and only in the closing direction — a visibility *duration*
    holds the old value for its whole length, which would leave the drawer
    unfocusable for the 200ms after it opens, so opening it and typing
-   would lose the first characters. */
+   would lose the first characters. The delay names the same token as the
+   travel, so the two cannot drift and the drawer stops being reachable
+   exactly as it finishes leaving.
+
+   A panel is the heavy end of the mass model: --ease-panel leaves fast,
+   takes a long moment to stop and does not ring when it arrives. Both
+   directions name it, because the two are written as two rules here and a
+   drawer that opened on one curve and closed on another would read as two
+   events rather than one reversible action. */
 .drawer {
   position: fixed;
   top: 0;
@@ -327,9 +335,9 @@
   border-left: 1px solid var(--border);
   transform: translateX(100%);
   visibility: hidden;
-  transition: transform calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
+  transition: transform var(--dur-panel) var(--ease-panel), visibility 0s var(--dur-panel);
 }
-.drawer.open { transform: none; visibility: visible; transition: transform calc(var(--motion-ui) * .2s), visibility 0s; }
+.drawer.open { transform: none; visibility: visible; transition: transform var(--dur-panel) var(--ease-panel), visibility 0s; }
 
 .drawer-hdr {
   display: flex;
