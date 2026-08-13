@@ -875,6 +875,27 @@ test('the phone can hit everything this ticket added', () => {
   }
 });
 
+test('a card named in a finding is a target you can hit, and see the edges of', () => {
+  /* The app-wide rule pads a card name by centring a 44px box on it, which
+     works where a name has room around it and fails here: these sit in a
+     wrapping row four pixels apart, sixty-eight of them in a commander deck,
+     so each pad reaches into the row above and below rather than into empty
+     space. The hit test at the centre of one name returns a different name.
+
+     A pad cannot fix a row this tight — the box has to be the size it
+     claims. Both axes, because a name too short to fill 44 across spills
+     sideways into its neighbour for the same reason. */
+  const phone = CSS.slice(CSS.indexOf('── The phone, per tab ──'));
+  const rule  = phone.match(/\.db-check-card \{[^}]*\}/)?.[0];
+  assert.ok(rule, '.db-check-card has no floor on a phone');
+  assert.match(rule, /min-height: 44px/, 'a name can be missed vertically');
+  assert.match(rule, /min-width: 44px/,  'a short name spills its pad sideways');
+  /* And a target you cannot see the edge of is still a target you tap the
+     wrong half of, which is the half of this the measurement cannot read. */
+  assert.match(rule, /border: 1px solid var\(--border\)/,
+    'nothing draws where one name ends and the next begins');
+});
+
 test('the bracket line leaves the readout on a phone, and the panel keeps it', () => {
   /* Two facts side by side is the widest thing on a line that already wraps at
      390px — and nothing is lost, because the item beside it opens the panel
