@@ -148,6 +148,14 @@ function _scryfallFaces(card) {
   return faces.length > 1 ? faces : null;
 }
 
+/* The other side of a card, for a caller holding the card itself rather than
+ * its name — the two browsing tabs that render Scryfall's answer straight and
+ * never put it in the caches below. One question asked of one helper, so that
+ * "has this card a back" cannot come to mean two different things. */
+function scryfallBackFace(card) {
+  return _scryfallFaces(card)?.[1] || '';
+}
+
 /* Fills all three caches for `names`, and the postcondition is that every name
  * handed in is in every one of them when this resolves — a picture or a null,
  * meta or an empty object.

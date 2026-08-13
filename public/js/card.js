@@ -141,16 +141,31 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
   const faces = card.card_faces && card.card_faces.length && card.card_faces[0].oracle_text !== undefined
     ? card.card_faces : null;
 
-  // Card images (one per face for DFCs)
-  const imgs = [];
-  if (card.image_uris?.normal) imgs.push({ src: card.image_uris.normal, alt: card.name });
-  else if (faces) faces.forEach(f => { if (f.image_uris?.normal) imgs.push({ src: f.image_uris.normal, alt: f.name }); });
+  /* The card's picture: its own, or its front face's for a card whose faces
+     carry them. One picture, because a two-sided card is one card — it is
+     drawn here as its front and the control that turns it over, the same
+     wrapper and the same helper the grids use (js/cardturn.js), rather than as
+     both faces stacked down the column. Two images in a column is two pictures
+     of two things; this view is the one place large enough to read a card
+     properly and it should show a card.
 
-  const imgHtml = imgs.length
-    ? imgs.map(i => `<img class="card-detail-img card-img" src="${i.src}" alt="${esc(i.alt)}">`).join('')
+     The picture takes the card's own name rather than the front face's, as
+     every other turnable card in the app does: "Delver of Secrets // Insectile
+     Aberration" names the object, so it is still true once it has been turned
+     over. And a card with no picture at all is not wrapped, since a control
+     that turned a "No image" box over would be a control with nothing to
+     turn. */
+  const front = card.image_uris?.normal
+    || (faces || []).map(f => f.image_uris?.normal).find(Boolean) || '';
+  const imgHtml = front
+    ? cardTurnableHtml(
+        `<img class="card-detail-img card-img" src="${front}" alt="${esc(card.name)}">`,
+        scryfallBackFace(card))
     : `<div class="card-detail-img card-detail-img-ph">No image</div>`;
 
-  // Text block(s)
+  /* Both faces' text stays, and stays unturned. The picture shows one side at
+     a time because a card does; the oracle text of a transforming card is
+     something you read both halves of at once, to see what it becomes. */
   const textBlocks = faces
     ? faces.map(f => cardFaceBlock(f)).join('<div class="card-face-divider"></div>')
     : cardFaceBlock(card);

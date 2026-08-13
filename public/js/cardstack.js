@@ -260,15 +260,23 @@ function pileToggleHtml(open, { title = '', attrs = '' } = {}) {
  * other card image in the app has. It keeps the angle its name gave its edge
  * while the stack was settled, so fanning spreads the pile that was lying
  * there rather than replacing it with a tidier one. */
-function cardFanHtml({ name, img, badge, href }) {
+function cardFanHtml({ name, img, badge, href, back }) {
   const picture = img
     ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(name)}">`
     : `<div class="card-stack-blank"></div>`;
-  return `<a class="card-fan-card card-open" style="--stack-turn:${stackJitter(name)}deg"
+  const spin = `--stack-turn:${stackJitter(name)}deg`;
+  const turnable = !!back;
+  const card = `<a class="card-fan-card card-open"${turnable ? '' : ` style="${spin}"`}
     data-name="${esc(name)}" href="${href || '#'}" target="_blank" rel="noopener" title="${esc(name)}">
     ${picture}
     ${badge ? `<span class="card-fan-badge">${esc(badge)}</span>` : ''}
   </a>`;
+  /* A card with a back is the same card in a slot. The angle it lies at moves
+     out to the slot with it, because the overlap and the angle are the fan's
+     rules about its own direct children — and the control has to be outside
+     the link, which is not allowed to contain a button. A card with one side
+     is not wrapped, so a fan of ordinary cards is the fan it always was. */
+  return turnable ? cardTurnableHtml(card, back, { cls: 'card-fan-slot', style: spin }) : card;
 }
 
 /* The markup for a row of piles.
@@ -276,7 +284,10 @@ function cardFanHtml({ name, img, badge, href }) {
  *   groups  [{ label, cards }] as sortui.js's cardGroups() cuts them
  *   settled the labels of the piles that have been settled — a set, and empty
  *           is the table as it arrives: every pile spread
- *   cardOf  a card, as this tab holds it, seen as { name, img, badge, href }
+ *   cardOf  a card, as this tab holds it, seen as
+ *           { name, img, badge, href, back } — `back` being the card's other
+ *           picture when it has one, which is what a fanned card is turned
+ *           over to show and what decides whether it can be turned at all
  *
  * A settled pile says how many cards it holds on the stack itself; a fanned
  * one has no stack left to say it, so the label carries the count instead —

@@ -149,6 +149,173 @@ test('what a guarded transition may still say', () => {
     [], 'the numbers in an easing curve are not durations');
 });
 
+test('a duration token carries the guard in its own definition', () => {
+  assert.deepStrictEqual(rules(':root { --dur-x: calc(var(--motion-ui) * .2s); }'), []);
+  assert.deepStrictEqual(rules(':root { --dur-x: .2s; }'), ['motion'],
+    'a duration behind a custom property slips past the guard at every call ' +
+    'site it is used at, so the definition is the only place the guard holds');
+});
+
+test('a transition may name a duration token, and no property the linter cannot read', () => {
+  assert.deepStrictEqual(rules('.a { transition: opacity var(--dur-base); }'), [],
+    'a duration token is guarded where it is defined');
+  assert.deepStrictEqual(
+    rules('.a { transition: opacity var(--dur-base) var(--ease-tint); }'), [],
+    'and a curve carries no time at all');
+  assert.deepStrictEqual(rules('.a { transition: opacity var(--whatever); }'), ['motion'],
+    'any other custom property is a duration this file cannot see the inside of');
+  assert.deepStrictEqual(rules('.a { transition-duration: var(--dur-panel); }'), []);
+});
+
+test('an overshoot curve is legal on what the compositor owns', () => {
+  assert.deepStrictEqual(
+    rules('.a { transition: translate var(--dur-card) var(--ease-land); }'), []);
+  assert.deepStrictEqual(
+    rules('.a { transition: opacity var(--dur-base) cubic-bezier(.3, 1.5, .6, 1); }'), [],
+    'nothing the compositor owns can reflow, however far past the mark it goes');
+});
+
+test('an overshoot curve on a property that affects layout is caught', () => {
+  assert.deepStrictEqual(
+    rules('.a { transition: width var(--dur-panel) var(--ease-control); }'), ['overshoot'],
+    'a spring on a width grows the element past its own width token mid-flight');
+  assert.deepStrictEqual(
+    rules('.a { transition: max-width var(--dur-base) cubic-bezier(.34, 1.56, .64, 1); }'),
+    ['overshoot'], 'the curve is caught written out, not only behind its token');
+  assert.deepStrictEqual(
+    rules('.a { transition: width var(--dur-panel) var(--ease-panel); }'), [],
+    'deceleration is what a layout property gets instead');
+  assert.deepStrictEqual(
+    rules('.a { transition: all var(--dur-base) var(--ease-control); }'), ['overshoot'],
+    '`all` is every layout property there is');
+});
+
+test('the overshoot rule reads the longhand as well as the shorthand', () => {
+  const decls = curve =>
+    `transition-property: ${curve.prop}; transition-duration: var(--dur-panel); ` +
+    `transition-timing-function: var(--ease-control);`;
+  assert.deepStrictEqual(rules(`.a { ${decls({ prop: 'width' })} }`), ['overshoot']);
+  assert.deepStrictEqual(rules(`.a { ${decls({ prop: 'transform' })} }`), []);
+  assert.deepStrictEqual(
+    rules('.a { transition-timing-function: var(--ease-control); }'), ['overshoot'],
+    'a curve with no property named applies to all of them, layout included');
+});
+
+test('the card-landing curve is a token, and it stays card-only', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.join(__dirname, '..');
+  const dir = 'public/css';
+  const magic = /cubic-bezier\(\s*\.3\s*,\s*1\.5\s*,\s*\.6\s*,\s*1\s*\)/;
+
+  const uses = [];
+  for (const file of fs.readdirSync(path.join(root, dir))) {
+    const src = fs.readFileSync(path.join(root, dir, file), 'utf8');
+    const lines = src.split('\n');
+    if (file !== 'tokens.css') {
+      const line = lines.findIndex(l => magic.test(l));
+      assert.strictEqual(line, -1,
+        `${dir}/${file}:${line + 1} still writes the card-landing curve out longhand`);
+    }
+    for (const [i, line] of lines.entries()) {
+      if (file !== 'tokens.css' && /var\(--ease-land\)/.test(line)) {
+        uses.push({ file, line: i + 1, text: line });
+      }
+    }
+  }
+
+  assert.strictEqual(uses.length, 1,
+    `--ease-land is the sound of a card landing, so exactly one rule may make ` +
+    `it: ${uses.map(u => `${u.file}:${u.line}`).join(', ')}`);
+  assert.match(uses[0].text, /transition:\s*translate/,
+    'and that rule is the one that sets a dropped card down');
+});
+
+/* Every transition and animation the browser is served, as text. The linter
+ * reads these for their durations; what follows reads them for their curves,
+ * which is the half no rule can be written for — "name a curve" is a house
+ * decision about taste, where "guard a duration" is a promise the app makes to
+ * someone who asked their system for less movement. login.html is in the list
+ * for the reason the motion rule reaches it: its <style> block is delivered
+ * CSS, and the way into the app is part of the app. */
+function motionDeclarations() {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.join(__dirname, '..');
+  const files = [
+    ...fs.readdirSync(path.join(root, 'public/css')).map(f => `public/css/${f}`),
+    'public/login.html',
+  ];
+
+  const out = [];
+  for (const file of files) {
+    const src = fs.readFileSync(path.join(root, file), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, c => c.replace(/[^\n]/g, ' '));
+    for (const m of src.matchAll(/\b(transition|animation)(-[a-z-]+)?\s*:\s*([^;}]*)/g)) {
+      out.push({
+        file,
+        line: src.slice(0, m.index).split('\n').length,
+        prop: m[1] + (m[2] || ''),
+        value: m[3].replace(/\s+/g, ' ').trim(),
+      });
+    }
+  }
+  assert.ok(out.length > 40, 'the stylesheet moves in more than a handful of places');
+  return out;
+}
+
+/* The curve components of one declaration: a named token, a curve written out,
+ * or one of the keywords a browser answers to. Everything else in there is a
+ * property, a duration or a keyframe name. */
+const CURVES =
+  /var\(\s*--ease-[\w-]+\s*\)|cubic-bezier\([^)]*\)|steps\([^)]*\)|linear\([^)]*\)|(?<![\w-])(?:ease-in-out|ease-in|ease-out|ease|linear|step-start|step-end)(?![\w-])/g;
+const curvesIn = value => (value.match(CURVES) || []);
+
+test('every curve in the delivered stylesheet is one of the four named ones', () => {
+  const named = new Set(
+    ['--ease-panel', '--ease-control', '--ease-land', '--ease-tint']
+      .map(n => `var(${n})`)
+  );
+
+  const strays = [];
+  for (const decl of motionDeclarations()) {
+    for (const curve of curvesIn(decl.value)) {
+      if (named.has(curve.replace(/\s+/g, ''))) continue;
+      /* A rotation that never stops is the one movement with no curve to
+         choose: `linear` there is the absence of easing, where all four names
+         are decisions about how a thing starts and how it stops. */
+      if (curve === 'linear' && /\binfinite\b/.test(decl.value)) continue;
+      strays.push(`${decl.file}:${decl.line}  ${curve}  in \`${decl.prop}: ${decl.value}\``);
+    }
+  }
+
+  assert.deepStrictEqual(strays, [],
+    'a curve is a decision about what a thing is made of, and the four tokens ' +
+    'are where those decisions are written down:\n' + strays.join('\n'));
+});
+
+test('no transition in the delivered stylesheet is left to the browser default', () => {
+  /* A transition that names no curve runs on `ease`, which is not a choice
+     anyone made. Animations are not asserted here: one of them names no curve
+     — the shake on a duplicate name — and replacing its keyframes with a
+     timing function is a ticket of its own, so the omission there is a
+     decision on record rather than this hole. */
+  const bare = motionDeclarations()
+    .filter(d => d.prop === 'transition' && d.value !== 'none')
+    .filter(d => {
+      const parts = d.value.split(',').map(p => p.trim());
+      /* `visibility 0s <delay>` is a switch rather than a movement: there is
+         nothing between its two states for a curve to describe. */
+      const moving = parts.filter(p => !/^visibility\b/.test(p));
+      return moving.some(p => !curvesIn(p).length);
+    })
+    .map(d => `${d.file}:${d.line}  ${d.value}`);
+
+  assert.deepStrictEqual(bare, [],
+    'every transition says how it moves, rather than taking whatever the ' +
+    'browser picks when a stylesheet says nothing:\n' + bare.join('\n'));
+});
+
 test('the motion rule reaches the stylesheet inside the markup', () => {
   // login.html keeps its own small stylesheet in a <style> block, and it is
   // delivered CSS: the way into the app has to be still too.

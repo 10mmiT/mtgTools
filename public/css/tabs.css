@@ -120,7 +120,7 @@
   background-color: var(--surface-2);
   background-size: cover;
   background-position: right center;
-  transition: box-shadow calc(var(--motion-ui) * .2s);
+  transition: box-shadow var(--dur-panel) var(--ease-tint);
 }
 .deck-tile:hover { border-color: transparent; box-shadow: var(--shadow-lift); }
 
@@ -255,10 +255,11 @@
   border-left: 1px solid var(--border);
   transform: translateX(100%);
   visibility: hidden;
-  /* The delay is in the closing direction only — see .drawer. */
-  transition: transform calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
+  /* The delay is in the closing direction only, and the panel curve is on
+     both directions — see .drawer for why each. */
+  transition: transform var(--dur-panel) var(--ease-panel), visibility 0s var(--dur-panel);
 }
-.deck-col.open { transform: none; visibility: visible; transition: transform calc(var(--motion-ui) * .2s), visibility 0s; }
+.deck-col.open { transform: none; visibility: visible; transition: transform var(--dur-panel) var(--ease-panel), visibility 0s; }
 
 .deck-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
 
@@ -302,7 +303,8 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  transition: border-color calc(var(--motion-ui) * .15s), color calc(var(--motion-ui) * .15s);
+  transition: border-color var(--dur-base) var(--ease-tint),
+              color        var(--dur-base) var(--ease-tint);
 }
 .deck-upload-btn:hover { border-color: var(--primary); color: var(--primary-tx); }
 
@@ -325,7 +327,7 @@
   font-family: inherit;
   width: 100%;
   color: var(--text);
-  transition: border-color calc(var(--motion-ui) * .15s);
+  transition: border-color var(--dur-base) var(--ease-tint);
 }
 .deck-filter-row:hover { border-color: var(--primary); }
 .deck-filter-row.active { border-color: var(--primary); background: var(--primary-lt); color: var(--primary-tx); }
@@ -334,16 +336,34 @@
    17px-tall pill it renders as the 9px this used to hardcode. */
 .tog-pill {
   width: 30px; height: 17px; border-radius: var(--radius-full); background: var(--border);
-  position: relative; transition: background calc(var(--motion-ui) * .15s); flex-shrink: 0;
+  position: relative; transition: background var(--dur-base) var(--ease-tint); flex-shrink: 0;
 }
 /* The knob has to read against two different tracks: --border when off and
    --primary when on. Since --primary is near-white on the dark themes and
    near-black on the light ones, one fixed knob colour cannot do both — off
-   uses the subtle-text grey, on uses the primary's own on-fill ink. */
+   uses the subtle-text grey, on uses the primary's own on-fill ink.
+
+   It is the light end of the mass model: a knob you flick is spring steel, so
+   it travels on --ease-control and lands with a settle rather than gliding to
+   a halt. Do not read that as a bounce — traced frame by frame in the app, the
+   13px throw passes its mark by 0.28px, which is a quarter of a pixel and
+   invisible at any density. What the curve actually buys is the arrival: the
+   knob is at its destination by 100ms of the 150 and spends the rest coming to
+   rest, which is what separates a control that feels operated from one that
+   feels drawn. The travel is not a free parameter that could make the ring
+   legible either — 30px of track less an 11px knob at a 3px inset is 13px, and
+   the geometry above owns that number.
+
+   Only the transform takes the control curve. The colour beside it decelerates
+   instead: an overshoot there would be a curve that passes its mark on a
+   property the compositor does not own, which is the one thing the linter's
+   overshoot rule exists to stop. */
 .tog-pill::after {
   content: ''; position: absolute;
   width: 11px; height: 11px; border-radius: var(--radius-full); background: var(--text-subtle);
-  top: 3px; left: 3px; transition: transform calc(var(--motion-ui) * .15s), background calc(var(--motion-ui) * .15s);
+  top: 3px; left: 3px;
+  transition: transform  var(--dur-base) var(--ease-control),
+              background var(--dur-base) var(--ease-tint);
 }
 .deck-filter-row.active .tog-pill { background: var(--primary); }
 .deck-filter-row.active .tog-pill::after { transform: translateX(13px); background: var(--primary-fg); }
@@ -494,7 +514,7 @@
   padding: var(--space-3);
   font-family: inherit;
   color: var(--text);
-  transition: border-color calc(var(--motion-ui) * .15s);
+  transition: border-color var(--dur-base) var(--ease-tint);
 }
 .set-tile:hover { border-color: var(--primary); }
 
@@ -722,7 +742,8 @@
   min-height: 72px;
   background: var(--surface-1);
   position: relative;
-  transition: border-color calc(var(--motion-ui) * .12s), background calc(var(--motion-ui) * .12s);
+  transition: border-color var(--dur-tint) var(--ease-tint),
+              background   var(--dur-tint) var(--ease-tint);
 }
 .cal-cell.clickable { cursor: pointer; }
 .cal-cell.clickable:hover { border-color: var(--primary); background: var(--primary-lt); }
@@ -1003,7 +1024,14 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .lands-bar-fill {
   height: 100%;
   border-radius: var(--radius-sm);
-  transition: width calc(var(--motion-ui) * .3s) ease;
+  /* The one transition in the interface whose duration stays a literal, and it
+     stays on purpose. This bar's length is the datum — how much of a deck is
+     lands — and .3s is long enough
+     to see it arrive at a number rather than simply be at one, which none of
+     the four names is: the slowest of them is a panel's travel, not a reading.
+     Guarded like every other time, so it is still no time at all for someone
+     who asked their system for less movement. */
+  transition: width calc(var(--motion-ui) * .3s) var(--ease-tint);
   min-width: 2px;
   opacity: .85;
 }
@@ -1146,7 +1174,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color calc(var(--motion-ui) * .12s), opacity calc(var(--motion-ui) * .12s);
+  transition: border-color var(--dur-tint) var(--ease-tint),
+              opacity      var(--dur-tint) var(--ease-tint);
 }
 .pick-pool-chip:hover { border-color: var(--primary); }
 .pick-pool-chip-off { opacity: .35; text-decoration: line-through; }
@@ -1985,7 +2014,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border-bottom: 2px solid transparent;
   /* EXEMPT from the spacing scale: border overlap, as on .tab-btn. */
   margin-bottom: -2px;
-  transition: color calc(var(--motion-ui) * .15s), border-color calc(var(--motion-ui) * .15s);
+  transition: color        var(--dur-base) var(--ease-tint),
+              border-color var(--dur-base) var(--ease-tint);
 }
 .db-ltab.active {
   color: var(--primary);
@@ -2138,7 +2168,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background calc(var(--motion-ui) * .15s);
+  transition: background var(--dur-base) var(--ease-tint);
 }
 .db-add-btn:hover { background: var(--primary-dk); }
 .db-add-btn-in { background: var(--success); cursor: default; }
@@ -2277,7 +2307,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   min-height: 2px;
   opacity: .7;
-  transition: opacity calc(var(--motion-ui) * .15s);
+  transition: opacity var(--dur-base) var(--ease-tint);
 }
 .db-curve-bar:hover { opacity: 1; }
 /* The same bar, cut into the colours it is made of. It keeps the height it had
@@ -2367,7 +2397,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   flex-direction: column;
   z-index: 201;
   transform: translateX(100%);
-  transition: transform calc(var(--motion-ui) * .22s) ease;
+  /* One rule for both directions, so the .open rule below only has to say
+     where it lands. The .22s it used to run for was its own number and is
+     now the panels' — 20ms nobody can see, in exchange for the three
+     drawers in the app being one weight. */
+  transition: transform var(--dur-panel) var(--ease-panel);
   /* Border, not shadow — see .rss-panel for the reasoning. */
 }
 .db-drawer.open { transform: translateX(0); }
@@ -2510,8 +2544,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   border-radius: var(--radius-md);
   color: var(--text-muted);
   font-size: var(--text-xs);
-  transition: border-color calc(var(--motion-ui) * .15s),
-              color        calc(var(--motion-ui) * .15s);
+  transition: border-color var(--dur-base) var(--ease-tint),
+              color        var(--dur-base) var(--ease-tint);
 }
 .card-carrying .db-ghost {
   border-color: var(--primary);

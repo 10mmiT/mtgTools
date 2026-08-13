@@ -326,7 +326,7 @@ mtgtools/
 │   ├── measure-mobile.js  # Mobile measurement — sideways scroll, 44px touch targets
 │   ├── check-contrast.js  # Contrast measurement — every fg/bg pair, all five themes
 │   └── lint-tokens.js     # Token-contract linter (colour, type, spacing,
-│                          # radius, elevation, !important)
+│                          # radius, elevation, motion, overshoot, !important)
 ├── public/
 │   ├── index.html     # Single-page app shell
 │   ├── login.html     # Password login page
@@ -334,8 +334,9 @@ mtgtools/
 │   ├── vendor/        # mana-font and jsPDF, vendored for the same reason
 │   ├── css/           # Loaded in this order; later files may override earlier
 │   │   ├── tokens.css     # The only file allowed raw colours: five theme palettes,
-│   │   │                  # the type/spacing/radius scales, the three breakpoints,
-│   │   │                  # per-tab accent colours. Enforced by scripts/lint-tokens.js
+│   │   │                  # the type/spacing/radius scales, the motion vocabulary
+│   │   │                  # (--dur-*, --ease-*), the three breakpoints, per-tab
+│   │   │                  # accent colours. Enforced by scripts/lint-tokens.js
 │   │   ├── base.css       # Element defaults and shared text utilities
 │   │   ├── layout.css     # Page shell, header, navigation, sections, the wide width
 │   │   ├── components.css # Controls and widgets shared across tabs
@@ -348,6 +349,7 @@ mtgtools/
 │       │                  # field seeds, what is stored — plus the shared controls: the sort button
 │       │                  # and its popover, columns menu, view toggle, card-size control, "⋯" kebab menus
 │       ├── cardlift.js    # Picking a card up: the hover lift, lean and sheen on every card image
+│       ├── cardturn.js    # Turning a two-sided card over where it lies: the control, and the two halves of the turn
 │       ├── cardstack.js   # Drawing a group of cards as a stack: thickness from count, angle from name
 │       ├── cardmove.js    # Cards travelling to where a re-render put them: measured before and after
 │       ├── carddrag.js    # Carrying a card, or a handful: the lag, the lean, the fan, the pile that would take it
@@ -458,12 +460,13 @@ Nothing asserts markup: this work churned markup deliberately.
 | `space` | `padding`/`margin`/`gap` that is not one of the six `--space-*` steps |
 | `radius` | a corner that is not one of the `--radius-*` steps — the three UI steps plus `--radius-card`, a physical card's corner as a ratio |
 | `shadow` | a shadow that is not one of the `--shadow-*` overlay tokens, or a surface drawing a border *and* a shadow |
-| `motion` | a `transition` or `animation` whose duration is not multiplied by a motion token, so it would still move for someone who asked for less movement |
+| `motion` | a `transition` or `animation` whose duration is not multiplied by a motion token, so it would still move for someone who asked for less movement — or one that names a custom property the script cannot read a duration out of. The `--dur-*` tokens are the exception, and their own definitions are checked for the guard instead |
+| `overshoot` | a curve that passes its mark and comes back, applied to a property that affects layout rather than one the compositor owns. Mass on a `width` grows the element past its own token mid-flight and reflows the page on the way |
 | `important` | an `!important` outside the allowlist in the script |
 
 Run it alone with `npm run lint:tokens`. The scales are read out of `tokens.css` at startup rather than duplicated in the script, so that file stays the single written-down definition.
 
-A genuine one-off escapes with a CSS comment containing `EXEMPT`, which must say **which rule** it is escaping and **why** — `/* EXEMPT from the colour rule: this sits over card artwork. */`. The scope is the rest of the enclosing rule, or the next rule if the comment is at the top level, or an explicit `EXEMPT-BEGIN` … `EXEMPT-END` span. Naming no rule escapes all of them, which is almost never what you want. `!important` can never be excused this way; it has an allowlist instead, so the count stays visible in one place. Both allowlists are ratchets — they only ever shrink, and a test asserts their current size.
+A genuine one-off escapes with a CSS comment containing `EXEMPT`, which must say **which rule** it is escaping and **why** — `/* EXEMPT from the colour rule: this sits over card artwork. */`. The scope is the rest of the enclosing rule, or the next rule if the comment is at the top level, or an explicit `EXEMPT-BEGIN` … `EXEMPT-END` span. Naming no rule escapes all of them, which is almost never what you want. `!important` can never be excused this way; it has an allowlist instead, so the count stays visible in one place. Both allowlists are ratchets — they only ever shrink, and a test asserts their current size. `overshoot` cannot be excused either, and has no allowlist for the opposite reason: it is not a house style with exceptions, it is a description of a bug.
 
 ### Screenshot harness
 

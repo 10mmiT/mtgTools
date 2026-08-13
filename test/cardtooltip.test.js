@@ -178,11 +178,16 @@ function loadFaces() {
   /* Back across the vm boundary as JSON: an array made inside the context has
      a different Array prototype, which deepStrictEqual counts as a difference
      and no reader would. */
-  return card => JSON.parse(vm.runInContext(
-    `JSON.stringify(_scryfallFaces(${JSON.stringify(card)}))`, sandbox));
+  const call = (fn, card) => JSON.parse(vm.runInContext(
+    `JSON.stringify(${fn}(${JSON.stringify(card)}))`, sandbox));
+  return {
+    faces: card => call('_scryfallFaces', card),
+    back:  card => call('scryfallBackFace', card),
+  };
 }
 
-const faces = loadFaces();
+const sf    = loadFaces();
+const faces = sf.faces;
 
 test('a plain card has one picture', () => {
   assert.strictEqual(faces({ name: 'Sol Ring', image_uris: { normal: 'a.jpg' } }), null);
@@ -208,6 +213,42 @@ test('but a split card has one, because it is one piece of cardboard', () => {
     image_uris: { normal: 'whole.jpg' },
     card_faces: [{ name: 'Fire' }, { name: 'Ice' }],
   }), null);
+});
+
+test('and so does a Room, for the same reason and without being named here', () => {
+  /* A Room is the newest card with two halves printed on one piece of
+     cardboard, and it arrived after this helper was written. Nothing had to be
+     added for it: it answers the same way a split card does because the
+     question is about pictures rather than about layouts. */
+  assert.strictEqual(faces({
+    name: 'Bottomless Pool // Locker Room',
+    layout: 'room',
+    image_uris: { normal: 'whole.jpg' },
+    card_faces: [{ name: 'Bottomless Pool' }, { name: 'Locker Room' }],
+  }), null);
+});
+
+// ── The other side of it ──────────────────────────────────────────────
+// Which is what the turn control asks, and the whole of what decides whether
+// a card gets one. The same helper above, said as one picture instead of two,
+// for the tabs that hold the card itself rather than its name.
+
+test('a card with a back offers it, and a card without offers nothing', () => {
+  assert.strictEqual(sf.back({
+    name: 'Delver of Secrets // Insectile Aberration',
+    card_faces: [
+      { name: 'Delver of Secrets',    image_uris: { normal: 'front.jpg' } },
+      { name: 'Insectile Aberration', image_uris: { normal: 'back.jpg' } },
+    ],
+  }), 'back.jpg', 'a transforming card did not offer its second picture');
+
+  assert.strictEqual(sf.back({ name: 'Sol Ring', image_uris: { normal: 'a.jpg' } }), '',
+    'an ordinary card offered a back and would be drawn a turn control');
+  assert.strictEqual(sf.back({
+    name: 'Fire // Ice',
+    image_uris: { normal: 'whole.jpg' },
+    card_faces: [{ name: 'Fire' }, { name: 'Ice' }],
+  }), '', 'a split card offered a back and would be drawn a turn control');
 });
 
 // ── What gets drawn ───────────────────────────────────────────────────
