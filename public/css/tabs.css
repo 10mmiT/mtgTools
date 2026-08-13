@@ -1549,6 +1549,46 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      bracket is the one control in its row. */
   .db-check-close { min-width: 44px; min-height: 44px; }
 
+  /* Grown, and the one place in the app where the shared pad had to be
+     overruled rather than relied on.
+
+     A card named in a finding is a link, so components.css already pads it:
+     an invisible 44 square centred on the name. That works everywhere a name
+     has room around it, and these have none. They wrap through a 310px row
+     four pixels apart, sixty-eight of them in a commander deck, at sixteen
+     pixels tall — so each pad hangs fourteen pixels into the row above and
+     below, over the names there. The measurement read this as "something is
+     painted over it" fifty-three times; the something was the other cards.
+
+     A pad has nowhere to go in a row this tight, so the box becomes the size
+     it was pretending to be. Across as well as down: a name too short to
+     fill 44 spills its pad into the neighbour on the same line instead.
+
+     Drawn rather than invisible, because the failure this fixes is opening
+     the wrong card, and a reader who cannot see where one name stops has no
+     way to aim. The clothes are the chip's — a chip is what this is. */
+  .db-check-card {
+    display: inline-flex;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 var(--space-2);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+
+  /* And the row has to hold them. Baseline alignment lines up sentences,
+     which is right when the cards are text on the same line and wrong once
+     they are boxes twice its height — the sentence gets dragged to the
+     bottom of the tallest chip. Centred here, and only here.
+
+     The gap grows with the boxes for the ordinary reason: at four pixels a
+     row of bordered chips reads as one segmented bar rather than as things
+     you can tap separately. */
+  .db-check-row  { align-items: center; }
+  .db-check-cards { gap: var(--space-2); }
+
   /* And again on the mana panel, whose header carries two: the ✕ and the way
      through to the calculator. The second is a small button by design on a
      desktop — it stands beside a title and not beside other buttons — which is
