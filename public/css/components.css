@@ -913,9 +913,20 @@ td { padding: var(--space-2) var(--space-3); }
   background: none;
   color: var(--text-muted);
   cursor: pointer;
+  /* The turn is the light end of the mass model, and it is the button that
+     rings rather than a chevron that reports: this is the control a pile has,
+     and you operate it. The three chevrons and carets elsewhere in the chrome
+     are the other case and never overshoot — see --ease-tint for why a
+     springing caret is the tell of a cheap interface.
+
+     The ring is small enough to be a shape rather than a bounce. Traced in the
+     app, the quarter-turn passes 90° by 1.9°, which at the 5px tip of the
+     triangle is a sixth of a pixel; what carries is the settle at the end of
+     the 150ms. Colour and background stay on their own plain times, since the
+     compositor does not own them and an overshoot there is a reflow. */
   transition: background calc(var(--motion-ui) * .12s),
               color      calc(var(--motion-ui) * .12s),
-              transform  calc(var(--motion-ui) * .15s);
+              transform  var(--dur-base) var(--ease-control);
 }
 
 /* The triangle is drawn rather than typed, and that is the whole reason this

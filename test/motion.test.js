@@ -353,6 +353,70 @@ test('a panel is damped: its curve does not pass its mark', () => {
   }
 });
 
+// ── The controls ──────────────────────────────────────────────────────
+// The light end of the same model. A knob you flick is spring steel: it is
+// quick in both directions and it rings as it lands, where a drawer arrives
+// damped. Two rules carry that — the filter toggle's knob and the pile
+// toggle — and neither may spend the ring on a property that is not the
+// compositor's, which is a correctness rule and not a taste one. The linter
+// enforces it across the whole stylesheet; this asserts it where the only two
+// deliberate overshoots in the chrome actually live.
+
+/** The rules that move each sprung control. Like the panels, the moving
+ *  declaration and the state that sets the destination are different rules;
+ *  this finds the one that states the travel. */
+function controlRules() {
+  const all = [...rules(components()), ...rules(tabs())];
+  return ['.tog-pill::after', '.pile-toggle'].map(control => ({
+    control,
+    movers: all.filter(r =>
+      selectorList(r.selector).includes(control) &&
+      /transition:\s*[^;]*transform/.test(r.body)),
+  }));
+}
+
+test('the two controls ring when you use them', () => {
+  for (const { control, movers } of controlRules()) {
+    assert.ok(movers.length, `${control} moves when it is operated`);
+    for (const rule of movers) {
+      assert.match(rule.body, /transform\s+var\(--dur-base\)\s+var\(--ease-control\)/,
+        `${rule.selector} lands on the control curve, so it reads as sprung ` +
+        'rather than as drawn — and on a named duration, which is what makes ' +
+        'it instant for someone who asked their system for less movement');
+    }
+  }
+});
+
+test('a control spends its ring on a property the compositor owns', () => {
+  // The linter says this of every rule in the app. It is asserted here as
+  // well because these two are the only chrome rules that deliberately
+  // overshoot: the cheapest way to break the rule is to widen one of these
+  // transitions onto the colour beside it, which is one word of a diff.
+  const compositor = new Set(['transform', 'translate', 'rotate', 'scale', 'opacity', 'filter']);
+  for (const { movers } of controlRules()) {
+    for (const rule of movers) {
+      const list = /transition:([^;]*)/.exec(rule.body)[1];
+      for (const part of list.split(',')) {
+        if (!/--ease-control/.test(part)) continue;
+        const prop = part.trim().split(/\s+/)[0];
+        assert.ok(compositor.has(prop),
+          `${rule.selector} rings on \`${prop}\`, which the compositor does ` +
+          'not own — an overshoot there passes its mark and takes the page ' +
+          'layout with it on the way back');
+      }
+    }
+  }
+});
+
+test('a control is sprung: its curve passes its mark', () => {
+  const def = /--ease-control:\s*([^;]+);/.exec(tokens());
+  assert.ok(def, 'the control curve is a token');
+  const points = /cubic-bezier\(([^)]*)\)/.exec(def[1])[1].split(',').map(Number);
+  assert.ok([points[1], points[3]].some(y => y < 0 || y > 1),
+    `${def[1].trim()} is damped, and a control that did not ring would be the ` +
+    'panel curve wearing a second name');
+});
+
 test('the system override outranks a preference of on', () => {
   const css = tokens();
   const pref  = css.search(/:root\[data-motion=['"]off['"]\]/);
