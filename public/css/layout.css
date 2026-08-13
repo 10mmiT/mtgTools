@@ -193,7 +193,7 @@ header {
      border on top of the bar's own 2px border, so it must stay equal to
      that border width. Same below and on .db-ltab. */
   margin-bottom: -2px;
-  transition: color calc(var(--motion-ui) * .15s);
+  transition: color var(--dur-base) var(--ease-tint);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -217,7 +217,12 @@ header {
     scrollbar-width: none;
     display: flex;
     flex-direction: column;
-    transition: width calc(var(--motion-ui) * .2s);
+    /* The sidebar and .site-main's padding below are one movement in two
+       rules: the content edge tracks the sidebar's edge, so they name the same
+       duration and the same curve. Deceleration and not a spring, because a
+       width that passed its mark would carry the page's layout past it too —
+       see the overshoot rule in scripts/lint-tokens.js. */
+    transition: width var(--dur-panel) var(--ease-tint);
   }
   .tab-bar::-webkit-scrollbar { display: none; }
   .tab-bar.collapsed { width: var(--sidenav-collapsed-width); }
@@ -288,7 +293,7 @@ header {
      than a step of the scale. */
   .site-main {
     padding-left: var(--sidenav-width);
-    transition: padding-left calc(var(--motion-ui) * .2s);
+    transition: padding-left var(--dur-panel) var(--ease-tint);
   }
   body.sidenav-collapsed .site-main {
     padding-left: var(--sidenav-collapsed-width);
@@ -323,7 +328,8 @@ header {
     overflow: hidden;
     max-width: 150px;
     opacity: 1;
-    transition: max-width calc(var(--motion-ui) * .15s), opacity calc(var(--motion-ui) * .15s);
+    transition: max-width var(--dur-base) var(--ease-tint),
+                opacity   var(--dur-base) var(--ease-tint);
   }
   .tab-bar.collapsed .tab-btn-label { max-width: 0; opacity: 0; }
 
@@ -349,10 +355,14 @@ header {
     position: sticky;
     bottom: 0;
     background: var(--surface-1);
-    transition: background calc(var(--motion-ui) * .15s), color calc(var(--motion-ui) * .15s);
+    transition: background var(--dur-base) var(--ease-tint),
+                color      var(--dur-base) var(--ease-tint);
   }
   .side-nav-toggle:hover { background: var(--surface-2); color: var(--text); }
-  .side-nav-toggle svg { flex-shrink: 0; transition: transform calc(var(--motion-ui) * .2s); }
+  /* The one caret in the app that names the panel duration rather than the
+     marker one: it turns for exactly as long as the sidebar beside it takes to
+     collapse, so the arrow and the panel it points at are one movement. */
+  .side-nav-toggle svg { flex-shrink: 0; transition: transform var(--dur-panel) var(--ease-tint); }
   .tab-bar.collapsed .side-nav-toggle { padding: var(--space-2) 0; justify-content: center; }
   .tab-bar.collapsed .side-nav-toggle svg { transform: rotate(180deg); width: 20px; height: 20px; }
 }
@@ -383,11 +393,17 @@ header {
     color: var(--primary);
     cursor: pointer;
     font-family: inherit;
-    transition: background calc(var(--motion-ui) * .15s), border-color calc(var(--motion-ui) * .15s);
+    transition: background   var(--dur-base) var(--ease-tint),
+                border-color var(--dur-base) var(--ease-tint);
   }
   .mob-nav-btn:hover { background: var(--surface-2); border-color: var(--primary); }
 
-  .mob-nav-chev { flex-shrink: 0; transition: transform calc(var(--motion-ui) * .2s); }
+  /* The menu this points at is shown outright rather than opened, so unlike
+     the sidebar's caret there is nothing here for .2s to keep step with. It
+     takes the marker duration, which is what a symbol reporting a state is
+     for, and lands on the same time as the .chevron below — the two free
+     carets had drifted 20ms apart for no reason either of them could give. */
+  .mob-nav-chev { flex-shrink: 0; transition: transform var(--dur-tint) var(--ease-tint); }
   .mob-nav-chev.open { transform: rotate(180deg); }
 
   .mob-nav-menu {
@@ -421,7 +437,8 @@ header {
     cursor: pointer;
     font-family: inherit;
     text-align: left;
-    transition: background calc(var(--motion-ui) * .12s), color calc(var(--motion-ui) * .12s);
+    transition: background var(--dur-tint) var(--ease-tint),
+                color      var(--dur-tint) var(--ease-tint);
   }
   .mob-nav-item:last-child { border-bottom: none; }
   .mob-nav-item:hover { background: var(--surface-2); }
@@ -449,7 +466,7 @@ header {
    Create User is a plain open form (§9.11) — so the three rules are gone,
    and with them the !important the last of them needed to beat an inline
    display. The chevron stays: a player's row of decks still folds. */
-.chevron { color: var(--text-muted); transition: transform calc(var(--motion-ui) * .18s); flex-shrink: 0; }
+.chevron { color: var(--text-muted); transition: transform var(--dur-tint) var(--ease-tint); flex-shrink: 0; }
 .chevron.closed { transform: rotate(-90deg); }
 
 /* ── Responsive ──────────────────────────────────────────────────────────

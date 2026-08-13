@@ -417,6 +417,60 @@ test('a control is sprung: its curve passes its mark', () => {
     'panel curve wearing a second name');
 });
 
+// ── The markers and the reveal ────────────────────────────────────────
+// What the mass model deliberately leaves out. A chevron reports a state the
+// way a colour does — it has no travel and so no weight — and a springing
+// caret is the most recognisable cheap-bounce tell on the web. A toast
+// arriving is a reveal, not a throw. Both take --ease-tint, and the exclusion
+// is asserted rather than left implied, because the diff that gives one of
+// them a ring is one token wide and would read as an improvement.
+
+const layout = () => read('public/css/layout.css');
+
+/** The rule that moves each thing in the two groups with no mass. */
+function unsprungRules(selectors) {
+  const all = [...rules(layout()), ...rules(components())];
+  return selectors.map(selector => {
+    const mover = all.find(r =>
+      selectorList(r.selector).includes(selector) && /transition:/.test(r.body));
+    assert.ok(mover, `${selector} is in the stylesheet and moves`);
+    return { selector, mover };
+  });
+}
+
+test('a marker turns without ringing', () => {
+  // The sidebar's caret, the mobile nav's, and the one on a player's row of
+  // decks: every rotating chevron in the app.
+  for (const { selector, mover } of
+       unsprungRules(['.side-nav-toggle svg', '.mob-nav-chev', '.chevron'])) {
+    assert.match(mover.body, /transition:\s*transform\s+var\(--dur-[\w-]+\)\s+var\(--ease-tint\)/,
+      `${selector} turns on the tint curve and a named duration — a caret that ` +
+      'passed its mark and came back would be the app telling on itself');
+  }
+});
+
+test('the reveal arrives without a spring', () => {
+  const [{ mover }] = unsprungRules(['.want-toast']);
+  for (const part of /transition:([^;]*)/.exec(mover.body)[1].split(',')) {
+    assert.match(part, /var\(--ease-tint\)/,
+      'a toast confirming a card was added is a reveal: it appears, it does ' +
+      'not land. Both halves of it say so, since a transform is exactly the ' +
+      'kind of property a ring could be spent on');
+  }
+});
+
+test('the tint curve is what makes "never overshoots" true', () => {
+  // Every rule above names one token, so the promise is kept in one place.
+  const def = /--ease-tint:\s*([^;]+);/.exec(tokens());
+  assert.ok(def, 'the tint curve is a token');
+  const points = /cubic-bezier\(([^)]*)\)/.exec(def[1])[1].split(',').map(Number);
+  for (const y of [points[1], points[3]]) {
+    assert.ok(y >= 0 && y <= 1,
+      `${def[1].trim()} passes its mark, and it is the curve the paint, the ` +
+      'markers and the reveal all name');
+  }
+});
+
 test('the system override outranks a preference of on', () => {
   const css = tokens();
   const pref  = css.search(/:root\[data-motion=['"]off['"]\]/);

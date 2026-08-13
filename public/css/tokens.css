@@ -258,10 +258,14 @@
                        card-only by decision. No chrome rule may take it.
        --ease-tint     Plain deceleration, and it NEVER overshoots. Paint,
                        markers, reveals — a colour changing, a chevron
-                       turning, a tooltip appearing. None of those has any
+                       turning, a toast appearing. None of those has any
                        travel, so none of them has weight, and a springing
                        caret is the most recognisable cheap-bounce tell on
-                       the web.
+                       the web. It is also, by arithmetic, the app's default:
+                       eight declarations are sprung or damped and every other
+                       one in the stylesheet names this, the card layer's lift
+                       and travel included — those wrote plain deceleration out
+                       longhand before it had a name.
 
      A curve whose control points leave the 0–1 band passes its destination
      and comes back. That is only ever safe on a property the compositor owns:
@@ -285,10 +289,22 @@
      without anyone having planned it. Which switch each answers to follows
      the split above it: the card duration is the cards', so "Cards move"
      reaches it; the other three are the interface's, and only the operating
-     system reaches those. */
+     system reaches those.
+
+     The first three are the interface's whole scale — quick, default, slow —
+     and each is named for the job it was drawn for rather than fenced to it:
+     the theme fade crossing the page takes the slow one, and it is not a
+     panel. The three times the app was already writing out in forty-odd
+     places came under these names; what stayed a literal stayed for a reason,
+     written on the rule itself. The card layer keeps its own, because those are tuned
+     against each other rather than against a scale — the lift is quicker than
+     the settle so a grid crossed at speed leaves no trail, and the travel is
+     slower than both because it is the whole explanation of what just
+     changed. One name cannot hold that argument. */
   --dur-tint:  calc(var(--motion-ui) * .12s);   /* paint, markers */
   --dur-base:  calc(var(--motion-ui) * .15s);   /* the default */
-  --dur-panel: calc(var(--motion-ui) * .2s);    /* drawers, side panels */
+  --dur-panel: calc(var(--motion-ui) * .2s);    /* panels, and paint that
+                                                   crosses the whole page */
   --dur-card:  calc(var(--motion) * .28s);      /* the card layer */
 }
 

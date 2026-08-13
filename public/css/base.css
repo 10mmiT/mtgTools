@@ -13,7 +13,10 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  transition: background calc(var(--motion-ui) * .2s), color calc(var(--motion-ui) * .2s);
+  /* The slowest of the three interface steps, because this one crosses the
+     whole page: every surface in the app repaints when the theme changes. */
+  transition: background var(--dur-panel) var(--ease-tint),
+              color      var(--dur-panel) var(--ease-tint);
 }
 
 /* ── Reading measure (§8.3) ───────────────────────────────────────────
@@ -91,7 +94,11 @@ input[type="number"],
 .mc-g { color: var(--mc-g); }
 .mc-c { color: var(--mc-c); }
 /* ── Element defaults ─────────────────────────────────────────────────── */
-button { font-family: inherit; cursor: pointer; border: none; transition: background calc(var(--motion-ui) * .15s), opacity calc(var(--motion-ui) * .15s); }
+button {
+  font-family: inherit; cursor: pointer; border: none;
+  transition: background var(--dur-base) var(--ease-tint),
+              opacity    var(--dur-base) var(--ease-tint);
+}
 button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Form elements ──────────────────────────────────────────────────── */
@@ -114,7 +121,7 @@ select {
   font-size: var(--text-base);
   font-family: inherit;
   color: var(--text);
-  transition: border-color calc(var(--motion-ui) * .15s);
+  transition: border-color var(--dur-base) var(--ease-tint);
 }
 input:focus,
 textarea:focus,

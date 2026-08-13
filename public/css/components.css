@@ -285,9 +285,9 @@
   font-family: inherit;
   cursor: pointer;
   padding-right: var(--space-3);
-  transition: border-color calc(var(--motion-ui) * .15s),
-              background   calc(var(--motion-ui) * .15s),
-              color        calc(var(--motion-ui) * .15s);
+  transition: border-color var(--dur-base) var(--ease-tint),
+              background   var(--dur-base) var(--ease-tint),
+              color        var(--dur-base) var(--ease-tint);
 }
 .chip--select:hover { border-color: var(--pc, var(--primary)); color: var(--text); }
 .chip--select[aria-pressed="true"] {
@@ -371,9 +371,9 @@
   background: var(--scrim);
   opacity: 0;
   visibility: hidden;
-  transition: opacity calc(var(--motion-ui) * .2s), visibility 0s calc(var(--motion-ui) * .2s);
+  transition: opacity var(--dur-panel) var(--ease-tint), visibility 0s var(--dur-panel);
 }
-.drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity calc(var(--motion-ui) * .2s), visibility 0s; }
+.drawer-scrim.open { opacity: 1; visibility: visible; transition: opacity var(--dur-panel) var(--ease-tint), visibility 0s; }
 
 /* ── Search bar ──────────────────────────────────────────────────────── */
 .search-input { flex: 1; min-width: 200px; max-width: 480px; }
@@ -527,8 +527,8 @@ td { padding: var(--space-2) var(--space-3); }
   /* The settle is quicker than the lift below it, on purpose: a card is
      picked up deliberately and put down the moment you look away, and a grid
      crossed at speed must not leave a trail of cards on their way back. */
-  transition: filter    calc(var(--motion) * .18s) ease-out,
-              transform calc(var(--motion) * .1s)  ease-out;
+  transition: filter    calc(var(--motion) * .18s) var(--ease-tint),
+              transform calc(var(--motion) * .1s)  var(--ease-tint);
 }
 
 /* ── Picking a card up ────────────────────────────────────────────────
@@ -585,8 +585,8 @@ td { padding: var(--space-2) var(--space-3); }
              scale(var(--card-lift-scale))
              rotateX(var(--lift-tilt-x, 0deg))
              rotateY(var(--lift-tilt-y, 0deg));
-  transition: filter    calc(var(--motion) * .18s) ease-out,
-              transform calc(var(--motion) * .16s) ease-out;
+  transition: filter    calc(var(--motion) * .18s) var(--ease-tint),
+              transform calc(var(--motion) * .16s) var(--ease-tint);
 }
 
 /* The sheen. It is the wrapper's ::after rather than an element of its own so
@@ -618,7 +618,7 @@ td { padding: var(--space-2) var(--space-3); }
   mix-blend-mode: screen;
   /* A pseudo-element that did not exist a moment ago has nothing to
      transition from, so the light arrives as an animation instead. */
-  animation: card-sheen calc(var(--motion) * .14s) ease-out;
+  animation: card-sheen calc(var(--motion) * .14s) var(--ease-tint);
 }
 @keyframes card-sheen { from { opacity: 0; } to { opacity: 1; } }
 
@@ -639,7 +639,7 @@ td { padding: var(--space-2) var(--space-3); }
    be followed. Still short of a third of a second — this is a card being put
    down in a new place, not a card being flown there. */
 .card-moving {
-  transition: translate calc(var(--motion) * .28s) ease-out;
+  transition: translate var(--dur-card) var(--ease-tint);
 }
 
 /* ── Carrying a card ─────────────────────────────────────────────────
@@ -736,8 +736,8 @@ td { padding: var(--space-2) var(--space-3); }
    happened — quicker than a card crossing the mat, because there is nothing
    to explain. */
 .card-returning {
-  transition: translate calc(var(--motion) * .2s) ease-out,
-              rotate    calc(var(--motion) * .2s) ease-out;
+  transition: translate calc(var(--motion) * .2s) var(--ease-tint),
+              rotate    calc(var(--motion) * .2s) var(--ease-tint);
 }
 
 /* And released over a pile that takes it: the card lands. This is a
@@ -922,10 +922,11 @@ td { padding: var(--space-2) var(--space-3); }
      The ring is small enough to be a shape rather than a bounce. Traced in the
      app, the quarter-turn passes 90° by 1.9°, which at the 5px tip of the
      triangle is a sixth of a pixel; what carries is the settle at the end of
-     the 150ms. Colour and background stay on their own plain times, since the
-     compositor does not own them and an overshoot there is a reflow. */
-  transition: background calc(var(--motion-ui) * .12s),
-              color      calc(var(--motion-ui) * .12s),
+     the 150ms. Colour and background take the tint curve beside it and not the
+     control one, since the compositor does not own them and an overshoot there
+     is a reflow. */
+  transition: background var(--dur-tint) var(--ease-tint),
+              color      var(--dur-tint) var(--ease-tint),
               transform  var(--dur-base) var(--ease-control);
 }
 
@@ -1178,7 +1179,8 @@ td { padding: var(--space-2) var(--space-3); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background calc(var(--motion-ui) * .12s), color calc(var(--motion-ui) * .12s);
+  transition: background var(--dur-tint) var(--ease-tint),
+              color      var(--dur-tint) var(--ease-tint);
   padding: 0;
   font-family: inherit;
 }
@@ -1200,7 +1202,11 @@ td { padding: var(--space-2) var(--space-3); }
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-overlay);
   opacity: 0;
-  transition: opacity calc(var(--motion-ui) * .2s), transform calc(var(--motion-ui) * .2s);
+  /* A reveal, not a throw: it fades in and rises the last few pixels into
+     place, and it does not land. The transform is exactly the kind of property
+     a ring could be spent on, which is why it says --ease-tint out loud. */
+  transition: opacity   var(--dur-panel) var(--ease-tint),
+              transform var(--dur-panel) var(--ease-tint);
   pointer-events: none;
   z-index: 2000;
   white-space: nowrap;
@@ -1235,9 +1241,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   justify-content: center;
   cursor: pointer;
   user-select: none;
-  transition: background   calc(var(--motion-ui) * .12s),
-              border-color calc(var(--motion-ui) * .12s),
-              color        calc(var(--motion-ui) * .12s);
+  transition: background   var(--dur-tint) var(--ease-tint),
+              border-color var(--dur-tint) var(--ease-tint),
+              color        var(--dur-tint) var(--ease-tint);
 }
 .stepper-btn:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
 .stepper-btn:last-child  { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
@@ -1259,7 +1265,10 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: width calc(var(--motion-ui) * .2s);
+  /* This one opens by growing rather than by sliding, so it decelerates where
+     the three panels in the mass model are damped: a width that passed its
+     mark would take the page's layout past it too. */
+  transition: width var(--dur-panel) var(--ease-tint);
   /* Border, not shadow. A drawer pinned to the edge of the viewport is
      not floating in the middle of the page — it has one visible edge,
      and the hairline is what marks it. The shadow tokens all cast
@@ -1298,7 +1307,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   border-radius: var(--radius-sm);
   font-size: var(--text-base);
   font-family: inherit;
-  transition: background calc(var(--motion-ui) * .12s), color calc(var(--motion-ui) * .12s);
+  transition: background var(--dur-tint) var(--ease-tint),
+              color      var(--dur-tint) var(--ease-tint);
 }
 .rss-panel-hdr button:hover { background: var(--surface-2); color: var(--text); }
 
@@ -1389,7 +1399,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  transition: background calc(var(--motion-ui) * .15s);
+  transition: background var(--dur-base) var(--ease-tint);
 }
 .rss-toggle-btn:hover { background: color-mix(in srgb, var(--hdr-fg) 20%, transparent); }
 .rss-toggle-btn.active { background: color-mix(in srgb, var(--hdr-fg) 25%, transparent); }
@@ -1459,7 +1469,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-size: var(--text-md);
   font-weight: 700;
   flex-shrink: 0;
-  transition: background calc(var(--motion-ui) * .12s), border-color calc(var(--motion-ui) * .12s);
+  transition: background   var(--dur-tint) var(--ease-tint),
+              border-color var(--dur-tint) var(--ease-tint);
 }
 .sort-dir-btn:hover, .sort-row-btn:hover { background: var(--surface-3); }
 .sort-dir-btn:disabled:hover, .sort-row-btn:disabled:hover { background: var(--surface-2); }
@@ -1510,7 +1521,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-size: var(--text-sm);
   font-weight: 600;
   font-family: inherit;
-  transition: border-color calc(var(--motion-ui) * .12s);
+  transition: border-color var(--dur-tint) var(--ease-tint);
 }
 .col-menu-btn:hover { background: var(--surface-3); }
 .col-menu {
@@ -1812,7 +1823,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
   cursor: pointer;
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
-  transition: color calc(var(--motion-ui) * .15s);
+  transition: color var(--dur-base) var(--ease-tint);
 }
 .card-modal-close:hover { color: var(--text); }
 
@@ -1866,8 +1877,9 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
    part worth having, and it is why the depth question was worth asking. */
 .btn-primary, .btn-secondary, .btn-danger,
 .btn-update, .btn-remove, .btn-sm, .kebab-btn {
-  transition: background var(--dur-base), opacity var(--dur-base),
-              transform var(--dur-base) var(--ease-control);
+  transition: background var(--dur-base) var(--ease-tint),
+              opacity    var(--dur-base) var(--ease-tint),
+              transform  var(--dur-base) var(--ease-control);
 }
 /* The four names past the original three all pressed today and said nothing:
    a table row's buttons and a kebab should not feel less finished than a
