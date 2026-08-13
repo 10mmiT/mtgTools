@@ -227,6 +227,59 @@ test('the card duration answers to the card switch, and the rest to the interfac
   }
 });
 
+// ── The press ─────────────────────────────────────────────────────────
+// A key moves the instant your finger lands and springs back under its own
+// power. Both halves of that live in the delivered components.css and nowhere
+// else, and the direction is easy to get backwards — it was, until #21 — so
+// the asymmetry is asserted rather than left to the eye. What the ring looks
+// like is not asserted; that is the screenshot harness's business and the
+// eye's.
+
+const components = () => read('public/css/components.css');
+
+/** Every rule block in a stylesheet, as { selector, body }. Comments go first,
+ *  so a rule someone commented out cannot answer for the live one. */
+function rules(css) {
+  const src = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  return [...src.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map(([, selector, body]) => ({ selector: selector.trim(), body: body.trim() }));
+}
+
+const selectorList = sel => sel.split(',').map(s => s.trim()).filter(Boolean);
+
+/** The rule that moves a control under the finger, and the resting rule for
+ *  the same controls — the pair the press is made of. */
+function pressPair() {
+  const all = rules(components());
+  const pressed = all.find(r => /:active/.test(r.selector) && /translateY/.test(r.body));
+  assert.ok(pressed, 'a control travels when it is pressed');
+  const resting = selectorList(pressed.selector).map(s => s.replace(':active', ''));
+  const base = all.find(r =>
+    selectorList(r.selector).join(',') === resting.join(',') && /transition/.test(r.body));
+  assert.ok(base, `the same controls have a resting rule: ${resting.join(', ')}`);
+  return { pressed, base, controls: resting };
+}
+
+test('the press is the finger and the release is the spring', () => {
+  const { pressed, base } = pressPair();
+  assert.match(pressed.body, /transition:\s*none/,
+    'the pressed state runs no curve — your finger moved it, so it moves now');
+  assert.match(base.body, /transform\s+var\(--dur-base\)\s+var\(--ease-control\)/,
+    'and the way back is the spring\'s: the resting rule transitions transform ' +
+    'on the control curve, so releasing rings rather than snapping');
+});
+
+test('the press reaches every control that presses', () => {
+  const { controls } = pressPair();
+  // The four the research found pressing and saying nothing, alongside the
+  // three that already acknowledged it: a dense corner of the app should not
+  // feel less finished than a dialog's footer.
+  for (const control of ['.btn-primary', '.btn-secondary', '.btn-danger',
+                         '.btn-update', '.btn-remove', '.btn-sm', '.kebab-btn']) {
+    assert.ok(controls.includes(control), `${control} acknowledges the press`);
+  }
+});
+
 test('the system override outranks a preference of on', () => {
   const css = tokens();
   const pref  = css.search(/:root\[data-motion=['"]off['"]\]/);

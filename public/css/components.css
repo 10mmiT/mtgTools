@@ -1814,10 +1814,50 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 /* Focus lives in base.css now — one rule for the whole app (§7.5). This
    was the second of the two treatments it replaced. */
 
-/* Button active/press feedback */
-.btn-primary:active, .btn-secondary:active, .btn-danger:active {
-  transform: translateY(1px);
-  transition: transform calc(var(--motion-ui) * .08s);
+/* Button press feedback.
+
+   A key moves the instant your finger lands on it and springs back under its
+   own power. This rule used to do the opposite — the transition was declared
+   on :active alone, so entering the pressed state eased over .08s while
+   leaving it fell back to base.css's `button`, which transitions background
+   and opacity but not transform, and snapped. The two are swapped here: the
+   pressed state runs no curve, because the finger did that, and the resting
+   state carries --ease-control, so the release is the spring's.
+
+   The resting rule restates base.css's background and opacity pair rather
+   than only adding transform, because a class selector beats that element
+   rule and a bare `transition: transform` would drop both. Restating also
+   reaches the .btn-secondary anchors card.js draws for the external links,
+   which `button` never did.
+
+   **The depth was settled in a browser rather than argued.** Captured at 3x
+   against a fixed rule above and below, the 1px travel this shipped with is
+   at the edge of noticing; 3px reads as the button falling rather than
+   depressing; 2px is the shallowest depth where the move registers as a
+   press, and is independently GOV.UK's, arrived at with far more user testing
+   than this project will do. 2px is not on the --space-* scale, which starts
+   at 4px, and does not have to be: the space rule in scripts/lint-tokens.js
+   governs padding, margin and gap, not transform.
+
+   What --ease-control buys at that depth is its deceleration and not a
+   visible ring. Sampled every frame through a release, the overshoot is
+   0.02px at 1px of travel and 0.04px at 2px — sub-pixel at any display
+   density, so nobody will ever see the bounce. What they will see is the way
+   the last third of the travel slows, over about eight frames. That is the
+   part worth having, and it is why the depth question was worth asking. */
+.btn-primary, .btn-secondary, .btn-danger,
+.btn-update, .btn-remove, .btn-sm, .kebab-btn {
+  transition: background var(--dur-base), opacity var(--dur-base),
+              transform var(--dur-base) var(--ease-control);
+}
+/* The four names past the original three all pressed today and said nothing:
+   a table row's buttons and a kebab should not feel less finished than a
+   dialog's footer. .stepper-btn is deliberately not here — it answers a press
+   with a fill of its own, which is an acknowledgement already. */
+.btn-primary:active, .btn-secondary:active, .btn-danger:active,
+.btn-update:active, .btn-remove:active, .btn-sm:active, .kebab-btn:active {
+  transform: translateY(2px);
+  transition: none;
 }
 
 /* The one spinner left in the app: a deck tile loading its card list, in
