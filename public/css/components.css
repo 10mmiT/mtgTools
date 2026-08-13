@@ -622,6 +622,131 @@ td { padding: var(--space-2) var(--space-3); }
 }
 @keyframes card-sheen { from { opacity: 0; } to { opacity: 1; } }
 
+/* ── Turning a card over ─────────────────────────────────────────────
+   A two-sided card is one object with two sides, and this is the other one.
+   js/cardturn.js decides which cards have a back, draws the control and runs
+   the two halves in order; what is here is the geometry.
+
+   The rotation is `rotate` rather than `transform` for the reason the travel
+   and the carry are: a card in a fanned pile already lies at an angle, and a
+   card being pointed at is already leaning, both written as properties of
+   their own. The individual properties compose; transform would overwrite. A
+   card can therefore be turned over while lying at the angle its pile gave it,
+   and nothing about the turn changes a layout box — the neighbours in a grid
+   do not know it happened.
+
+   Guarded by --dur-card, the card layer's own duration, so the whole turn is
+   one card's worth of time and collapses to none for someone who has asked for
+   less movement. What does not collapse is the swap: js/cardturn.js shows the
+   other face whether or not it is allowed to move it, because seeing the back
+   of a card is information and the switch is about animation. */
+
+/* The card and its control, sharing a box. Only ever drawn around a card that
+   has a back — a one-sided card's tile is not wrapped at all. */
+.card-turnable { position: relative; }
+
+/* A fanned pile's cards are positioned, angled and stacked by rules written
+   against .card-fan's direct children, so when a card is wrapped the wrapper
+   is what has to be that child. It takes the card's size; the card inside
+   fills it. */
+.card-fan-slot { width: var(--card-width, 150px); aspect-ratio: 5/7; }
+.card-fan-slot > .card-fan-card { width: 100%; height: 100%; }
+
+/* The control. It sits at the foot of the card, which on a grid tile is the
+   quietest corner a card has: the head of a card carries its name and its cost,
+   and the foot carries a set symbol and the artist's name in four-point type.
+   A fan is the one arrangement where the foot is not reachable, and it says so
+   for itself below.
+
+   EXEMPT from the token rule: this sits on card artwork, which is the
+   exemption .card-fan-badge and .db-pile-qty already carry. A fixed black
+   scrim under a white glyph reads on all five themes over a picture that is
+   nobody's palette, and a token pair cannot promise that. */
+.card-turn {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, .7);
+  color: #fff;
+  font-size: var(--text-xs);
+  line-height: 1;
+  cursor: pointer;
+}
+/* The glyph is a shape the stylesheet draws rather than a character typed into
+   the four places a turnable card is rendered — .pile-toggle's reason, and the
+   reason the button is written empty. */
+.card-turn::before { content: '⟳'; }
+
+/* What a thumb can hit, which is not what is painted. A control on a card has
+   to be small — it is sitting on the artwork, and the artwork is the point —
+   but the phone rule is 44px and a 22px circle is half of it. The reach is
+   added as a pseudo-element rather than as padding so the circle stays the
+   size it looks. It grows into the gap between tiles rather than into the next
+   card, and the rest of the card still opens it, which is the gesture a card
+   has everywhere else in the app. */
+.card-turn::after {
+  content: '';
+  position: absolute;
+  inset: -11px;
+}
+
+/* Except in a fan, where the foot of a card is under the card lying on top of
+   it. A spread pile overlaps its cards by all but the top quarter of each, so
+   a control at the bottom is a control that cannot be reached — which is the
+   same fact .card-fan-badge states from the other side, when it explains that
+   the top of a card is the part a fan lets you read. The badge answers by
+   staying out of the way; a control has to answer by being reachable.
+
+   The right-hand corner rather than the left: what shows of a card in a fan is
+   its name, and the control is not allowed to sit on the one thing a spread
+   pile can be read for. */
+.card-fan-slot .card-turn {
+  top: 4px;
+  right: 4px;
+  bottom: auto;
+  left: auto;
+}
+/* And its reach grows upward rather than evenly, because down is where the
+   next card in the pile is. Each card in a fan is drawn over the one before
+   it, so a target that reached below this card's visible strip would be a
+   target the card on top of it swallowed — the finger would land on the wrong
+   card and nothing would happen. Up is this card's own strip and the room
+   above it, which is the direction a thumb comes from anyway. */
+.card-fan-slot .card-turn::after { inset: -20px -11px -2px -11px; }
+
+/* Perspective is the property of the thing a rotation happens *in*, so it goes
+   on the element the card hangs in and is taken off again when the turn ends —
+   the same two-element split as the lift, and the same promise that picking a
+   card up and putting it down leaves the markup as it was found. */
+.card-turn-host { perspective: 40rem; }
+
+/* The two halves. The first is played in reverse, which is what turns a
+   deceleration into an acceleration: --ease-tint is the app's only
+   non-overshooting curve and it decelerates, but the half of a turn that
+   leaves your hand is the half that speeds up. Overshoot would be wrong here
+   whatever the property allowed — a card that passed edge-on and came back
+   would have changed its mind about which side it was showing. */
+.card-turning-away {
+  animation: card-turn-edge calc(var(--dur-card) / 2) var(--ease-tint) reverse forwards;
+}
+.card-turning-back {
+  animation: card-turn-face calc(var(--dur-card) / 2) var(--ease-tint);
+}
+/* Edge-on, and back to facing you. The second half starts from the far side of
+   edge-on because that is where the back of a card is once the front has gone
+   past you — the same rotation continuing, not a second one beginning. */
+@keyframes card-turn-edge { from { rotate: y 90deg;  } to { rotate: y 0deg; } }
+@keyframes card-turn-face { from { rotate: y -90deg; } to { rotate: y 0deg; } }
+
 /* ── Cards travel to where they end up ───────────────────────────────
    A card that is somewhere new after a re-render is put back where it was and
    let go; this is the letting go. js/cardmove.js measures the two positions

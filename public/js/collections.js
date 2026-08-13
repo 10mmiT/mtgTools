@@ -982,6 +982,12 @@ function _colStackCard(row) {
   return {
     name:  row.name,
     img:   scryfallCache.get(row.name),
+    /* This tab knows cards by name, so the other side comes from the cache
+       ensureScryfallImages() fills beside the picture — the same answer
+       js/scryfall.js gave when the card came back, kept rather than asked
+       again. Nothing for a one-sided card, which is what leaves it without a
+       turn control. */
+    back:  scryfallFacesCache.get(row.name)?.[1] || '',
     badge: `×${total}`,
     href:  `https://scryfall.com/search?q=!%22${encodeURIComponent(row.name)}%22`,
   };
@@ -1090,8 +1096,9 @@ async function renderGridView(rows, MAX) {
         </span>`;
       }).join('');
 
+      const link = `<a class="grid-img-link card-open" href="${href}" target="_blank" rel="noopener" data-name="${esc(r.name)}">${imgHtml}</a>`;
       return `<div class="grid-card">
-        <a class="grid-img-link card-open" href="${href}" target="_blank" rel="noopener" data-name="${esc(r.name)}">${imgHtml}</a>
+        ${cardTurnableHtml(link, scryfallFacesCache.get(r.name)?.[1])}
         <div class="grid-footer">
           <div class="grid-name card-open" title="${esc(r.name)}" data-name="${esc(r.name)}" style="cursor:pointer">${esc(r.name)}</div>
           <div class="grid-qtys">${qtyBadges}</div>

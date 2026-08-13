@@ -157,12 +157,13 @@ function renderSfCardLarge(card) {
   const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
-  return `<div class="sf-card-lg">
-    <a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
+  const link = `<a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">
       ${imgUrl
         ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(card.name)}">`
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </a>
+    </a>`;
+  return `<div class="sf-card-lg">
+    ${cardTurnableHtml(link, scryfallBackFace(card))}
     <div class="sf-card-lg-footer">
       <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>

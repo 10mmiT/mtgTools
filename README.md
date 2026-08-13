@@ -349,6 +349,7 @@ mtgtools/
 │       │                  # field seeds, what is stored — plus the shared controls: the sort button
 │       │                  # and its popover, columns menu, view toggle, card-size control, "⋯" kebab menus
 │       ├── cardlift.js    # Picking a card up: the hover lift, lean and sheen on every card image
+│       ├── cardturn.js    # Turning a two-sided card over where it lies: the control, and the two halves of the turn
 │       ├── cardstack.js   # Drawing a group of cards as a stack: thickness from count, angle from name
 │       ├── cardmove.js    # Cards travelling to where a re-render put them: measured before and after
 │       ├── carddrag.js    # Carrying a card, or a handful: the lag, the lean, the fan, the pile that would take it
