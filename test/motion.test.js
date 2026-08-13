@@ -196,6 +196,37 @@ test('a system asking for reduced motion is asking the whole app, not the cards'
     'in the stylesheet collapse to no time at all');
 });
 
+/* The duration tokens are the one change that could break the promise above
+ * quietly. The linter reads time *literals*, so a duration behind a custom
+ * property is invisible to it at the call site; the guard moves into the
+ * token's own definition to compensate, and this is the assertion that it is
+ * actually there. Every one of them is a product with a multiplier that goes
+ * to zero, so at zero the duration is no time at all. */
+const durations = () =>
+  [...tokens().matchAll(/^\s*(--dur-[\w-]+)\s*:\s*([^;]+);/gm)]
+    .map(([, name, value]) => ({ name, value }));
+
+test('every duration token is a time multiplied by a motion switch', () => {
+  const defs = durations();
+  assert.ok(defs.length >= 4, 'the duration scale is there');
+  for (const { name, value } of defs) {
+    assert.match(value, /calc\(\s*var\(\s*--motion[\w-]*\s*\)\s*\*\s*[\d.]+m?s\s*\)/,
+      `${name} is written as ${value}, which is a time the switches cannot reach`);
+  }
+});
+
+test('the card duration answers to the card switch, and the rest to the interface one', () => {
+  for (const { name, value } of durations()) {
+    const expected = name === '--dur-card' ? '--motion' : '--motion-ui';
+    assert.match(value, new RegExp(`var\\(\\s*${expected}\\s*\\)`),
+      `${name} must be guarded by ${expected}`);
+    if (expected === '--motion-ui') {
+      assert.doesNotMatch(value, /var\(\s*--motion\s*\)/,
+        `${name} is interface movement, which "Cards move" is not entitled to still`);
+    }
+  }
+});
+
 test('the system override outranks a preference of on', () => {
   const css = tokens();
   const pref  = css.search(/:root\[data-motion=['"]off['"]\]/);

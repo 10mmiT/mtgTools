@@ -740,7 +740,7 @@ td { padding: var(--space-2) var(--space-3); }
    settles rather than stopping dead. Every other card the drop moved eases
    into place around it. */
 .card-moving.card-landed {
-  transition: translate calc(var(--motion) * .34s) cubic-bezier(.3, 1.5, .6, 1);
+  transition: translate calc(var(--motion) * .34s) var(--ease-land);
 }
 
 /* ── Stacks ──────────────────────────────────────────────────────────

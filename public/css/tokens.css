@@ -230,6 +230,62 @@
      delivered CSS to one of these — an unguarded duration fails the build. */
   --motion-ui: 1;
   --motion: 1;
+
+  /* Curves. Four of them, each named for the MATERIAL it describes rather
+     than for a maths family — the same habit as everything above, where a
+     token names the job a value does and never the value itself.
+
+     What separates them is mass, and mass shows up in exactly one place:
+     whether a thing rings as it lands.
+
+       --ease-panel    Heavy and damped, no ring. A drawer is a slab: it takes
+                       a moment to get going and a long moment to stop, and it
+                       does not bounce when it arrives.
+       --ease-control  Light, with a tight ring. A knob or a key is spring
+                       steel — quick in both directions, and it rattles a
+                       little as it settles. Deliberately half the overshoot a
+                       card gets: a button returning must not sound like a
+                       card landing.
+       --ease-land     CARDS ONLY. Cardboard meeting felt: a big soft settle,
+                       a fraction past the mark and back. It was already in
+                       the app, written out longhand on the one rule that sets
+                       a dropped card down; naming it is what stops it
+                       becoming the app's generic bounce, and it stays
+                       card-only by decision. No chrome rule may take it.
+       --ease-tint     Plain deceleration, and it NEVER overshoots. Paint,
+                       markers, reveals — a colour changing, a chevron
+                       turning, a tooltip appearing. None of those has any
+                       travel, so none of them has weight, and a springing
+                       caret is the most recognisable cheap-bounce tell on
+                       the web.
+
+     A curve whose control points leave the 0–1 band passes its destination
+     and comes back. That is only ever safe on a property the compositor owns:
+     an overshoot on a width grows the element past its own width token
+     mid-flight and takes the page's layout with it. scripts/lint-tokens.js
+     fails the build for one, which is why the rule is a rule and not advice. */
+  --ease-panel:   cubic-bezier(.32, .72, 0, 1);
+  --ease-control: cubic-bezier(.34, 1.26, .64, 1);
+  --ease-land:    cubic-bezier(.3, 1.5, .6, 1);
+  --ease-tint:    cubic-bezier(0, 0, .58, 1);
+
+  /* Durations, each one carrying its own guard.
+
+     This is a correctness requirement and not a tidiness one. The linter
+     reads time *literals*, so a duration hidden behind a custom property is
+     invisible to it at every call site that names one — which is precisely
+     what these are. The guard therefore lives here, in the definition, where
+     it cannot be forgotten rather than merely noticed.
+
+     Heavier is slower, which the durations the app already had agree on
+     without anyone having planned it. Which switch each answers to follows
+     the split above it: the card duration is the cards', so "Cards move"
+     reaches it; the other three are the interface's, and only the operating
+     system reaches those. */
+  --dur-tint:  calc(var(--motion-ui) * .12s);   /* paint, markers */
+  --dur-base:  calc(var(--motion-ui) * .15s);   /* the default */
+  --dur-panel: calc(var(--motion-ui) * .2s);    /* drawers, side panels */
+  --dur-card:  calc(var(--motion) * .28s);      /* the card layer */
 }
 
 /* Off because the person asked for it. Cards only: the switch says "Cards

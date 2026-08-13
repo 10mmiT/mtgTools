@@ -149,6 +149,88 @@ test('what a guarded transition may still say', () => {
     [], 'the numbers in an easing curve are not durations');
 });
 
+test('a duration token carries the guard in its own definition', () => {
+  assert.deepStrictEqual(rules(':root { --dur-x: calc(var(--motion-ui) * .2s); }'), []);
+  assert.deepStrictEqual(rules(':root { --dur-x: .2s; }'), ['motion'],
+    'a duration behind a custom property slips past the guard at every call ' +
+    'site it is used at, so the definition is the only place the guard holds');
+});
+
+test('a transition may name a duration token, and no property the linter cannot read', () => {
+  assert.deepStrictEqual(rules('.a { transition: opacity var(--dur-base); }'), [],
+    'a duration token is guarded where it is defined');
+  assert.deepStrictEqual(
+    rules('.a { transition: opacity var(--dur-base) var(--ease-tint); }'), [],
+    'and a curve carries no time at all');
+  assert.deepStrictEqual(rules('.a { transition: opacity var(--whatever); }'), ['motion'],
+    'any other custom property is a duration this file cannot see the inside of');
+  assert.deepStrictEqual(rules('.a { transition-duration: var(--dur-panel); }'), []);
+});
+
+test('an overshoot curve is legal on what the compositor owns', () => {
+  assert.deepStrictEqual(
+    rules('.a { transition: translate var(--dur-card) var(--ease-land); }'), []);
+  assert.deepStrictEqual(
+    rules('.a { transition: opacity var(--dur-base) cubic-bezier(.3, 1.5, .6, 1); }'), [],
+    'nothing the compositor owns can reflow, however far past the mark it goes');
+});
+
+test('an overshoot curve on a property that affects layout is caught', () => {
+  assert.deepStrictEqual(
+    rules('.a { transition: width var(--dur-panel) var(--ease-control); }'), ['overshoot'],
+    'a spring on a width grows the element past its own width token mid-flight');
+  assert.deepStrictEqual(
+    rules('.a { transition: max-width var(--dur-base) cubic-bezier(.34, 1.56, .64, 1); }'),
+    ['overshoot'], 'the curve is caught written out, not only behind its token');
+  assert.deepStrictEqual(
+    rules('.a { transition: width var(--dur-panel) var(--ease-panel); }'), [],
+    'deceleration is what a layout property gets instead');
+  assert.deepStrictEqual(
+    rules('.a { transition: all var(--dur-base) var(--ease-control); }'), ['overshoot'],
+    '`all` is every layout property there is');
+});
+
+test('the overshoot rule reads the longhand as well as the shorthand', () => {
+  const decls = curve =>
+    `transition-property: ${curve.prop}; transition-duration: var(--dur-panel); ` +
+    `transition-timing-function: var(--ease-control);`;
+  assert.deepStrictEqual(rules(`.a { ${decls({ prop: 'width' })} }`), ['overshoot']);
+  assert.deepStrictEqual(rules(`.a { ${decls({ prop: 'transform' })} }`), []);
+  assert.deepStrictEqual(
+    rules('.a { transition-timing-function: var(--ease-control); }'), ['overshoot'],
+    'a curve with no property named applies to all of them, layout included');
+});
+
+test('the card-landing curve is a token, and it stays card-only', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.join(__dirname, '..');
+  const dir = 'public/css';
+  const magic = /cubic-bezier\(\s*\.3\s*,\s*1\.5\s*,\s*\.6\s*,\s*1\s*\)/;
+
+  const uses = [];
+  for (const file of fs.readdirSync(path.join(root, dir))) {
+    const src = fs.readFileSync(path.join(root, dir, file), 'utf8');
+    const lines = src.split('\n');
+    if (file !== 'tokens.css') {
+      const line = lines.findIndex(l => magic.test(l));
+      assert.strictEqual(line, -1,
+        `${dir}/${file}:${line + 1} still writes the card-landing curve out longhand`);
+    }
+    for (const [i, line] of lines.entries()) {
+      if (file !== 'tokens.css' && /var\(--ease-land\)/.test(line)) {
+        uses.push({ file, line: i + 1, text: line });
+      }
+    }
+  }
+
+  assert.strictEqual(uses.length, 1,
+    `--ease-land is the sound of a card landing, so exactly one rule may make ` +
+    `it: ${uses.map(u => `${u.file}:${u.line}`).join(', ')}`);
+  assert.match(uses[0].text, /transition:\s*translate/,
+    'and that rule is the one that sets a dropped card down');
+});
+
 test('the motion rule reaches the stylesheet inside the markup', () => {
   // login.html keeps its own small stylesheet in a <style> block, and it is
   // delivered CSS: the way into the app has to be still too.

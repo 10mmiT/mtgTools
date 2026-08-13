@@ -15,7 +15,11 @@
  *             or a shadow on a surface that also draws a border
  *   motion    a transition or animation whose duration is not multiplied by
  *             a motion token, so it would still move for someone who asked
- *             for less movement
+ *             for less movement — or one that names a custom property this
+ *             file cannot read a duration out of
+ *   overshoot a curve that passes its mark and comes back, applied to a
+ *             property that affects layout rather than one the compositor
+ *             owns. Mass on a width reflows the page mid-flight
  *   important a use of !important outside the allowlist below
  *
  * Run it with `npm run lint:tokens`; `npm test` runs it too, via
@@ -37,7 +41,9 @@
  * The comment must also say *why*; that is a review matter, not something
  * this script can check. !important and motion are never covered by an
  * exemption comment — each has its own allowlist, so that the count is
- * visible in one place and can be watched down to zero.
+ * visible in one place and can be watched down to zero. Neither is overshoot,
+ * which has no allowlist for the opposite reason: it is not a house style
+ * with exceptions, it is a description of a bug.
  */
 
 'use strict';
@@ -91,12 +97,23 @@ function readScales(source) {
     [...source.matchAll(/^\s*(--motion[\w-]*)\s*:/gm)].map(m => m[1])
   );
 
+  /* The curves, kept as name → value rather than as a bare set: the overshoot
+     rule has to look inside one to know whether it rings. */
+  const ease = new Map(
+    scaleBlock.decls.filter(d => d.prop.startsWith('--ease-')).map(d => [d.prop, d.value])
+  );
+
   const scales = {
     text: inScales('--text-'),
     space: inScales('--space-'),
     radius: inScales('--radius-'),
     shadow,
     motion,
+    /* The durations a transition may name instead of writing a time out. Each
+       one's own definition is checked for the guard below, which is what makes
+       naming one as safe as writing the guarded time here. */
+    duration: inScales('--dur-'),
+    ease,
   };
   for (const [name, set] of Object.entries(scales)) {
     if (!set.size) throw new Error(`${TOKEN_FILE}: the ${name} scale is empty`);
@@ -271,6 +288,9 @@ function parseCss(src) {
  * other blocks, not declarations of its own. */
 const isRule = b => !b.prelude.startsWith('@') || b.decls.length > 0;
 
+/* The rules an EXEMPT comment cannot reach, whatever it names. */
+const UNEXCUSABLE = new Set(['motion', 'overshoot']);
+
 /* Which rules a given EXEMPT comment escapes, from the words it uses. An
  * empty result means "all of them". */
 const RULE_WORDS = [
@@ -417,9 +437,11 @@ const RADIUS_PROPS = /^border(-(top|bottom)-(left|right))?-radius$/;
  *
  * The check is on time *literals*, which is what a stylesheet with no build
  * step can be read for. A duration hidden behind some other custom property —
- * `transition: opacity var(--whatever)` — would slip past; tokens.css defines
- * no duration tokens, and the day it does, that token's own definition is
- * where the guard belongs. */
+ * `transition: opacity var(--whatever)` — would slip straight past it. So the
+ * hole is closed from both ends: tokens.css's own --dur-* definitions are
+ * checked for the guard here, and a transition may name one of those or a
+ * curve and nothing else. A custom property this file cannot see the inside
+ * of is a duration it cannot vouch for. */
 const MOTION_PROPS = /^(transition|animation)(-(duration|delay))?$/;
 const TIME = String.raw`-?\d*\.?\d+m?s`;
 const TIME_RE = new RegExp(`(?<![\\w.])${TIME}\\b`, 'g');
@@ -442,16 +464,128 @@ function unguardedTimes(value, motionTokens) {
   return bad;
 }
 
+/* The custom properties a transition may name: a duration token, whose own
+ * definition carries the guard, or a curve, which carries no time at all.
+ * Anything else is a duration this file cannot read, and an unreadable
+ * duration is an unguarded one until proven otherwise. */
+function unreadableRefs(value, scales) {
+  const rest = value.replace(GUARDED_TIME_RE, ' ');
+  return [...rest.matchAll(/var\(\s*(--[\w-]+)/g)]
+    .map(m => m[1])
+    .filter(name => !scales.duration.has(name) && !scales.ease.has(name));
+}
+
 function checkMotion(decl, ctx, report) {
   const { prop, value } = decl;
   if (!MOTION_PROPS.test(prop)) return;
+  const at = { file: ctx.file, line: decl.line, selector: ctx.selector };
   const bad = unguardedTimes(value, ctx.scales.motion);
-  if (!bad.length) return;
+  const unreadable = unreadableRefs(value, ctx.scales);
+  if (!bad.length && !unreadable.length) return;
   if (ctx.motionExempt) { ctx.motionUsed.add(ctx.selector); return; }
+  if (bad.length) {
+    report('motion', at,
+      `unguarded ${prop} \`${bad.join(' ')}\` — write it as ` +
+      `calc(var(--motion-ui) * ${bad[0]}), so that it is no time at all ` +
+      'for someone who asked for less movement');
+  }
+  for (const name of unreadable) {
+    report('motion', at,
+      `${prop} names \`var(${name})\`, which is not a duration token or a ` +
+      'curve — a time behind a custom property this file cannot read is a ' +
+      'time the motion guard cannot reach');
+  }
+}
+
+/* A duration token's own definition is where its guard has to live, because
+ * every call site that names it hides the time from the check above. */
+const DURATION_TOKEN = /^--dur[\w-]*$/;
+function checkDurationToken(decl, ctx, report) {
+  if (!DURATION_TOKEN.test(decl.prop)) return;
+  const bad = unguardedTimes(decl.value, ctx.scales.motion);
+  if (!bad.length) return;
   report('motion', { file: ctx.file, line: decl.line, selector: ctx.selector },
-    `unguarded ${prop} \`${bad.join(' ')}\` — write it as ` +
-    `calc(var(--motion-ui) * ${bad[0]}), so that it is no time at all ` +
-    'for someone who asked for less movement');
+    `the duration token \`${decl.prop}\` is defined as \`${decl.value}\` — ` +
+    `write it as calc(var(--motion-ui) * ${bad[0]}), since a rule that names ` +
+    'this token can no longer be checked for the guard itself');
+}
+
+/* ── Overshoot is compositor-only ────────────────────────────────────────
+ * A curve whose control points leave the 0–1 band carries the value past its
+ * destination and brings it back. On a property the compositor owns that is
+ * the whole point — it is what mass looks like. On anything that affects
+ * layout it is a bug: the sidebar's width would grow past its own width token
+ * mid-flight while the main content's padding overshoots alongside it, so the
+ * content jitters right and comes back with a scrollbar flickering behind it,
+ * and the nav label's max-width undershoots into a hard floor at zero so
+ * opening stops mirroring closing.
+ *
+ * The sting is that a naive "more mass, more spring" model hands the most
+ * spring to the sidebar, which is the heaviest thing in the chrome and the
+ * least able to afford it. Hence a rule rather than a guideline. */
+const COMPOSITOR_PROPS = new Set(
+  ['transform', 'translate', 'rotate', 'scale', 'opacity', 'filter']
+);
+const BEZIER_RE = /cubic-bezier\(([^)]*)\)/i;
+
+/* Resolve a curve to its definition if it is written as a token, then ask
+ * whether either control point leaves the band. */
+function overshoots(curve, ease) {
+  const named = /^var\(\s*(--[\w-]+)\s*\)$/.exec(curve.trim());
+  const value = named ? ease.get(named[1]) : curve;
+  const bezier = value && BEZIER_RE.exec(value);
+  if (!bezier) return false;
+  const points = bezier[1].split(',').map(n => parseFloat(n));
+  return [points[1], points[3]].some(y => Number.isFinite(y) && (y < 0 || y > 1));
+}
+
+/* One transition of a shorthand, split into the property it moves and the
+ * curves it might be moving on. A bare identifier that is not a named curve
+ * is the property; saying none means `all`. Times and calc() are neither. */
+const EASING_KEYWORD = /^(ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end)$/i;
+const CURVE_COMP = /^(var\(|cubic-bezier\(|linear\(|steps\()/i;
+
+function transitionParts(value) {
+  return splitTop(value, ch => ch === ',').map(part => {
+    const comps = components(part);
+    return {
+      prop: comps.find(c => /^[a-z-]+$/i.test(c) && !EASING_KEYWORD.test(c)) || 'all',
+      curves: comps.filter(c => CURVE_COMP.test(c)),
+    };
+  });
+}
+
+function checkOvershoot(block, ctx, guardedAt) {
+  const { ease } = ctx.scales;
+  const springy = [];
+
+  for (const decl of block.decls) {
+    if (decl.prop === 'transition') {
+      for (const { prop, curves } of transitionParts(decl.value)) {
+        for (const curve of curves) {
+          if (overshoots(curve, ease)) springy.push({ decl, prop, curve });
+        }
+      }
+    }
+    if (decl.prop === 'transition-timing-function' && overshoots(decl.value, ease)) {
+      /* The longhand names its properties in a declaration of its own, and
+         says "all of them" by saying nothing. */
+      const props = block.decls.find(d => d.prop === 'transition-property');
+      for (const prop of props ? splitTop(props.value, ch => ch === ',') : ['all']) {
+        springy.push({ decl, prop, curve: decl.value });
+      }
+    }
+  }
+
+  for (const { decl, prop, curve } of springy) {
+    if (COMPOSITOR_PROPS.has(prop)) continue;
+    guardedAt(decl.line)('overshoot',
+      { file: ctx.file, line: decl.line, selector: ctx.selector },
+      `\`${curve}\` overshoots, and \`${prop}\` affects layout — a value that ` +
+      'passes its mark and comes back reflows the page on the way. Overshoot ' +
+      'is for transform, translate, rotate, scale, opacity and filter; ' +
+      'everything else decelerates (var(--ease-tint), var(--ease-panel))');
+  }
 }
 
 /* ── The checks ──────────────────────────────────────────────────────────*/
@@ -524,9 +658,11 @@ function lintCss(file, src, scales, report, allow = ALLOWLISTS) {
     exempt.some(e => line >= e.from && line <= e.to && (!e.rules || e.rules.has(rule)));
   const isTokenFile = file === TOKEN_FILE;
   /* Report only what no exemption covering that line has named — except for
-   * the rules that have an allowlist instead, which no comment may excuse. */
+   * the rules no comment may excuse: motion, which has an allowlist instead so
+   * that the count stays visible in one place, and overshoot, which describes
+   * a bug rather than a look and so has no version of itself worth keeping. */
   const guarded = (line) => (rule, at, message) => {
-    if (rule === 'motion' || !isExempt(line, rule)) report(rule, at, message);
+    if (UNEXCUSABLE.has(rule) || !isExempt(line, rule)) report(rule, at, message);
   };
 
   const importantSeen = new Map();
@@ -556,11 +692,19 @@ function lintCss(file, src, scales, report, allow = ALLOWLISTS) {
         });
       }
 
+      /* The one check the token file does not skip: raw values are what that
+         file is for, but a duration token defined without its guard is a hole
+         in the motion rule rather than a value on a scale. */
+      checkDurationToken(decl, ctx, guarded(decl.line));
+
       if (isTokenFile) continue;
       checkDecl({ ...decl, value: decl.value.replace(/\s*!\s*important$/, '') },
         ctx, guarded(decl.line));
     }
-    if (!isTokenFile) checkElevation(block, ctx, guarded);
+    if (!isTokenFile) {
+      checkElevation(block, ctx, guarded);
+      checkOvershoot(block, ctx, guarded);
+    }
   }
 
   // !important: compare against the allowlist, in both directions.
