@@ -2312,6 +2312,48 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   width: max-content;
 }
 
+/* How many the deck runs of the card, on the row where a pair of entries used
+   to be. The list view's stepper is an 18px pair set into a dense row of text;
+   this one is pressed over and over — four copies of a card is four presses —
+   so the two halves take the whole width the entries around them take, and the
+   number sits between them where the hand is not covering it.
+
+   Padded like an entry rather than by a step of its own: it stands in the same
+   column as the entries above and below it, and its two buttons already carry
+   the app's 44px minimum on a phone from the height rule in components.css,
+   which is the axis they were short on. */
+.db-menu-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+}
+/* Not the hover fill an entry takes: the row is not a target, the two presses
+   in it are. */
+.db-menu-step:hover { background: none; }
+.db-step-btn {
+  flex: 1;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  line-height: 1;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+}
+.db-step-btn:hover { background: var(--surface-2); color: var(--text); }
+.db-step-count {
+  /* Room for two digits, so the menu does not breathe in and out under a hand
+     pressing + four times. EXEMPT from the spacing scale: this is a measure of
+     the text inside it, in the text's own units, rather than a gap between
+     things. */
+  min-width: 3ch;
+  text-align: center;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
 /* Category header kebab menu (☑ select / ✎ rename / × delete consolidated) */
 .db-cat-kebab-wrap { position: relative; display: inline-block; }
 

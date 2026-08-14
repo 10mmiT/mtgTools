@@ -311,27 +311,32 @@ function dbMenuPlacement(point, menu, view, gap = 4) {
    arrive already written for a script attribute; escaping is the caller's,
    which is where the card was looked up.
 
-   The two counting entries are why this is a menu and not a list of verbs. How
-   many the deck runs of a card has been a pair of buttons in the list view
-   since the beginning, and the two views that draw a card as a picture had
-   nothing: there the count is printed on the artwork, and a number on a card is
-   something to read rather than something to press. So it is asked for here,
-   from the menu everything else about a card is asked from, and it lands in the
-   same dbChangeQty() those buttons call.
+   The count is the one thing here that is not a verb. How many the deck runs
+   of a card has been a stepper in the list view since the beginning, and the
+   two views that draw a card as a picture had nothing: there the count is
+   printed on the artwork, and a number on a card is something to read rather
+   than something to press. So the same stepper is here — one row, − ×3 +,
+   where a pair of entries would have been — and a press on it leaves the menu
+   standing, because a deck that wants four of a card should cost four presses
+   rather than four right-clicks. Every other entry closes the menu, because
+   every other entry is finished once it has happened.
 
-   Neither is offered on the commander board — that board holds the card the
-   deck is built around, and a deck does not run two of those — and taking one
-   away is not offered at a single copy: there is no copy to take, only the
-   card, and × Remove at the foot of the menu is already that. Left out rather
-   than greyed out, the way every other entry here that does not apply is. */
+   No stepper on the commander board: that board holds the card the deck is
+   built around, and a deck does not run two of those. Nor is there a special
+   case at a single copy — the stepper reads − ×1 + like any other count, and
+   what a press does about there being no copy left to take away is
+   dbStepQty()'s to decide. */
 function dbCardMenuItems({ ref, name, canEdit, isCommander, canPartner, qty }) {
   return `
     <button class="col-menu-item" onclick="dbCloseCardMenu();openCardByName('${name}')">ⓘ Inspect</button>
     ${canEdit ? `
     ${isCommander ? '' : `
-    <button class="col-menu-item" onclick="dbCloseCardMenu();dbChangeQty('${ref}', 1)">＋ Add a copy</button>
-    ${(qty || 1) < 2 ? '' :
-    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbChangeQty('${ref}', -1)">− Remove a copy</button>`}`}
+    <div class="col-menu-item db-menu-step">
+      <button class="db-step-btn" onclick="dbStepQty('${ref}', -1)"
+        title="One fewer — the last one takes the card off the mat">−</button>
+      <span class="db-step-count">×${qty || 1}</span>
+      <button class="db-step-btn" onclick="dbStepQty('${ref}', 1)" title="One more">＋</button>
+    </div>`}
     <button class="col-menu-item" onclick="dbCloseCardMenu();dbShowMoveCard('${ref}')">⇄ Move to…</button>
     ${isCommander ? '' :
     `<button class="col-menu-item" onclick="dbCloseCardMenu();dbMakeCommander('${ref}')"
@@ -342,13 +347,12 @@ function dbCardMenuItems({ ref, name, canEdit, isCommander, canPartner, qty }) {
     <button class="col-menu-item db-menu-danger" onclick="dbCloseCardMenu();dbRemoveCard('${ref}')">× Remove</button>` : ''}`;
 }
 
-/* Open it on a card. Opened before it is placed, since a menu that is not being
-   displayed has no size to place. */
-function dbOpenCardMenu(x, y, ref) {
-  const menu = document.getElementById('dbCardMenu');
-  if (!menu || !dbDeck) return;
+/* The card the menu is about, as the situation the entries are written from.
+   Everything read here is read from the deck as it stands now, which is what
+   lets the same menu be written again after a press has changed it. */
+function dbCardMenuState(ref) {
   const held = dbReadRef(ref);
-  menu.innerHTML = dbCardMenuItems({
+  return {
     ref: jsAttr(ref),
     /* Looking a card up is a question about the card; everything else is about
        this copy of it, which is why one takes the name and the others take the
@@ -365,7 +369,51 @@ function dbOpenCardMenu(x, y, ref) {
        two, there is no third to add. */
     canPartner: held.board !== DB_COMMANDER_BOARD && dbCommanderCards().length === 1,
     qty: dbFindCard(ref)?.qty || 1,
-  });
+  };
+}
+
+/* One press of the stepper: the count moves, the menu stays.
+ *
+ * Down from the last copy is the one press that is not a change of count.
+ * Zero copies of a card is not a card the deck runs none of — it is a card the
+ * deck does not have — so the press takes it off the mat, and the menu goes
+ * with it: it was about a card that is no longer there. Nothing is lost by it,
+ * because a mat is a deck's history away from what it was a moment ago.
+ *
+ * Everywhere else the count changes and the menu stands where it is, so a
+ * second press lands on the same place as the first — which is the whole
+ * reason this is a stepper and not two entries. dbChangeQty() does the
+ * changing, saving and redrawing, as it does for the list view's own stepper;
+ * the mat being rebuilt underneath does not disturb this menu, which hangs
+ * outside it.
+ *
+ * What is written back is the number and nothing else. The button that was
+ * pressed has to still be in the page when the press finishes: a click on the
+ * menu goes on to the document, where the deck builder asks whether it landed
+ * inside the menu in order to decide whether to put it away — and a button
+ * replaced in the meantime belongs to nothing, so that question answers
+ * "outside" and the menu closes under the hand that was pressing it. Nothing
+ * else on the menu depends on the count, which is what makes writing only the
+ * number the whole of it rather than a shortcut. */
+function dbStepQty(ref, delta) {
+  const card = dbFindCard(ref);
+  if (!card || !dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  if (delta < 0 && (card.qty || 1) <= 1) {
+    dbCloseCardMenu();
+    dbRemoveCard(ref);
+    return;
+  }
+  dbChangeQty(ref, delta);
+  const count = document.getElementById('dbCardMenu')?.querySelector('.db-step-count');
+  if (count) count.textContent = `×${card.qty}`;
+}
+
+/* Open it on a card. Opened before it is placed, since a menu that is not being
+   displayed has no size to place. */
+function dbOpenCardMenu(x, y, ref) {
+  const menu = document.getElementById('dbCardMenu');
+  if (!menu || !dbDeck) return;
+  menu.innerHTML = dbCardMenuItems(dbCardMenuState(ref));
   menu.classList.add('open');
   const box = menu.getBoundingClientRect();
   const at  = dbMenuPlacement({ x, y }, { width: box.width, height: box.height },
