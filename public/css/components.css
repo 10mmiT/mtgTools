@@ -1143,13 +1143,23 @@ td { padding: var(--space-2) var(--space-3); }
 .card-fan {
   display: flex;
   flex-direction: column;
+  /* How far each card lies over the one before it — the whole of what makes a
+     pile a pile, and the one number anything reaching into one has to agree
+     with. Named here rather than written out at each of the places that needs
+     it, because a push that moves a card by anything other than exactly this
+     either leaves it covered or opens a gap the pile does not have.
+
+     EXEMPT from the spacing scale. Not rhythm: what a fan leaves showing is the
+     top of each card beneath, so this is a fraction of the card's own height
+     and has to track the card width rather than a spacing step. */
+  --fan-overlap: calc(var(--card-width, 150px) * 1.16);
 }
 .card-fan > * {
   position: relative;
-  /* EXEMPT from the spacing scale. Not rhythm: the overlap that fans a pile
-     shows the top of each card beneath, so it is a fraction of the card's own
-     height and has to track the card width rather than a spacing step. */
-  margin-top: calc(-1 * var(--card-width, 150px) * 1.16);
+  /* EXEMPT from the spacing scale: this is the overlap above, negated — a
+     fraction of the card's own height rather than a step of rhythm. Why it
+     cannot be a spacing step is said where it is decided. */
+  margin-top: calc(-1 * var(--fan-overlap));
   transform: rotate(var(--stack-turn, 0deg));
 }
 .card-fan > :first-child { margin-top: 0; }
