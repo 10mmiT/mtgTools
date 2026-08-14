@@ -300,40 +300,72 @@ function dbMenuPlacement(point, menu, view, gap = 4) {
   };
 }
 
-/* Open it on a card. The items are written each time rather than shown and
-   hidden, because what can be done to a card depends on whose deck it is:
-   anybody may look a card up, and only the deck's owner may move or remove
-   one. Opened before it is placed, since a menu that is not being displayed
-   has no size to place. */
+/* What may be done to this card, as the entries that say so. The items are
+   written each time rather than shown and hidden, because what can be done to a
+   card depends on whose deck it is: anybody may look a card up, and only the
+   deck's owner may move or remove one.
+
+   A function of what it is handed and nothing else — no deck is read here — so
+   that the one question worth asking about a menu can be asked without a
+   browser: given a card in this situation, what is on it? The ref and the name
+   arrive already written for a script attribute; escaping is the caller's,
+   which is where the card was looked up.
+
+   The two counting entries are why this is a menu and not a list of verbs. How
+   many the deck runs of a card has been a pair of buttons in the list view
+   since the beginning, and the two views that draw a card as a picture had
+   nothing: there the count is printed on the artwork, and a number on a card is
+   something to read rather than something to press. So it is asked for here,
+   from the menu everything else about a card is asked from, and it lands in the
+   same dbChangeQty() those buttons call.
+
+   Neither is offered on the commander board — that board holds the card the
+   deck is built around, and a deck does not run two of those — and taking one
+   away is not offered at a single copy: there is no copy to take, only the
+   card, and × Remove at the foot of the menu is already that. Left out rather
+   than greyed out, the way every other entry here that does not apply is. */
+function dbCardMenuItems({ ref, name, canEdit, isCommander, canPartner, qty }) {
+  return `
+    <button class="col-menu-item" onclick="dbCloseCardMenu();openCardByName('${name}')">ⓘ Inspect</button>
+    ${canEdit ? `
+    ${isCommander ? '' : `
+    <button class="col-menu-item" onclick="dbCloseCardMenu();dbChangeQty('${ref}', 1)">＋ Add a copy</button>
+    ${(qty || 1) < 2 ? '' :
+    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbChangeQty('${ref}', -1)">− Remove a copy</button>`}`}
+    <button class="col-menu-item" onclick="dbCloseCardMenu();dbShowMoveCard('${ref}')">⇄ Move to…</button>
+    ${isCommander ? '' :
+    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbMakeCommander('${ref}')"
+       title="Build the deck around this card — whatever is on the commander board goes back into the deck">♛ Make commander</button>`}
+    ${!canPartner ? '' :
+    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbAddPartner('${ref}')"
+       title="Run this card as a second commander alongside the one you have — Partner, a Background, a Doctor’s companion">♛ Add as partner</button>`}
+    <button class="col-menu-item db-menu-danger" onclick="dbCloseCardMenu();dbRemoveCard('${ref}')">× Remove</button>` : ''}`;
+}
+
+/* Open it on a card. Opened before it is placed, since a menu that is not being
+   displayed has no size to place. */
 function dbOpenCardMenu(x, y, ref) {
   const menu = document.getElementById('dbCardMenu');
   if (!menu || !dbDeck) return;
-  const canEdit = isMyPlayer(dbDeck.playerId);
-  const r = jsAttr(ref);
-  /* Looking a card up is a question about the card; moving and removing are
-     about this copy of it, which is why one takes the name and the others take
-     the ref. */
-  const n = jsAttr(dbReadRef(ref).name);
-  /* Nothing to offer a card that is already the commander: this is how a deck
-     is switched to a different one, and switching to the card you are pointing
-     at is not a change. Going the other way is Move to…, which every card on
-     every board has. */
-  const isCommander = dbReadRef(ref).board === DB_COMMANDER_BOARD;
-  /* Offered only alongside a commander there already is. With none, adding a
-     partner is making a commander and the entry above says so; with two, there
-     is no third to add. */
-  const canPartner = !isCommander && dbCommanderCards().length === 1;
-  menu.innerHTML = `
-    <button class="col-menu-item" onclick="dbCloseCardMenu();openCardByName('${n}')">ⓘ Inspect</button>
-    ${canEdit ? `
-    <button class="col-menu-item" onclick="dbCloseCardMenu();dbShowMoveCard('${r}')">⇄ Move to…</button>
-    ${isCommander ? '' :
-    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbMakeCommander('${r}')"
-       title="Build the deck around this card — whatever is on the commander board goes back into the deck">♛ Make commander</button>`}
-    ${!canPartner ? '' :
-    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbAddPartner('${r}')"
-       title="Run this card as a second commander alongside the one you have — Partner, a Background, a Doctor’s companion">♛ Add as partner</button>`}
-    <button class="col-menu-item db-menu-danger" onclick="dbCloseCardMenu();dbRemoveCard('${r}')">× Remove</button>` : ''}`;
+  const held = dbReadRef(ref);
+  menu.innerHTML = dbCardMenuItems({
+    ref: jsAttr(ref),
+    /* Looking a card up is a question about the card; everything else is about
+       this copy of it, which is why one takes the name and the others take the
+       ref. */
+    name: jsAttr(held.name),
+    canEdit: isMyPlayer(dbDeck.playerId),
+    /* Nothing to offer a card that is already the commander: making a commander
+       is how a deck is switched to a different one, and switching to the card
+       you are pointing at is not a change. Going the other way is Move to…,
+       which every card on every board has. */
+    isCommander: held.board === DB_COMMANDER_BOARD,
+    /* A partner is offered only alongside a commander there already is. With
+       none, adding a partner is making a commander and that entry says so; with
+       two, there is no third to add. */
+    canPartner: held.board !== DB_COMMANDER_BOARD && dbCommanderCards().length === 1,
+    qty: dbFindCard(ref)?.qty || 1,
+  });
   menu.classList.add('open');
   const box = menu.getBoundingClientRect();
   const at  = dbMenuPlacement({ x, y }, { width: box.width, height: box.height },

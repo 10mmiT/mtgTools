@@ -1,10 +1,11 @@
 /* What can be done to a card: the decisions inside the card menu.
  *
- * Two of them are functions of their inputs and are written as exactly that so
- * they can be asserted here rather than eyeballed in a browser: which card a
- * point on the mat is on, and where a menu asked for at a point on the screen
- * is drawn. What the menu looks like is the eye's, for the reason the redesign
- * already recorded.
+ * Three of them are functions of their inputs and are written as exactly that
+ * so they can be asserted here rather than eyeballed in a browser: which card a
+ * point on the mat is on, where a menu asked for at a point on the screen is
+ * drawn, and which entries the menu holds. How the menu *looks* is still the
+ * eye's, for the reason the redesign already recorded; what is on it is not a
+ * matter of taste — it is what may be done to this card, and it is asserted.
  *
  * The shipped public/js/deckview-render.js is run against stub browser
  * globals, the way test/carddrag.test.js runs the carry, so these assert on
@@ -34,6 +35,12 @@ function loadRender() {
     /** Where a menu of this size, asked for at this point, is drawn. */
     place: (point, menu, view) => answer(
       `dbMenuPlacement(${JSON.stringify(point)}, ${JSON.stringify(menu)}, ${JSON.stringify(view)})`),
+    /** The entries the menu holds for a card in this situation. The ref and the
+     *  name arrive already written for a script attribute, the way the menu's
+     *  own caller hands them over — the escaping is the door's job and not
+     *  this function's, so nothing here has to be stubbed to ask what is on
+     *  the menu. */
+    items: card => vm.runInContext(`dbCardMenuItems(${JSON.stringify(card)})`, sandbox),
     /** Which card an element on the mat belongs to. */
     cardAt: moves => vm.runInContext(
       `_dbCardAt({ closest: sel => ${JSON.stringify(moves)} === null ? null
@@ -94,6 +101,56 @@ test('a menu with nowhere to fit is put in the corner rather than off the page',
   // that shows all of it, and the top-left is the one that shows the most.
   const at = app.place({ x: 200, y: 200 }, { width: 400, height: 700 }, { width: 390, height: 300 });
   assert.ok(at.left >= 0 && at.top >= 0, `${at.left},${at.top} is off the page`);
+});
+
+// ── What is on the menu ───────────────────────────────────────────────
+// A card in the ordinary case: one copy of it, lying in a pile, in a deck of
+// your own. Each test below says which single fact about the card it changes.
+const A_CARD = {
+  ref: 'main:Sol Ring', name: 'Sol Ring',
+  canEdit: true, isCommander: false, canPartner: false, qty: 1,
+};
+const menuFor = over => app.items({ ...A_CARD, ...over });
+
+test('a card in your own deck can be run in another copy', () => {
+  // The count is a fact about this card in this deck, so it is asked for where
+  // everything else about the card is asked for. Until now it could only be
+  // changed in the list view, which left the two views that draw the card as a
+  // picture with no way to say "and another one".
+  const menu = menuFor({});
+  assert.match(menu, /Add a copy/);
+  assert.match(menu, /dbChangeQty\('main:Sol Ring',\s*1\)/);
+});
+
+test('a card the deck runs several of can be run in one fewer', () => {
+  const menu = menuFor({ qty: 3 });
+  assert.match(menu, /Remove a copy/);
+  assert.match(menu, /dbChangeQty\('main:Sol Ring',\s*-1\)/);
+});
+
+test('a card the deck runs one of is not offered a copy to take away', () => {
+  // At one copy there is no copy to remove — there is only the card, and the
+  // entry at the foot of the menu already says that. The menu writes what
+  // applies and nothing else, the way it leaves out "Make commander" on the
+  // commander and "Add as partner" where there is no room for one.
+  const menu = menuFor({ qty: 1 });
+  assert.doesNotMatch(menu, /Remove a copy/);
+  assert.match(menu, /× Remove</, 'and the card itself can still be taken off the mat');
+});
+
+test('a commander is one card, and is offered no copies of itself', () => {
+  // The board holds the card the deck is built around, and there is no second
+  // copy of that in a deck: a Commander deck is singleton where it matters
+  // most. Both entries go, not just the one that would add.
+  const menu = menuFor({ isCommander: true, qty: 2 });
+  assert.doesNotMatch(menu, /Add a copy/);
+  assert.doesNotMatch(menu, /Remove a copy/);
+});
+
+test('somebody else’s deck is read, not counted up or down', () => {
+  const menu = menuFor({ canEdit: false, qty: 4 });
+  assert.doesNotMatch(menu, /dbChangeQty/);
+  assert.match(menu, /Inspect/, 'anybody may still look the card up');
 });
 
 // ── Which card was asked about ────────────────────────────────────────
