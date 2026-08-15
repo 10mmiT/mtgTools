@@ -1872,7 +1872,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
      a deck row are deliberately narrow, and widening them would burst the
      chip and the row they sit in. Those are padded instead. */
   .view-btn, .sort-dir-btn, .sort-row-btn, .col-menu-btn, .kebab-btn, .stepper-btn,
-  .rss-panel-hdr button {
+  .rss-panel-hdr button, .faq-close {
     min-width: 44px;
   }
 
@@ -1989,6 +1989,122 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 /* Card tab only makes sense when the modal is unavailable */
 @media (width >= 900px) {
   #tab-btn-card { display: none; }
+}
+
+/* ── What this tab is for, said once ──────────────────────────────────────
+   The per-tab note (docs/design/spec-faq-and-keys.md), drawn into one dialog
+   reused by all seven tabs. It follows the card modal, which is the app's
+   existing dialog, and differs from it in two ways the note needs:
+
+   It is centred rather than hung from the top of the window. A card is a tall
+   document you scroll; a note is four bullets and a key list, and a short box
+   pinned to the top of a 1440-tall window reads as something that failed to
+   load rather than as something that interrupted you.
+
+   And it is drawn at every width. The card modal turns itself off below the
+   nav breakpoint because there is a whole tab to show a card on instead;
+   there is no second place to say what a tab is for, and a phone is where
+   somebody is least likely to have found the feature by poking at it. */
+.faq-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+  overflow-y: auto;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* A dialog is a floating surface, so it takes a shadow and no border — the
+   elevation rule, which lint:tokens enforces by failing anything drawing
+   both. `margin: auto` is what centres a note taller than the window at its
+   top instead of clipping its head off. */
+.faq-box {
+  position: relative;
+  width: 100%;
+  max-width: 34rem;
+  margin: auto;
+  padding: var(--space-5);
+  background: var(--surface-1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+}
+
+.faq-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-xl);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-base) var(--ease-tint);
+}
+.faq-close:hover { color: var(--text); }
+
+/* The tab's name, and it is also what names the dialog to a screen reader —
+   #faqTitle is drawn per note and the overlay is labelled by it. The right
+   margin is the ✕'s room. */
+.faq-title {
+  margin: 0 var(--space-5) var(--space-2) 0;
+  font-size: var(--text-lg);
+}
+.faq-blurb {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+}
+.faq-points {
+  margin: 0 0 var(--space-5);
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.faq-keys-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-subtle);
+}
+/* Two columns and not a table: the key is as wide as the widest key and the
+   description takes the rest, which is the one thing a table would have to be
+   told and a grid works out. */
+.faq-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+.faq-keys dt, .faq-keys dd { margin: 0; }
+.faq-keys dd { color: var(--text-muted); }
+/* A key cap is a flat surface, so it takes the hairline the box above does
+   not: the two are the same rule read from its two sides. */
+.faq-keys kbd {
+  display: inline-block;
+  min-width: var(--space-5);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  text-align: center;
+  color: var(--text);
+}
+.faq-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-5);
 }
 
 /* ── Phase 5.3 UI Polish ─────────────────────────────────────────────────── */

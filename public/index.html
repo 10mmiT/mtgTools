@@ -1351,6 +1351,7 @@
 <script src="js/pick.js"></script>
 <script src="js/rss.js"></script>
 <script src="js/admin.js"></script>
+<script src="js/faq.js"></script>
 <script src="js/main.js"></script>
 
 <!-- Card detail modal (desktop overlay, Phase 5.1) -->
@@ -1359,6 +1360,19 @@
   <div class="card-modal-box">
     <button class="card-modal-close" id="cardModalClose" aria-label="Close card detail">&times;</button>
     <div id="cardModalDetail"></div>
+  </div>
+</div>
+
+<!-- What this tab is for, said once. One dialog for all seven notes: the
+     content is drawn on open by js/faq.js from the tab's entry in FAQ, and
+     #faqTitle — which names the dialog — is drawn with it. -->
+<div id="faqModal" class="faq-overlay" aria-modal="true" role="dialog" aria-labelledby="faqTitle" style="display:none">
+  <div class="faq-box">
+    <button class="faq-close" id="faqClose" aria-label="Close">&times;</button>
+    <div id="faqBody"></div>
+    <div class="faq-actions">
+      <button class="btn-primary" id="faqGotIt" type="button">Got it</button>
+    </div>
   </div>
 </div>
 </body>
