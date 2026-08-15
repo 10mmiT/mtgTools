@@ -98,6 +98,24 @@ const DB_CURVE_TOP = 7;
 
 // ── Reading a card ────────────────────────────────────────────────────────
 
+/* What Cardmarket quotes one copy of this card at, as it was written down —
+ * the app's one answer, asked of the deck's card rather than of its name, the
+ * way js/deckview-render.js's _dbCardImg() is.
+ *
+ * A card carrying a printing is quoted at that printing: the deck runs that
+ * card, so a figure off whichever printing Scryfall calls the default is a
+ * figure for a deck nobody is holding. The snapshot is the whole of the answer
+ * and the cache is not consulted behind it — a printing snapshotted with no
+ * price is one nobody was selling on the day it was chosen, and quietly
+ * quoting a different printing's price instead would be the same lie the mat
+ * refuses to tell about the artwork.
+ *
+ * The mat reads this too, so the tile and the readout cannot come to disagree
+ * about what a card costs. */
+function dbCardPrice(card) {
+  return card.printing ? card.printing.price_eur : dbCardData.get(card.card_name)?.prices?.eur;
+}
+
 /* Cardmarket in euros, which is what every price in this app is quoted in —
  * the readout is not the place to grow a currency selector.
  *
@@ -105,8 +123,8 @@ const DB_CURVE_TOP = 7;
  * no Cardmarket price silently costed at zero is how a deck total becomes a
  * number nobody can act on: it looks like an answer and it is short by however
  * many of those the deck holds. */
-function _dbCardEur(cardName) {
-  const raw = dbCardData.get(cardName)?.prices?.eur;
+function _dbCardEur(card) {
+  const raw = dbCardPrice(card);
   const eur = raw == null ? NaN : parseFloat(raw);
   return Number.isFinite(eur) ? eur : null;
 }
@@ -212,7 +230,7 @@ function _dbPriceOf(cards, copies) {
   for (const card of cards) {
     const n = copies(card);
     if (n <= 0) continue;
-    const each = _dbCardEur(card.card_name);
+    const each = _dbCardEur(card);
     if (each === null) { unknown += n; continue; }
     eur    += each * n;
     priced += n;

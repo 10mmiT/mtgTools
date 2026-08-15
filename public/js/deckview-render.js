@@ -686,6 +686,14 @@ function _dbCardImg(card) {
   return sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
 }
 
+/* And what it costs, drawn the way every other tab in the app draws a price.
+ * The figure itself is dbCardPrice()'s, so a card showing a chosen printing's
+ * art is quoted at that printing and the tile cannot come to disagree with the
+ * total the readout adds up. */
+function _dbCardPriceHtml(card) {
+  return renderPrice({ prices: { eur: dbCardPrice(card) } });
+}
+
 function _dbListRow(card, canEdit) {
   const sf    = dbCardData.get(card.card_name);
   const face  = sf?.card_faces?.[0];
@@ -695,7 +703,7 @@ function _dbListRow(card, canEdit) {
      loaded: on this tab the badge answers whichever of the three questions the
      strip is asking — see js/deckview-owned.js. */
   const owned = dbCardOwnership(card.card_name);
-  const price = renderPrice(sf);
+  const price = _dbCardPriceHtml(card);
   /* Which row on the mat this is, board and all: the buttons on it act on this
      copy of the card and not on the one lying in another board. */
   const ref   = dbCardRef(card);
@@ -731,10 +739,9 @@ function _dbListRow(card, canEdit) {
 }
 
 function _dbGridTile(card, canEdit) {
-  const sf    = dbCardData.get(card.card_name);
   const img   = _dbCardImg(card);
   const owned = dbCardOwnership(card.card_name);
-  const price = renderPrice(sf);
+  const price = _dbCardPriceHtml(card);
   const ref = dbCardRef(card);
   const selected = dbSelectedCards.has(ref);
   /* No buttons on the picture: what can be done to this card is the card
