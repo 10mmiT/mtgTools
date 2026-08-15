@@ -21,12 +21,25 @@ inventory, found by reading every `keydown` listener in `public/js/`:
 |----------|------------------------------------|-------------------------------------------------|
 | `Escape` | `main.js`, `sortui.js`             | closes drawers, the appearance popover, the card modal, an open sort menu |
 | `Enter`  | six fields                         | submits that field — add a card, run a search, name a player |
+| `c`      | `deckview-core.js`, Deck Builder   | folds the frame away, one tier per press — **was `f` until this spec** |
+| `m`      | `deckview-core.js`, Deck Builder   | the menu beside the mat, open or closed         |
+| `/`      | `deckview-core.js`, Deck Builder   | opens the search drawer and puts the caret in it |
+| `Ctrl+A` | `deckview-core.js`, Deck Builder   | selects every card the filter is showing         |
 
-That is it. There is no card selection model, no roving focus, no accelerators. So a per-tab FAQ
-whose keys section is the point would be a document with one row in it. **The note is therefore
-about features first and keys second**, and the keys block lists the two above plus the two this
-spec adds. Growing the keyboard is real work and is a separate document; this one does not
-pretend it has already happened.
+There is no card selection model, no roving focus, and nothing on any tab but the Deck Builder. So
+a per-tab FAQ whose keys section is the point would be a document with one row on six of the seven
+tabs. **The note is therefore about features first and keys second**, and each tab's keys block
+lists what is particular to that tab plus the two this spec adds. Growing the keyboard is real work
+and is a separate document; this one does not pretend it has already happened.
+
+**The fold gave `f` up.** The four Deck Builder keys were missing from this table when it was
+written, and one of them was `f` — on the tab where pointing at a card and pressing a key most
+obviously means the card. One key cannot both turn the card over and fold the frame away from under
+it, and of the two the turn is the one that works on all five card tabs, so the fold moved to `c`
+for the chrome it collapses. Its button says so: the label is the only place the key is written
+down for somebody who has not opened the note. The three surviving letters also stopped answering
+when a modifier is held, which they never should have — `Ctrl+C` is copy and `Ctrl+F` is find, and
+the tab was taking both.
 
 ## What is being built
 
@@ -99,7 +112,12 @@ const FAQ = {
       'Right-click a card for its menu: inspect, move, change printing, remove.',
       'The filter field reads the same query language as the Collections search.',
     ],
-    keys: [['f', 'turn the card under the pointer over']],
+    keys: [
+      ['f', 'turn the card under the pointer over'],
+      ['c', 'fold the controls away, a tier at a time'],
+      ['m', 'the menu beside the mat'],
+      ['/', 'search for a card to add'],
+    ],
   },
   // collections, scryfall, sets, pick, lands, available
 };

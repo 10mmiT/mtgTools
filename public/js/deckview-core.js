@@ -75,9 +75,9 @@ const DB_FOLDS = ['full', 'readout', 'bare'];
 /* What the next press does, which is the only thing the button can honestly
  * say about itself: it is the same button in all three states. */
 const DB_FOLD_LABELS = {
-  full:    'Hide the controls (f)',
-  readout: 'Hide the deck’s readout too (f)',
-  bare:    'Bring the controls back (f)',
+  full:    'Hide the controls (c)',
+  readout: 'Hide the deck’s readout too (c)',
+  bare:    'Bring the controls back (c)',
 };
 
 // The empty mat, taken from the markup at boot rather than written out a
@@ -138,19 +138,31 @@ function initDeckBuilder() {
       const inField     = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
       if (!dbTabActive || inField) return;
 
+      /* A letter with something held down is not this tab's letter: Ctrl+C is
+       * copy and Ctrl+F is find, and a tab whose keys are bare letters has to
+       * say so or it takes them. Ctrl+A is the one that is genuinely ours to
+       * mean something else by, and it says so where it is answered. */
+      const bare = !e.ctrlKey && !e.metaKey && !e.altKey;
+
       if (e.key === 'Escape') {
         dbCloseCardMenu();
-      } else if (e.key === 'f' || e.key === 'F') {
+      } else if (bare && (e.key === 'c' || e.key === 'C')) {
         /* Every control the fold hides is one press from being back, without
-         * reaching for the one button left on the strip. */
+         * reaching for the one button left on the strip.
+         *
+         * It was `f`, which is the card turn's now (js/cardturn.js) and had to
+         * be: this is the tab where pointing at a card and pressing a key is
+         * most obviously about the card, and one key cannot both turn the card
+         * over and fold the frame away from under it. `c` is the chrome it
+         * collapses, and it is the only letter this tab spends on it. */
         e.preventDefault();
         if (dbDeck) dbFoldChrome();
-      } else if (e.key === 'm' || e.key === 'M') {
+      } else if (bare && (e.key === 'm' || e.key === 'M')) {
         /* The controls, without reaching for the strip either. The column is
          * where they all live now, so it earns a key beside the fold's. */
         e.preventDefault();
         dbToggleMenu();
-      } else if (e.key === '/') {
+      } else if (bare && e.key === '/') {
         e.preventDefault();
         dbOpenSearchPanel();
         setTimeout(() => document.getElementById('dbSearchInput')?.focus(), 50);
@@ -380,7 +392,7 @@ function _dbSyncFold() {
  * you did. The two drawers on this tab cover the mat because what they hold is
  * somewhere *else*: search results, and a list of past versions.
  *
- * Open or closed is remembered the way the fold is, and the same press of `f`
+ * Open or closed is remembered the way the fold is, and the same press of `c`
  * takes it away with the rest of the controls, because it is the rest of the
  * controls. */
 let dbMenuOpen = true;

@@ -132,7 +132,8 @@ all at it** — a number nobody reaches, since it assumes fifty separate sitting
 Three states in a ring on one attribute — `full`, `readout`, `bare` — hidden by the stylesheet
 rather than by a dozen `style.display` writes, because two tiers spread across a dozen calls are two
 tiers that will disagree the first time something is added to the strip. The fold button is the one
-control that never hides, `f` does it from the keyboard, and **nothing is ever revealed by pointing
+control that never hides, `c` does it from the keyboard (it was `f` until `f` became the card
+turn — see `spec-faq-and-keys.md`), and **nothing is ever revealed by pointing
 at it**: the mat is a drag surface, and a card carried towards a category high on the screen would
 trip a reveal every time. A test asserts there is no hover rule anywhere near the fold.
 
