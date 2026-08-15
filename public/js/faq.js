@@ -18,16 +18,24 @@
 // keeping a second list. Two hand-kept lists drift, and the failure is silent
 // both ways round: a button for a tab with no note, or a note with no way back.
 
+/* The turn, on the four tabs that draw a card to point at. Not one of the
+ * shared keys below — three of the seven have no card to turn over, and a row
+ * promising one there would be a lie the note tells on arrival — but written
+ * once all the same, so the four cannot come to describe the same press
+ * differently. */
+const FAQ_TURN_KEY = ['f', 'turn the card under the pointer over'];
+
 /* The notes. `points` are the things you would otherwise have to discover by
  * poking, not a description of what is already on the screen, and `keys` are
  * the ones particular to this tab — the ones every note shares are appended by
  * the renderer, below, so they are said once and cannot come to be described
  * differently on two tabs.
  *
- * The other six tabs are ticket 05. The ids are mirrored in FAQ_TABS in
- * js/state.js and in routes/prefs.js, the way THEMES is, because a page script
- * has no module boundary to import across; test/faq.test.js asserts this
- * object against both. */
+ * The ids are mirrored in FAQ_TABS in js/state.js and in routes/prefs.js, the
+ * way THEMES is, because a page script has no module boundary to import
+ * across; test/faq.test.js asserts this object against both, in both
+ * directions — a tab the server would refuse is a note that opens for ever,
+ * and a stored tab with no entry is one that never says what it is. */
 const FAQ = {
   deckview: {
     title:  'Deck Builder',
@@ -39,11 +47,82 @@ const FAQ = {
       'The filter field reads the same query language as the Collections search.',
     ],
     keys: [
-      ['f', 'turn the card under the pointer over'],
+      FAQ_TURN_KEY,
       ['c', 'fold the controls away, a tier at a time'],
       ['m', 'the menu beside the mat'],
       ['/', 'search for a card to add'],
     ],
+  },
+
+  collections: {
+    title:  'Collections',
+    blurb:  'Every shelf in the group, searched at once.',
+    points: [
+      'The search reads Scryfall’s query language against the cards you own — t:creature c:r mv<=2, -t:land, OR and brackets — and a bare word is still a name.',
+      'A filter the local card data cannot answer is named and explained rather than quietly matching nothing.',
+      'Shelf switches between everyone’s collections and your own; a collection with no owner is the group’s.',
+      'Click a column heading to sort by it, and shift-click to add it as the next word of the sort.',
+      'Pile view cuts the cards by the sort’s first word — by rarity for four stacks, by mana value for the curve standing up off the table.',
+    ],
+    keys: [FAQ_TURN_KEY],
+  },
+
+  scryfall: {
+    title:  'Scryfall Search',
+    blurb:  'Every card Magic has printed, in Scryfall’s own syntax.',
+    points: [
+      'Each result says which collections already own the card, and how many.',
+      'The + on a card puts it on a want list without leaving the search.',
+      'It searches when you ask it to and never as you type, which is what keeps the group inside Scryfall’s rate limit.',
+    ],
+    keys: [FAQ_TURN_KEY],
+  },
+
+  sets: {
+    title:  'Set Browser',
+    blurb:  'Every set Magic has printed, and how much of each one the group has.',
+    points: [
+      'A set’s tile says how many of its cards you already own, before you open it.',
+      'Inside a set, Owned narrows it to what the group has — or to what it has not, which is that set’s want list.',
+      'The set becomes a chip on the strip above; its ✕ goes back to the tiles.',
+    ],
+    keys: [FAQ_TURN_KEY],
+  },
+
+  pick: {
+    title:  'Pick Night',
+    blurb:  'Who is playing tonight, and what they are playing.',
+    points: [
+      'The draw is opt-in and lives behind Deck Pool: no deck is in it until you put it there, and a player’s name adds all of theirs at once.',
+      'Tonight’s brackets, at the head of that drawer, bar decks from the draw — a barred deck is marked in the list rather than missing from it.',
+      'Exclude own decks, in the ⋯ menu, keeps anybody from being handed a deck they built.',
+      'The ↺ on one result re-rolls that player alone and leaves everybody else’s pick where it is.',
+    ],
+    keys: [],
+  },
+
+  lands: {
+    title:  'Mana Base Calculator',
+    blurb:  'How many lands, and which basics.',
+    points: [
+      'Use this deck fills every field from the deck open in the Deck Builder — its size, its lands, its non-basics, and the pips its costs actually ask for.',
+      'What it filled in can be typed over: a mana base you are working out is not always the deck you have.',
+      'Total lands is an override. Left blank, it uses the amount recommended for the deck size.',
+      'The basics are shared out by pip count in whole cards, so they always add up to the total exactly.',
+    ],
+    keys: [],
+  },
+
+  available: {
+    title:  'Available@',
+    blurb:  'Which evenings the group is free.',
+    points: [
+      'Click any day from today on to say you are free, and click it again to take it back.',
+      'Every name is drawn in that player’s own colour — the same one their chip wears on Players, Want Lists and Pick Night.',
+      'Signed in, the calendar already knows who you are; the name field appears only where it cannot.',
+      'Remove me clears every day you have marked at once, rather than one at a time.',
+    ],
+    keys: [],
   },
 };
 

@@ -80,12 +80,18 @@ const SEED_SEEN = `(() => {
   return 'true';
 })()`;
 
-/* And the one pass that wants it after all. Whose note it is does not matter —
-   the dialog is one element reused by all of them — so it is the first the
-   registry lists rather than a tab named twice. */
+/* And the one pass that wants it after all. The dialog is one element reused
+   by all seven, so what differs between them is only how much text it has to
+   fit — and a phone rule a note breaks is one the wordiest note breaks first.
+   So it is the one holding the longest line, found rather than named, which is
+   also why this does not go stale when the notes are rewritten. */
 const OPEN_FAQ = `(() => {
-  const tab = typeof FAQ === 'object' && Object.keys(FAQ)[0];
-  if (!tab || typeof openFaq !== 'function') return 'false';
+  if (typeof FAQ !== 'object' || typeof openFaq !== 'function') return 'false';
+  const longest = note => Math.max(...[
+    note.title, note.blurb, ...note.points, ...note.keys.map(k => k.join(' ')),
+  ].map(line => line.length));
+  const tab = Object.entries(FAQ).sort((a, b) => longest(b[1]) - longest(a[1]))[0]?.[0];
+  if (!tab) return 'false';
   openFaq(tab);
   return 'true';
 })()`;

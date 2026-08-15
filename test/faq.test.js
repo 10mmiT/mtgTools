@@ -40,6 +40,12 @@ const FAQ_SOURCE = read('public/js/faq.js');
 const HTML       = read('public/index.html');
 const CSS        = read('public/css/components.css');
 
+/** The panes, as the markup delivers them: a tab's own <div id="tab-…"> and
+ *  everything up to the next one's. */
+const PANES = new Map(HTML.split(/^(?=<div id="tab-)/m)
+  .map(part => [part.match(/^<div id="tab-([\w-]+)"/)?.[1], part])
+  .filter(([tab]) => tab));
+
 // ── The app, with a dialog it can be asked about ──────────────────────────
 
 /** An element, to the handful of things the note does with one. */
@@ -176,9 +182,9 @@ function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false
   };
 }
 
-/** A second entry, so the mechanism can be asked the questions that need two
- *  tabs before ticket 05 writes the other six. The registry is data; what is
- *  under test is everything that reads it. */
+/** A note for a tab that has none, so that what reads the registry can be
+ *  asked about a tab this app does not actually have one for. The registry is
+ *  data; what is under test is everything downstream of it. */
 const addEntry = (app, tab) => app.evaluate(`FAQ[${JSON.stringify(tab)}] = {
   title: 'A Tab', blurb: 'What it is.', points: ['A thing it does.'], keys: [],
 }`);
@@ -233,6 +239,18 @@ describe('the registry', () => {
     }
   });
 
+  test('and every tab the browser and the server will store has one', () => {
+    /* The drift the test above cannot see, which is the same list read the
+     * other way round: an id in the stored set with no entry behind it is a
+     * tab that never says what it is, and — because the button is mounted from
+     * the registry — one nobody could ask either. The four deliberately left
+     * out are not in FAQ_TABS, so they are not asked for here. */
+    const app   = loadFaq();
+    const known = JSON.parse(read('public/js/state.js')
+      .match(/FAQ_TABS\s*=\s*(\[[^\]]*\])/)[1].replace(/'/g, '"'));
+    assert.deepEqual(Object.keys(app.registry()).sort(), known.slice().sort());
+  });
+
   test('the keys every note shares are appended rather than written into one', () => {
     // Said once, so two tabs cannot come to describe Escape differently.
     const app    = loadFaq();
@@ -242,6 +260,33 @@ describe('the registry', () => {
       for (const [key] of note.keys) {
         assert.ok(!shared.includes(key), `${tab} writes the shared key ${key} into its own list`);
       }
+    }
+  });
+
+  test('no note promises f on a tab that draws no card to turn over', () => {
+    /* `f` turns the card under the pointer over, so a row promising it on a
+     * tab with no card to point at is a lie told on arrival — and one nobody
+     * would catch, because the way to find out is to press it and watch
+     * nothing happen.
+     *
+     * Which tabs draw cards is read off the delivered scripts rather than
+     * listed here. The shared card-size control is mounted on exactly the
+     * views that draw card art, so the pane a mountSizeControl() names is a
+     * pane with cards in it — and both directions are asserted, because a card
+     * tab whose note leaves `f` out is the same list drifting the other way. */
+    const app = loadFaq();
+    const draws = new Set();
+    for (const file of fs.readdirSync(path.join(ROOT, 'public/js'))) {
+      for (const m of read(path.join('public/js', file)).matchAll(/mountSizeControl\('([\w-]+)'/g)) {
+        for (const [tab, pane] of PANES) if (pane.includes(`id="${m[1]}"`)) draws.add(tab);
+      }
+    }
+    assert.ok(draws.size, 'nothing in public/js mounts the card-size control');
+    for (const [tab, note] of Object.entries(app.registry())) {
+      const promises = note.keys.some(([key]) => key === 'f');
+      assert.equal(promises, draws.has(tab), promises
+        ? `${tab} promises f and draws no card to turn over`
+        : `${tab} draws cards and its note does not say f turns one over`);
     }
   });
 
@@ -346,7 +391,6 @@ describe('the race between the tab and the answer', () => {
 
   test('one pending tab and not a queue: the note is the tab you are on', async () => {
     const app = loadFaq({ faqSeen: [] });
-    addEntry(app, 'sets');
     app.arrive('deckview');
     app.arrive('sets');
     await app.resolve();
@@ -434,7 +478,6 @@ describe('dismissing it', () => {
 
   test('a dismissal is one tab, not all of them', async () => {
     const app = await opened();
-    addEntry(app, 'sets');
     app.els.faqGotIt.fire('click');
     app.arrive('sets');
     assert.equal(app.open(), 'sets', 'reading one note read the others too');
@@ -460,9 +503,11 @@ describe('the ? button', () => {
     // there is no keyboard to press ? on, is no way back at all.
     const app = loadFaq({ faqSeen: [] });
     app.strips.forEach(strip => { strip.children.length = 0; });
-    addEntry(app, 'sets');
+    addEntry(app, 'players');
     app.evaluate('faqMountButtons()');
-    assert.deepEqual([...app.buttons().keys()].sort(), ['deckview', 'sets']);
+    assert.deepEqual([...app.buttons().keys()].sort(),
+      [...Object.keys(app.registry())].sort());
+    assert.ok(app.buttons().has('players'), 'the mount kept a list of its own');
   });
 
   test('it opens the note for the tab it is on, and closes it again', async () => {
