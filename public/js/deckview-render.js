@@ -664,6 +664,28 @@ function _dbRenderSection(catName, cards, canEdit, inDeck = 0) {
   </div>`;
 }
 
+/* Which picture a card on the mat shows — asked once, for every view that draws
+ * one: the grid's tile, a card in a spread pile, and the face of a pile that has
+ * settled into a stack. (The list row is the fourth way the mat draws a card and
+ * draws no picture at all: its artwork is the hover preview main.js opens over
+ * any .card-link, keyed by name and shared with every other tab that lists
+ * cards.)
+ *
+ * It is handed the deck's *card* rather than the card's name, which is the whole
+ * point of its being one function: a card that carries a printing of its own can
+ * be drawn in that printing, and the one place that answers this question is the
+ * one place that will prefer it. A name could only ever be looked up in the
+ * oracle cache, which holds one picture per card and knows nothing about which
+ * printing a deck runs.
+ *
+ * Empty means the card has no artwork — its data has not arrived, or it is a
+ * name nothing answers to — and every caller draws a surface rather than a card
+ * when it gets one. */
+function _dbCardImg(card) {
+  const sf = dbCardData.get(card.card_name);
+  return sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
+}
+
 function _dbListRow(card, canEdit) {
   const sf    = dbCardData.get(card.card_name);
   const face  = sf?.card_faces?.[0];
@@ -710,8 +732,7 @@ function _dbListRow(card, canEdit) {
 
 function _dbGridTile(card, canEdit) {
   const sf    = dbCardData.get(card.card_name);
-  const face  = sf?.card_faces?.[0];
-  const img   = sf?.image_uris?.normal || face?.image_uris?.normal || '';
+  const img   = _dbCardImg(card);
   const owned = dbCardOwnership(card.card_name);
   const price = renderPrice(sf);
   const ref = dbCardRef(card);
@@ -749,11 +770,6 @@ function _dbGridTile(card, canEdit) {
 // the Set Browser too. What is here is what a category is: which card is the
 // face (the first in the current sort), what the count counts (copies, not
 // rows) and what clicking one means.
-function _dbCardImg(name) {
-  const sf = dbCardData.get(name);
-  return sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
-}
-
 function _dbStackHtml(catName, cards, canEdit, fanned) {
   if (!cards.length) return '';
   if (fanned) return cards.map(c => _dbPileTile(c, canEdit)).join('');
@@ -761,7 +777,7 @@ function _dbStackHtml(catName, cards, canEdit, fanned) {
    * for a whole category, so it is what moves when a category is deleted or
    * another one is fanned out beside it. */
   return cardStackHtml(
-    cards.map(c => ({ name: c.card_name, img: _dbCardImg(c.card_name) })),
+    cards.map(c => ({ name: c.card_name, img: _dbCardImg(c) })),
     { count: cards.reduce((sum, c) => sum + (c.qty || 1), 0),
       attrs: _dbMoves('stack', catName) }
   );
@@ -789,7 +805,7 @@ function dbStackClick(e) {
  * same angle its edge had while the stack was settled, so fanning a stack out
  * spreads the pile that was there rather than replacing it with a tidy one. */
 function _dbPileTile(card, canEdit) {
-  const img  = _dbCardImg(card.card_name);
+  const img  = _dbCardImg(card);
   const ref  = dbCardRef(card);
   const selected = dbSelectedCards.has(ref);
   /* As the grid's tile: the picture is the card, and what can be done to it is
