@@ -150,6 +150,7 @@ async function syncPrefs() {
   // whether cards move.
   syncPlaymat();
   syncCardMotion();
+  syncFaqSeen();
   if (_urlTheme) { if (p.stored) savePrefs({ theme: _urlTheme }); return; }
   if (p.stored && p.theme) applyTheme(p.theme);
 }

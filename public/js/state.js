@@ -190,6 +190,11 @@ async function loadFromStorage() {
 // both cases localStorage is the whole record.
 const prefs = {
   ...{ theme: null, playmatKind: 'none', playmatRef: null, playmatUrl: null, cardMotion: 'on' },
+  // Which tabs' notes have been read. A list rather than the comma-separated
+  // string the server stores, and never null: everything that reads it asks
+  // `.includes(tab)`, and it has to be answerable on the first frame — before
+  // any fetch has landed — or the first tab you open re-announces itself.
+  faqSeen: [],
   stored: false,
 };
 
@@ -221,6 +226,50 @@ async function savePrefs(patch) {
     console.warn(`[prefs] save failed (${e.message}) — kept locally only`);
   }
   prefs.stored = false;
+  return prefs;
+}
+
+// ── Which notes have been read ────────────────────────────────────────────
+/* The seen set's browser copy, which is the same two-sided arrangement the
+ * theme and card motion have: with an account the server is the record and
+ * this is a mirror the next load can read before the fetch lands; in open mode
+ * there is nobody to hang it on, so this is the whole record. Either way the
+ * rest of the app reads `prefs.faqSeen` and never knows which mode it is in.
+ *
+ * The ids are mirrored from FAQ's keys the way routes/prefs.js mirrors them
+ * server-side. Storage is hand-editable, so what comes out of it is filtered
+ * on the way in — an unknown id would otherwise be sent to the server, which
+ * refuses it, and the browser would go on believing something the account
+ * does not. */
+const FAQ_SEEN_KEY = 'mtgtools_faq_seen';
+const FAQ_TABS = ['deckview', 'collections', 'scryfall', 'sets', 'pick', 'lands', 'available'];
+
+const knownFaqTabs = ids => [...new Set((ids || []).filter(id => FAQ_TABS.includes(id)))];
+
+function readFaqSeen() {
+  try { return knownFaqTabs((localStorage.getItem(FAQ_SEEN_KEY) || '').split(',')); }
+  catch { return []; }
+}
+
+function rememberFaqSeen(ids) {
+  try { localStorage.setItem(FAQ_SEEN_KEY, knownFaqTabs(ids).join(',')); } catch {}
+}
+
+// Second half of boot, called from syncPrefs() once there is a session.
+function syncFaqSeen() {
+  if (prefs.stored) rememberFaqSeen(prefs.faqSeen);
+  else prefs.faqSeen = readFaqSeen();
+}
+
+/* A note has been read. The local set is updated and mirrored *first* and the
+ * write follows, so a server that will not take it costs you the note on your
+ * next device rather than a second dialog in this session. */
+async function saveFaqSeen(tab) {
+  if (!FAQ_TABS.includes(tab) || prefs.faqSeen.includes(tab)) return prefs;
+  const next = [...prefs.faqSeen, tab];
+  prefs.faqSeen = next;
+  rememberFaqSeen(next);
+  await savePrefs({ faqSeen: next });
   return prefs;
 }
 

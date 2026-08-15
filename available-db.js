@@ -164,6 +164,7 @@ db.exec(`
     playmat_ref  TEXT,                              -- card id | preset id | filename
     playmat_url  TEXT,                              -- resolved image URL
     card_motion  TEXT    NOT NULL DEFAULT 'on',     -- on | off
+    faq_seen     TEXT    NOT NULL DEFAULT '',       -- comma-separated tab ids
     updated_at   INTEGER NOT NULL
   );
 `);
@@ -182,6 +183,16 @@ try {
 try {
   db.exec("ALTER TABLE user_prefs ADD COLUMN card_motion TEXT NOT NULL DEFAULT 'on'");
   console.log('[db] Migrated: added card_motion column to user_prefs');
+} catch { /* column already exists — ignore */ }
+
+// Which tabs' notes a person has already read. Declared in the CREATE above
+// for a database made from now on, and added here for one made before — where
+// the default is the same empty set a new row starts at, so nobody who has
+// been using this for a year is told they have read something they have not,
+// and nobody is shown a note twice.
+try {
+  db.exec("ALTER TABLE user_prefs ADD COLUMN faq_seen TEXT NOT NULL DEFAULT ''");
+  console.log('[db] Migrated: added faq_seen column to user_prefs');
 } catch { /* column already exists — ignore */ }
 
 /* Whose shelf a collection is. Declared in the CREATE above for a database
