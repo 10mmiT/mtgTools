@@ -54,6 +54,18 @@ function shiftRule(css) {
   return rules(css).find(r => /\.db-pile-card:hover\s*~/.test(r.selector));
 }
 
+/** The level a card under the pointer is drawn at. The fan decides it, in
+ *  components.css, shared with the two browsing tabs — so it is the level the
+ *  push has to reckon with rather than one this tab set. */
+function fanHoverRule(css) {
+  return rules(css).find(r => /^\.card-fan\s*>\s*:hover/.test(r.selector));
+}
+
+/** A rule's z-index as a number, or NaN if it does not state one. */
+function zIndex(rule) {
+  return Number((rule.body.match(/z-index:\s*(-?\d+)/) || [])[1]);
+}
+
 // ── The push ──────────────────────────────────────────────────────────
 
 test('the cards under the one being pointed at are pushed down', () => {
@@ -77,6 +89,22 @@ test('they move by exactly what the fan overlaps them by', () => {
     'the cards lie that far over each other');
   assert.match(shiftRule(TABS).body, /translateY\(var\(--fan-overlap\)\)/,
     'and are pushed down by the same');
+});
+
+test('the cards being pushed stay over the card they are uncovering', () => {
+  // What uncovers a card here is the pile getting out of its way, and the cards
+  // that lie on it are on it until they have travelled: they slide down across
+  // its face and off its bottom edge, the way a hand pushes a spread aside.
+  //
+  // Drawn under it instead, they leave its face on the first frame of the
+  // movement and finish their travel behind it, which is the card jumping out
+  // of the pile to meet the pointer rather than the pile opening. Same picture
+  // at rest, different gesture: only the middle of it can tell them apart, so
+  // this is the whole of what makes the reveal read as movement.
+  const hovered = fanHoverRule(COMPONENTS);
+  assert.ok(hovered, 'a card under the pointer is still raised by the fan');
+  assert.ok(zIndex(shiftRule(TABS)) > zIndex(hovered),
+    'and the cards after it are drawn above it for the whole of the push');
 });
 
 test('a card pushed down keeps the angle it was lying at', () => {
