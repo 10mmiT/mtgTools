@@ -326,9 +326,9 @@ function dbMenuPlacement(point, menu, view, gap = 4) {
    case at a single copy — the stepper reads − ×1 + like any other count, and
    what a press does about there being no copy left to take away is
    dbStepQty()'s to decide. */
-function dbCardMenuItems({ ref, name, canEdit, isCommander, canPartner, qty }) {
+function dbCardMenuItems({ ref, canEdit, isCommander, canPartner, qty }) {
   return `
-    <button class="col-menu-item" onclick="dbCloseCardMenu();openCardByName('${name}')">ⓘ Inspect</button>
+    <button class="col-menu-item" onclick="dbCloseCardMenu();dbInspectCard('${ref}')">ⓘ Inspect</button>
     ${canEdit ? `
     ${isCommander ? '' : `
     <div class="col-menu-item db-menu-step">
@@ -353,11 +353,11 @@ function dbCardMenuItems({ ref, name, canEdit, isCommander, canPartner, qty }) {
 function dbCardMenuState(ref) {
   const held = dbReadRef(ref);
   return {
+    /* Every entry takes the ref, Inspect included. Looking a card up used to be
+       the one question about the card rather than about this copy of it — and
+       it stopped being one when the gallery it opens learned to choose which
+       printing *this* deck runs. */
     ref: jsAttr(ref),
-    /* Looking a card up is a question about the card; everything else is about
-       this copy of it, which is why one takes the name and the others take the
-       ref. */
-    name: jsAttr(held.name),
     canEdit: isMyPlayer(dbDeck.playerId),
     /* Nothing to offer a card that is already the commander: making a commander
        is how a deck is switched to a different one, and switching to the card
@@ -672,16 +672,23 @@ function _dbRenderSection(catName, cards, canEdit, inDeck = 0) {
  * cards.)
  *
  * It is handed the deck's *card* rather than the card's name, which is the whole
- * point of its being one function: a card that carries a printing of its own can
- * be drawn in that printing, and the one place that answers this question is the
- * one place that will prefer it. A name could only ever be looked up in the
- * oracle cache, which holds one picture per card and knows nothing about which
- * printing a deck runs.
+ * point of its being one function: a card that carries a printing of its own is
+ * drawn in that printing, and the one place that answers this question is the
+ * one place that prefers it. A name could only ever be looked up in the oracle
+ * cache, which holds one picture per card and knows nothing about which printing
+ * a deck runs.
+ *
+ * The chosen printing wins outright rather than falling through to the cache
+ * when its picture is missing: a printing is snapshotted with its image at the
+ * moment it is chosen, so one without a picture is one that has none, and
+ * quietly drawing a different printing's art would be the mat disagreeing with
+ * the deck about which card this is.
  *
  * Empty means the card has no artwork — its data has not arrived, or it is a
  * name nothing answers to — and every caller draws a surface rather than a card
  * when it gets one. */
 function _dbCardImg(card) {
+  if (card.printing) return card.printing.image || '';
   const sf = dbCardData.get(card.card_name);
   return sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
 }
@@ -709,7 +716,7 @@ function _dbListRow(card, canEdit) {
   const ref   = dbCardRef(card);
   const r     = jsAttr(ref);
   const selected = dbSelectedCards.has(ref);
-  const infoEl  = `<button class="db-row-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
+  const infoEl  = `<button class="db-row-btn" title="Card info" onclick="event.stopPropagation();dbInspectCard('${jsAttr(dbCardRef(card))}')">ⓘ</button>`;
   const moveBtn = canEdit
     ? `<button class="db-row-btn" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${r}')">⇄</button>` : '';
   const delBtn = canEdit
