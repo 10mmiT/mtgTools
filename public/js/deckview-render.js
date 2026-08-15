@@ -300,40 +300,120 @@ function dbMenuPlacement(point, menu, view, gap = 4) {
   };
 }
 
-/* Open it on a card. The items are written each time rather than shown and
-   hidden, because what can be done to a card depends on whose deck it is:
-   anybody may look a card up, and only the deck's owner may move or remove
-   one. Opened before it is placed, since a menu that is not being displayed
-   has no size to place. */
+/* What may be done to this card, as the entries that say so. The items are
+   written each time rather than shown and hidden, because what can be done to a
+   card depends on whose deck it is: anybody may look a card up, and only the
+   deck's owner may move or remove one.
+
+   A function of what it is handed and nothing else — no deck is read here — so
+   that the one question worth asking about a menu can be asked without a
+   browser: given a card in this situation, what is on it? The ref and the name
+   arrive already written for a script attribute; escaping is the caller's,
+   which is where the card was looked up.
+
+   The count is the one thing here that is not a verb. How many the deck runs
+   of a card has been a stepper in the list view since the beginning, and the
+   two views that draw a card as a picture had nothing: there the count is
+   printed on the artwork, and a number on a card is something to read rather
+   than something to press. So the same stepper is here — one row, − ×3 +,
+   where a pair of entries would have been — and a press on it leaves the menu
+   standing, because a deck that wants four of a card should cost four presses
+   rather than four right-clicks. Every other entry closes the menu, because
+   every other entry is finished once it has happened.
+
+   No stepper on the commander board: that board holds the card the deck is
+   built around, and a deck does not run two of those. Nor is there a special
+   case at a single copy — the stepper reads − ×1 + like any other count, and
+   what a press does about there being no copy left to take away is
+   dbStepQty()'s to decide. */
+function dbCardMenuItems({ ref, canEdit, isCommander, canPartner, qty }) {
+  return `
+    <button class="col-menu-item" onclick="dbCloseCardMenu();dbInspectCard('${ref}')">ⓘ Inspect</button>
+    ${canEdit ? `
+    ${isCommander ? '' : `
+    <div class="col-menu-item db-menu-step">
+      <button class="db-step-btn" onclick="dbStepQty('${ref}', -1)"
+        title="One fewer — the last one takes the card off the mat">−</button>
+      <span class="db-step-count">×${qty || 1}</span>
+      <button class="db-step-btn" onclick="dbStepQty('${ref}', 1)" title="One more">＋</button>
+    </div>`}
+    <button class="col-menu-item" onclick="dbCloseCardMenu();dbShowMoveCard('${ref}')">⇄ Move to…</button>
+    ${isCommander ? '' :
+    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbMakeCommander('${ref}')"
+       title="Build the deck around this card — whatever is on the commander board goes back into the deck">♛ Make commander</button>`}
+    ${!canPartner ? '' :
+    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbAddPartner('${ref}')"
+       title="Run this card as a second commander alongside the one you have — Partner, a Background, a Doctor’s companion">♛ Add as partner</button>`}
+    <button class="col-menu-item db-menu-danger" onclick="dbCloseCardMenu();dbRemoveCard('${ref}')">× Remove</button>` : ''}`;
+}
+
+/* The card the menu is about, as the situation the entries are written from.
+   Everything read here is read from the deck as it stands now, which is what
+   lets the same menu be written again after a press has changed it. */
+function dbCardMenuState(ref) {
+  const held = dbReadRef(ref);
+  return {
+    /* Every entry takes the ref, Inspect included. Looking a card up used to be
+       the one question about the card rather than about this copy of it — and
+       it stopped being one when the gallery it opens learned to choose which
+       printing *this* deck runs. */
+    ref: jsAttr(ref),
+    canEdit: isMyPlayer(dbDeck.playerId),
+    /* Nothing to offer a card that is already the commander: making a commander
+       is how a deck is switched to a different one, and switching to the card
+       you are pointing at is not a change. Going the other way is Move to…,
+       which every card on every board has. */
+    isCommander: held.board === DB_COMMANDER_BOARD,
+    /* A partner is offered only alongside a commander there already is. With
+       none, adding a partner is making a commander and that entry says so; with
+       two, there is no third to add. */
+    canPartner: held.board !== DB_COMMANDER_BOARD && dbCommanderCards().length === 1,
+    qty: dbFindCard(ref)?.qty || 1,
+  };
+}
+
+/* One press of the stepper: the count moves, the menu stays.
+ *
+ * Down from the last copy is the one press that is not a change of count.
+ * Zero copies of a card is not a card the deck runs none of — it is a card the
+ * deck does not have — so the press takes it off the mat, and the menu goes
+ * with it: it was about a card that is no longer there. Nothing is lost by it,
+ * because a mat is a deck's history away from what it was a moment ago.
+ *
+ * Everywhere else the count changes and the menu stands where it is, so a
+ * second press lands on the same place as the first — which is the whole
+ * reason this is a stepper and not two entries. dbChangeQty() does the
+ * changing, saving and redrawing, as it does for the list view's own stepper;
+ * the mat being rebuilt underneath does not disturb this menu, which hangs
+ * outside it.
+ *
+ * What is written back is the number and nothing else. The button that was
+ * pressed has to still be in the page when the press finishes: a click on the
+ * menu goes on to the document, where the deck builder asks whether it landed
+ * inside the menu in order to decide whether to put it away — and a button
+ * replaced in the meantime belongs to nothing, so that question answers
+ * "outside" and the menu closes under the hand that was pressing it. Nothing
+ * else on the menu depends on the count, which is what makes writing only the
+ * number the whole of it rather than a shortcut. */
+function dbStepQty(ref, delta) {
+  const card = dbFindCard(ref);
+  if (!card || !dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  if (delta < 0 && (card.qty || 1) <= 1) {
+    dbCloseCardMenu();
+    dbRemoveCard(ref);
+    return;
+  }
+  dbChangeQty(ref, delta);
+  const count = document.getElementById('dbCardMenu')?.querySelector('.db-step-count');
+  if (count) count.textContent = `×${card.qty}`;
+}
+
+/* Open it on a card. Opened before it is placed, since a menu that is not being
+   displayed has no size to place. */
 function dbOpenCardMenu(x, y, ref) {
   const menu = document.getElementById('dbCardMenu');
   if (!menu || !dbDeck) return;
-  const canEdit = isMyPlayer(dbDeck.playerId);
-  const r = jsAttr(ref);
-  /* Looking a card up is a question about the card; moving and removing are
-     about this copy of it, which is why one takes the name and the others take
-     the ref. */
-  const n = jsAttr(dbReadRef(ref).name);
-  /* Nothing to offer a card that is already the commander: this is how a deck
-     is switched to a different one, and switching to the card you are pointing
-     at is not a change. Going the other way is Move to…, which every card on
-     every board has. */
-  const isCommander = dbReadRef(ref).board === DB_COMMANDER_BOARD;
-  /* Offered only alongside a commander there already is. With none, adding a
-     partner is making a commander and the entry above says so; with two, there
-     is no third to add. */
-  const canPartner = !isCommander && dbCommanderCards().length === 1;
-  menu.innerHTML = `
-    <button class="col-menu-item" onclick="dbCloseCardMenu();openCardByName('${n}')">ⓘ Inspect</button>
-    ${canEdit ? `
-    <button class="col-menu-item" onclick="dbCloseCardMenu();dbShowMoveCard('${r}')">⇄ Move to…</button>
-    ${isCommander ? '' :
-    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbMakeCommander('${r}')"
-       title="Build the deck around this card — whatever is on the commander board goes back into the deck">♛ Make commander</button>`}
-    ${!canPartner ? '' :
-    `<button class="col-menu-item" onclick="dbCloseCardMenu();dbAddPartner('${r}')"
-       title="Run this card as a second commander alongside the one you have — Partner, a Background, a Doctor’s companion">♛ Add as partner</button>`}
-    <button class="col-menu-item db-menu-danger" onclick="dbCloseCardMenu();dbRemoveCard('${r}')">× Remove</button>` : ''}`;
+  menu.innerHTML = dbCardMenuItems(dbCardMenuState(ref));
   menu.classList.add('open');
   const box = menu.getBoundingClientRect();
   const at  = dbMenuPlacement({ x, y }, { width: box.width, height: box.height },
@@ -584,6 +664,43 @@ function _dbRenderSection(catName, cards, canEdit, inDeck = 0) {
   </div>`;
 }
 
+/* Which picture a card on the mat shows — asked once, for every view that draws
+ * one: the grid's tile, a card in a spread pile, and the face of a pile that has
+ * settled into a stack. (The list row is the fourth way the mat draws a card and
+ * draws no picture at all: its artwork is the hover preview main.js opens over
+ * any .card-link, keyed by name and shared with every other tab that lists
+ * cards.)
+ *
+ * It is handed the deck's *card* rather than the card's name, which is the whole
+ * point of its being one function: a card that carries a printing of its own is
+ * drawn in that printing, and the one place that answers this question is the
+ * one place that prefers it. A name could only ever be looked up in the oracle
+ * cache, which holds one picture per card and knows nothing about which printing
+ * a deck runs.
+ *
+ * The chosen printing wins outright rather than falling through to the cache
+ * when its picture is missing: a printing is snapshotted with its image at the
+ * moment it is chosen, so one without a picture is one that has none, and
+ * quietly drawing a different printing's art would be the mat disagreeing with
+ * the deck about which card this is.
+ *
+ * Empty means the card has no artwork — its data has not arrived, or it is a
+ * name nothing answers to — and every caller draws a surface rather than a card
+ * when it gets one. */
+function _dbCardImg(card) {
+  if (card.printing) return card.printing.image || '';
+  const sf = dbCardData.get(card.card_name);
+  return sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
+}
+
+/* And what it costs, drawn the way every other tab in the app draws a price.
+ * The figure itself is dbCardPrice()'s, so a card showing a chosen printing's
+ * art is quoted at that printing and the tile cannot come to disagree with the
+ * total the readout adds up. */
+function _dbCardPriceHtml(card) {
+  return renderPrice({ prices: { eur: dbCardPrice(card) } });
+}
+
 function _dbListRow(card, canEdit) {
   const sf    = dbCardData.get(card.card_name);
   const face  = sf?.card_faces?.[0];
@@ -593,13 +710,13 @@ function _dbListRow(card, canEdit) {
      loaded: on this tab the badge answers whichever of the three questions the
      strip is asking — see js/deckview-owned.js. */
   const owned = dbCardOwnership(card.card_name);
-  const price = renderPrice(sf);
+  const price = _dbCardPriceHtml(card);
   /* Which row on the mat this is, board and all: the buttons on it act on this
      copy of the card and not on the one lying in another board. */
   const ref   = dbCardRef(card);
   const r     = jsAttr(ref);
   const selected = dbSelectedCards.has(ref);
-  const infoEl  = `<button class="db-row-btn" title="Card info" onclick="event.stopPropagation();openCardByName('${jsAttr(card.card_name)}')">ⓘ</button>`;
+  const infoEl  = `<button class="db-row-btn" title="Card info" onclick="event.stopPropagation();dbInspectCard('${jsAttr(dbCardRef(card))}')">ⓘ</button>`;
   const moveBtn = canEdit
     ? `<button class="db-row-btn" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${r}')">⇄</button>` : '';
   const delBtn = canEdit
@@ -629,11 +746,9 @@ function _dbListRow(card, canEdit) {
 }
 
 function _dbGridTile(card, canEdit) {
-  const sf    = dbCardData.get(card.card_name);
-  const face  = sf?.card_faces?.[0];
-  const img   = sf?.image_uris?.normal || face?.image_uris?.normal || '';
+  const img   = _dbCardImg(card);
   const owned = dbCardOwnership(card.card_name);
-  const price = renderPrice(sf);
+  const price = _dbCardPriceHtml(card);
   const ref = dbCardRef(card);
   const selected = dbSelectedCards.has(ref);
   /* No buttons on the picture: what can be done to this card is the card
@@ -669,11 +784,6 @@ function _dbGridTile(card, canEdit) {
 // the Set Browser too. What is here is what a category is: which card is the
 // face (the first in the current sort), what the count counts (copies, not
 // rows) and what clicking one means.
-function _dbCardImg(name) {
-  const sf = dbCardData.get(name);
-  return sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
-}
-
 function _dbStackHtml(catName, cards, canEdit, fanned) {
   if (!cards.length) return '';
   if (fanned) return cards.map(c => _dbPileTile(c, canEdit)).join('');
@@ -681,7 +791,7 @@ function _dbStackHtml(catName, cards, canEdit, fanned) {
    * for a whole category, so it is what moves when a category is deleted or
    * another one is fanned out beside it. */
   return cardStackHtml(
-    cards.map(c => ({ name: c.card_name, img: _dbCardImg(c.card_name) })),
+    cards.map(c => ({ name: c.card_name, img: _dbCardImg(c) })),
     { count: cards.reduce((sum, c) => sum + (c.qty || 1), 0),
       attrs: _dbMoves('stack', catName) }
   );
@@ -709,7 +819,7 @@ function dbStackClick(e) {
  * same angle its edge had while the stack was settled, so fanning a stack out
  * spreads the pile that was there rather than replacing it with a tidy one. */
 function _dbPileTile(card, canEdit) {
-  const img  = _dbCardImg(card.card_name);
+  const img  = _dbCardImg(card);
   const ref  = dbCardRef(card);
   const selected = dbSelectedCards.has(ref);
   /* As the grid's tile: the picture is the card, and what can be done to it is

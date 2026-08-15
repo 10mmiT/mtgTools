@@ -49,8 +49,9 @@ function store(deckId, cards, categories = []) {
     db.prepare('DELETE FROM deck_cards WHERE deck_id = ?').run(deckId);
     db.prepare('DELETE FROM deck_categories WHERE deck_id = ?').run(deckId);
     cards.forEach((c, i) => db.prepare(
-      'INSERT INTO deck_cards (deck_id, card_name, qty, category, position) VALUES (?,?,?,?,?)'
-    ).run(deckId, c.card_name, c.qty ?? 1, c.category ?? '', c.position ?? i));
+      'INSERT INTO deck_cards (deck_id, card_name, qty, category, position, printing) VALUES (?,?,?,?,?,?)'
+    ).run(deckId, c.card_name, c.qty ?? 1, c.category ?? '', c.position ?? i,
+          c.printing ? JSON.stringify(c.printing) : null));
     categories.forEach((c, i) => db.prepare(
       'INSERT INTO deck_categories (deck_id, name, position) VALUES (?,?,?)'
     ).run(deckId, c.name, c.position ?? i));
@@ -241,6 +242,80 @@ describe('an operation that can lose work', () => {
     store(DECK, [SOL_RING, DOOM_BLADE], CATS);
     history.noteSave(DECK, t0 + 800);
     assert.deepEqual(rowsOf(DECK).map(r => r.reason), ['import']);
+  });
+});
+
+// ── Which printing the deck ran ───────────────────────────────────────────
+// A snapshot selects an explicit column list, so a column that is not named
+// there is a column every undo silently drops — and a printing chosen and then
+// undone away is the kind of loss nobody reports, because the card is still in
+// the deck and only its art has changed back.
+
+describe('a chosen printing', () => {
+  const RAV_SOL_RING = {
+    id: '6e9f2eb0-8ca1-4e9d-9f2b-0a1b2c3d4e5f',
+    set: 'rav',
+    set_name: 'Ravnica: City of Guilds',
+    collector_number: '266',
+    image: 'https://cards.scryfall.io/normal/rav-sol-ring.jpg',
+    price_eur: '4.50',
+    chosen_at: '2026-08-14',
+  };
+  const RAVNICA = { ...SOL_RING, printing: RAV_SOL_RING };
+  const snapshotOf = deckId => history.get(deckId, rowsOf(deckId)[0].id);
+
+  test('comes back with the deck it was chosen in', () => {
+    store(DECK, [RAVNICA, FOREST], CATS);
+    history.noteSave(DECK);
+    const snap = snapshotOf(DECK);
+    assert.deepEqual(snap.cards.find(c => c.card_name === 'Sol Ring').printing, RAV_SOL_RING);
+  });
+
+  test('and so does one the browser sent, which is the copy on screen', () => {
+    history.force(DECK, 'import', { cards: [RAVNICA, FOREST], categories: CATS });
+    assert.deepEqual(snapshotOf(DECK).cards.find(c => c.card_name === 'Sol Ring').printing,
+      RAV_SOL_RING);
+  });
+
+  test('while a card that is only a name carries nothing at all', () => {
+    /* Absent rather than null, on both paths. A deck nobody has chosen a
+     * printing in snapshots exactly the bytes it snapshotted before this
+     * existed, which is what keeps the panel from showing a change nobody
+     * made on the day the column arrived. */
+    store(DECK, [SOL_RING], CATS);
+    history.noteSave(DECK);
+    assert.deepEqual(snapshotOf(DECK).cards,
+      [{ card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main', position: 0 }]);
+  });
+
+  test('read off the database and sent by the browser are the same state', () => {
+    /* The two paths into a snapshot are readDeck, where a printing is the
+     * column's text, and normaliseState, where it is the client's object. If
+     * they serialise differently then every forced snapshot writes a row
+     * against a state that has not changed — and a restore hands the browser
+     * back a printing of the wrong kind, which it would then save. */
+    store(DECK, [RAVNICA, FOREST], CATS);
+    const t0 = Date.now();
+    history.noteSave(DECK, t0);
+    history.force(DECK, 'import', { cards: [RAVNICA, FOREST], categories: CATS }, t0 + SECOND);
+    assert.equal(rowsOf(DECK).length, 1, 'the same deck was recorded twice over');
+  });
+
+  test('is trimmed to its shape whichever way it arrives', () => {
+    // The client is the boundary here as it is for the rest of a card row:
+    // what a snapshot holds is a printing, not whatever was posted.
+    history.force(DECK, 'import', {
+      cards: [{ ...RAVNICA, printing: { ...RAV_SOL_RING, oracle_text: 'T: Add C.' } }],
+      categories: CATS,
+    });
+    assert.deepEqual(snapshotOf(DECK).cards[0].printing, RAV_SOL_RING);
+  });
+
+  test('and something that is not one is no printing at all', () => {
+    history.force(DECK, 'import', {
+      cards: [{ ...SOL_RING, printing: 'the Ravnica one' }], categories: CATS,
+    });
+    assert.equal('printing' in snapshotOf(DECK).cards[0], false);
   });
 });
 

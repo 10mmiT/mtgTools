@@ -96,6 +96,76 @@ async function dbChangeQty(ref, delta) {
   _dbScheduleSave();
 }
 
+// ── Which printing the deck runs ──────────────────────────────────────────
+/* A card in a deck is a name, and the app picks the printing. Choosing one is
+ * done from the card's own gallery — ⓘ Inspect, and the printings at the bottom
+ * of the card — so what is here is the deck's half of that conversation: the
+ * three questions js/card.js asks it, and nothing about galleries.
+ *
+ * The gallery is a modal that can stand open for as long as anyone likes, so
+ * none of these trusts what it was told when it opened. Every one of them
+ * starts from the deck as it stands now, which is what makes "the deck was
+ * closed while you were looking" a press that does nothing rather than a
+ * printing written onto whatever is open instead. */
+
+/** The card a gallery context names, or null if it no longer names one.
+ *
+ *  Four things have to hold, and each of them is something that can stop
+ *  holding while the modal is up: a deck is open, it is the deck the gallery
+ *  came from, it is yours to edit, and the card is still in it. */
+function _dbPrintingCard(ctx) {
+  if (!ctx || !dbDeck || dbDeck.id !== ctx.deckId) return null;
+  if (!isMyPlayer(dbDeck.playerId)) return null;
+  return dbFindCard(ctx.ref) || null;
+}
+
+/** What the gallery hands back when it wants to choose for this card — or null
+ *  for a card the gallery may only look at, which is what every card in
+ *  somebody else's deck is. */
+function dbPrintingContext(ref) {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId) || !dbFindCard(ref)) return null;
+  return { deckId: dbDeck.id, playerId: dbDeck.playerId, deckName: dbDeck.name, ref };
+}
+
+/** Which printing the deck runs of that card, for the ring in the gallery.
+ *  Null is a card the deck has chosen nothing for, and the gallery rings the
+ *  printing the app picks — which is the one it is showing. */
+function dbPrintingFor(ctx) {
+  return _dbPrintingCard(ctx)?.printing || null;
+}
+
+/* The choice itself. One printing per card and not per copy, so this is a field
+ * being written and there is nothing to accumulate: ten Forests are ten of the
+ * same Forest.
+ *
+ * The mat is redrawn behind the modal, so closing the card shows the new art
+ * with nothing further to press, and the deck's ordinary debounced save is what
+ * carries it to the server — choosing a printing is an edit to the deck, and
+ * the deck already knows how to save itself.
+ *
+ * Answers whether it happened, because the gallery has a ring to move and must
+ * not move it for a press the deck refused. */
+function dbChoosePrinting(ctx, printing) {
+  const card = _dbPrintingCard(ctx);
+  if (!card || !printing?.id) return false;
+  card.printing = printing;
+  dbRender();
+  dbRenderStats();
+  _dbScheduleSave();
+  return true;
+}
+
+/* ⓘ Inspect, from the mat. The one door in the app that opens a gallery which
+ * can choose, which is why it is here rather than a bare openCardByName() in
+ * the markup: the context is read from the deck at the moment of the press, so
+ * a menu written a moment ago cannot carry a stale one.
+ *
+ * On somebody else's deck dbPrintingContext() answers null and this is exactly
+ * what Inspect has always been — a card, looked up. */
+function dbInspectCard(ref) {
+  openCardByName(dbReadRef(ref).name, dbPrintingContext(ref));
+}
+
 // ── Switching commanders ──────────────────────────────────────────────────
 // Building a Commander deck starts with choosing what it is built around, and
 // changing your mind about that is an ordinary thing to do. Until now it was

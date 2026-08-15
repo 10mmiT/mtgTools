@@ -105,6 +105,12 @@ db.exec(`
   --
   -- TEXT and no CHECK, deliberately. The set of boards is open — a format that
   -- wants another one later costs a new value in DB_BOARDS and nothing here.
+  --
+  -- printing is which printing of the card the deck runs, or NULL for the app's
+  -- pick — see readPrinting below for what is in it and why it is one column of
+  -- JSON rather than six columns of its own. One printing per card and not per
+  -- copy: ten Forests are ten of the same Forest, and the key above is what
+  -- that buys — every path that finds a card by name goes on being able to.
   CREATE TABLE IF NOT EXISTS deck_cards (
     deck_id   TEXT NOT NULL,
     card_name TEXT NOT NULL,
@@ -112,6 +118,7 @@ db.exec(`
     category  TEXT NOT NULL DEFAULT '',
     board     TEXT NOT NULL DEFAULT 'main',
     position  INTEGER NOT NULL DEFAULT 0,
+    printing  TEXT,
     PRIMARY KEY (deck_id, board, card_name)
   );
   CREATE INDEX IF NOT EXISTS idx_deck_cards_deck ON deck_cards(deck_id);
@@ -220,6 +227,22 @@ if (deckCardCols.length && !deckCardCols.some(c => c.name === 'board')) {
     `);
   })();
   console.log('[db] Migrated: deck_cards gained a board, keyed (deck_id, board, card_name)');
+}
+
+/* Which printing of the card the deck runs. Added to a table where every row is
+ * a name, and a name is what every row goes on being: NULL means what it has
+ * always meant — the app picks the printing, the mat draws its art and the
+ * price is its price.
+ *
+ * An ALTER and not the table copy the board column needed, because the primary
+ * key does not change with it: a card in a deck is still one row however many
+ * printings exist of it. Guarded by the column rather than by a version number,
+ * in the pattern owner_player_id uses, and read fresh rather than reusing the
+ * PRAGMA above because the migration before this one may have rebuilt the
+ * table out from under it. */
+if (!db.prepare('PRAGMA table_info(deck_cards)').all().some(c => c.name === 'printing')) {
+  db.exec('ALTER TABLE deck_cards ADD COLUMN printing TEXT');
+  console.log('[db] Migrated: deck_cards gained a printing');
 }
 
 /* The commander stops being a category and becomes a board.
@@ -332,4 +355,68 @@ if (!exists) {
   );
 }
 
-module.exports = { db, DEFAULT_CAL_ID };
+// ── Which printing a deck card runs ──────────────────────────────────────────
+/* What the printing column holds.
+ *
+ * A trimmed snapshot of one real Scryfall printing, taken on the day it was
+ * chosen — not a key into a cache. The mat's art, the deck's price and an
+ * export's `(RAV) 266` are then all answerable from the row itself, which is
+ * what keeps this feature off the nightly job and the second table a live
+ * lookup would have cost. The price is the price on the day, deliberately and
+ * visibly: chosen_at is what says so, and what a later re-pricing pass will
+ * read.
+ *
+ * One column of JSON rather than seven columns of their own because nothing on
+ * this side ever queries these fields — the export, the mat and the readout are
+ * all the browser's, and the row is carried whole — and because it is the shape
+ * scryfall.db already stores a card in.
+ *
+ * These functions are the only way in and out, so the shape is one thing rather
+ * than a convention. All of them are total: anything that is not a printing is
+ * null, which is the same answer as a card nobody has chosen one for. */
+const PRINTING_FIELDS =
+  ['id', 'set', 'set_name', 'collector_number', 'image', 'price_eur', 'chosen_at'];
+
+/** A printing, from the column's text or from a client's object — trimmed to
+ *  the fields above, in that order, or null if it names no printing.
+ *
+ *  The fixed order is not tidiness: the deck's history decides whether a state
+ *  has changed by serialising it, and two orderings of the same seven keys
+ *  would be two states — a row in the History panel for a change nobody made.
+ *
+ *  A field that is missing stays missing rather than becoming an empty string.
+ *  A printing Cardmarket has no price for is unknown, and unknown is not free. */
+function readPrinting(value) {
+  let raw = value;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return null; } }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  // The id is what makes this point at a real card. Without one there is
+  // nothing to re-price later and nothing to have chosen.
+  if (typeof raw.id !== 'string' || !raw.id.trim()) return null;
+  const printing = {};
+  for (const field of PRINTING_FIELDS) {
+    if (typeof raw[field] === 'string' && raw[field] !== '') printing[field] = raw[field];
+  }
+  return printing;
+}
+
+/** The same, as the column stores it: JSON, or NULL. */
+const writePrinting = value => {
+  const printing = readPrinting(value);
+  return printing && JSON.stringify(printing);
+};
+
+/** A deck card as everything outside this database sees one — the row the cards
+ *  endpoint answers with, and the row a snapshot of the deck holds.
+ *
+ *  A card is a name unless somebody has said otherwise, so the field is an
+ *  object where a printing was chosen and is simply not there where none was.
+ *  Absent and null mean the same thing, and the shorter of the two is what a
+ *  deck full of cards nobody has touched carries — which is what keeps such a
+ *  deck snapshotting byte-for-byte as it did before the column existed. */
+const deckCardRow = ({ printing, ...card }) => {
+  const chosen = readPrinting(printing);
+  return chosen ? { ...card, printing: chosen } : card;
+};
+
+module.exports = { db, DEFAULT_CAL_ID, readPrinting, writePrinting, deckCardRow };

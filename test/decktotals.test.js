@@ -174,6 +174,9 @@ function loadTab({ deck = DECK, cards = CARDS, collections = SHELVES,
     run, answer, mat, el,
     /** The whole pass, as it comes out. */
     totals: () => answer('dbDeckTotals()'),
+    /** The mat in one of its views, drawn — for the price a card is quoted at
+     *  where you look at the card rather than at the deck. */
+    paint: view => { run(`dbView = ${JSON.stringify(view)}`); run('dbRender()'); return mat.innerHTML; },
     /** The readout and the analysis strip, drawn. */
     render() { run('dbRenderStats()'); },
     passes: () => run('_dbPasses'),
@@ -297,6 +300,84 @@ test('a price Scryfall sends as something other than a number is unknown too', (
   const { price } = tab.totals();
   assert.strictEqual(price.eur.toFixed(2), '4.30');
   assert.strictEqual(price.unknown, 2);
+});
+
+// ── The printing the deck runs ────────────────────────────────────────────
+// A card that has been given a printing of its own is costed at that printing.
+// The deck runs the Ravnica Sol Ring, so the Ravnica Sol Ring is what buying
+// the deck costs — a total added up off whichever printing Scryfall calls the
+// default is a total for a deck nobody is holding.
+//
+// What the snapshot says is the whole of the answer: it was taken on the day
+// the printing was chosen and nothing has re-priced it since, which
+// docs/design/spec-printings.md states rather than hides. So the oracle cache
+// is not consulted behind it, not even when the snapshot has no price at all.
+
+const RAVNICA_SOL_RING = {
+  id: '00000000-0000-4000-8000-000000000001', set: 'rav',
+  set_name: 'Ravnica: City of Guilds', collector_number: '266',
+  image: 'https://cards.scryfall.io/normal/rav-sol-ring.jpg',
+  price_eur: '4.50', chosen_at: '2026-08-15',
+};
+
+/** The deck, with one card given a printing to run. */
+const running = (cardName, printing) =>
+  DECK.map(c => (c.card_name === cardName ? { ...c, printing } : c));
+
+test('a chosen printing is what the deck is counted at, not the one the app would pick', () => {
+  // 5.80 with the Sol Ring the cache holds at 1.50; the Ravnica one is 4.50.
+  const tab = loadTab({ deck: running('Sol Ring', RAVNICA_SOL_RING) });
+  assert.strictEqual(tab.totals().price.eur.toFixed(2), '8.80');
+});
+
+test('copies are copies of the printing you chose', () => {
+  // Eight Forests at 0.60 rather than at the cache's 0.10.
+  const tab = loadTab({ deck: running('Forest', { ...RAVNICA_SOL_RING, price_eur: '0.60' }) });
+  assert.strictEqual(tab.totals().price.eur.toFixed(2), '9.80');
+});
+
+test('a chosen printing nobody is selling is unknown, not the price of another one', () => {
+  const tab = loadTab({ deck: running('Sol Ring', { ...RAVNICA_SOL_RING, price_eur: null }) });
+  const { price } = tab.totals();
+  assert.strictEqual(price.eur.toFixed(2), '4.30',
+    'the deck was costed at a printing it does not run');
+  assert.strictEqual(price.unknown, 2, 'Mox Diamond, and a Sol Ring nobody is selling');
+});
+
+// ── And what the card itself is quoted at ─────────────────────────────────
+// The tile and the row draw the same preference the total is added up by. A
+// tile quoting the default printing's price beside art that is a different
+// printing's is the mat disagreeing with itself about which card this is.
+
+/* The stub answers out of what it is handed, so a view still passing the oracle
+ * cache's card draws that card's price rather than the chosen printing's. */
+const PRICE_STUB = `renderPrice = card => '<b>eur:' + (card?.prices?.eur ?? 'none') + '</b>'`;
+
+/** Every price on the mat, in the order they are drawn. */
+const quoted = html => [...html.matchAll(/<b>eur:([^<]*)<\/b>/g)].map(m => m[1]);
+
+/* Ramp, Creatures, Removal, Lands, each sorted by name — the mat's order, not
+ * the deck array's. Sol Ring is the third of them. */
+const AS_THE_CACHE_HAS_IT   = ['0.50', 'none', '1.50', '2.00', '1.00', '0.10'];
+const AS_THE_DECK_RUNS_THEM = ['0.50', 'none', '4.50', '2.00', '1.00', '0.10'];
+
+test('the grid tile is quoted at the printing the deck runs', () => {
+  const tab = loadTab({ deck: running('Sol Ring', RAVNICA_SOL_RING) });
+  tab.run(PRICE_STUB);
+  assert.deepStrictEqual(quoted(tab.paint('grid')), AS_THE_DECK_RUNS_THEM);
+});
+
+test('and so is the list row', () => {
+  const tab = loadTab({ deck: running('Sol Ring', RAVNICA_SOL_RING) });
+  tab.run(PRICE_STUB);
+  assert.deepStrictEqual(quoted(tab.paint('list')), AS_THE_DECK_RUNS_THEM);
+});
+
+test('a card nobody has chosen a printing for is quoted where it always was', () => {
+  const tab = loadTab();
+  tab.run(PRICE_STUB);
+  assert.deepStrictEqual(quoted(tab.paint('grid')), AS_THE_CACHE_HAS_IT);
+  assert.deepStrictEqual(quoted(tab.paint('list')), AS_THE_CACHE_HAS_IT);
 });
 
 // ── The type breakdown and the split ──────────────────────────────────────

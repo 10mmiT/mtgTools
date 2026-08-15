@@ -1496,6 +1496,16 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   font-size: var(--text-2xs); font-weight: 700; color: var(--text-muted);
   text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Only on a gallery that is choosing for a deck, where what a printing costs is
+   part of choosing it. A line of its own rather than more of the set line: the
+   set and the number name the printing and the price is a fact about it, and
+   two facts on one ellipsised line lose the second one first. Lighter than the
+   name above it for the same reason — it is the answer to a question you may
+   not be asking. */
+.card-print-price {
+  font-size: var(--text-2xs); color: var(--text-muted);
+  text-align: center; white-space: nowrap;
+}
 
 /* Stacked below the nav breakpoint, up from ~720px: the card tab is the
    narrow-window view now that wider windows get the modal, so the image and
@@ -2312,6 +2322,48 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   width: max-content;
 }
 
+/* How many the deck runs of the card, on the row where a pair of entries used
+   to be. The list view's stepper is an 18px pair set into a dense row of text;
+   this one is pressed over and over — four copies of a card is four presses —
+   so the two halves take the whole width the entries around them take, and the
+   number sits between them where the hand is not covering it.
+
+   Padded like an entry rather than by a step of its own: it stands in the same
+   column as the entries above and below it, and its two buttons already carry
+   the app's 44px minimum on a phone from the height rule in components.css,
+   which is the axis they were short on. */
+.db-menu-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+}
+/* Not the hover fill an entry takes: the row is not a target, the two presses
+   in it are. */
+.db-menu-step:hover { background: none; }
+.db-step-btn {
+  flex: 1;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-base);
+  line-height: 1;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+}
+.db-step-btn:hover { background: var(--surface-2); color: var(--text); }
+.db-step-count {
+  /* Room for two digits, so the menu does not breathe in and out under a hand
+     pressing + four times. EXEMPT from the spacing scale: this is a measure of
+     the text inside it, in the text's own units, rather than a gap between
+     things. */
+  min-width: 3ch;
+  text-align: center;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
 /* Category header kebab menu (☑ select / ✎ rename / × delete consolidated) */
 .db-cat-kebab-wrap { position: relative; display: inline-block; }
 
@@ -3117,6 +3169,42 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      its artwork still coming, and a card with no height yet is a card the rest
      of the fan lies on top of. */
   aspect-ratio: 5/7;
+}
+/* Reaching into a pile. A spread pile overlaps its own cards, so the one under
+   the pointer is the only one showing whole — and it is showing whole because
+   .card-fan lifts it above the cards lying on it, which leaves the pile looking
+   exactly as it did a moment before. Pushing the rest down is the movement that
+   says which card you are on: the cards under it get out of the way, the way a
+   hand moves a spread aside to look at one card in it.
+
+   They move by exactly the overlap, which puts the next card's top edge on the
+   pointed-at card's bottom edge — the card is uncovered and no gap opens in the
+   pile. The angle is restated because it is a transform and a transform is one
+   declaration; without it every card under the pointer would tidy itself square
+   to the table on the way down.
+
+   Only where a pointer hovers: a finger arrives on a card and then leaves the
+   page, and nothing would clear the hover it left behind — this is the same
+   refusal js/cardlift.js makes about the lift. And not while a card is in hand,
+   because js/cardmove.js is measuring where the piles are in order to land it,
+   and a pile that opened under the hand would move the target as it was being
+   aimed at. */
+@media (hover: hover) {
+  .db-pile-card { transition: transform var(--dur-card) var(--ease-tint); }
+  :root:not(.card-carrying) .db-pile-card:hover ~ .db-pile-card {
+    transform: translateY(var(--fan-overlap)) rotate(var(--stack-turn, 0deg));
+  }
+  /* The cards are displaced and not re-laid-out — this mat is a set of piles
+     put down at measured positions, and a pile that grew as you looked at it
+     would shove every pile after it down the page. So a pushed card travels
+     past the foot of its own pile and over the one below, and the pile being
+     reached into has to come forward as a whole or the card the gesture exists
+     to reveal is drawn half underneath its neighbour.
+
+     One step, not the card layer's: this is a pile lifted clear of the piles
+     beside it, not a card in hand (60) or the stats bar the mat scrolls under
+     (50). */
+  .db-pile-layout .dv-section:has(.db-pile-card:hover) { z-index: 1; }
 }
 /* EXEMPT from the token rule: sits on the card image, like the quantity badge
    on a grid tile — a fixed black scrim and a white glyph read on every theme,
