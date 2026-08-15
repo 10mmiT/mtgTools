@@ -722,6 +722,14 @@ function _dbParseTextList(text) {
     let qty = 1, name = '';
     if (m.length === 3) { qty = parseInt(m[1], 10) || 1; name = m[2].trim(); }
     else                { name = m[1].trim(); }
+    /* "Sol Ring (RAV) 266" — a line naming which printing it means, which is
+       what this app's own export now writes and what every site that reads one
+       of these lists writes too. The name is what is imported: a card added by
+       name has no chosen printing, deliberately, and a card called "Sol Ring
+       (RAV) 266" is a card that does not exist.
+       A set code and a collector number, not everything in brackets: cards
+       whose own names end in them are named that way in the deck too. */
+    name = name.replace(/\s+\([A-Za-z0-9]{2,6}\)\s+\S+$/, '').trim();
     if (name) results.push({ name, qty, category: curCat });
   }
   return results;
@@ -777,19 +785,41 @@ async function _dbImportCards(cards) {
  * commander is not a list anybody can play either. It is the one board that
  * is exported, and it is exported first, under its own heading — which is what
  * every site that reads these lists expects to find there. */
+
+/* What a card says about its printing on the way out — the set code and the
+ * collector number, or nothing at all.
+ *
+ * Nothing at all is the answer for every card nobody has chosen a printing of,
+ * which is every card in every deck that existed before the feature: such a
+ * deck exports byte-for-byte as it always did, and that is the point. A card
+ * that does name one names it in full or not at all, because half of it —
+ * a set with no number — is not a printing any site can look up.
+ *
+ * The set is upper-cased because that is how these lists are written and read
+ * everywhere else, while Scryfall stores it lower. */
+function _dbExportPrinting(card) {
+  const { set, collector_number: number } = card.printing || {};
+  return set && number ? { set: set.toUpperCase(), number } : null;
+}
+
+function _dbExportLine(card) {
+  const printing = _dbExportPrinting(card);
+  return `${card.qty || 1} ${card.card_name}${printing ? ` (${printing.set}) ${printing.number}` : ''}`;
+}
+
 function _dbExportText() {
   const lines = [];
   const commanders = dbCommanderCards();
   if (commanders.length) {
     lines.push('// Commander');
-    for (const c of commanders) lines.push(`${c.qty || 1} ${c.card_name}`);
+    for (const c of commanders) lines.push(_dbExportLine(c));
     lines.push('');
   }
   for (const cat of dbCats) {
     const catCards = dbMainCards().filter(c => (c.category || dbAutoCategory(c.card_name)) === cat.name);
     if (!catCards.length) continue;
     lines.push(`// ${cat.name}`);
-    for (const c of catCards) lines.push(`${c.qty || 1} ${c.card_name}`);
+    for (const c of catCards) lines.push(_dbExportLine(c));
     lines.push('');
   }
   return lines.join('\n');
@@ -807,8 +837,16 @@ function dbExportCsv() {
   if (!dbDeck) return;
   // The commander first, then the deck — a spreadsheet has no headings to say
   // which is which, so the only thing it can be is complete.
-  const rows = ['qty,name', ...[...dbCommanderCards(), ...dbMainCards()]
-    .map(c => `${c.qty || 1},"${c.card_name.replace(/"/g,'""')}"`)];
+  //
+  // The set and the collector number are columns of the sheet rather than
+  // something appended to the name: a spreadsheet is read a column at a time,
+  // and they are left empty on the rows of cards nobody has chosen a printing
+  // of, because rows of different widths are worse than blanks.
+  const rows = ['qty,name,set,collector_number', ...[...dbCommanderCards(), ...dbMainCards()]
+    .map(c => {
+      const printing = _dbExportPrinting(c);
+      return `${c.qty || 1},"${c.card_name.replace(/"/g,'""')}",${printing ? `${printing.set},${printing.number}` : ','}`;
+    })];
   _dbDownload(`${dbDeck.name}.csv`, rows.join('\n'), 'text/csv');
 }
 
