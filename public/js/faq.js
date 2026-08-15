@@ -14,9 +14,9 @@
 //
 // Nothing in this file knows which tabs exist. FAQ below is the only place
 // that decides, and everything downstream — what opens, what is drawn, and
-// (from ticket 04) which tabs grow a `?` button — reads it rather than keeping
-// a second list. Two hand-kept lists drift, and the failure is silent both
-// ways round: a button for a tab with no note, or a note with no way back.
+// which tabs grow the `?` button that opens it again — reads it rather than
+// keeping a second list. Two hand-kept lists drift, and the failure is silent
+// both ways round: a button for a tab with no note, or a note with no way back.
 
 /* The notes. `points` are the things you would otherwise have to discover by
  * poking, not a description of what is already on the screen, and `keys` are
@@ -49,6 +49,7 @@ const FAQ = {
 
 /* True of every note, so written on none of them. */
 const FAQ_SHARED_KEYS = [
+  ['?', 'open this note again'],
   ['Escape', 'close this note'],
 ];
 
@@ -71,6 +72,13 @@ let _faqShowing = null;
  * now, and the ones you passed through are not notes you asked for. */
 let _faqPending  = null;
 let _faqAnswered = false;
+
+/* The tab you are on, which is whose note `?` reopens. Recorded by the arrival
+ * hook below rather than asked of main.js, because that hook is called for
+ * every tab — including the four that have no note — so this is the same
+ * answer the auto-open is judged against and the two cannot come to disagree
+ * about where you are. */
+let _faqTab = null;
 
 // ── Drawing one ───────────────────────────────────────────────────────────
 
@@ -113,6 +121,14 @@ function closeFaq() {
   _faqShowing = null;
 }
 
+/* Whether a note is over the page. Asked by js/cardturn.js, which must not
+ * turn a card over from behind it: the note is a dialog about the tab and one
+ * of the things it says is that `f` turns the card under the pointer over, so
+ * a press while you are reading that sentence belongs to the note. One
+ * predicate rather than a second file reading the overlay's display, which is
+ * a second place for "open" to be decided. */
+function faqIsOpen() { return _faqShowing !== null; }
+
 /* Read, by any of the four ways of saying so.
  *
  * The set is marked before the write goes out — saveFaqSeen() adds the tab
@@ -127,6 +143,18 @@ function faqDismiss() {
   if (tab) saveFaqSeen(tab);
 }
 
+/* Asked for rather than owed: `?`, or the `?` on the tab's strip.
+ *
+ * It closes the same way it opened itself, through faqDismiss(), so a note
+ * looked up is a note read — and reading it again cannot un-read it, because
+ * saveFaqSeen() has nothing to add to a set the tab is already in. A tab you
+ * have dismissed stays dismissed however many times you come back to look
+ * something up, which is what the button is for. */
+function faqToggle(tab) {
+  if (_faqShowing) faqDismiss();
+  else openFaq(tab);
+}
+
 // ── When it opens ─────────────────────────────────────────────────────────
 
 /* You arrived on a tab. The one hook this feature has into the app's own flow,
@@ -134,6 +162,7 @@ function faqDismiss() {
  * that restores a deep link on load, so landing on a tab is the same case as
  * switching to it. */
 function faqOnTab(tab) {
+  _faqTab = tab;
   if (!FAQ[tab]) return;
   if (!_faqAnswered) { _faqPending = tab; return; }
   if (prefs.faqSeen.includes(tab)) return;
@@ -156,12 +185,54 @@ function faqPrefsArrived() {
   if (tab) faqOnTab(tab);
 }
 
+// ── The way back to it ────────────────────────────────────────────────────
+
+/* A `?` on the control strip of every tab that has a note, and on no other.
+ *
+ * Mounted by walking the registry rather than written into index.html seven
+ * times, which is the same decision as everything else downstream of FAQ and
+ * for the same reason: two hand-kept lists drift, and this one would fail
+ * silently in both directions — a button that opens nothing, or a note with no
+ * way back at all on a phone, where there is no keyboard to press `?` on.
+ *
+ * The strip is the row six of the seven panes already have. test/faq.test.js
+ * asserts every tab in the registry has one, so a note added to a pane with no
+ * strip fails there rather than quietly losing its button here. */
+function faqMountButtons() {
+  for (const tab of Object.keys(FAQ)) {
+    const strip = document.querySelector(`#tab-${tab} .toolbar`);
+    if (!strip) continue;
+    const btn = document.createElement('button');
+    btn.type      = 'button';
+    btn.className = 'btn-secondary faq-btn';
+    btn.id        = `faqBtn-${tab}`;
+    btn.textContent = '?';
+    /* A glyph on its own says nothing, and the label is also where the key is
+       written down for somebody who has not opened the note — the same job the
+       fold button's title does for `c`. */
+    btn.title = 'What this tab is for (?)';
+    btn.setAttribute('aria-label', 'What this tab is for');
+    btn.addEventListener('click', () => faqToggle(tab));
+    strip.appendChild(btn);
+  }
+}
+
+/* Where a character is a character rather than a key. Typing `?` into a
+ * Scryfall query has to search for it, which is the same rule — and, for now,
+ * the same three tag names and the same question about contenteditable — that
+ * js/cardturn.js applies to `f`. */
+function faqTyping(target) {
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName)
+    || !!target?.isContentEditable;
+}
+
 // ── The dialog's own controls ─────────────────────────────────────────────
 /* Bound once. The #faqModal markup sits after the <script> tags in
  * index.html, the way #cardModal does, so this waits for the parse. */
 function initFaq() {
   const overlay = document.getElementById('faqModal');
   if (!overlay) return;
+  faqMountButtons();
 
   document.getElementById('faqClose')?.addEventListener('click', faqDismiss);
   document.getElementById('faqGotIt')?.addEventListener('click', faqDismiss);
@@ -172,8 +243,19 @@ function initFaq() {
   overlay.addEventListener('click', e => { if (e.target === overlay) faqDismiss(); });
 
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape' || !_faqShowing) return;
-    faqDismiss();
+    if (e.key === 'Escape') { if (_faqShowing) faqDismiss(); return; }
+    /* The character the key produced rather than the key itself, so a layout
+       that does not put ? on Shift+/ still reaches this. */
+    if (e.key !== '?') return;
+    /* And bare: a letter or a punctuation mark with something held down is the
+       browser's, the way Ctrl+F is find. */
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (faqTyping(e.target)) return;
+    /* A tab with no note has none to open — but one that is open closes on ?
+       wherever it was opened from, so the toggle is asked before the tab is. */
+    if (!_faqShowing && !FAQ[_faqTab]) return;
+    e.preventDefault();
+    faqToggle(_faqTab);
   });
 }
 

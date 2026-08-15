@@ -1872,7 +1872,7 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
      a deck row are deliberately narrow, and widening them would burst the
      chip and the row they sit in. Those are padded instead. */
   .view-btn, .sort-dir-btn, .sort-row-btn, .col-menu-btn, .kebab-btn, .stepper-btn,
-  .rss-panel-hdr button, .faq-close {
+  .rss-panel-hdr button, .faq-close, .faq-btn {
     min-width: 44px;
   }
 

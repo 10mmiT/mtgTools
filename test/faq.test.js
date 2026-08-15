@@ -49,8 +49,13 @@ function fakeEl(id) {
     id,
     style: {},
     innerHTML: '',
+    textContent: '',
+    attrs: {},
+    children: [],
     focused: 0,
     addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); },
+    setAttribute: (name, value) => { el.attrs[name] = value; },
+    appendChild: child => { el.children.push(child); return child; },
     focus() { el.focused++; },
     fire(type, event = {}) {
       const seen = { target: el, ...event };
@@ -86,6 +91,17 @@ function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false
   };
   const docListeners = {};
 
+  /* A control strip per tab, including tabs with no note: what the mount does
+   * with the ones it was not asked about is half of what is under test. The
+   * seven are the ids the browser and the server will store, so a strip
+   * missing here would be a tab the registry could name and this harness
+   * could not answer for. */
+  const strips = new Map(
+    [...JSON.parse(read('public/js/state.js').match(/FAQ_TABS\s*=\s*(\[[^\]]*\])/)[1]
+      .replace(/'/g, '"')), 'players']
+      .map(tab => [tab, fakeEl(`toolbar-${tab}`)]),
+  );
+
   const sandbox = {
     console,
     localStorage: {
@@ -99,6 +115,12 @@ function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false
       body: { style: {} },
       addEventListener: (type, fn) => { (docListeners[type] ||= []).push(fn); },
       getElementById: id => els[id] || null,
+      querySelector: sel => {
+        const m = sel.match(/^#tab-([\w-]+) \.toolbar$/);
+        assert.ok(m, `the note asked the document for "${sel}", which is not a tab's strip`);
+        return strips.get(m[1]) || null;
+      },
+      createElement: tag => Object.assign(fakeEl(`<${tag}>`), { tag }),
     },
     async fetch(_url, init) {
       if (init?.method === 'PUT') {
@@ -118,9 +140,13 @@ function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false
   const json = expr => JSON.parse(evaluate(`JSON.stringify(${expr})`));
 
   return {
-    els, evaluate, json, writes, store,
+    els, evaluate, json, writes, store, strips,
     /** The registry, as a value this file can walk. */
     registry: () => json('FAQ'),
+    /** The `?` buttons that were mounted, by the tab whose strip they are on. */
+    buttons: () => new Map([...strips]
+      .filter(([, strip]) => strip.children.length)
+      .map(([tab, strip]) => [tab, strip.children[0]])),
     /** Which tabs the account has read, right now. */
     seen: () => json('prefs.faqSeen'),
     /** Whose note is on the screen, or none. Both halves are read, so a note
@@ -140,9 +166,9 @@ function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false
       evaluate('syncFaqSeen()');
       evaluate('faqPrefsArrived()');
     },
-    /** A key, pressed with nothing focused. */
-    press: (key, target = { tagName: 'BODY' }) => {
-      const seen = { key, target };
+    /** A key, pressed with nothing focused unless a target is named. */
+    press: (key, target = { tagName: 'BODY' }, held = {}) => {
+      const seen = { key, target, ...held };
       seen.preventDefault = () => { seen.prevented = true; };
       (docListeners.keydown || []).forEach(fn => fn(seen));
       return seen;
@@ -415,6 +441,158 @@ describe('dismissing it', () => {
   });
 });
 
+// ── Getting it back ───────────────────────────────────────────────────────
+/* A note you have dismissed is not gone. The button and the key are two ways
+ * to the same call, and the thing worth asserting about the button is not that
+ * it works but where it came from: the registry, walked, rather than seven
+ * hand-written into index.html beside seven entries here. */
+
+describe('the ? button', () => {
+  test('every tab with a note grows one, and no tab without a note does', async () => {
+    const app = loadFaq({ faqSeen: [] });
+    await app.resolve();
+    assert.deepEqual([...app.buttons().keys()].sort(), Object.keys(app.registry()).sort());
+  });
+
+  test('and it is the registry that decides, not a list kept beside it', () => {
+    // The failure this guards is silent in both directions: a button that
+    // opens nothing, or a note with no way back — which on a phone, where
+    // there is no keyboard to press ? on, is no way back at all.
+    const app = loadFaq({ faqSeen: [] });
+    app.strips.forEach(strip => { strip.children.length = 0; });
+    addEntry(app, 'sets');
+    app.evaluate('faqMountButtons()');
+    assert.deepEqual([...app.buttons().keys()].sort(), ['deckview', 'sets']);
+  });
+
+  test('it opens the note for the tab it is on, and closes it again', async () => {
+    const app = loadFaq({ faqSeen: ['deckview'] });
+    await app.resolve();
+    app.arrive('deckview');
+    assert.equal(app.open(), null, 'a note already read opened itself');
+    app.buttons().get('deckview').fire('click');
+    assert.equal(app.open(), 'deckview');
+    app.buttons().get('deckview').fire('click');
+    assert.equal(app.open(), null);
+  });
+
+  test('it says what it is, and where the key is written down', () => {
+    const app = loadFaq();
+    const btn = app.buttons().get('deckview');
+    /* A button rather than something with a click on it, which is the whole of
+       what it takes to be in the tab order and to answer to Enter. */
+    assert.equal(btn.tag, 'button');
+    assert.ok(String(btn.attrs['aria-label'] || '').trim(),
+      'a ? on its own says nothing to a screen reader');
+    assert.match(btn.title, /\?/, 'the label is the only place the key is written down');
+  });
+
+  test('no tab writes one into its own markup', () => {
+    // Mounted by the feature, so index.html cannot come to hold a button for a
+    // tab the registry has never heard of.
+    assert.ok(!HTML.includes('faq-btn'), 'index.html hand-writes a ? button');
+  });
+
+  test('every tab with a note has a strip to put it on', () => {
+    /* The one half of the mount this file's stub document cannot see. A pane
+     * with no .toolbar takes no button, and a note with no way back is exactly
+     * what the mount exists to make impossible — so the markup is asked here
+     * rather than left to be noticed on a phone. */
+    const panes = new Map();
+    for (const part of HTML.split(/^(?=<div id="tab-)/m)) {
+      const m = part.match(/^<div id="tab-([\w-]+)"/);
+      if (m) panes.set(m[1], part);
+    }
+    const app = loadFaq();
+    for (const tab of Object.keys(app.registry())) {
+      const pane = panes.get(tab);
+      assert.ok(pane, `index.html has no pane for ${tab}`);
+      assert.match(pane, /class="toolbar"/, `${tab} has no control strip to mount a ? on`);
+    }
+  });
+});
+
+describe('the ? key', () => {
+  const on = async (tab, over = {}) => {
+    const app = loadFaq({ faqSeen: ['deckview'], ...over });
+    await app.resolve();
+    app.arrive(tab);
+    assert.equal(app.open(), null, 'the tab under test opened a note of its own');
+    return app;
+  };
+
+  test('it opens the note for the tab you are on', async () => {
+    const app = await on('deckview');
+    assert.equal(app.press('?').prevented, true, 'the character was left to the page');
+    assert.equal(app.open(), 'deckview');
+  });
+
+  test('and pressing it again closes it', async () => {
+    const app = await on('deckview');
+    app.press('?');
+    app.press('?');
+    assert.equal(app.open(), null);
+  });
+
+  test('on a tab with no note it does nothing', async () => {
+    const app = await on('players');
+    assert.equal(app.press('?').prevented, undefined, 'it took the character anyway');
+    assert.equal(app.open(), null);
+  });
+
+  test('it is refused while a field has the focus', async () => {
+    // Typing ? into a Scryfall query has to search for it.
+    for (const target of [
+      { tagName: 'INPUT' }, { tagName: 'TEXTAREA' }, { tagName: 'SELECT' },
+      { tagName: 'DIV', isContentEditable: true },
+    ]) {
+      const app = await on('deckview');
+      app.press('?', target);
+      assert.equal(app.open(), null, `${target.tagName} let the note open over what was being typed`);
+    }
+  });
+
+  test('and while a modifier is held', async () => {
+    for (const held of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+      const app = await on('deckview');
+      app.press('?', { tagName: 'BODY' }, held);
+      assert.equal(app.open(), null, `${Object.keys(held)[0]} + ? was taken from the browser`);
+    }
+  });
+
+  test('it is matched on the character, not on Shift and the key under it', () => {
+    /* A layout that does not put ? on Shift+/ still reaches it, which is only
+     * true while nothing here reads shiftKey or a physical code. */
+    const source = read('public/js/faq.js');
+    assert.match(source, /e\.key !== '\?'/, "the key is not matched on the character it produced");
+    assert.ok(!/shiftKey|e\.code/.test(source), 'it reads a physical key rather than a character');
+  });
+
+  test('looking a note up again does not un-read it', async () => {
+    // The button is for looking something up, not for resetting the state: a
+    // tab you have dismissed stays dismissed however often you come back.
+    const app = await on('deckview');
+    app.press('?');
+    app.press('?');
+    assert.deepEqual(app.seen(), ['deckview']);
+    app.arrive('deckview');
+    assert.equal(app.open(), null, 'reopening it put the note back on the next arrival');
+  });
+
+  test('a note asked for on a tab you have not read is read by closing it', async () => {
+    /* The one case where ? reaches a note that had not been dismissed: it was
+     * asked for before the answer arrived, so nothing had opened it yet.
+     * Closing it is a dismissal like any other — there is one way out. */
+    const app = loadFaq({ faqSeen: [] });
+    app.arrive('deckview');
+    assert.equal(app.open(), null, 'it opened before it knew');
+    app.press('?');
+    assert.equal(app.open(), 'deckview');
+    app.press('?');
+    assert.deepEqual(app.seen(), ['deckview']);
+  });
+});
+
 // ── The dialog ────────────────────────────────────────────────────────────
 
 describe('the dialog', () => {
@@ -437,6 +615,19 @@ describe('the dialog', () => {
       'the dialog is announced by its own title, which is drawn per tab');
     assert.match(HTML, /id="faqClose"[^>]*aria-label=/,
       'the close button is a glyph, so it needs a name');
+  });
+
+  test('it says whether it is open, which is what the card turn asks it', async () => {
+    /* js/cardturn.js refuses `f` from behind the note, and this is the
+     * question it asks — one predicate, rather than a second file reading the
+     * overlay's display and deciding for itself what open means. */
+    const app = loadFaq({ faqSeen: [] });
+    await app.resolve();
+    assert.equal(app.evaluate('faqIsOpen()'), false);
+    app.arrive('deckview');
+    assert.equal(app.evaluate('faqIsOpen()'), true);
+    app.press('Escape');
+    assert.equal(app.evaluate('faqIsOpen()'), false);
   });
 
   test('it is a floating surface: a shadow, and no border', () => {

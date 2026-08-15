@@ -197,6 +197,14 @@ document.addEventListener('click', e => {
  * still in the page, which is why the display is asked about — the same
  * question js/main.js's Escape asks of it. */
 function cardTurnWanted() {
+  /* Not from behind the tab's note. It is a dialog over the whole page and one
+     of the things it says is that `f` turns the card under the pointer over,
+     so a press while somebody is reading that sentence belongs to the note and
+     not to the card underneath — including the one in the detail dialog below,
+     which the note would otherwise be covering. js/faq.js owns the answer:
+     reading its overlay from here would be a second place to decide what open
+     means. */
+  if (faqIsOpen()) return null;
   const hovered = document.querySelector('.card-turnable:hover .card-turn');
   if (hovered) return hovered;
   const modal = document.getElementById('cardModal');

@@ -112,6 +112,11 @@ function loadCardTurn() {
      * the harder path: the turn then runs in halves and has a middle. */
     cardMotionOn: () => sandbox.motion,
     motion: true,
+    /* The tab's note, over the page or not. js/faq.js's own predicate, stubbed
+     * the way the motion switch is: what this file asserts is that the key
+     * asks it, not how the note decides — test/faq.test.js has that half. */
+    faqIsOpen: () => sandbox.noteOpen,
+    noteOpen: false,
     Image: function Image() {},
     esc: s => String(s),
   };
@@ -318,6 +323,31 @@ test('the key is ignored while a field has the press', () => {
       `${target.tagName} kept the f`);
     assert.strictEqual(card.state().src, 'front.jpg');
   }
+});
+
+test('and while the tab\'s note is open over the page', () => {
+  /* The note is a dialog about the tab, and one of the things it says is that
+   * f turns the card under the pointer over. A press while somebody is reading
+   * that sentence belongs to the note — including over the card detail, which
+   * the note is drawn on top of and which the pointer need not be on for the
+   * card there to be the one this key would otherwise take. */
+  const app  = loadCardTurn();
+  const card = turnableCard();
+  app.point(card);
+  app.sandbox.noteOpen = true;
+
+  assert.strictEqual(app.press('f'), false, 'the note let the press through to the mat');
+  assert.strictEqual(card.state().src, 'front.jpg');
+
+  app.openDetail(turnableCard());
+  app.point(null);
+  assert.strictEqual(app.press('f'), false, 'and through to the card underneath it');
+
+  app.sandbox.noteOpen = false;
+  app.point(card);
+  app.press('f');
+  card.finishTurn();
+  assert.strictEqual(card.state().src, 'back.jpg', 'and kept it after it was closed');
 });
 
 test('a key with a modifier on it belongs to the browser', () => {
