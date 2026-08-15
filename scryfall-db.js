@@ -49,9 +49,25 @@ const REFRESH_MS     = 24 * 60 * 60 * 1000;
 //
 //   1  the original trim
 //   2  + legalities, game_changer, produced_mana
-const SHAPE_VERSION = 2;
+//   3  tokens, emblems and art-series prints are no longer imported
+const SHAPE_VERSION = 3;
 
 let _refreshing = false;
+
+// ── What counts as a card ─────────────────────────────────────────────────────
+// The bulk file has one entry per oracle id, and tokens, emblems and art-series
+// prints have oracle ids of their own. Many of them are named after the card
+// they belong to — the token a card makes usually carries that card's name
+// exactly — and the table below is keyed on name, so importing both means one
+// silently replaces the other. A token's legalities are `not_legal` in every
+// format, so the deck running the card was told the card is not legal anywhere.
+//
+// None of these objects can be in a deck, so none of them belong in the cache.
+// A name the cache does not know is a name the client asks live Scryfall about,
+// which is the right answer for someone genuinely looking one up.
+const NOT_A_CARD = new Set(['token', 'double_faced_token', 'emblem', 'art_series']);
+
+function isCard(card) { return !NOT_A_CARD.has(card.layout); }
 
 // Keep only the fields the client actually uses — cuts the DB (and response
 // payloads) to a fraction of the full bulk file.
@@ -186,7 +202,7 @@ async function refreshBulk(force = false) {
       if (line.endsWith(',')) line = line.slice(0, -1);
       let card;
       try { card = JSON.parse(line); } catch { failed++; continue; }
-      if (!card?.name) continue;
+      if (!card?.name || !isCard(card)) continue;
       const front = card.card_faces?.[0]?.name || null;
       batch.push([card.name, front !== card.name ? front : null, card.type_line || '', JSON.stringify(trimCard(card))]);
       if (batch.length >= 1000) { insertBatch(batch); imported += batch.length; batch = []; }
@@ -241,10 +257,26 @@ function hydrate(json) {
   return card;
 }
 
+// The import keeps tokens and their kin out, but a cache filled by an earlier
+// build still holds them until the re-import the shape version forces has
+// finished — minutes, on a container that downloads 24 MB in the background.
+// Skipping them here too means that window answers "we don't have it" and the
+// client asks Scryfall, rather than serving a token as the card it is named
+// after. Front-name rows are read as a list for the same reason: a card and an
+// art-series print of it share one, and the card may not be the row SQLite
+// hands back first.
+function lookup(name) {
+  for (const row of [_byName.get(name), ..._byFront.all(name)]) {
+    if (!row) continue;
+    const card = hydrate(row.json);
+    if (isCard(card)) return card;
+  }
+  return null;
+}
+
 function getCard(name) {
-  const row = _byName.get(name) || _byFront.get(name) ||
-              (name.includes(' // ') ? (_byName.get(name.split(' // ')[0]) || _byFront.get(name.split(' // ')[0])) : null);
-  return row ? hydrate(row.json) : null;
+  return lookup(name) ||
+         (name.includes(' // ') ? lookup(name.split(' // ')[0]) : null);
 }
 
 // Mimics Scryfall's POST /cards/collection response shape

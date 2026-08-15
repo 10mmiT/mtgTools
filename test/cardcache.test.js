@@ -245,6 +245,114 @@ describe('the shape version', () => {
 
 // ── A cache that is halfway there ─────────────────────────────────────────
 
+// ── The things in the bulk file that are not cards ────────────────────────
+
+describe('a token, an emblem or an art-series print', () => {
+  /* The oracle_cards file has one entry per oracle id, and tokens, emblems and
+   * art-series prints have oracle ids of their own. Several of them are named
+   * after the card that makes them — the Raccoon Rogue token below is spelled
+   * exactly like the creature that creates it — and the cards table is keyed on
+   * name, so importing both means the second one silently replaces the first.
+   * Whichever way round the file happens to list them, a token's legalities are
+   * `not_legal` in every format, so a deck running the card is told the card is
+   * not legal anywhere.
+   *
+   * None of these objects can be in a deck, so none of them belong in the
+   * cache. A name the cache does not know is a name the client asks live
+   * Scryfall about, which is the right answer for someone genuinely looking up
+   * a token.
+   */
+  const BANDIT = {
+    id: 'f1f1f6a4-0000-4000-8000-000000000010', oracle_id: '2a14670b',
+    name: 'Prosperous Bandit', layout: 'normal', mana_cost: '{2}{W}', cmc: 3,
+    type_line: 'Creature — Raccoon Rogue', colors: ['W'], color_identity: ['W'],
+    rarity: 'rare', game_changer: false, set: 'blc',
+    legalities: { standard: 'not_legal', modern: 'not_legal', legacy: 'legal',
+                  vintage: 'legal', commander: 'legal', duel: 'legal' },
+  };
+  const BANDIT_TOKEN = {
+    id: 'f1f1f6a4-0000-4000-8000-000000000011', oracle_id: '528f0ae4',
+    name: 'Prosperous Bandit', layout: 'token', mana_cost: '', cmc: 0,
+    type_line: 'Token Creature — Raccoon Rogue', colors: ['W'], color_identity: ['W'],
+    rarity: 'common', game_changer: false, set: 'tblc',
+    legalities: { standard: 'not_legal', modern: 'not_legal', legacy: 'not_legal',
+                  vintage: 'not_legal', commander: 'not_legal', duel: 'not_legal' },
+  };
+  const EMBLEM = {
+    id: 'f1f1f6a4-0000-4000-8000-000000000012', oracle_id: 'aaaa0012',
+    name: 'Koth of the Hammer Emblem', layout: 'emblem', type_line: 'Emblem — Koth',
+    colors: [], color_identity: ['R'], game_changer: false,
+    legalities: { commander: 'not_legal' },
+  };
+  // An adventure card and the art-series print of it. The art print's name is
+  // the card's name doubled, so it does not collide on `name` — it collides on
+  // `front_name`, which is the index the cache falls back to for a card whose
+  // row is stored under a two-part name.
+  const STORMBROOD = {
+    id: 'f1f1f6a4-0000-4000-8000-000000000013', oracle_id: 'ff812a78',
+    name: 'Twinmaw Stormbrood // Charring Bite', layout: 'adventure',
+    type_line: 'Creature — Dragon // Sorcery — Omen', colors: ['R'], color_identity: ['R'],
+    rarity: 'uncommon', game_changer: false, set: 'tdm',
+    legalities: { commander: 'legal', modern: 'legal' },
+    card_faces: [{ name: 'Twinmaw Stormbrood', type_line: 'Creature — Dragon' },
+                 { name: 'Charring Bite', type_line: 'Sorcery — Omen' }],
+  };
+  const STORMBROOD_ART = {
+    id: 'f1f1f6a4-0000-4000-8000-000000000014', oracle_id: '07aaec44',
+    name: 'Twinmaw Stormbrood // Twinmaw Stormbrood', layout: 'art_series',
+    type_line: 'Card // Card', colors: [], color_identity: [], set: 'atdm',
+    game_changer: false, legalities: { commander: 'not_legal', modern: 'not_legal' },
+    card_faces: [{ name: 'Twinmaw Stormbrood', type_line: 'Card' },
+                 { name: 'Twinmaw Stormbrood', type_line: 'Card' }],
+  };
+
+  test('does not replace the card it is named after', async () => {
+    // The order the bulk file happens to list them in is Scryfall's business,
+    // so neither order may decide what the cache answers.
+    stubScryfall({ cards: [BANDIT, BANDIT_TOKEN] });
+    await refreshBulk();
+    assert.equal(getCard('Prosperous Bandit').type_line, 'Creature — Raccoon Rogue');
+    assert.equal(getCard('Prosperous Bandit').legalities.commander, 'legal');
+
+    db.exec('DELETE FROM cards; DELETE FROM meta;');
+    stubScryfall({ cards: [BANDIT_TOKEN, BANDIT] });
+    await refreshBulk();
+    assert.equal(getCard('Prosperous Bandit').type_line, 'Creature — Raccoon Rogue');
+    assert.equal(getCard('Prosperous Bandit').legalities.commander, 'legal');
+  });
+
+  test('does not answer for a card found by its front face either', async () => {
+    // Two rows share a front face, so which one the lookup returns is down to
+    // the order SQLite happens to hand them back — again either order.
+    for (const cards of [[STORMBROOD, STORMBROOD_ART], [STORMBROOD_ART, STORMBROOD]]) {
+      db.exec('DELETE FROM cards; DELETE FROM meta;');
+      stubScryfall({ cards });
+      await refreshBulk();
+      const card = getCard('Twinmaw Stormbrood');
+      assert.equal(card.name, 'Twinmaw Stormbrood // Charring Bite');
+      assert.equal(card.legalities.commander, 'legal');
+    }
+  });
+
+  test('is not imported at all', async () => {
+    const calls = stubScryfall({ cards: [BANDIT, BANDIT_TOKEN, EMBLEM, STORMBROOD, STORMBROOD_ART] });
+    const r = await refreshBulk();
+    assert.equal(calls.download, 1);
+    assert.equal(r.imported, 2, 'the two real cards, and neither of the three prints that are not');
+    assert.equal(getCard('Koth of the Hammer Emblem'), null, 'a miss, so the client asks Scryfall');
+  });
+
+  test('is not served by a cache that still holds one from an older import', () => {
+    // The re-import runs in the background, so for the first minutes after an
+    // upgrade the poisoned rows are still there to be read.
+    db.prepare('INSERT INTO cards (name, front_name, type_line, json) VALUES (?, ?, ?, ?)')
+      .run(BANDIT_TOKEN.name, null, BANDIT_TOKEN.type_line, JSON.stringify(BANDIT_TOKEN));
+    assert.equal(getCard('Prosperous Bandit'), null, 'unknown here, so live Scryfall answers');
+    assert.deepEqual(getCollection(['Prosperous Bandit']),
+      { data: [], not_found: ['Prosperous Bandit'] });
+  });
+});
+
 describe('a row written by an older build', () => {
   // The re-import is not instant: it downloads 24 MB in the background while
   // the app serves requests, so for the first minutes after an upgrade every
