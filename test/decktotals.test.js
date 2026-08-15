@@ -137,13 +137,16 @@ function loadTab({ deck = DECK, cards = CARDS, collections = SHELVES,
     openCardByName() {}, openDrawer() {}, closeDrawers() {}, renderDeck() {},
     ensureScryfallImages: async () => {},
     scryfallCache: new Map(), scryfallMetaCache: new Map(),
+    /* Whether a card has another side: stubbed, because the cards counted here
+       have one. What the mat draws for a card with two is test/deckart.test.js's. */
+    scryfallBackFace: () => '',
     deck: null, deckFilter: false, viewMode: 'list',
     animateCardMove: (_el, paint) => paint(),
   };
   sandbox.setTimeout = fn => 1;
   sandbox.dbFetchCardData = async () => {};
   vm.createContext(sandbox);
-  for (const file of ['state.js', 'sortui.js', 'cardstack.js', 'cardquery.js',
+  for (const file of ['state.js', 'sortui.js', 'cardstack.js', 'cardturn.js', 'cardquery.js',
                       'auth.js', 'collections.js',
                       'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',

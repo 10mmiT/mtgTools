@@ -693,6 +693,24 @@ function _dbCardImg(card) {
   return sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
 }
 
+/* And its other side, where it has one — the picture the turn control shows.
+ *
+ * Asked of scryfallBackFace() rather than read out of the faces here, because
+ * "has this card a back" is one question with one answer for the whole app: a
+ * split card and a Room have two faces and one picture, and a mat that decided
+ * that for itself would be a second place for them to be got wrong.
+ *
+ * A card carrying a chosen printing has no back here. The snapshot holds one
+ * picture — the front of that printing — so the only back to be had is some
+ * other printing's, and showing it would be the two sides of one card
+ * disagreeing about which printing the deck runs. The card keeps its front and
+ * wears no control, which is what a card with nothing to show reads as
+ * everywhere else. */
+function _dbCardBack(card) {
+  if (card.printing) return '';
+  return scryfallBackFace(dbCardData.get(card.card_name) || {});
+}
+
 /* And what it costs, drawn the way every other tab in the app draws a price.
  * The figure itself is dbCardPrice()'s, so a card showing a chosen printing's
  * art is quoted at that printing and the tile cannot come to disagree with the
@@ -752,14 +770,19 @@ function _dbGridTile(card, canEdit) {
   const ref = dbCardRef(card);
   const selected = dbSelectedCards.has(ref);
   /* No buttons on the picture: what can be done to this card is the card
-     menu's answer, and it is asked for by right-clicking the card. */
+     menu's answer, and it is asked for by right-clicking the card.
+     The turn is the exception, and it is one because it does nothing to the
+     deck — turning a card over is looking at the card, the same thing the
+     hover preview does by drawing both of its faces at once. A card with one
+     side is not wrapped at all, which is cardTurnableHtml()'s rule, so a tile
+     that has nothing to turn is the tile it has always been. */
   const clickAttrs = canEdit ? _dbCardClickAttrs(ref) : '';
   return `<div class="sf-card-lg db-tile${selected ? ' db-tile-selected' : ''}${_dbLanded(ref)}"
     ${_dbMoves('card', ref)} ${_dbCarry(ref, canEdit)} ${clickAttrs}>
-    <div data-name="${esc(card.card_name)}">
+    ${cardTurnableHtml(`<div data-name="${esc(card.card_name)}">
       ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </div>
+    </div>`, _dbCardBack(card))}
     <div class="sf-card-lg-footer">
       <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
@@ -825,13 +848,15 @@ function _dbPileTile(card, canEdit) {
   /* As the grid's tile: the picture is the card, and what can be done to it is
      asked for rather than drawn on it. A fanned pile leaves only the top of
      each card showing, which is where the buttons were and where the least
-     room for them is. */
+     room for them is — which is also why the turn control, the one thing the
+     picture does carry, moves to that strip here. components.css puts it
+     there, for the reason it puts it there in the browsing tabs' fans. */
   const clickAttrs = canEdit ? _dbCardClickAttrs(ref) : '';
   return `<div class="db-pile-card${selected ? ' db-tile-selected' : ''}${_dbLanded(ref)}"
     style="--stack-turn:${stackJitter(card.card_name)}deg"
     ${_dbMoves('card', ref)} ${_dbCarry(ref, canEdit)} ${clickAttrs}>
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
-    <div data-name="${esc(card.card_name)}">
+    ${cardTurnableHtml(`<div data-name="${esc(card.card_name)}">
       ${img ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               /* Artwork that is missing is a surface and not a card, which is
                  one rule said in one place — components.css's, the same shape
@@ -840,7 +865,7 @@ function _dbPileTile(card, canEdit) {
                  so a card with no picture is ringed when it is chosen like any
                  other. */
               `<div class="card-stack-blank"></div>`}
-    </div>
+    </div>`, _dbCardBack(card))}
   </div>`;
 }
 

@@ -708,8 +708,12 @@ td { padding: var(--space-2) var(--space-3); }
 
    The right-hand corner rather than the left: what shows of a card in a fan is
    its name, and the control is not allowed to sit on the one thing a spread
-   pile can be read for. */
-.card-fan-slot .card-turn {
+   pile can be read for. The Deck Builder's spread categories are the same fan
+   — its cards carry .card-fan's overlap and .db-pile-qty in the left corner —
+   so they are named here rather than restating the same four lines on the tab,
+   which is how the two would come to disagree about where the control lives. */
+.card-fan-slot .card-turn,
+.db-pile-card .card-turn {
   top: 4px;
   right: 4px;
   bottom: auto;
@@ -721,7 +725,8 @@ td { padding: var(--space-2) var(--space-3); }
    target the card on top of it swallowed — the finger would land on the wrong
    card and nothing would happen. Up is this card's own strip and the room
    above it, which is the direction a thumb comes from anyway. */
-.card-fan-slot .card-turn::after { inset: -20px -11px -2px -11px; }
+.card-fan-slot .card-turn::after,
+.db-pile-card .card-turn::after { inset: -20px -11px -2px -11px; }
 
 /* And in the card detail view, where a card is drawn at nearly the size it is
    printed. The corner is still the foot of the card, but 4px into a 320px card
