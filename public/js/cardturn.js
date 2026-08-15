@@ -172,3 +172,64 @@ document.addEventListener('click', e => {
   e.preventDefault();
   turnCard(btn);
 });
+
+// ── The key ───────────────────────────────────────────────────────────────
+// `f`, with the pointer on a card, turns it over.
+//
+// It adds no turn of its own: it finds the control the card is already wearing
+// and presses it. Everything above — what has a back, what happens with "Cards
+// move" unticked, what to do about a turn already under way — is therefore
+// inherited rather than decided a second time, and a card with one face
+// correctly does nothing because it has no control to find. A second path that
+// knew how to turn a card over would be a second place for those three answers
+// to drift apart.
+
+/* The card the pointer is on, asked of the document rather than tracked. Live,
+ * so it needs no state and cannot go stale; and because it is a question about
+ * a class rather than about a view, the key works in every view that draws the
+ * control — the two grids, the fanned piles, the set browser, the card detail
+ * — and in the seventh one drawn next year, with no list of views anywhere.
+ *
+ * With the pointer over no card at all, the card open in the detail dialog is
+ * the one meant: it is the one place in the app where a card is the subject of
+ * the screen without being under the hand, because you opened it to read it
+ * and the pointer has moved off into the text. Closed, the dialog's markup is
+ * still in the page, which is why the display is asked about — the same
+ * question js/main.js's Escape asks of it. */
+function cardTurnWanted() {
+  /* Not from behind the tab's note. It is a dialog over the whole page and one
+     of the things it says is that `f` turns the card under the pointer over,
+     so a press while somebody is reading that sentence belongs to the note and
+     not to the card underneath — including the one in the detail dialog below,
+     which the note would otherwise be covering. js/faq.js owns the answer:
+     reading its overlay from here would be a second place to decide what open
+     means. */
+  if (faqIsOpen()) return null;
+  const hovered = document.querySelector('.card-turnable:hover .card-turn');
+  if (hovered) return hovered;
+  const modal = document.getElementById('cardModal');
+  if (!modal || modal.style.display === 'none') return null;
+  return modal.querySelector('.card-turn');
+}
+
+/* Where a letter is a letter rather than a shortcut. Typing "goblin" into the
+ * Deck Builder's filter has to filter for goblins. */
+function cardTurnTyping(target) {
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName)
+    || !!target?.isContentEditable;
+}
+
+document.addEventListener('keydown', e => {
+  /* The character the key produced, not the key: a layout that puts f
+     somewhere else than the third key of the home row still reaches this. Caps
+     lock is the same character shouted, and means the same thing. */
+  if (e.key !== 'f' && e.key !== 'F') return;
+  /* Ctrl+F is find and Cmd+F is find. A card under the pointer must not cost
+     anybody the browser's own keyboard. */
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (cardTurnTyping(e.target)) return;
+  const btn = cardTurnWanted();
+  if (!btn) return;
+  e.preventDefault();
+  turnCard(btn);
+});

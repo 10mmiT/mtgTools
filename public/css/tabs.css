@@ -3183,6 +3183,18 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    declaration; without it every card under the pointer would tidy itself square
    to the table on the way down.
 
+   And they travel over the card they are uncovering, which is the z-index here
+   and the whole of why the gesture reads. .card-fan raises the card under the
+   pointer above the ones lying on it (components.css) because on the browsing
+   tabs that raise is the only thing that can show it whole; here the push
+   already shows it whole by the time it settles, so the raise buys nothing at
+   rest and costs the movement everything. Left in, the cards leave the card's
+   face on the first frame and finish their travel behind it: the card appears
+   to jump out of the pile to meet the pointer, which is nothing a hand does.
+   One step above it puts them back on top for the whole of the push, so what
+   you watch is a spread being pushed aside and the card underneath coming out
+   from under it. Same picture at rest either way — only the middle differs.
+
    Only where a pointer hovers: a finger arrives on a card and then leaves the
    page, and nothing would clear the hover it left behind — this is the same
    refusal js/cardlift.js makes about the lift. And not while a card is in hand,
@@ -3193,6 +3205,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-pile-card { transition: transform var(--dur-card) var(--ease-tint); }
   :root:not(.card-carrying) .db-pile-card:hover ~ .db-pile-card {
     transform: translateY(var(--fan-overlap)) rotate(var(--stack-turn, 0deg));
+    z-index: 11;
   }
   /* The cards are displaced and not re-laid-out — this mat is a set of piles
      put down at measured positions, and a pile that grew as you looked at it

@@ -56,6 +56,20 @@ describe('Open mode: /api/prefs', () => {
     assert.equal(res.body.stored, false);
   });
 
+  test('a note dismissed is accepted, and the browser is told it is the record', async () => {
+    const res = await request.put('/api/prefs').send({ faqSeen: ['deckview'] });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.faqSeen, ['deckview']);
+    // Without `stored: false` the client could not tell "you have read this"
+    // from a server with nowhere to keep the answer, and every reload would
+    // re-open all seven notes.
+    assert.equal(res.body.stored, false);
+  });
+
+  test('the set is a list here too, empty for someone who has read nothing', async () => {
+    assert.deepEqual((await request.get('/api/prefs')).body.faqSeen, []);
+  });
+
   test('nothing is written to the database', async () => {
     await request.put('/api/prefs').send({ theme: 'light' });
     await request.put('/api/prefs').send({ cardMotion: 'off' });
@@ -70,6 +84,8 @@ describe('Open mode: /api/prefs', () => {
     assert.equal((await request.put('/api/prefs').send({ theme: 'neon' })).status, 400);
     assert.equal((await request.put('/api/prefs').send({ playmatKind: 'billboard' })).status, 400);
     assert.equal((await request.put('/api/prefs').send({ cardMotion: 'sometimes' })).status, 400);
+    assert.equal((await request.put('/api/prefs').send({ faqSeen: ['players'] })).status, 400);
+    assert.equal((await request.put('/api/prefs').send({ faqSeen: 'deckview' })).status, 400);
   });
 });
 

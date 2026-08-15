@@ -150,6 +150,11 @@ async function syncPrefs() {
   // whether cards move.
   syncPlaymat();
   syncCardMotion();
+  syncFaqSeen();
+  /* And the note for the tab that was already on the screen when this landed.
+     After syncFaqSeen(), never before: what it flushes is judged against the
+     set that call has just decided the record for. */
+  faqPrefsArrived();
   if (_urlTheme) { if (p.stored) savePrefs({ theme: _urlTheme }); return; }
   if (p.stored && p.theme) applyTheme(p.theme);
 }
@@ -368,6 +373,11 @@ function setTab(tab, push = true) {
   if (tab === 'pick')      initPick();
   if (tab === 'deckview')  initDeckBuilder();
   if (tab === 'admin')   { initAdmin(); adminRenderPlayerOpts(); }
+  /* What this tab is for, the first time you arrive on it. Here rather than in
+     each tab's init: every arrival goes through this function, including the
+     one that restores a deep link on load, and a note hooked to one tab's
+     init would be a note the other six had to remember to ask for. */
+  faqOnTab(tab);
   // Refresh shared data when switching to any tab that shows other users' content
   if (['players', 'wants', 'collections', 'sets', 'deckview'].includes(tab)) refreshState();
 
@@ -415,6 +425,11 @@ window.addEventListener('popstate', e => {
   }
 });
 
+// The tab the app opens on with nothing in the URL to say otherwise. It is
+// the pane index.html leaves visible, said once here so the history entry and
+// the note cannot come to disagree about which tab you are looking at.
+const DEFAULT_TAB = 'available';
+
 // On load, restore a deep-linked view from the URL hash, else record the
 // default view so the first back press leaves the app cleanly.
 function initRouting() {
@@ -438,7 +453,11 @@ function initRouting() {
     history.replaceState({ view: 'tab', tab: raw }, '', '#' + raw);
     return;
   }
-  history.replaceState({ view: 'tab', tab: 'available' }, ''); // default view, URL unchanged
+  /* The default view, URL unchanged — and the one arrival that does not go
+     through setTab, so the note has to be told separately. Landing on a tab
+     and switching to it are the same thing to the person doing it. */
+  history.replaceState({ view: 'tab', tab: DEFAULT_TAB }, '');
+  faqOnTab(DEFAULT_TAB);
 }
 
 // ── Card click → open Card Detail tab ─────────────────────────────────

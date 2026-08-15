@@ -356,6 +356,9 @@ function loadTab({ playerId = 'p1' } = {}) {
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
     },
     scryfallFetch: async () => ({ ok: true, json: async () => ({ data: PRINTS }) }),
+    /* Sol Ring has one side, and what the mat does with a card that has two is
+       test/deckart.test.js's. */
+    scryfallBackFace: () => '',
     esc: s => String(s),
     jsAttr: s => String(s),
     renderMana: () => '', renderPrice: () => '', sfCardOwnership: () => '',
@@ -367,7 +370,13 @@ function loadTab({ playerId = 'p1' } = {}) {
   sandbox.setTimeout = () => 1;
   sandbox.dbFetchCardData = async () => {};
   vm.createContext(sandbox);
-  for (const file of ['sortui.js', 'cardstack.js', 'card.js', 'deckview-boards.js',
+  /* cardturn.js for real, so a tile is asserted as the browser draws it once
+     the picture is wrapped in its turn control. Whether a card *has* another
+     side is scryfallBackFace()'s and is stubbed above: the printings under
+     test are Sol Ring's, which has one side, and the real file would replace
+     this sandbox's scryfallFetch with the queue it stands in for. */
+  for (const file of ['cardturn.js',
+                      'sortui.js', 'cardstack.js', 'card.js', 'deckview-boards.js',
                       'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',

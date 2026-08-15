@@ -24,11 +24,25 @@ const PLAYMAT_KINDS = ['none', 'scryfall', 'preset', 'upload'];
 // stylesheet matches would otherwise follow the user onto every device.
 const CARD_MOTION = ['on', 'off'];
 
+// The tabs that have a note to read, mirrored from FAQ in public/js/faq.js the
+// way THEMES is mirrored above, and for the same reason: an id no tab matches
+// would follow the user onto every device, and there it would be a note that
+// can never open rather than a theme that never paints. The four tabs left out
+// — card, players, wants, admin — have no note, so being told you have read
+// one is a lie the row would keep forever.
+const FAQ_TABS = ['deckview', 'collections', 'scryfall', 'sets', 'pick', 'lands', 'available'];
+
 // What a user who has never set anything has. Also what open mode always
 // reports: with no ADMIN_PASSWORD there are no accounts, so there is nobody to
 // hang a preference on and the browser is the whole record.
+//
+// The empty set is frozen because `{ ...DEFAULTS }` copies the reference, not
+// the array — every write below replaces it rather than pushing to it, and
+// this is what makes a slip that forgets that throw instead of leaking one
+// user's set into everyone's defaults.
 const DEFAULTS = {
   theme: 'dark', playmatKind: 'none', playmatRef: null, playmatUrl: null, cardMotion: 'on',
+  faqSeen: Object.freeze([]),
 };
 
 function rowToPrefs(row) {
@@ -41,6 +55,11 @@ function rowToPrefs(row) {
     // value the client knows. The default covers it, exactly as it covers a
     // user who has no row at all.
     cardMotion:  row.card_motion || DEFAULTS.cardMotion,
+    // Stored as one comma-separated column and handed back as a list: which
+    // shape the database wants is not something a client should have to know,
+    // and `''` — the value the migration gives every row that predates the
+    // column — is the empty set rather than a set containing nothing.
+    faqSeen:     (row.faq_seen || '').split(',').filter(Boolean),
   };
 }
 
@@ -52,15 +71,15 @@ function readPrefs(username) {
 function writePrefs(username, prefs) {
   db.prepare(`
     INSERT INTO user_prefs
-      (username, theme, playmat_kind, playmat_ref, playmat_url, card_motion, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      (username, theme, playmat_kind, playmat_ref, playmat_url, card_motion, faq_seen, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(username) DO UPDATE SET
       theme = excluded.theme, playmat_kind = excluded.playmat_kind,
       playmat_ref = excluded.playmat_ref, playmat_url = excluded.playmat_url,
-      card_motion = excluded.card_motion,
+      card_motion = excluded.card_motion, faq_seen = excluded.faq_seen,
       updated_at = excluded.updated_at
   `).run(username, prefs.theme, prefs.playmatKind,
-    prefs.playmatRef, prefs.playmatUrl, prefs.cardMotion, Date.now());
+    prefs.playmatRef, prefs.playmatUrl, prefs.cardMotion, prefs.faqSeen.join(','), Date.now());
 }
 
 // `stored` is the client's answer to "is the server the record?". It is false
@@ -104,6 +123,17 @@ router.put('/prefs', requireAuth, express.json(), (req, res) => {
     if (!CARD_MOTION.includes(body.cardMotion))
       return res.status(400).json({ error: 'Invalid card motion' });
     next.cardMotion = body.cardMotion;
+  }
+
+  // The whole set, not one id: the client keeps its own copy and sends what it
+  // now believes, which is what lets a dismissal be painted before the write
+  // lands. Deduplicated on the way in, because it is a set — a client that
+  // sends the same tab twice must not grow the row a little on every dialog.
+  if ('faqSeen' in body) {
+    const seen = body.faqSeen;
+    if (!Array.isArray(seen) || seen.some(id => !FAQ_TABS.includes(id)))
+      return res.status(400).json({ error: 'Invalid note id' });
+    next.faqSeen = [...new Set(seen)];
   }
 
   if ('playmatKind' in body) {

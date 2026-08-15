@@ -46,6 +46,37 @@ const VIEWPORTS = [
 
 const DEFAULT_VIEWPORTS = ['desktop', 'phone'];
 
+/* Every tab's note marked as read before anything is photographed.
+ *
+ * A capture runs against a fresh Firefox profile and an open-mode server,
+ * which is exactly what a new account is — so seven of the eleven tabs would
+ * arrive under a dialog, and the sheet would be a review of the note seven
+ * times rather than of the app. `except` is the one tab left un-read, which is
+ * how the note itself is photographed: `--tabs note=collections` opens
+ * Collections having read everything but that.
+ *
+ * The ids come from the page's own FAQ_TABS rather than from a list here, so
+ * this cannot become the second copy of the seven that goes stale. */
+const SEED_SEEN = except => `(() => {
+  if (typeof FAQ_TABS === 'undefined') return 'false';
+  localStorage.setItem('mtgtools_faq_seen',
+    FAQ_TABS.filter(t => t !== ${JSON.stringify(except)}).join(','));
+  return 'true';
+})()`;
+
+/* localStorage belongs to the origin rather than to the document, so one visit
+ * seeds every load that follows — and it has to be a visit, because the ids
+ * are read out of the page's own script. */
+async function seedNotesAsRead(session, context, base, except) {
+  await session.send('browsingContext.navigate', { context, url: base, wait: 'complete' });
+  await session.waitForNetworkIdle();
+  const res = await session.send('script.evaluate', {
+    expression: SEED_SEEN(except), target: { context }, awaitPromise: false,
+  });
+  if (res.type === 'exception') throw new Error(res.exceptionDetails.text);
+  if (res.result.value !== 'true') throw new Error('the app served no FAQ_TABS to seed from');
+}
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ── Arguments ─────────────────────────────────────────────────────────
@@ -309,7 +340,9 @@ async function main() {
   --data <file>       DATA_FILE for the app server, to capture a different
                       database (default: the repo's data/ directory)
   --browser <path>    Firefox binary (default: firefox)
-  --tabs <a,b>        Subset of tabs (default: all 11)
+  --tabs <a,b>        Subset of tabs (default: all 11). note=<tab> photographs
+                      that tab's note — the dialog it opens on a first visit —
+                      instead of the tab: --tabs note=collections
   --themes <a,b>      Subset of themes (default: all 5)
   --viewports <a,b>   desktop, phone, tablet (880px), tablet-wide (960px)
                       (default: desktop,phone — the tablet pair straddles the
@@ -370,12 +403,25 @@ async function main() {
     const shots = [];
     let done = 0;
 
+    /* Which tab's note the origin is currently seeded to still show, so the
+       seeding visit is paid for when it changes rather than per shot. */
+    let seeded = false;
+    let unread = null;
+
     for (const viewport of viewports) {
       for (const theme of themes) {
         for (const tab of tabs) {
+          // `note=<tab>` photographs that tab's note over it, rather than the
+          // tab; every other tab's note is read, so only this one opens.
+          const note = tab.startsWith('note=') ? tab.slice(5) : null;
           const slug = tab.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
           const fileName = `${slug}--${theme}--${viewport.name}.png`;
-          const url = `${base}/?theme=${theme}#${tab}`;
+          const url = `${base}/?theme=${theme}#${note || tab}`;
+          if (!seeded || unread !== note) {
+            await seedNotesAsRead(session, context, base, note);
+            seeded = true;
+            unread = note;
+          }
           done++;
           process.stdout.write(`[${String(done).padStart(3)}/${total}] ${fileName} `);
           try {

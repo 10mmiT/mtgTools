@@ -57,7 +57,44 @@ const EXTRA_VIEWS = {
   'rss-panel':        'available',
   'collections-list': 'collections',
   'collections-pile': 'collections',
+  /* The tab's note, which every other pass has had to be told it has already
+     read — see seedNotesAsRead() below. It is a dialog over the whole page, so
+     it is measured here, once, in the only pass that asks for it. */
+  faq:                'deckview',
 };
+
+/* Every note marked as read before anything is measured.
+ *
+ * The harness meets the note the way a new account does: a fresh profile
+ * against an open-mode server has read nothing, so the first tab it opens
+ * comes with a dialog over it. What that costs is not the tab it covers — a
+ * control 44px in its own right is never hit-tested — but the two padded
+ * targets in the builder, whose whole point is a hit area larger than the box
+ * they paint, and which report as covered because they are.
+ *
+ * The ids come from the page's own FAQ_TABS rather than from a list here, so
+ * this cannot be the second copy of the seven that goes stale. */
+const SEED_SEEN = `(() => {
+  if (typeof FAQ_TABS === 'undefined') return 'false';
+  localStorage.setItem('mtgtools_faq_seen', FAQ_TABS.join(','));
+  return 'true';
+})()`;
+
+/* And the one pass that wants it after all. The dialog is one element reused
+   by all seven, so what differs between them is only how much text it has to
+   fit — and a phone rule a note breaks is one the wordiest note breaks first.
+   So it is the one holding the longest line, found rather than named, which is
+   also why this does not go stale when the notes are rewritten. */
+const OPEN_FAQ = `(() => {
+  if (typeof FAQ !== 'object' || typeof openFaq !== 'function') return 'false';
+  const longest = note => Math.max(...[
+    note.title, note.blurb, ...note.points, ...note.keys.map(k => k.join(' ')),
+  ].map(line => line.length));
+  const tab = Object.entries(FAQ).sort((a, b) => longest(b[1]) - longest(a[1]))[0]?.[0];
+  if (!tab) return 'false';
+  openFaq(tab);
+  return 'true';
+})()`;
 
 /* A view opened as an overlay is measured only within itself. The mat
  * behind an open drawer is unreachable by design — that is what an overlay
@@ -67,6 +104,7 @@ const SCOPES = {
   'deckview-search':  '#dbSearchPanel',
   'deckview-history': '#dbHistoryPanel',
   'rss-panel':        '#rssPanel',
+  faq:                '#faqModal',
 };
 
 const TARGET_MIN = 44;   // px, per the mobile criterion
@@ -248,6 +286,7 @@ const PREP = {
     setTimeout(() => { if (!dbMenuOpen) dbToggleMenu(); }, 1500);
     return 'true';
   })()`,
+  faq: OPEN_FAQ,
   pick: `(() => {
     const click = (sel, i) => {
       const el = document.querySelectorAll(sel)[i];
@@ -462,6 +501,20 @@ const MEASURE = scope => `(() => {
   });
 })()`;
 
+/* Once, on the app's own origin, before the first measurement: localStorage
+ * belongs to the origin rather than to the document, so one visit is enough
+ * for every load that follows — and it has to be a visit, because the ids are
+ * read out of the page's own script. */
+async function seedNotesAsRead(session, context, base) {
+  await session.send('browsingContext.navigate', { context, url: base, wait: 'complete' });
+  await session.waitForNetworkIdle();
+  const res = await session.send('script.evaluate', {
+    expression: SEED_SEEN, target: { context }, awaitPromise: false,
+  });
+  if (res.type === 'exception') throw new Error(res.exceptionDetails.text);
+  if (res.result.value !== 'true') throw new Error('the app served no FAQ_TABS to seed from');
+}
+
 async function measureTab(session, context, url, tab) {
   await session.send('browsingContext.navigate', { context, url: 'about:blank', wait: 'complete' });
   await session.send('browsingContext.setViewport', {
@@ -535,6 +588,7 @@ async function main() {
     });
     const tree    = await session.send('browsingContext.getTree', {});
     const context = tree.contexts[0].context;
+    await seedNotesAsRead(session, context, base);
 
     for (const tab of tabs) {
       const hash = tab === 'card' ? `card=${encodeURIComponent(card)}` : (EXTRA_VIEWS[tab] || tab);

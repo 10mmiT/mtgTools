@@ -33,6 +33,8 @@ const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
 const SOL_RING_ART = 'https://cards.scryfall.io/normal/sol-ring.jpg';
 const DELVER_ART   = 'https://cards.scryfall.io/normal/delver.jpg';
+const VALAKUT_FRONT = 'https://cards.scryfall.io/normal/valakut-awakening.jpg';
+const VALAKUT_BACK  = 'https://cards.scryfall.io/normal/valakut-stoneforge.jpg';
 
 /* The oracle cache as the tab holds it: one entry per name. Sol Ring has its
  * picture on the card, Delver of Secrets has it on its first face — the two
@@ -46,6 +48,14 @@ const ORACLE = [
                           card_faces: [{ name: 'Delver of Secrets',
                                          image_uris: { normal: DELVER_ART } }] }],
   ['Doom Blade', { name: 'Doom Blade', type_line: 'Instant', cmc: 2, color_identity: ['B'] }],
+  /* Two pictures and one piece of cardboard — the shape Delver above is not,
+     since a face with no picture of its own is not a side you can be shown. */
+  ['Valakut Awakening', { name: 'Valakut Awakening // Valakut Stoneforge',
+                          type_line: 'Instant // Land', cmc: 3, color_identity: ['R'],
+                          card_faces: [{ name: 'Valakut Awakening',
+                                         image_uris: { normal: VALAKUT_FRONT } },
+                                       { name: 'Valakut Stoneforge',
+                                         image_uris: { normal: VALAKUT_BACK } }] }],
 ];
 
 /** The tab over a deck, with the network and the drawing surface stubbed. */
@@ -92,7 +102,11 @@ function loadTab(cards, cats = ['Ramp']) {
   sandbox.setTimeout = fn => 1;
   sandbox.dbFetchCardData = async () => {};
   vm.createContext(sandbox);
-  for (const file of ['sortui.js', 'cardstack.js', 'deckview-boards.js',
+  /* scryfall.js and cardturn.js for real, not stubbed: "has this card a back"
+     and "what does a card wearing its turn control look like" are answered
+     once for the whole app, and a mat that agreed with a stub here while
+     disagreeing with them is exactly the failure worth catching. */
+  for (const file of ['scryfall.js', 'cardturn.js', 'sortui.js', 'cardstack.js', 'deckview-boards.js',
                       'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',
@@ -204,6 +218,63 @@ test('a card without artwork falls back to a surface, in every view', () => {
   const stack = tab.paint('pile', 'Ramp');
   assert.deepStrictEqual(pictures(stack), [], 'the stack drew a picture it does not have');
   assert.match(stack, /card-stack-face card-stack-blank/);
+});
+
+// ── The other side of it ──────────────────────────────────────────────────
+// A card with two sides is drawn front-first here as everywhere else, and the
+// way to see the other side is the control it wears — which `f` presses for
+// the card under the pointer. The mat drew neither, so a double-faced card in
+// a deck was the one place in the app where a card could not be turned over,
+// and the tab's own note said it could.
+//
+// Where it is drawn is a size rather than a list of views, which is
+// js/cardturn.js's rule: the grid tile and the card in a spread pile are cards
+// big enough to read, the list row's thumbnail is an index, and a settled
+// stack is not a card at all but the whole category standing in for one.
+
+const TURNABLE = [{ card_name: 'Valakut Awakening', category: 'Ramp' }];
+
+test('a two-faced card in the grid wears the control that turns it', () => {
+  const tab  = loadTab(TURNABLE);
+  const grid = tab.paint('grid');
+  assert.match(grid, /class="card-turnable/, 'the grid tile draws no turn control');
+  assert.match(grid, new RegExp(`data-turn="${VALAKUT_BACK}"`),
+    'the control carries no other side to show');
+});
+
+test('and so does one lying in a spread pile', () => {
+  const tab  = loadTab(TURNABLE);
+  const pile = tab.paint('pile');
+  assert.match(pile, /class="card-turnable/, 'a card in a spread pile draws no turn control');
+  assert.match(pile, new RegExp(`data-turn="${VALAKUT_BACK}"`));
+});
+
+test('a card with one side wears nothing, in either view', () => {
+  // The affordance means something precisely because it is not offered where
+  // it would mean nothing — including on Delver, whose second face carries no
+  // picture of its own.
+  for (const name of ['Sol Ring', 'Delver of Secrets']) {
+    const tab = loadTab([{ card_name: name, category: 'Ramp' }]);
+    assert.doesNotMatch(tab.paint('grid'), /card-turnable|card-turn/, `${name}'s grid tile`);
+    assert.doesNotMatch(tab.paint('pile'), /card-turnable|card-turn/, `${name} in a pile`);
+  }
+});
+
+test('a settled stack does not turn over: it is a category, not a card', () => {
+  /* The face of a stack stands for every card under it, and turning it would
+   * be turning the pile over. Collections and the Set Browser draw their
+   * settled stacks the same way, from the same helper. */
+  const tab = loadTab(TURNABLE);
+  assert.doesNotMatch(tab.paint('pile', 'Ramp'), /card-turnable|card-turn/);
+});
+
+test('the picture under the control is still the helper’s', () => {
+  // The wrapper goes round the picture the mat already drew, so a chosen
+  // printing's art is what is on the front of a card that turns over.
+  const tab = loadTab(TURNABLE);
+  tab.run(`_dbCardImg = card => 'art:' + card.card_name`);
+  assert.deepStrictEqual(pictures(tab.paint('grid')), ['art:Valakut Awakening']);
+  assert.deepStrictEqual(pictures(tab.paint('pile')), ['art:Valakut Awakening']);
 });
 
 // ── The fourth view ───────────────────────────────────────────────────────
