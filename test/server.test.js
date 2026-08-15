@@ -827,6 +827,128 @@ describe('Deck boards: /api/players/:id/decks/:deckId/cards', () => {
   });
 });
 
+// ── Printings ─────────────────────────────────────────────────────────────────
+// Which printing of a card the deck runs. A card in a deck is a name until
+// somebody says otherwise, so what is worth asserting is that the four card
+// paths each do exactly one thing with the field: the full replace writes it,
+// the read hands it back parsed, and adding a card or changing its quantity,
+// pile or board is not a printing change and leaves it alone.
+describe('Deck printings: /api/players/:id/decks/:deckId/cards', () => {
+  let playerId, playerCookie;
+  const DECK = 'deck-printing-1';
+
+  /** A trimmed snapshot of one real printing, as the gallery will take one. */
+  const RAV_SOL_RING = {
+    id: '6e9f2eb0-8ca1-4e9d-9f2b-0a1b2c3d4e5f',
+    set: 'rav',
+    set_name: 'Ravnica: City of Guilds',
+    collector_number: '266',
+    image: 'https://cards.scryfall.io/normal/rav-sol-ring.jpg',
+    price_eur: '4.50',
+    chosen_at: '2026-08-14',
+  };
+
+  beforeEach(async () => {
+    resetDb();
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    playerId = uuidv4();
+    dbModule.db.prepare("INSERT OR REPLACE INTO app_state (key, value_json, version) VALUES ('state', ?, 0)")
+      .run(JSON.stringify({ players: [{ id: playerId, name: 'P1', decks: [], wantList: [] }] }));
+    dbModule.db.prepare("INSERT INTO users (username, password_hash, role, player_id) VALUES ('p1user', ?, 'player', ?)")
+      .run(bcrypt.hashSync('pw1', 10), playerId);
+    playerCookie = await loginAs('p1user', 'pw1');
+    require('../deck-history')._forget(DECK);
+  });
+
+  const put = cards => request
+    .put(`/api/players/${playerId}/decks/${DECK}/cards`).set('Cookie', playerCookie)
+    .send({ cards, categories: [{ name: 'Ramp', position: 0 }] });
+  const read = async name => ((await request
+    .get(`/api/players/${playerId}/decks/${DECK}/cards`).set('Cookie', playerCookie))
+    .body.cards.find(c => c.card_name === name));
+
+  const SOL_RING = { card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main', position: 0 };
+  const FOREST   = { card_name: 'Forest',   qty: 9, category: 'Ramp', board: 'main', position: 1 };
+  const chosen   = () => ({ ...SOL_RING, printing: RAV_SOL_RING });
+
+  test('a printing saved onto a card comes back on it, as a printing', async () => {
+    // Parsed, not the column's text: what the mat, the price and the export
+    // read is an object, and the JSON is the storage rather than the field.
+    await put([chosen(), FOREST]);
+    assert.deepEqual((await read('Sol Ring')).printing, RAV_SOL_RING);
+  });
+
+  test('and a card nobody has chosen one for is a name, as it always was', async () => {
+    await put([chosen(), FOREST]);
+    const forest = await read('Forest');
+    assert.equal(forest.printing, undefined,
+      'a card with no printing came back carrying the field anyway');
+  });
+
+  test('a printing is trimmed to its shape on the way in', async () => {
+    /* The whole Scryfall record is 4 KB and this is seven fields of it. A
+     * client that posts the lot stores the seven, so the column stays the
+     * snapshot it was specified as rather than a cache nothing refreshes. */
+    await put([{ ...SOL_RING, printing: { ...RAV_SOL_RING, oracle_text: 'T: Add C.', foil: true } }]);
+    assert.deepEqual((await read('Sol Ring')).printing, RAV_SOL_RING);
+  });
+
+  test('and something that is not a printing is no printing at all', async () => {
+    for (const junk of [{ set: 'rav' }, 'rav-266', 42, [], null]) {
+      await put([{ ...SOL_RING, printing: junk }]);
+      assert.equal((await read('Sol Ring')).printing, undefined,
+        `${JSON.stringify(junk)} was stored as a chosen printing`);
+    }
+  });
+
+  test('adding a card by name gives it no printing', async () => {
+    // The add path takes a name and a quantity. Choosing a printing is done
+    // from the card's own gallery, on a card that is already in the deck.
+    const res = await request.post(`/api/players/${playerId}/decks/${DECK}/cards/add`)
+      .set('Cookie', playerCookie).send({ card_name: 'Sol Ring', qty: 1, category: 'Ramp' });
+    assert.equal(res.status, 200);
+    assert.equal((await read('Sol Ring')).printing, undefined);
+  });
+
+  test('and adding a copy of a card that has one does not disturb it', async () => {
+    await put([chosen()]);
+    await request.post(`/api/players/${playerId}/decks/${DECK}/cards/add`)
+      .set('Cookie', playerCookie).send({ card_name: 'Sol Ring', qty: 2, board: 'main' });
+    const card = await read('Sol Ring');
+    assert.equal(card.qty, 3, 'the copies did not arrive');
+    assert.deepEqual(card.printing, RAV_SOL_RING, 'a second copy of the card lost its printing');
+  });
+
+  test('a quantity, a category and a board change are not printing changes', async () => {
+    await put([chosen()]);
+    const patch = fields => request
+      .patch(`/api/players/${playerId}/decks/${DECK}/cards/Sol%20Ring`)
+      .set('Cookie', playerCookie).send(fields);
+    await patch({ qty: 4 });
+    await patch({ category: 'Artifacts' });
+    const card = await read('Sol Ring');
+    assert.equal(card.qty, 4);
+    assert.equal(card.category, 'Artifacts');
+    assert.deepEqual(card.printing, RAV_SOL_RING);
+
+    await patch({ board: 'maybe' });
+    const moved = await read('Sol Ring');
+    assert.equal(moved.board, 'maybe');
+    assert.deepEqual(moved.printing, RAV_SOL_RING, 'a card moved to another board lost its printing');
+  });
+
+  test('choosing another printing replaces the one before it', async () => {
+    // There is one per card, not one per copy — so this is a field being
+    // written, and there is nothing to accumulate.
+    await put([chosen()]);
+    const c21 = { ...RAV_SOL_RING, id: 'aa11bb22-cc33-dd44-ee55-ff6677889900',
+                  set: 'c21', set_name: 'Commander 2021', collector_number: '263' };
+    await put([{ ...SOL_RING, printing: c21 }]);
+    assert.deepEqual((await read('Sol Ring')).printing, c21);
+  });
+});
+
 // ── User preferences ──────────────────────────────────────────────────────────
 // Appearance stops being per-browser and starts belonging to a person, so what
 // is worth asserting is that it comes back on a different session, that it is

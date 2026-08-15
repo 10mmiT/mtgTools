@@ -38,7 +38,7 @@
  * a cache whose loss costs one extra snapshot rather than a lost one.
  */
 
-const { db } = require('./available-db');
+const { db, readPrinting, deckCardRow } = require('./available-db');
 
 /* The board a row is on when it does not say — routes/decks.js's default, said
  * again here because a snapshot arrives from the client and may predate
@@ -80,12 +80,15 @@ const REASONS = new Set(['edit', 'import', 'category', 'move', 'restore', 'deck-
  *
  *  The board comes along with the rest: a deck restored without it is a deck
  *  whose maybeboard has been played, which is a worse loss than the one this
- *  module exists to prevent. */
+ *  module exists to prevent. Which printing the deck runs comes with it for the
+ *  same reason — and this is the one place where forgetting a column is quiet,
+ *  because the card is still in the deck afterwards and only its art has
+ *  changed back. */
 function readDeck(deckId) {
   return {
     cards: db.prepare(
-      'SELECT card_name, qty, category, board, position FROM deck_cards WHERE deck_id = ? ORDER BY position, card_name, board'
-    ).all(deckId),
+      'SELECT card_name, qty, category, board, position, printing FROM deck_cards WHERE deck_id = ? ORDER BY position, card_name, board'
+    ).all(deckId).map(deckCardRow),
     categories: db.prepare(
       'SELECT name, position FROM deck_categories WHERE deck_id = ? ORDER BY position'
     ).all(deckId),
@@ -97,21 +100,33 @@ function readDeck(deckId) {
  * and this is a plain equality test rather than a diff. */
 const stateKey = state => JSON.stringify(state);
 
-/** A state as the client sent it, cut down to the four fields a deck row has
- *  and sorted the way readDeck() returns them. A forced snapshot carries the
+/** A state as the client sent it, cut down to the fields a deck row has and
+ *  sorted the way readDeck() returns them. A forced snapshot carries the
  *  client's own copy — it is taken before the mutation, at a moment when the
  *  browser holds the truth and the database is up to 800 ms behind — so this
- *  is the boundary where that copy stops being anything it likes. */
+ *  is the boundary where that copy stops being anything it likes.
+ *
+ *  Down to the same shape readDeck() reads, printing and all: the two are
+ *  compared as strings by stateKey(), so a field that differed between them by
+ *  so much as its key order would make every forced snapshot a new state and
+ *  write a panel row for a change nobody made. */
 function normaliseState(raw) {
   const cards = (Array.isArray(raw?.cards) ? raw.cards : [])
     .filter(c => c && typeof c.card_name === 'string' && c.card_name)
-    .map((c, i) => ({
-      card_name: c.card_name,
-      qty:       Number.isFinite(c.qty) ? c.qty : 1,
-      category:  typeof c.category === 'string' ? c.category : '',
-      board:     (typeof c.board === 'string' && c.board.trim()) || MAIN_BOARD,
-      position:  Number.isFinite(c.position) ? c.position : i,
-    }));
+    .map((c, i) => {
+      const card = {
+        card_name: c.card_name,
+        qty:       Number.isFinite(c.qty) ? c.qty : 1,
+        category:  typeof c.category === 'string' ? c.category : '',
+        board:     (typeof c.board === 'string' && c.board.trim()) || MAIN_BOARD,
+        position:  Number.isFinite(c.position) ? c.position : i,
+      };
+      // Last, and only where there is one — a card that is a name says nothing
+      // about printings, exactly as it did before the column existed.
+      const printing = readPrinting(c.printing);
+      if (printing) card.printing = printing;
+      return card;
+    });
   const categories = (Array.isArray(raw?.categories) ? raw.categories : [])
     .filter(c => c && typeof c.name === 'string' && c.name)
     .map((c, i) => ({ name: c.name, position: Number.isFinite(c.position) ? c.position : i }));

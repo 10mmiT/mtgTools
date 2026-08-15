@@ -1,6 +1,6 @@
 'use strict';
 const express = require('express');
-const { db }  = require('../available-db');
+const { db, writePrinting, deckCardRow } = require('../available-db');
 const history = require('../deck-history');
 const { requireAuth, requirePlayerAccess } = require('../middleware/auth');
 
@@ -29,8 +29,12 @@ const boardOf = value => (typeof value === 'string' && value.trim()) || MAIN_BOA
 router.get('/players/:playerId/decks/:deckId/cards', requireAuth, (req, res) => {
   const { deckId } = req.params;
   const cards = db.prepare(
-    'SELECT card_name, qty, category, board, position FROM deck_cards WHERE deck_id = ? ORDER BY position, card_name'
-  ).all(deckId);
+    'SELECT card_name, qty, category, board, position, printing FROM deck_cards WHERE deck_id = ? ORDER BY position, card_name'
+  /* deckCardRow is where the printing column stops being text and becomes the
+   * field the mat, the price and the export read — the same shaping a snapshot
+   * of the deck goes through, so a restore hands the tab exactly what a load
+   * does. */
+  ).all(deckId).map(deckCardRow);
   let categories = db.prepare(
     'SELECT name, position FROM deck_categories WHERE deck_id = ? ORDER BY position'
   ).all(deckId);
@@ -56,10 +60,15 @@ router.put('/players/:playerId/decks/:deckId/cards', requirePlayerAccess,
     db.prepare('DELETE FROM deck_cards WHERE deck_id = ?').run(deckId);
     db.prepare('DELETE FROM deck_categories WHERE deck_id = ?').run(deckId);
     const insCard = db.prepare(
-      'INSERT INTO deck_cards (deck_id, card_name, qty, category, board, position) VALUES (?,?,?,?,?,?)'
+      'INSERT INTO deck_cards (deck_id, card_name, qty, category, board, position, printing) VALUES (?,?,?,?,?,?,?)'
     );
+    /* The printing comes through here and nowhere else: this is the save the
+     * tab makes after every edit, so a printing chosen in the gallery rides
+     * home on the deck's ordinary debounced save rather than on a request of
+     * its own. writePrinting is what decides that a card carries one. */
     cards.forEach((c, i) => insCard.run(
-      deckId, c.card_name, c.qty ?? 1, c.category ?? '', boardOf(c.board), c.position ?? i));
+      deckId, c.card_name, c.qty ?? 1, c.category ?? '', boardOf(c.board), c.position ?? i,
+      writePrinting(c.printing)));
     const insCat = db.prepare(
       'INSERT INTO deck_categories (deck_id, name, position) VALUES (?,?,?)'
     );
