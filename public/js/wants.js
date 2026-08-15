@@ -371,12 +371,18 @@ async function renderWantList() {
         >${initial}</span>`;
       }).join('');
 
+    /* And the control that turns it, where the card has another side — the
+       same wrapper the Scryfall tab and the Set Browser put round the same
+       tile. A want list is a list of cards you have not got hold of yet, which
+       is exactly when both sides of one are worth seeing. What has a back is
+       scryfallBackFace()'s answer, so a split card and a Room correctly get
+       nothing, and neither does an ordinary card. */
     return `<div class="sf-card-lg">
-      <a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(cardName)}">
+      ${cardTurnableHtml(`<a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(cardName)}">
         ${imgUrl
           ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(cardName)}">`
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-      </a>
+      </a>`, scryfallBackFace(card || {}))}
       <div class="sf-card-lg-footer">
         <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
           <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
