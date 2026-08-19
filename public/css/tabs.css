@@ -111,6 +111,31 @@
   padding: var(--space-2) 0;
 }
 
+/* ── Folders ──────────────────────────────────────────────────────────── */
+/* A folder is the grouping a player already is — a heading over a grid
+   (§7.1) — one step quieter, so a shelf inside somebody's decks does not
+   compete with the name of whose decks they are: --text-base against the
+   header's --text-md, and no dot.
+
+   The loose zone carries no heading. Decks in no folder are where a deck
+   starts rather than a place somebody made, and a "Loose" label over them
+   would name a choice nobody took. */
+.folder-zone { margin-bottom: var(--space-4); }
+
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.folder-name  { font-weight: 700; font-size: var(--text-base); }
+/* The count takes the free space so the ⋯ sits at the end of the row, where
+   it does on the player header and on a tile. */
+.folder-count { flex: 1; color: var(--text-muted); font-size: var(--text-sm); }
+
+.folder-add { margin-top: var(--space-2); }
+
 .deck-tile {
   position: relative;
   border-radius: var(--radius-md);

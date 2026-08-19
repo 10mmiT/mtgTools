@@ -40,7 +40,8 @@ A tab-by-tab tour of what MTG Tools does. For setup and configuration see [confi
 - Add decks to players — enter a deck name and commander name; the commander's card art (fetched from Scryfall) becomes the tile background
 - Optionally link an Archidekt URL to load the full card list for comparison
 - Any URL can be saved as a "View ↗" link on the tile
-- Each deck tile shows two primary actions — **Compare** (sends the deck to the Collections tab comparison panel) and **Build** (opens it in the Deck Builder) — with Edit and Remove tucked into a per-tile "⋯" menu; removing a deck asks for confirmation
+- Each deck tile shows two primary actions — **Compare** (sends the deck to the Collections tab comparison panel) and **Build** (opens it in the Deck Builder) — with Edit, **Move to folder** and Remove tucked into a per-tile "⋯" menu; removing a deck asks for confirmation
+- Organise decks into flat, per-player **folders** — **+ New folder**, rename and remove from a folder's own "⋯"; decks in no folder sit loose above the sections, and removing a folder drops its decks back to loose rather than deleting them
 - Removing a player lives in a "⋯" menu on the player header (admin only)
 - Edit any deck in-place (name, commander, link)
 - The tab is one control strip — **+ Add Player** and a count of players and decks — over full-width rows of art tiles; each player is a heading carrying their identity colour, which folds their decks away when clicked
