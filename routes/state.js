@@ -90,6 +90,18 @@ function normalizePlayer(p = {}) {
   };
 }
 
+// ── Deck visibility (spec: Private decks) ───────────────────────────────────
+// Owner and admin see every deck; everyone else sees only non-private ones.
+// Open mode's guest is role 'admin' (see middleware/auth getSession), so
+// nothing is withheld there — the private flag is inert without server-side
+// identity. The one place the rule lives; the deck-card / snapshot route guards
+// (a later ticket) will build their per-deckId check on the same predicate.
+function canSeeDeck(session, ownerId, deck) {
+  return session?.role === 'admin'
+    || (ownerId != null && ownerId === session?.playerId)
+    || !deck?.private;
+}
+
 function createLinkedPlayer(username) {
   const appState = readState();
   const players  = appState.players || [];
@@ -153,6 +165,7 @@ function disownGonePlayers(players) {
 // ── GET /api/state ─────────────────────────────────────────────────────────────
 router.get('/state', requireAuth, (req, res) => {
   try {
+    const sess = getSession(req);
     const { players = [], version = 0 } = readState();
     const collections = db.prepare('SELECT * FROM collections ORDER BY rowid').all().map(r => {
       try {
@@ -164,10 +177,30 @@ router.get('/state', requireAuth, (req, res) => {
         };
       } catch (e) { console.error(`Failed to parse collection ${r.key}:`, e.message); return null; }
     }).filter(Boolean);
-    res.json({ collections, players, version });
+
+    // Withhold other players' private decks from a non-admin — removed from the
+    // players array entirely, not just hidden client-side. The requester's own
+    // decks and (in open mode / for an admin) everyone's always pass.
+    const visiblePlayers = players.map(p => ({
+      ...p,
+      decks: (p.decks || []).filter(d => canSeeDeck(sess, p.id, d)),
+    }));
+
+    // The built-deck signal: SUM(qty) per deck from deck_cards, filtered to the
+    // decks the requester may see so a private deck leaks neither its existence
+    // nor its size. A deck with no rows is absent — that is what "not built" is.
+    const visibleDeckIds = new Set();
+    for (const p of visiblePlayers) for (const d of p.decks) visibleDeckIds.add(d.id);
+    const deckCardCounts = Object.fromEntries(
+      db.prepare('SELECT deck_id, SUM(qty) AS n FROM deck_cards GROUP BY deck_id').all()
+        .filter(r => visibleDeckIds.has(r.deck_id))
+        .map(r => [r.deck_id, r.n])
+    );
+
+    res.json({ collections, players: visiblePlayers, version, deckCardCounts });
   } catch (e) {
     console.error('GET /api/state error:', e.message);
-    res.json({ collections: [], players: [], version: 0 });
+    res.json({ collections: [], players: [], version: 0, deckCardCounts: {} });
   }
 });
 

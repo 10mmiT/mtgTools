@@ -77,6 +77,16 @@ test('hydrateState fills the defaults a record written before these fields lacks
   assert.strictEqual(s.answer('state.players[0].decks[0].private'), false);
 });
 
+test('hydrateState stores the server’s deckCardCounts (server→client, no whitelist)', () => {
+  const s = loadState();
+  s.run(`hydrateState({ players: [], deckCardCounts: { d1: 4, d2: 10 } })`);
+  assert.deepStrictEqual(s.answer('state.deckCardCounts'), { d1: 4, d2: 10 });
+  // A payload without the field (an older server, or the localStorage fallback)
+  // leaves an empty map, not undefined — callers read `deckCardCounts[id] > 0`.
+  s.run(`hydrateState({ players: [] })`);
+  assert.deepStrictEqual(s.answer('state.deckCardCounts'), {});
+});
+
 test('the fields survive stateToJSON → hydrateState (a client-side reload)', () => {
   const s = loadState();
   s.run(`state.players = [{

@@ -64,6 +64,11 @@ const state = {
    * an arrow on, and the header is a shortcut into that chain now. */
   renderTimer: null,
   version: 0,  // optimistic-concurrency version from server
+  /* SUM(qty) per deck_id, server→client only (no whitelist). The built-deck
+   * signal the Decks grid keys off — `deckCardCounts[id] > 0` is "imported" —
+   * and already ownership-filtered by the server, so a deck missing here is
+   * either unbuilt or one this requester may not see. */
+  deckCardCounts: {},
 };
 
 let viewMode        = window.innerWidth < BP_SM ? 'grid' : 'list';
@@ -112,6 +117,10 @@ function hydrateState(raw) {
    * every criterion naming one as naming a collection that is gone. See
    * reconcileColSorts in sortui.js. */
   reconcileColSorts(state.collections);
+
+  // The server's ownership-filtered built-deck counts. Server→client only, so
+  // it is read here but never written back through stateToJSON.
+  state.deckCardCounts = data.deckCardCounts || {};
 
   state.players = (data.players || []).map(p => ({
     id: p.id, name: p.name, colorIdx: playerSlot(p),
