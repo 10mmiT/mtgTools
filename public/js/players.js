@@ -306,12 +306,169 @@ async function saveEditDeck(playerId, deckId) {
   savePlayerDecks(playerId);
 }
 
-// ── Render players ────────────────────────────────────────────────────────
+// ── Whose decks this tab is showing ─────────────────────────────────────────
+// The tab lands you on a grid of your own built decks; a Mine / Everyone toggle
+// flips to the old per-player sections. This mirrors the Collections tab's
+// shelf scope (js/collections.js) — same "Mine needs somebody to be" rule, same
+// hide-the-control-when-nobody, its own localStorage key. It differs in one
+// place: the default is Mine here (the tab's headline) where Collections
+// defaults to Everyone.
+
+const DECK_SCOPE_KEY = 'mtgtools_deck_scope';
+
+/* Which view the tab is on — 'mine' or 'all'. "Mine" needs an identity, so an
+ * app that cannot say who you are reads 'all' whatever is stored: the control
+ * is not offered in that case, and a preference from a browser that once knew
+ * must not quietly hide every deck from somebody who cannot switch it back. */
+function deckScope() {
+  if (!myPlayerId()) return 'all';
+  // Default Mine — the headline of the tab is your own decks. Only an explicit
+  // 'all' reads as Everyone; anything else (unset, or a stale value) is Mine.
+  try { return localStorage.getItem(DECK_SCOPE_KEY) === 'all' ? 'all' : 'mine'; }
+  catch { return 'mine'; }
+}
+
+function setDeckScope(scope) {
+  try { localStorage.setItem(DECK_SCOPE_KEY, scope === 'mine' ? 'mine' : 'all'); } catch {}
+  renderPlayers();
+}
+
+/* Mounted once in the toolbar, synced on every render. Hidden — not disabled —
+ * when the app cannot say who you are, the way syncColScope does it: with
+ * nobody to be there is no "mine" to offer, so the whole mount goes and the tab
+ * is the Everyone view. */
+function syncDeckScope() {
+  const host = document.getElementById('deckScopeMount');
+  if (!host) return;
+  const me = myPlayerId();
+  host.classList.toggle('scope-mount-hidden', !me);
+  const sel = document.getElementById('deckScopeSel');
+  if (sel) sel.value = deckScope();
+}
+
+/* Who you are can change while the app is open — in open mode it is a name
+ * typed into Available@'s "Who are you?" bar — and it decides whether this tab
+ * shows your grid or everyone's sections. Called from there, mirroring
+ * colIdentityChanged. */
+let _deckIdentity = null;
+function deckIdentityChanged() {
+  const now = myPlayerId();
+  if (now === _deckIdentity) return;
+  _deckIdentity = now;
+  renderPlayers();
+}
+
+// ── Render one deck tile ────────────────────────────────────────────────────
+// The tile the grid and the sections both draw. `player` owns the deck; the
+// action handlers are keyed by the pair, and `canEdit` gates the ⋯ menu.
+function deckTileHtml(player, d, canEdit) {
+  if (d.editing) {
+    return `<div class="deck-tile-edit" data-deck-id="${d.id}">
+      <div class="edit-label">Edit Deck</div>
+      <input type="text" name="edit-name"       value="${esc(d.name)}"      placeholder="Deck name…">
+      <input type="text" name="edit-commander"  value="${esc(d.commander)}" placeholder="Commander name…">
+      <input type="text" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
+             onkeydown="if(event.key==='Enter')saveEditDeck('${player.id}','${d.id}')">
+      <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
+        <button class="btn-primary"   style="flex:1;padding:var(--space-1) var(--space-2);font-size:var(--text-sm)" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
+        <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-sm)"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  const srcLabel     = d.source === 'archidekt' ? 'Archidekt' : 'Manual';
+  const busy         = d.nameStatus === 'loading';
+  const nameClass    = d.nameStatus === 'loading' ? 'loading' : d.nameStatus === 'error' ? 'error' : '';
+  const bgStyle      = d.commanderImg ? `background-image:url('${d.commanderImg}')` : '';
+  /* What bracket its owner says it is. Drawn by js/deckview-legality.js,
+     which is where the five brackets are named and where the declaration is
+     made — this tile is one of the places the answer is read. */
+  const bracketBadge = dbBracketBadgeHtml(d.bracket);
+  const viewLink     = d.deckUrl
+    ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener">View ↗</a>` : '';
+  // The count sits with the name and the commander rather than on the
+  // action row: it is something the deck *is*, not something to do to
+  // it, and on a 260px tile the row it used to share has only enough
+  // width for the three controls.
+  const countInfo    = d.cardCount ? `<div class="deck-tile-meta">${d.cardCount} cards</div>` : '';
+  const cmdLine      = d.commander
+    ? `<div class="deck-tile-commander">Commander: ${esc(d.commander)}</div>` : '';
+
+  return `<div class="deck-tile" data-deck-id="${d.id}" style="${bgStyle}">
+    <div class="deck-tile-overlay">
+      <div class="deck-tile-top">
+        <span class="deck-source-badge">${srcLabel}</span>
+        ${bracketBadge}
+        ${viewLink}
+      </div>
+      <div class="deck-tile-middle">
+        <div class="deck-tile-name ${nameClass}">${esc(d.name)}</div>
+        ${cmdLine}
+        ${countInfo}
+      </div>
+      <div class="deck-tile-bottom">
+        <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
+        <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
+        ${canEdit ? kebabMenuHtml([
+          { label: 'Edit',   onclick: `startEditDeck('${player.id}','${d.id}')` },
+          { divider: true },
+          { label: 'Remove', onclick: `removeDeck('${player.id}','${d.id}')`, danger: true },
+        ], { title: 'Deck actions', btnClass: 'kebab-btn-tile' }) : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Render the tab ──────────────────────────────────────────────────────────
 
 function renderPlayers() {
   const list = document.getElementById('playersList');
   if (!list) return;
 
+  // The first render records who you are, so deckIdentityChanged can tell a
+  // real change from the initial paint. syncDeckScope shows or hides the
+  // toolbar control to match.
+  _deckIdentity = myPlayerId();
+  syncDeckScope();
+
+  const scope = deckScope();
+  // Player administration — + Add Player — lives in the Everyone view, where
+  // the per-player sections are. The Mine grid is only your own decks.
+  const addBtn = document.getElementById('addPlayerRevealBtn');
+  if (addBtn) addBtn.style.display = scope === 'mine' ? 'none' : '';
+
+  if (scope === 'mine') renderMineGrid(list);
+  else                  renderEveryone(list);
+}
+
+// A flat grid of your own *built* decks. "Built" is the server's signal —
+// deckCardCounts[id] > 0 means the Deck Builder has saved deck_cards rows for
+// it; a deck that is only a name and a link never appears here.
+function renderMineGrid(list) {
+  const me      = myPlayerId();
+  const player  = state.players.find(p => p.id === me);
+  const canEdit = currentUser?.role === 'admin' || isMyPlayer(me);
+  const built   = (player?.decks || []).filter(d => (state.deckCardCounts[d.id] || 0) > 0);
+
+  const info = document.getElementById('playersInfo');
+  if (info) info.textContent = built.length
+    ? `${built.length} deck${built.length !== 1 ? 's' : ''}`
+    : '';
+
+  if (!built.length) {
+    list.innerHTML = '<div class="empty-state">No built decks yet — open a deck in the Deck Builder to import its cards, or switch to Everyone’s decks above.</div>';
+    return;
+  }
+
+  list.innerHTML =
+    `<div class="deck-tiles-grid">${built.map(d => deckTileHtml(player, d, canEdit)).join('')}</div>`;
+}
+
+// The old per-player sectioned layout, demoted from default. Every player is a
+// collapsible section, editing enabled only where you own the player or are an
+// admin. Other players' private decks never arrive from the server, so there
+// is nothing to hide here.
+function renderEveryone(list) {
   const isAdmin = currentUser?.role === 'admin';
 
   // The strip's count, in the slot every other tab gives its result count.
@@ -332,63 +489,7 @@ function renderPlayers() {
   list.innerHTML = state.players.map(player => {
     const canEdit = isAdmin || isMyPlayer(player.id);
 
-    const tilesHTML = player.decks.map(d => {
-      if (d.editing) {
-        return `<div class="deck-tile-edit" data-deck-id="${d.id}">
-          <div class="edit-label">Edit Deck</div>
-          <input type="text" name="edit-name"       value="${esc(d.name)}"      placeholder="Deck name…">
-          <input type="text" name="edit-commander"  value="${esc(d.commander)}" placeholder="Commander name…">
-          <input type="text" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
-                 onkeydown="if(event.key==='Enter')saveEditDeck('${player.id}','${d.id}')">
-          <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
-            <button class="btn-primary"   style="flex:1;padding:var(--space-1) var(--space-2);font-size:var(--text-sm)" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
-            <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-sm)"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
-          </div>
-        </div>`;
-      }
-
-      const srcLabel     = d.source === 'archidekt' ? 'Archidekt' : 'Manual';
-      const busy         = d.nameStatus === 'loading';
-      const nameClass    = d.nameStatus === 'loading' ? 'loading' : d.nameStatus === 'error' ? 'error' : '';
-      const bgStyle      = d.commanderImg ? `background-image:url('${d.commanderImg}')` : '';
-      /* What bracket its owner says it is. Drawn by js/deckview-legality.js,
-         which is where the five brackets are named and where the declaration is
-         made — this tile is one of the places the answer is read. */
-      const bracketBadge = dbBracketBadgeHtml(d.bracket);
-      const viewLink     = d.deckUrl
-        ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener">View ↗</a>` : '';
-      // The count sits with the name and the commander rather than on the
-      // action row: it is something the deck *is*, not something to do to
-      // it, and on a 260px tile the row it used to share has only enough
-      // width for the three controls.
-      const countInfo    = d.cardCount ? `<div class="deck-tile-meta">${d.cardCount} cards</div>` : '';
-      const cmdLine      = d.commander
-        ? `<div class="deck-tile-commander">Commander: ${esc(d.commander)}</div>` : '';
-
-      return `<div class="deck-tile" data-deck-id="${d.id}" style="${bgStyle}">
-        <div class="deck-tile-overlay">
-          <div class="deck-tile-top">
-            <span class="deck-source-badge">${srcLabel}</span>
-            ${bracketBadge}
-            ${viewLink}
-          </div>
-          <div class="deck-tile-middle">
-            <div class="deck-tile-name ${nameClass}">${esc(d.name)}</div>
-            ${cmdLine}
-            ${countInfo}
-          </div>
-          <div class="deck-tile-bottom">
-            <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
-            <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
-            ${canEdit ? kebabMenuHtml([
-              { label: 'Edit',   onclick: `startEditDeck('${player.id}','${d.id}')` },
-              { divider: true },
-              { label: 'Remove', onclick: `removeDeck('${player.id}','${d.id}')`, danger: true },
-            ], { title: 'Deck actions', btnClass: 'kebab-btn-tile' }) : ''}
-          </div>
-        </div>
-      </div>`;
-    }).join('');
+    const tilesHTML = player.decks.map(d => deckTileHtml(player, d, canEdit)).join('');
 
     const pCollapsed = !!collapseState[`player-${player.id}`];
     return `<div class="player-section">

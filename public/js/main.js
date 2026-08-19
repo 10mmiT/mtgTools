@@ -271,7 +271,7 @@ function setViewMode(mode) {
 const MOB_TAB_LABELS = {
   available:   'Available@',
   collections: 'Collections',
-  players:     'Players & Decks',
+  players:     'Decks',
   scryfall:    'Scryfall Search',
   card:        'Card',
   sets:        'Set Browser',

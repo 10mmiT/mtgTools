@@ -208,6 +208,7 @@ function availOnNameChange(val) {
    * a name into it is what makes "my shelf" mean something — and the control
    * that offers it is on another tab, drawn before this was answered. */
   if (typeof colIdentityChanged === 'function') colIdentityChanged();
+  if (typeof deckIdentityChanged === 'function') deckIdentityChanged();
   const removeBtn = document.getElementById('availRemoveBtn');
   const nameHint  = document.getElementById('availNameHint');
   const hasEntries = availName && availCalData?.availability.some(a => a.person_name === availName);
