@@ -671,14 +671,9 @@ async function dbCreateDeck() {
   player.decks = [...(player.decks || []), newDeck];
   await saveToStorage();
   dbHideNewDeck();
-  dbPopulateDeckSel();
-
-  // Auto-select the new deck
-  const sel = document.getElementById('dbDeckSel');
-  if (sel) {
-    sel.value = `${playerId}|${deckId}`;
-    await dbSelectDeck(`${playerId}|${deckId}`);
-  }
+  // Straight onto the mat, which writes the strip's switcher around it —
+  // a deck with no rows saved yet is on the list because it is open.
+  await dbSelectDeck(`${playerId}|${deckId}`);
 }
 
 // ── Import: CSV ────────────────────────────────────────────────────────────────

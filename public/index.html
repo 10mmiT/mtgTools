@@ -793,8 +793,15 @@
 <div id="tab-deckview" class="tab-pane db-pane" data-db-mode="none" style="display:none">
 
   <div class="toolbar">
-    <select id="dbDeckSel" class="db-deck-sel" onchange="dbSelectDeck(this.value)">
-      <option value="">— Select a deck —</option>
+    <!-- Not a chooser any more. Opening a deck is the Decks tab's job — a
+         gallery of decks is where you pick among many — so what is left here
+         is a switcher between your own built decks while one is open, and it
+         goes behind the same attribute as every other control that needs a
+         deck to act on. Its first entry closes the deck rather than reopening
+         this tab's old front door. -->
+    <select id="dbDeckSel" class="db-deck-sel db-when-deck" onchange="dbSelectDeck(this.value)"
+            title="Switch to another of your decks" aria-label="Switch to another of your decks">
+      <option value="">— Close deck —</option>
     </select>
 
     <!-- Adding a card is what this tab is for and is done constantly, so it
@@ -884,9 +891,16 @@
        (§15.3), or the user's playmat where one is set — see .db-mat in
        tabs.css and --mat-fill in layout.css. -->
   <div id="dbDeckContent" class="db-mat">
+    <!-- The signpost. A mat with nothing on it used to carry a chooser above
+         it; opening a deck lives on the Decks tab now, so what stands here is
+         the way there — and beside it the one deck you can still start from
+         this tab, which is a new one. -->
     <div class="empty-state">
-      Select a deck above to start building.
-      <div class="db-empty-action"><button class="btn-secondary" onclick="dbShowNewDeck()">+ New deck</button></div>
+      Open a deck from the Decks tab.
+      <div class="db-empty-action">
+        <button class="btn-primary" onclick="setTab('players')">Go to Decks</button>
+        <button class="btn-secondary" onclick="dbShowNewDeck()">+ New deck</button>
+      </div>
     </div>
   </div>
 

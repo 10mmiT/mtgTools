@@ -688,6 +688,13 @@ async function _dbSave() {
       { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    /* The deck is built now, and the client's copy of that signal says so
+     * without waiting for the next refreshState. The server's own answer is
+     * SUM(qty) over the rows just written (routes/state.js), so it is computed
+     * the same way here — a deck filled and closed inside the polling window
+     * would otherwise drop off the Decks grid and the strip's switcher, both
+     * of which read deckCardCounts to mean "has cards". */
+    state.deckCardCounts[dbDeck.id] = body.cards.reduce((n, c) => n + (c.qty || 0), 0);
     _dbSetSaveStatus('Saved ✓');
     setTimeout(() => _dbSetSaveStatus(''), 2000);
   } catch (e) {

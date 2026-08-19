@@ -206,21 +206,56 @@ function _dbAdoptLegacyScale() {
   localStorage.removeItem('dbScale');
 }
 
+/* The switcher, which is what is left of this tab's front door.
+ *
+ * It used to be every deck the group owns, standing in front of an empty mat.
+ * Opening a deck is the Decks tab's job now — picking among many belongs with
+ * the gallery of them — so this is the smaller question the tab kept: stepping
+ * between *your own* built decks without leaving the mat. "Built" is the
+ * server's signal, the same one the Decks grid keys off (deckCardCounts[id] >
+ * 0); a deck that is only a name and a link has nothing here to open.
+ *
+ * Whatever is open is on the list whether or not that rule would put it there
+ * — somebody else's deck opened from the Everyone view, or a deck made a
+ * moment ago that has saved no rows yet. A control that could not name the
+ * deck in front of you would be reading as some other deck's. (The one deck
+ * it cannot name is one whose player has left the state entirely, and that is
+ * a deck that no longer exists: the control falls back to naming none.)
+ *
+ * A deployment that cannot say who you are has no "yours" to offer, so it gets
+ * every deck it may see, the way the Decks tab's scope falls back to Everyone.
+ * Only then are the decks named by their player: the prefix is there to say
+ * "this one is not yours", and on your own list it would be on every line.
+ */
 function dbPopulateDeckSel() {
   const sel = document.getElementById('dbDeckSel');
   if (!sel) return;
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">— Select a deck —</option>';
+  const me   = myPlayerId();
+  const open = dbDeck ? `${dbDeck.playerId}|${dbDeck.id}` : '';
+
+  sel.innerHTML = '';
+  const add = (value, label) => {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  };
+  // The way back to the signpost, which is the only thing an empty choice can
+  // honestly do now that choosing is not what this control is for.
+  add('', '— Close deck —');
+
   for (const player of (state.players || [])) {
+    const yours = !!me && player.id === me;
     for (const deck of (player.decks || [])) {
-      const opt = document.createElement('option');
-      opt.value = `${player.id}|${deck.id}`;
-      opt.textContent = `${player.name} · ${deck.name}`;
-      if (deck.commander) opt.textContent += ` (${deck.commander})`;
-      sel.appendChild(opt);
+      const value  = `${player.id}|${deck.id}`;
+      const built  = (state.deckCardCounts?.[deck.id] || 0) > 0;
+      const listed = value === open || (built && (yours || !me));
+      if (!listed) continue;
+      const name = yours ? deck.name : `${player.name} · ${deck.name}`;
+      add(value, deck.commander ? `${name} (${deck.commander})` : name);
     }
   }
-  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  sel.value = open;
   _dbPopulateNewDeckPlayers();
 }
 
@@ -262,6 +297,7 @@ async function dbSelectDeck(value) {
     dbShownBoards = new Set();  // another deck's boards are not this one's
     _dbRenderBoardToggles();
     _dbHideDeckUI();
+    dbPopulateDeckSel();
     return;
   }
   const [playerId, deckId] = value.split('|');
@@ -283,6 +319,12 @@ async function dbSelectDeck(value) {
   dbEdhrecData = null; _dbEdhrecLoaded = false;
   dbShownBoards = new Set();      // the last deck's boards are not this one's
   _dbRenderBoardToggles();
+
+  /* The strip's switcher is written around whatever is open, here rather than
+     at the call sites: a deck is opened from a tile on the Decks tab, from the
+     switcher itself and from a deck made a moment ago, and all three have to
+     leave the control naming the deck the mat is showing. */
+  dbPopulateDeckSel();
 
   document.getElementById('dbDeckContent').innerHTML =
     '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading deck…</div>';
@@ -586,8 +628,6 @@ async function dbDeleteDeck() {
   dbDeck = null; dbCards = []; dbCats = []; dbEdhrecData = null; _dbEdhrecLoaded = false;
   _dbHideDeckUI();
   dbPopulateDeckSel();
-  const sel = document.getElementById('dbDeckSel');
-  if (sel) sel.value = '';
 }
 
 // ── Archidekt import ──────────────────────────────────────────────────────────

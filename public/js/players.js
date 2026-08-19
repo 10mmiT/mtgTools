@@ -244,14 +244,14 @@ async function loadPlayerDeck(playerId, deckId) {
   renderResults();
 }
 
+/* Build, on a tile. It used to reach through the Deck Builder's picker and
+ * open whatever option matched — which silently did nothing for a deck the
+ * picker did not hold. The picker is your own built decks now, so that would
+ * be every tile in the Everyone view and every deck opened for the first
+ * time. The deck is opened directly, and the strip is written around it. */
 function openInDeckView(playerId, deckId) {
   setTab('deckview');
-  const sel = document.getElementById('dbDeckSel');
-  const val = `${playerId}|${deckId}`;
-  if (sel && [...sel.options].some(o => o.value === val)) {
-    sel.value = val;
-    dbSelectDeck(val);
-  }
+  dbSelectDeck(`${playerId}|${deckId}`);
 }
 
 // ── Edit deck ─────────────────────────────────────────────────────────────
@@ -649,12 +649,14 @@ function renderPlayers() {
 
 // A flat grid of your own *built* decks. "Built" is the server's signal —
 // deckCardCounts[id] > 0 means the Deck Builder has saved deck_cards rows for
-// it; a deck that is only a name and a link never appears here.
+// it (the field is documented where it is declared, in js/state.js, and the
+// Deck Builder's switcher reads it the same way); a deck that is only a name
+// and a link never appears here.
 function renderMineGrid(list) {
   const me      = myPlayerId();
   const player  = state.players.find(p => p.id === me);
   const canEdit = currentUser?.role === 'admin' || isMyPlayer(me);
-  const built   = (player?.decks || []).filter(d => (state.deckCardCounts[d.id] || 0) > 0);
+  const built   = (player?.decks || []).filter(d => (state.deckCardCounts?.[d.id] || 0) > 0);
 
   const info = document.getElementById('playersInfo');
   if (info) info.textContent = built.length

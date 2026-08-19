@@ -1950,9 +1950,16 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-body { flex-direction: column; }
   .db-menu { order: -1; flex: 0 0 auto; align-self: stretch; }
 }
-/* Someone with no decks at all lands on the empty mat, and the ⋯ menu is a
-   poor place to discover the one action that gets them out of it. */
-.db-empty-action { margin-top: var(--space-3); }
+/* The two ways off an empty mat, side by side under the signpost: the Decks
+   tab, where a deck is opened, and the one deck this tab can still start. The
+   ⋯ menu holds New deck too and is a poor place to discover either. */
+.db-empty-action {
+  margin-top: var(--space-3);
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  flex-wrap: wrap;
+}
 
 /* Two shapes, one strip: the controls that act on a deck's cards do not
    exist until a deck is loaded. An attribute on the pane rather than six
@@ -1973,10 +1980,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    reason [data-db-mode] above is one: two tiers spread across a dozen
    style.display calls are two tiers that will disagree.
 
-   Only ever while a deck is loaded. Folded with no deck the picker would be
-   hidden — and the picker is the one control that gets you a deck — so the
-   preference is kept and simply does not apply until there is something on the
-   mat to look at. */
+   Only ever while a deck is loaded. With no deck there is nothing on the strip
+   to fold — the controls, the switcher among them, need one — and what stands
+   on the mat instead is the signpost to the Decks tab, which is the way to a
+   deck. So the preference is kept and simply does not apply until there is
+   something on the mat to look at. */
 .db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .toolbar > :not(.db-fold):not(.db-save-status),
 .db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .db-analysis,
 .db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .db-bulk-bar,
