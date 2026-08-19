@@ -139,6 +139,9 @@ async function confirmAddDeck(playerId) {
     cardCount:    null,
     bracket:      null,
     deckUrl:      normUrl,
+    // Public, said out loud: privacy is a deliberate act from the tile's ⋯,
+    // not a thing a deck can arrive already wearing.
+    private:      false,
     editing:      false,
   };
 
@@ -439,6 +442,90 @@ function moveDeckToFolder(playerId, deckId, folderId) {
   savePlayerDecks(playerId);
 }
 
+// ── Private decks ───────────────────────────────────────────────────────────
+// A private deck is visible to its owner and to admins and to nobody else,
+// enforced by the server (routes/state.js) rather than by this tab. What lives
+// here is the way to say so — the ⋯ row that sets the flag — and the badge that
+// says it is set.
+
+/* Whether the flag means anything in this deployment.
+ *
+ * Open mode has no accounts, so the server cannot tell owner from stranger and
+ * cannot enforce privacy: the decision (docs/design/spec-deck-grid-and-folders.md)
+ * is that the flag is *inert* there rather than half-kept. So the tab offers no
+ * way to set it and draws no badge claiming it — a lock that keeps nobody out
+ * is worse than no lock at all. The flag itself is left alone, in state and
+ * through every save, so a deployment that later gains accounts keeps whatever
+ * was marked.
+ *
+ * Open mode is the `guest` session, the same test available.js and playmat.js
+ * make. Not myPlayerId(): open mode can say who you are (the remembered name
+ * behind Available@'s "Who are you?" bar) and still have nobody to enforce it. */
+function deckPrivacyEnforced() {
+  return !!currentUser && currentUser.username !== 'guest';
+}
+
+/* Marked private, or public again. Optimistic like the rest of the tab, and
+ * rolled back the way setCollectionOwner does it (js/collections.js): the tile
+ * changes, the save follows, and a server that will not take it gets the deck
+ * put back rather than left looking private to nobody but this browser. */
+async function setDeckPrivate(playerId, deckId, makePrivate) {
+  const player = state.players.find(p => p.id === playerId);
+  const deck   = player?.decks.find(d => d.id === deckId);
+  if (!deck) return;
+  const previous = !!deck.private;
+  const next     = !!makePrivate;
+  if (previous === next) return;
+
+  deck.private = next;
+  renderPlayers();
+
+  if (await savePlayerDecks(playerId)) return;
+
+  // Unless the save was a 409, which reloads the whole state and replaces every
+  // deck object with the server's. There is then nothing of ours left to put
+  // back, and writing the old value onto the fresh state would undo what the
+  // reload just told us — including a change another session made to this very
+  // flag. That path has already said its piece, so this one stays quiet.
+  const live = state.players.find(p => p.id === playerId)?.decks.find(d => d.id === deckId);
+  if (live !== deck) return;
+
+  deck.private = previous;
+  renderPlayers();
+  // The refused save left the optimistic value in the offline cache on its way
+  // past, and that cache is what an unreachable server is loaded from next
+  // time. Put the rolled-back state in there too, or the change comes back
+  // after the app has said it did not take.
+  cacheStateLocally();
+  alert(`Could not make "${deck.name}" ${next ? 'private' : 'public'} — the change was not saved, so the deck is still ${previous ? 'private' : 'public'}.`);
+}
+
+/* The privacy row on a deck's ⋯, shaped like deckFolderMenuItems below: one
+ * row saying which way the deck is currently facing, and no rows at all where
+ * the flag would not be enforced. */
+function deckPrivacyMenuItems(player, deck) {
+  if (!deckPrivacyEnforced()) return [];
+  return [{
+    label:   deck.private ? 'Make public' : 'Make private',
+    onclick: `setDeckPrivate('${jsAttr(player.id)}','${jsAttr(deck.id)}',${deck.private ? 'false' : 'true'})`,
+  }];
+}
+
+/* The badge a private deck wears. Text beside the lock rather than the lock
+ * alone: the tile's other two badges are words, and a padlock on its own has to
+ * be guessed at. Drawn only where the flag is enforced.
+ *
+ * Drawn off the flag alone, not off whose deck it is. The spec scopes the badge
+ * to "yours, or any as an admin", which is the same set as the decks that reach
+ * you at all — the server withholds everyone else's (routes/state.js). Gating
+ * it again here would buy nothing today, and on the day that filter regressed
+ * it would hide the leak: a stranger's private deck on your screen should be
+ * wearing the lock that makes it obvious, not passing for an ordinary deck. */
+function deckPrivateBadgeHtml(deck) {
+  if (!deckPrivacyEnforced() || !deck.private) return '';
+  return `<span class="deck-private-badge" title="Private — only you and an admin can see this deck">🔒 Private</span>`;
+}
+
 /* The folder rows on a deck's ⋯ menu, shaped like the owner rows on a
  * collection's (js/collections.js colOwnerMenuItems): a section label, every
  * folder with a tick on the one it is in, and — only when it is in one — the
@@ -499,12 +586,15 @@ function deckTileHtml(player, d, canEdit) {
     ? `<div class="deck-tile-commander">Commander: ${esc(d.commander)}</div>` : '';
   // Where it could be filed, if its owner has made anywhere to file it.
   const folderItems  = deckFolderMenuItems(player, d);
+  // Which way it is facing, where that means anything.
+  const privacyItems = deckPrivacyMenuItems(player, d);
 
   return `<div class="deck-tile" data-deck-id="${d.id}" style="${bgStyle}">
     <div class="deck-tile-overlay">
       <div class="deck-tile-top">
         <span class="deck-source-badge">${srcLabel}</span>
         ${bracketBadge}
+        ${deckPrivateBadgeHtml(d)}
         ${viewLink}
       </div>
       <div class="deck-tile-middle">
@@ -517,6 +607,7 @@ function deckTileHtml(player, d, canEdit) {
         <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
         ${canEdit ? kebabMenuHtml([
           { label: 'Edit',   onclick: `startEditDeck('${player.id}','${d.id}')` },
+          ...privacyItems,
           { divider: true },
           ...folderItems,
           ...(folderItems.length ? [{ divider: true }] : []),

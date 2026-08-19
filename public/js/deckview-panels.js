@@ -663,7 +663,9 @@ async function dbCreateDeck() {
   const newDeck = {
     id: deckId, source: 'manual', deckId: null, url: '',
     name, nameStatus: 'loaded', commander: commander || '',
-    commanderImg, cardCount: null, bracket: null, deckUrl: '',
+    // Public, like a deck made from the Decks tab: privacy is a deliberate act
+    // from the tile's ⋯, never a thing a deck arrives already wearing.
+    commanderImg, cardCount: null, bracket: null, deckUrl: '', private: false,
   };
 
   player.decks = [...(player.decks || []), newDeck];

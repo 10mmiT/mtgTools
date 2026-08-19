@@ -1,12 +1,18 @@
-/* Private decks — the server enforcement (read side).
+/* Private decks — the whole rule, server and tile.
  *
  * A private deck is visible to its owner and to admins, and to nobody else: the
  * server withholds both its metadata (from the players array) and its size
- * (from deckCardCounts) on GET /api/state. This file covers the read cases
- * ticket #33 delivers; the POST-merge rule and the deck-card/snapshot route
- * guards are later tickets that will append here. Open mode's inert-flag read
- * case lives in deckprivacy-open.test.js, since open mode is fixed at require
- * time.
+ * (from deckCardCounts) on GET /api/state, keeps it through a neighbour's POST,
+ * and 404s its cards and snapshots for anyone else. Those three are the first
+ * three describes, over a real server. The last four are the half a person
+ * touches — the ⋯ row that sets the flag, the badge that says it is set, and
+ * both of them absent in open mode — driven against the shipped js/players.js
+ * in a vm sandbox, which needs no server and no environment.
+ *
+ * Open mode's inert-flag *read* case lives in deckprivacy-open.test.js, since
+ * the server decides that once, when middleware/auth reads the environment at
+ * require time. The client decides it per render off the session, so its open
+ * mode is a fixture rather than a process.
  *
  * Account mode (ADMIN_PASSWORD set).
  */
@@ -17,6 +23,7 @@ const supertest = require('supertest');
 const fs        = require('node:fs');
 const path      = require('node:path');
 const os        = require('node:os');
+const vm        = require('node:vm');   // the tile half, below, loads js/players.js
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mtgprivacy-'));
 process.env.DATA_FILE      = path.join(tmpDir, 'state.json');
@@ -305,6 +312,295 @@ describe('Deck-card and snapshot reads 404 a private deck for a non-owner', () =
   test('GET …/snapshots/:id 404s for a non-owner on a private deck', async () => {
     const res = await request.get(snapsUrl(otherId, 'opriv') + '/1').set('Cookie', meCookie);
     assert.equal(res.status, 404);
+  });
+});
+
+/* ── The tile: the private toggle and the lock badge ─────────────────────────
+ *
+ * Everything above is the server's half — what a stranger's GET and POST may
+ * see and keep. This is the half a person touches: the ⋯ row that sets the
+ * flag, the badge that says it is set, and the two of them absent in open
+ * mode, where the server cannot enforce the flag and so the app must not offer
+ * it (docs/design/spec-deck-grid-and-folders.md, "Open mode — the flag is
+ * ignored").
+ *
+ * Asserted against the shipped js/players.js in a vm sandbox, the seam
+ * deckscope/deckfolders use: the tab is loaded with a state and a session, and
+ * read back as the markup it drew and the writes it sent.
+ */
+
+const ROOT    = path.join(__dirname, '..');
+const readSrc = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
+
+/* Tim has one public deck and one private one — the two the ⋯ must speak
+ * differently to. Anna is somebody else, whose private deck reaches an admin
+ * (and nobody else) and must wear the badge in their Everyone view. */
+const UI_PLAYERS = [
+  { id: 'p-tim', name: 'Tim', colorIdx: 0, wantList: [], folders: [], decks: [
+    { id: 'd-open',   source: 'manual', name: 'Krenko' },
+    { id: 'd-secret', source: 'manual', name: 'The brew', private: true },
+  ] },
+  { id: 'p-anna', name: 'Anna', colorIdx: 1, wantList: [], folders: [], decks: [
+    { id: 'd-anna', source: 'manual', name: 'Atraxa', private: true },
+  ] },
+];
+
+const UI_COUNTS = { 'd-open': 60, 'd-secret': 99, 'd-anna': 60 };
+
+const AS_TIM   = { username: 'tim',   role: 'player', playerId: 'p-tim' };
+const AS_ADMIN = { username: 'admin', role: 'admin',  playerId: null };
+// Open mode's session: no account exists, so everybody is `guest` — and the
+// guest is role admin, which is what makes the server-side filter a no-op.
+// Who you are there is the name remembered behind Available@'s "Who are you?".
+const AS_GUEST = { username: 'guest', role: 'admin',  playerId: null };
+
+/* `serverTakesIt`:
+ *   true       every write is accepted.
+ *   false      every write is refused, down to the localStorage fallback.
+ *   'conflict' the granular write is refused and the whole-state POST behind it
+ *              409s, which is the one failure that reloads the state — the GET
+ *              answers with `reload`, standing for what another session did. */
+function loadTab({ players = UI_PLAYERS, deckCardCounts = UI_COUNTS, user = AS_TIM,
+                   remembered = '', serverTakesIt = true, reload = null } = {}) {
+  const store  = new Map();
+  if (remembered) store.set('avail_name', remembered);
+  const saved  = [];      // { url, body } per fetch
+  const alerts = [];
+
+  const els = {};
+  const el = id => (els[id] ||= {
+    innerHTML: '', textContent: '', title: '', value: '', disabled: false,
+    style: { setProperty() {}, display: '' }, attrs: {}, dataset: {}, classes: new Set(),
+    setAttribute(k, v) { this.attrs[k] = v; },
+    getAttribute(k) { return this.attrs[k]; },
+    addEventListener() {}, focus() {}, appendChild() {},
+    querySelector: () => null, querySelectorAll: () => [], closest: () => null,
+    classList: {
+      toggle(name, on) { on ? els[id].classes.add(name) : els[id].classes.delete(name); },
+      add(name) { els[id].classes.add(name); },
+      remove(name) { els[id].classes.delete(name); },
+      contains(name) { return els[id].classes.has(name); },
+    },
+  });
+
+  const sandbox = {
+    localStorage: {
+      getItem: key => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => store.set(key, String(value)),
+      removeItem: key => store.delete(key),
+    },
+    document: {
+      addEventListener() {}, querySelectorAll: () => [], createElement: () => el('made'),
+      getElementById: el,
+      body: { appendChild() {}, style: {} },
+    },
+    window: { addEventListener() {}, innerWidth: 1200, innerHeight: 800, location: {} },
+    console,
+    alert: msg => alerts.push(String(msg)),
+    confirm: () => true, prompt: () => null,
+    clearTimeout() {}, setTimeout: fn => 1,
+    fetch: async (url, opts = {}) => {
+      saved.push({ url, method: opts.method || 'GET', body: JSON.parse(opts.body || '{}') });
+      // The re-read a 409 triggers, answering with the state as another session
+      // left it.
+      if (!opts.method) {
+        return { ok: true, status: 200,
+                 json: async () => ({ players: reload || players, deckCardCounts, version: 9 }) };
+      }
+      if (serverTakesIt === 'conflict') {
+        return url === '/api/state'
+          ? { ok: false, status: 409, json: async () => ({ error: 'conflict' }) }
+          : { ok: false, status: 500, json: async () => ({ error: 'nope' }) };
+      }
+      return serverTakesIt
+        ? { ok: true,  status: 200, json: async () => ({ ok: true, version: 7 }) }
+        : { ok: false, status: 500, json: async () => ({ error: 'nope' }) };
+    },
+    // Outside this ticket: the kebab menu's markup, the bracket badge, the
+    // sibling tabs. The kebab is echoed as JSON so a test can read the rows it
+    // was handed without parsing the shipped markup.
+    kebabMenuHtml: items => `<span class="kebab">${JSON.stringify(items)}</span>`,
+    dbBracketBadgeHtml: () => '',
+    collapseState: {},
+    togglePlayerSection() {}, renderWantList() {}, renderCollections() {},
+    renderResults() {}, setTab() {}, ensureScryfallImages: async () => {},
+    scryfallArtCache: new Map(),
+    reconcileColSorts() {},
+  };
+  vm.createContext(sandbox);
+  for (const file of ['state.js', 'auth.js', 'players.js']) {
+    vm.runInContext(readSrc(`public/js/${file}`), sandbox);
+  }
+  const run    = expr => vm.runInContext(expr, sandbox);
+  const answer = expr => JSON.parse(run(`JSON.stringify(${expr})`));
+
+  run(`currentUser = ${JSON.stringify(user)}`);
+  run(`hydrateState(${JSON.stringify({ players, deckCardCounts })})`);
+
+  return {
+    run, answer, el, store, saved, alerts,
+    deck: (deckId, playerId = 'p-tim') =>
+      answer(`state.players.find(p => p.id === '${playerId}').decks.find(d => d.id === '${deckId}')`),
+    html() { run('renderPlayers()'); return el('playersList').innerHTML; },
+    /** The rows one deck tile's ⋯ menu was built from. */
+    menuFor(deckId) { return menuIn(this.html(), deckId); },
+    /** Whether one deck's tile is wearing the lock badge. */
+    lockOn(deckId) { return /deck-private-badge/.test(tileOf(this.html(), deckId)); },
+  };
+}
+
+/* One tile's markup, bounded to itself: a badge or a menu belonging to the
+ * next tile along must not read as this one's. */
+function tileOf(html, deckId) {
+  const marker = `data-deck-id="${deckId}"`;
+  const from   = html.indexOf(marker);
+  if (from < 0) return '';
+  const rest = html.slice(from + marker.length);
+  const next = rest.search(/data-deck-id="|data-player-id="/);
+  return next < 0 ? rest : rest.slice(0, next);
+}
+
+/* The rows behind one tile's ⋯ — the stub kebab echoes what it was handed, so
+ * a test reads the menu rather than the markup around it. */
+function menuIn(html, deckId) {
+  const mine  = tileOf(html, deckId);
+  const match = mine.match(/<span class="kebab">(\[.*?\])<\/span>/s);
+  return match ? JSON.parse(match[1]) : null;
+}
+
+const labels = menu => (menu || []).map(row => row.label).filter(Boolean);
+
+describe('The ⋯ menu turns a deck private and back', () => {
+  test('a public deck is offered Make private, a private one Make public', () => {
+    const tab = loadTab();
+    assert.ok(labels(tab.menuFor('d-open')).includes('Make private'),
+      'a public deck of your own offers no way to make it private');
+    assert.equal(labels(tab.menuFor('d-open')).includes('Make public'), false,
+      'a public deck offers to make it public, which is what it already is');
+    assert.ok(labels(tab.menuFor('d-secret')).includes('Make public'),
+      'a private deck offers no way back');
+  });
+
+  test('the tile is private before the server has answered, and rides savePlayerDecks', async () => {
+    const tab = loadTab();
+    const done = tab.run(`setDeckPrivate('p-tim','d-open',true)`);
+
+    assert.equal(tab.deck('d-open').private, true, 'the flag waited for the server');
+    assert.ok(tab.lockOn('d-open'), 'the grid waited for the server before drawing the badge');
+
+    await done;
+    assert.deepEqual(tab.saved.map(s => s.url), ['/api/players/p-tim/decks'],
+      'the flag is a fact about the deck, so it rides the granular deck save');
+    assert.equal(tab.saved[0].body.decks.find(d => d.id === 'd-open').private, true,
+      'the save went without the flag it was made for');
+  });
+
+  test('Make public clears the flag and saves that too', async () => {
+    const tab = loadTab();
+    await tab.run(`setDeckPrivate('p-tim','d-secret',false)`);
+
+    assert.equal(tab.deck('d-secret').private, false);
+    assert.equal(tab.saved[0].body.decks.find(d => d.id === 'd-secret').private, false);
+  });
+
+  test('a save the server will not take puts the deck back, and says so', async () => {
+    const tab = loadTab({ serverTakesIt: false });
+    await tab.run(`setDeckPrivate('p-tim','d-open',true)`);
+
+    assert.equal(tab.deck('d-open').private, false,
+      'a deck left looking private the server never agreed to is the worst of both');
+    assert.equal(tab.lockOn('d-open'), false, 'the badge stayed on a deck that is not private');
+    assert.equal(tab.alerts.length, 1, 'the rollback happened silently');
+  });
+
+  test('a refused save leaves no trace of the change in the offline cache', async () => {
+    // The refused save writes the whole blob to localStorage on its way past —
+    // the copy an unreachable server is loaded from next time. If the rollback
+    // stops at memory, that cache still says private, and the change the app
+    // just disowned comes back on the next offline load.
+    const tab = loadTab({ serverTakesIt: false });
+    await tab.run(`setDeckPrivate('p-tim','d-open',true)`);
+
+    const cached = JSON.parse(tab.store.get('mtgtools_v3'));
+    const deck   = cached.players.find(p => p.id === 'p-tim').decks.find(d => d.id === 'd-open');
+    assert.equal(deck.private, false,
+      'the offline cache kept the change the person was told had not been saved');
+  });
+
+  test('a save that lost a race leaves the state the reload brought back', async () => {
+    // Another session made the same deck private while this one was deciding
+    // to. The write 409s, the state is re-read, and the rollback must not put
+    // this browser's older answer back over it.
+    const theirs = [{ ...UI_PLAYERS[0], decks: [
+      { id: 'd-open', source: 'manual', name: 'Krenko', private: true },
+      ...UI_PLAYERS[0].decks.slice(1),
+    ] }, UI_PLAYERS[1]];
+    const tab = loadTab({ serverTakesIt: 'conflict', reload: theirs });
+
+    await tab.run(`setDeckPrivate('p-tim','d-open',true)`);
+
+    assert.equal(tab.deck('d-open').private, true,
+      'the rollback overwrote what the re-read had just learned');
+    assert.equal(tab.alerts.length, 1,
+      'the conflict was announced twice — once by the reload and once by the rollback');
+  });
+
+  test('setting the flag it already has changes nothing and saves nothing', async () => {
+    const tab = loadTab();
+    await tab.run(`setDeckPrivate('p-tim','d-secret',true)`);
+    assert.deepEqual(tab.saved, [], 'a no-op wrote to the server anyway');
+  });
+});
+
+describe('A private deck says so on its tile', () => {
+  test('the badge is on the private deck and not on the public one', () => {
+    const tab = loadTab();
+    assert.ok(tab.lockOn('d-secret'), 'a private deck of your own wears no badge');
+    assert.equal(tab.lockOn('d-open'), false, 'a public deck is wearing the badge');
+  });
+
+  test('an admin sees the badge on another player’s private deck', () => {
+    const tab = loadTab({ user: AS_ADMIN });
+    assert.ok(tab.lockOn('d-anna'),
+      'the one session that receives somebody else’s private deck cannot tell it is private');
+  });
+});
+
+describe('Open mode: the flag is inert, so the tile neither offers nor shows it', () => {
+  test('no deck is offered Make private', () => {
+    const tab = loadTab({ user: AS_GUEST, remembered: 'tim' });
+    assert.equal(tab.run('myPlayerId()'), 'p-tim', 'the fixture is not the open-mode identity it claims');
+    assert.equal(labels(tab.menuFor('d-open')).includes('Make private'), false,
+      'open mode offered a flag the server cannot enforce');
+    assert.equal(labels(tab.menuFor('d-secret')).includes('Make public'), false);
+  });
+
+  test('a deck already marked private wears no badge', () => {
+    const tab = loadTab({ user: AS_GUEST, remembered: 'tim' });
+    assert.equal(tab.lockOn('d-secret'), false,
+      'a badge in open mode claims a privacy nobody is keeping');
+    assert.equal(tab.deck('d-secret').private, true,
+      'the flag is meant to be ignored, not erased — a deployment that gains accounts keeps it');
+  });
+});
+
+describe('A new deck is public', () => {
+  test('+ Add Deck makes a deck nobody has to un-hide', async () => {
+    const tab = loadTab();
+    const form   = tab.el('adf_p-tim');
+    const inputs = {
+      '[name="deckname"]':  { value: 'Fresh',  style: {} },
+      '[name="commander"]': { value: '',       style: {} },
+      '[name="deckurl"]':   { value: '',       style: {} },
+    };
+    form.querySelector = sel => inputs[sel] || null;
+
+    await tab.run(`confirmAddDeck('p-tim')`);
+
+    const made = tab.answer(`state.players[0].decks.find(d => d.name === 'Fresh')`);
+    assert.equal(made.private, false, 'privacy is meant to be a deliberate act, not a default');
+    const put = tab.saved.find(s => s.url === '/api/players/p-tim/decks');
+    assert.equal(put.body.decks.find(d => d.name === 'Fresh').private, false);
   });
 });
 

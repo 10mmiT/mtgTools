@@ -298,8 +298,10 @@ test('the ⋯ menu offers every folder, ticking the one the deck is in', () => {
   const tab = loadTab();
   const labels = tab.menuFor('d-filed').map(i => i.label || i.section || '—');
 
+  // 'Make private' is the privacy toggle (#38), which sits with Edit above the
+  // folder rows. Asserted whole so a row appearing between them is caught here.
   assert.deepStrictEqual(labels, [
-    'Edit', '—', 'Move to folder', '✓ Commander', 'Retired', 'Remove from folder', '—', 'Remove',
+    'Edit', 'Make private', '—', 'Move to folder', '✓ Commander', 'Retired', 'Remove from folder', '—', 'Remove',
   ]);
   const commander = tab.menuFor('d-loose').find(i => i.label === 'Commander');
   assert.strictEqual(commander.onclick, `moveDeckToFolder('p-tim','d-loose','f-cmd')`);

@@ -179,6 +179,16 @@
   padding: 0 var(--space-1); border-radius: var(--radius-sm);
   background: var(--warning-soft); color: var(--warning); flex-shrink: 0;
 }
+/* Private — the deck reaches nobody but its owner and an admin. Neutral
+   rather than the bracket badge's warning colours: it says who the deck is
+   for, not that something is wrong with it. Drawn only where the flag is
+   enforced (js/players.js deckPrivacyEnforced), so in open mode this rule
+   never matches anything. */
+.deck-private-badge {
+  font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+  padding: 0 var(--space-1); border-radius: var(--radius-sm);
+  background: var(--surface-3); color: var(--text-muted); flex-shrink: 0;
+}
 .deck-tile-link {
   margin-left: auto; font-size: var(--text-xs);
   color: rgba(255,255,255,.5); text-decoration: none;
@@ -1663,7 +1673,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      labels.
 
      What it can do, and what this technique needs, is have the row to
-     itself: the only things beside it in .deck-tile-top are two badges,
+     itself: the only things beside it in .deck-tile-top are the badges,
      which are text and not targets, so the pad has nothing to overlap.
      The category heading below used to be padded the same way and did not
      have the row to itself — see .dv-section-fold. */
