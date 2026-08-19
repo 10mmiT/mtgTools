@@ -575,8 +575,11 @@ function deckTileHtml(player, d, canEdit) {
      which is where the five brackets are named and where the declaration is
      made — this tile is one of the places the answer is read. */
   const bracketBadge = dbBracketBadgeHtml(d.bracket);
+  /* draggable="false" on the link: an <a href> is draggable without being
+     asked, so a tile picked up by its View ↗ would start a drag of the URL
+     inside the drag of the deck. The tile is one object to the hand. */
   const viewLink     = d.deckUrl
-    ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener">View ↗</a>` : '';
+    ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener" draggable="false">View ↗</a>` : '';
   // The count sits with the name and the commander rather than on the
   // action row: it is something the deck *is*, not something to do to
   // it, and on a 260px tile the row it used to share has only enough
@@ -589,7 +592,11 @@ function deckTileHtml(player, d, canEdit) {
   // Which way it is facing, where that means anything.
   const privacyItems = deckPrivacyMenuItems(player, d);
 
-  return `<div class="deck-tile" data-deck-id="${d.id}" style="${bgStyle}">
+  // Pickable up where its ⋯ is (js/deckdrag.js), which is the drag's whole
+  // relationship to the menu: the same decks, the same move, one hand quicker.
+  const drag = deckDragAttrs(player.id, d.id, canEdit);
+
+  return `<div class="deck-tile" data-deck-id="${d.id}" style="${bgStyle}"${drag}>
     <div class="deck-tile-overlay">
       <div class="deck-tile-top">
         <span class="deck-source-badge">${srcLabel}</span>
@@ -688,14 +695,19 @@ function folderedDecksHtml(player, decks, canEdit) {
   const folders = sortedFolders(player);
   const { loose, inFolder } = groupDecksByFolder(folders, decks);
 
-  const looseZone = `<div class="folder-zone folder-loose" data-player-id="${jsAttr(player.id)}" data-folder-id="">
+  // Somewhere to put a dragged tile down (js/deckdrag.js). The zones already
+  // say which player and which folder they are, for the tests to read the
+  // layout back; the drop reads the same two attributes.
+  const drop = deckZoneAttrs(canEdit);
+
+  const looseZone = `<div class="folder-zone folder-loose" data-player-id="${jsAttr(player.id)}" data-folder-id=""${drop}>
     ${loose.length ? deckGridHtml(player, loose, canEdit)
       : `<div class="player-no-decks">${decks.length ? 'Every deck is in a folder.' : 'No decks yet.'}</div>`}
   </div>`;
 
   const sections = folders.map(f => {
     const held = inFolder.get(f.id);
-    return `<div class="folder-zone folder-section" data-player-id="${jsAttr(player.id)}" data-folder-id="${jsAttr(f.id)}">
+    return `<div class="folder-zone folder-section" data-player-id="${jsAttr(player.id)}" data-folder-id="${jsAttr(f.id)}"${drop}>
       <div class="folder-header">
         <span class="folder-name">${esc(f.name)}</span>
         <span class="folder-count">${held.length} deck${held.length !== 1 ? 's' : ''}</span>

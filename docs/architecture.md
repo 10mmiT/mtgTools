@@ -47,6 +47,7 @@ mtgtools/
 │   ├── carddrag.test.js     # Hit-testing piles, the fan, the drop's effect
 │   ├── cardmenu.test.js     # Where a menu asked for at a point is drawn
 │   ├── cardcache.test.js    # The cached card's shape, and the version that re-imports it
+│   ├── deckdrag.test.js     # Picking a deck tile up, the zone that would take it, and where it lands
 │   ├── deckhistory.test.js  # When a deck is snapshotted, the caps, and what a restore puts back
 │   ├── deckframe.test.js    # The builder's frame — what folds away, and what stays
 │   ├── deckboards.test.js   # Two Sol Rings — the maybeboard, the sideboard, and the count
@@ -93,6 +94,7 @@ mtgtools/
 │       ├── cardquery.js   # Scryfall query syntax, parsed and run against the local card cache
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks
+│       ├── deckdrag.js    # Dragging a deck tile onto a folder: what is in hand, and which zone would take it
 │       ├── search.js      # Scryfall search tab
 │       ├── sets.js        # Set browser tab
 │       ├── wants.js       # Want lists tab (list/grid views)

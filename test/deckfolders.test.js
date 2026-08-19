@@ -117,7 +117,9 @@ function loadTab({ players = PLAYERS, deckCardCounts = COUNTS, user = AS_TIM,
     reconcileColSorts() {},
   };
   vm.createContext(sandbox);
-  for (const file of ['state.js', 'auth.js', 'players.js']) {
+  // js/deckdrag.js beside them: the tile's markup asks it for the drag
+  // attributes (#39), so a sandbox without it draws a tile the app does not.
+  for (const file of ['state.js', 'auth.js', 'players.js', 'deckdrag.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
   const run    = expr => vm.runInContext(expr, sandbox);

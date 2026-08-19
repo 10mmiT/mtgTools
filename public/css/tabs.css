@@ -136,6 +136,23 @@
 
 .folder-add { margin-top: var(--space-2); }
 
+/* Somewhere to put a dragged deck down (js/deckdrag.js), lit only while one is
+   over it. The dashed outline the Deck Builder lights a pile with
+   (.card-drop-target, below): a place to drop something should not be two
+   different things on two tabs. Drawn outside the zone rather than inside it,
+   so lighting up never moves the tiles it is drawn around. */
+.folder-zone.deck-drop-target {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* The hand, driven off the attribute the drag *is* rather than a class beside
+   it — the same rule [data-carry] follows in components.css — so the cursor
+   cannot offer to pick up a tile that will not move. */
+.deck-tile[draggable="true"] { cursor: grab; }
+
 .deck-tile {
   position: relative;
   border-radius: var(--radius-md);
