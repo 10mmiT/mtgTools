@@ -122,6 +122,115 @@ describe('GET /api/state withholds other players’ private decks', () => {
   });
 });
 
+describe('POST /api/state keeps other players’ private decks through a non-admin write', () => {
+  let meId, otherId, meCookie, adminCookie;
+
+  beforeEach(async () => {
+    resetDb();
+    const db = dbModule.db;
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    meId    = uuidv4();
+    otherId = uuidv4();
+
+    db.prepare("INSERT OR REPLACE INTO app_state (key, value_json, version) VALUES ('state', ?, 0)")
+      .run(JSON.stringify({ players: [
+        { id: meId, name: 'Me', wantList: [], folders: [], decks: [
+          { id: 'mpub', name: 'My public', source: 'manual' },
+          { id: 'mpriv', name: 'My secret', source: 'manual', private: true },
+        ] },
+        { id: otherId, name: 'Other', wantList: [], folders: [], decks: [
+          { id: 'opub', name: 'Their public', source: 'manual' },
+          { id: 'opriv', name: 'Their secret', source: 'manual', private: true },
+        ] },
+      ] }));
+    addCards('mpub', 1); addCards('mpriv', 2); addCards('opub', 3); addCards('opriv', 4);
+
+    const h = bcrypt.hashSync('pp', 10);
+    db.prepare("INSERT INTO users (username, password_hash, role, player_id) VALUES ('me', ?, 'player', ?)").run(h, meId);
+    meCookie    = await loginAs('me', 'pp');
+    adminCookie = await loginAs('admin', 'testpass');
+  });
+
+  // Fetch state as the client would, optionally edit the blob, and save it back.
+  // A non-admin's GET is already missing other players' private decks (#33), so
+  // this reproduces the exact blob the browser posts.
+  async function roundTrip(cookie, mutate) {
+    const got  = await request.get('/api/state').set('Cookie', cookie);
+    const body = { players: got.body.players, version: got.body.version };
+    if (mutate) mutate(body);
+    return request.post('/api/state').set('Cookie', cookie).send(body);
+  }
+
+  test('a neighbour’s save keeps the private deck it never received', async () => {
+    const res = await roundTrip(meCookie);
+    assert.equal(res.status, 200, res.text);
+
+    const admin = await request.get('/api/state').set('Cookie', adminCookie);
+    assert.deepEqual(deckIds(admin.body, otherId).sort(), ['opriv', 'opub'],
+      'the other player’s private deck survives the neighbour’s write');
+    assert.equal(admin.body.deckCardCounts.opriv, 4, 'and its card count with it');
+  });
+
+  test('the permission check does not 403 on the absent private deck', async () => {
+    // A legitimate change to my own player, with Other’s private deck missing
+    // from the blob, must be allowed — not read as my having deleted it.
+    const res = await roundTrip(meCookie, body => {
+      body.players.find(p => p.id === meId)
+        .decks.push({ id: 'mnew', name: 'A new deck', source: 'manual' });
+    });
+    assert.equal(res.status, 200, res.text);
+  });
+
+  test('only the requester’s own player is taken from the blob', async () => {
+    // A private deck smuggled onto Other passes the visible-only check but is
+    // discarded by the merge: Other’s stored decks are kept verbatim.
+    const res = await roundTrip(meCookie, body => {
+      body.players.find(p => p.id === otherId)
+        .decks.push({ id: 'oinject', name: 'Injected', source: 'manual', private: true });
+    });
+    assert.equal(res.status, 200, res.text);
+
+    const admin = await request.get('/api/state').set('Cookie', adminCookie);
+    assert.deepEqual(deckIds(admin.body, otherId).sort(), ['opriv', 'opub'],
+      'the injected deck was not written');
+  });
+
+  test('a visible change to another player is still refused', async () => {
+    const res = await roundTrip(meCookie, body => {
+      body.players.find(p => p.id === otherId).name = 'Hacked';
+    });
+    assert.equal(res.status, 403);
+  });
+
+  test('the owner round-trips their own private deck losslessly', async () => {
+    const res = await roundTrip(meCookie, body => {
+      body.players.find(p => p.id === meId)
+        .decks.find(d => d.id === 'mpriv').name = 'My renamed secret';
+    });
+    assert.equal(res.status, 200, res.text);
+
+    const mine = await request.get('/api/state').set('Cookie', meCookie);
+    const priv = decksOf(mine.body, meId).find(d => d.id === 'mpriv');
+    assert.equal(priv.name, 'My renamed secret');
+    assert.equal(priv.private, true, 'still private after the round-trip');
+  });
+
+  test('an admin write applies the whole blob unchanged', async () => {
+    const got  = await request.get('/api/state').set('Cookie', adminCookie);
+    const body = { players: got.body.players, version: got.body.version };
+    const other = body.players.find(p => p.id === otherId);
+    other.decks = other.decks.filter(d => d.id !== 'opriv');
+
+    const res = await request.post('/api/state').set('Cookie', adminCookie).send(body);
+    assert.equal(res.status, 200, res.text);
+
+    const after = await request.get('/api/state').set('Cookie', adminCookie);
+    assert.deepEqual(deckIds(after.body, otherId), ['opub'],
+      'an admin’s wholesale write does remove it');
+  });
+});
+
 after((_, done) => {
   const srv = getServer && getServer();
   function finish() {

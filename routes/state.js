@@ -89,6 +89,15 @@ function normalizePlayer(p = {}) {
     decks: (p.decks || []).map(normalizeDeck),
   };
 }
+// A player as another non-admin may see them: normalised, with private decks
+// dropped. The POST-merge permission check compares two of these so a requester
+// who never received a neighbour's private deck (#33) is not read as having
+// removed it — the hidden deck is excluded from both sides before deepEqual.
+function visiblePlayer(p = {}) {
+  const n = normalizePlayer(p);
+  n.decks = n.decks.filter(d => !d.private);
+  return n;
+}
 
 // ── Deck visibility (spec: Private decks) ───────────────────────────────────
 // Owner and admin see every deck; everyone else sees only non-private ones.
@@ -206,23 +215,35 @@ router.get('/state', requireAuth, (req, res) => {
 
 // ── POST /api/state ────────────────────────────────────────────────────────────
 router.post('/state', requireAuth, express.json({ limit: '10mb' }), (req, res) => {
-  const sess    = getSession(req);
-  const current = readState();
-  const players = req.body.players || [];
+  const sess     = getSession(req);
+  const current  = readState();
+  const curPlayers = current.players || [];
+  const incoming = req.body.players || [];
+  // Admins receive and write the whole blob; a non-admin's write is merged.
+  let players = incoming;
   if (sess.role !== 'admin') {
-    const curIds = new Set((current.players || []).map(p => p.id));
-    const incIds = new Set(players.map(p => p.id));
-    if (curIds.size !== incIds.size || [...curIds].some(id => !incIds.has(id)))
+    const incById = new Map(incoming.map(p => [p.id, p]));
+    if (curPlayers.length !== incById.size || curPlayers.some(cp => !incById.has(cp.id)))
       return res.status(403).json({ error: 'Forbidden' });
-    for (const cp of (current.players || [])) {
+    for (const cp of curPlayers) {
       if (cp.id === sess.playerId) continue;
-      const ip = players.find(p => p.id === cp.id);
+      const ip = incById.get(cp.id);
       // Non-admins may only change their own player: any other player's name,
-      // color, want list or decks must be untouched (value-equal after
-      // normalisation), not just their decks.
-      if (!ip || !deepEqual(normalizePlayer(cp), normalizePlayer(ip)))
+      // color, want list or visible decks must be untouched (value-equal after
+      // normalisation). Private decks are dropped from both sides first — the
+      // requester never received them, so they cannot echo them back (#33).
+      if (!ip || !deepEqual(visiblePlayer(cp), visiblePlayer(ip)))
         return res.status(403).json({ error: 'Forbidden' });
     }
+    // Merge: keep every other player's stored record exactly as it is — the
+    // private decks the requester never saw included — and take only the
+    // requester's own player from the blob. Keeping the whole stored player
+    // (not just their decks) is deliberate: the check above already proved
+    // every visible field value-equal, so nothing legitimate is dropped, and a
+    // non-admin can never mutate another player's non-deck fields. Trusting the
+    // blob wholesale would delete a neighbour's hidden deck never sent back.
+    players = curPlayers.map(cp =>
+      cp.id === sess.playerId ? (incById.get(cp.id) || cp) : cp);
   }
   try {
     const clientVersion = typeof req.body.version === 'number' ? req.body.version : undefined;

@@ -207,13 +207,21 @@ describe('deck fields through the server whitelists', () => {
     assert.strictEqual(res.status, 403);
   });
 
-  stest('moving another player’s deck to a different folder is a change too (folderId is on the whitelist)', async () => {
+  stest('moving another player’s private deck to a different folder is accepted but discarded by the merge', async () => {
+    // The visible-decks equality check excludes others' private decks (#34), so
+    // a folderId edit on one no longer 403s — the requester never received it.
+    // The merge then keeps the other player's stored deck verbatim, so the move
+    // has no effect: their hidden deck stays in its folder.
     const res = await send(meCookie, [
       { id: meId, name: 'Me', decks: [], wantList: [], folders: [] },
       { id: otherId, name: 'Other', wantList: [], folders: [{ id: 'f9', name: 'Theirs', position: 0 }],
         decks: [{ id: 'od1', name: 'Their secret', source: 'manual', folderId: 'f-elsewhere', private: true }] },
     ]);
-    assert.strictEqual(res.status, 403);
+    assert.strictEqual(res.status, 200);
+
+    const back  = await request.get('/api/state').set('Cookie', adminCookie);
+    const other = back.body.players.find(p => p.id === otherId);
+    assert.strictEqual(other.decks[0].folderId, 'f9', 'the stored private deck did not move');
   });
 
   stest('renaming another player’s folder is a change (folders is on the whitelist)', async () => {
