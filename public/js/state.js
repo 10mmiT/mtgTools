@@ -79,11 +79,13 @@ function stateToJSON() {
       // the palette move, having already been read for the slot it encoded.
       id: p.id, name: p.name, colorIdx: playerSlot(p),
       wantList: p.wantList || [],
+      folders: p.folders || [],
       decks: p.decks.map(d => ({
         id: d.id, source: d.source, deckId: d.deckId || null, url: d.url || '',
         name: d.name, nameStatus: d.nameStatus === 'loaded' ? 'loaded' : 'pending',
         commander: d.commander || '', commanderImg: d.commanderImg || null,
         cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',
+        folderId: d.folderId || null, private: d.private || false,
       })),
     })),
   };
@@ -114,12 +116,14 @@ function hydrateState(raw) {
   state.players = (data.players || []).map(p => ({
     id: p.id, name: p.name, colorIdx: playerSlot(p),
     wantList: p.wantList || [],
+    folders: p.folders || [],
     decks: (p.decks || []).map((d, i) => ({
       id: d.id || (d.deckId ? `arch_${d.deckId}` : `legacy_${p.id}_${i}`),
       source: d.source || 'manual', deckId: d.deckId || null, url: d.url || '',
       name: d.name || '', nameStatus: d.nameStatus || 'loaded',
       commander: d.commander || '', commanderImg: d.commanderImg || null,
       cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',
+      folderId: d.folderId || null, private: d.private || false,
       editing: false,
     })),
   }));
@@ -282,6 +286,7 @@ async function savePlayerDecks(playerId) {
     name: d.name, nameStatus: d.nameStatus === 'loaded' ? 'loaded' : 'pending',
     commander: d.commander || '', commanderImg: d.commanderImg || null,
     cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',
+    folderId: d.folderId || null, private: d.private || false,
   }));
   try {
     const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/decks`, {

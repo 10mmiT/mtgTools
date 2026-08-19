@@ -75,6 +75,7 @@ function normalizeDeck(d = {}) {
     name: d.name || '', nameStatus: d.nameStatus === 'loaded' ? 'loaded' : 'pending',
     commander: d.commander || '', commanderImg: d.commanderImg || null,
     cardCount: d.cardCount || null, bracket: d.bracket ?? null, deckUrl: d.deckUrl || '',
+    folderId: d.folderId || null, private: d.private || false,
   };
 }
 // The colour is compared as the slot, not as whichever form the record spells
@@ -84,7 +85,8 @@ function normalizeDeck(d = {}) {
 function normalizePlayer(p = {}) {
   return {
     id: p.id, name: p.name || '', colorIdx: playerSlot(p),
-    wantList: p.wantList || [], decks: (p.decks || []).map(normalizeDeck),
+    wantList: p.wantList || [], folders: p.folders || [],
+    decks: (p.decks || []).map(normalizeDeck),
   };
 }
 
