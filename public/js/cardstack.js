@@ -424,11 +424,28 @@ function pileMasonryPlan(items, { width, column, gap = 0, lead = gap } = {}) {
 function layOutPiles(container) {
   if (!container || !container.children || typeof getComputedStyle !== 'function') return;
   const kids = [...container.children];
-  const room = container.clientWidth;
+  const style = getComputedStyle(container);
+  /* The table's own padding, which the piles have to be placed inside of.
+   * Absolute children are laid against the padding box, not the content box, so
+   * a pile at left:0 sits on the border and the gutter the mat is drawn with
+   * disappears — the commander column, first and top-left, hard against the
+   * edge. So the plan runs over the room *between* the padding, and every pile
+   * is nudged in by it; the height carries it too, or the bottom gutter goes
+   * the same way the top one did. */
+  const padL = parseFloat(style.paddingLeft)   || 0;
+  const padR = parseFloat(style.paddingRight)  || 0;
+  const padT = parseFloat(style.paddingTop)    || 0;
+  const padB = parseFloat(style.paddingBottom) || 0;
+  const bT   = parseFloat(style.borderTopWidth)    || 0;
+  const bB   = parseFloat(style.borderBottomWidth) || 0;
+  /* clientWidth already leaves the border out and is the same before the class
+   * goes on as after, so the guard can read the room without the layout being
+   * touched — a container with none is left in the flow it was in. */
+  const clientW = container.clientWidth;
+  const room    = clientW - padL - padR;
   if (!(room > 0) || !kids.length) return;
 
   container.classList.add(PILE_LAID_OUT);
-  const style = getComputedStyle(container);
   const gap   = parseFloat(style.columnGap) || 0;
   const lead  = parseFloat(style.rowGap)    || 0;
   const items = kids.map(kid => ({ width: kid.offsetWidth, height: kid.offsetHeight }));
@@ -439,10 +456,17 @@ function layOutPiles(container) {
 
   const plan = pileMasonryPlan(items, { width: room, column, gap, lead });
   kids.forEach((kid, i) => {
-    kid.style.left = `${plan.places[i].left}px`;
-    kid.style.top  = `${plan.places[i].top}px`;
+    const place = plan.places[i];
+    /* A band — a message about the filter, an empty mat — is drawn the width of
+     * the whole padding box and stays full-bleed; nudging it in by the gutter
+     * would push it off the other edge. A pile is narrower than that and takes
+     * the gutter. Read off the measured width rather than the column span, so a
+     * mat narrow enough to hold one pile still tells the two apart. */
+    const band = items[i].width >= clientW - 1;
+    kid.style.left = band ? '0px' : `${padL + place.left}px`;
+    kid.style.top  = `${padT + place.top}px`;
   });
-  container.style.height = `${plan.height}px`;
+  container.style.height = `${plan.height + padT + padB + bT + bB}px`;
 
   _watchPiles(container, kids);
 }

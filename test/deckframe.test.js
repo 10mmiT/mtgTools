@@ -390,6 +390,10 @@ function loadMat(cards, cats = [], selected = []) {
     renders: 0, saves: 0,
   };
   sandbox.dbRender   = () => { sandbox.renders++; };
+  /* deckview-render.js's: the readout is redrawn when the deck changes — a move
+   * across boards moves the count. What that line says is not this file's
+   * question, only that the move can ask for it without falling over. */
+  sandbox.dbRenderStats = () => {};
   /* deckview-core.js's: a card landing on the head of the deck puts that board
    * on the mat. Which board is showing is not this file's question. */
   sandbox._dbRevealHeadBoard = () => {};

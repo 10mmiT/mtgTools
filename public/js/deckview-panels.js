@@ -238,12 +238,14 @@ async function dbSearch() {
   let   q     = (input?.value || '').trim();
   if (!q) return;
 
-  // Auto-inject colour identity filter for commander decks (if toggle enabled)
+  // Auto-inject colour identity filter for commander decks (if toggle enabled).
+  // The whole commander board answers, so a pair of partners is searched in the
+  // colours of both — the same union the legality tab judges the deck against.
   const ciChecked = document.getElementById('dbCiToggle')?.checked;
-  if (ciChecked && dbDeck?.commander && dbCardData.has(dbDeck.commander)) {
-    const ci = dbCardData.get(dbDeck.commander).color_identity || [];
-    if (ci.length && !/\b(ci:|id:)/.test(q)) {
-      q = `${q} ci<=${ci.join('')}`;
+  if (ciChecked && !/\b(ci:|id:)/.test(q)) {
+    const ci = dbCommanderIdentity();
+    if (ci?.size) {
+      q = `${q} ci<=${[...ci].join('')}`;
     }
   }
 
@@ -524,19 +526,21 @@ function dbSetLeftTab(tab) {
 async function dbLoadEdhrec() {
   /* Off the commander board, and off the deck record when the board is empty —
      the same order this asked in when the commander was a category, with the
-     board in the category's place. A deck with partners is looked up under the
-     first of them: EDHREC is asked about one commander. */
-  const commanderName = dbCommanderCards()[0]?.card_name || dbDeck?.commander;
+     board in the category's place. Both partners go to EDHREC, which keys the
+     pair under its own combined page — the recommendations for the two together
+     are not the recommendations for either one alone. */
+  const names = dbCommanderCards().map(c => c.card_name);
+  if (!names.length && dbDeck?.commander) names.push(dbDeck.commander);
   const el = document.getElementById('dbEdhrecContent');
-  if (!commanderName) {
+  if (!names.length) {
     el.innerHTML = '<div class="empty-state" style="padding:var(--space-6) 0">Put a card on the commander board to see EDHREC recommendations</div>';
     return;
   }
   _dbEdhrecLoaded = true;
-  el.innerHTML = `<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading EDHREC recommendations for ${esc(commanderName)}…</div>`;
+  el.innerHTML = `<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading EDHREC recommendations for ${esc(names.join(' + '))}…</div>`;
 
   try {
-    const res  = await fetch(`/api/edhrec/commander/${encodeURIComponent(commanderName)}`);
+    const res  = await fetch(`/api/edhrec/commander/${encodeURIComponent(names.join('|'))}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     const cardlists = data?.container?.json_dict?.cardlists || [];
@@ -659,20 +663,17 @@ async function dbCreateDeck() {
   const newDeck = {
     id: deckId, source: 'manual', deckId: null, url: '',
     name, nameStatus: 'loaded', commander: commander || '',
-    commanderImg, cardCount: null, bracket: null, deckUrl: '',
+    // Public, like a deck made from the Decks tab: privacy is a deliberate act
+    // from the tile's ⋯, never a thing a deck arrives already wearing.
+    commanderImg, cardCount: null, bracket: null, deckUrl: '', private: false,
   };
 
   player.decks = [...(player.decks || []), newDeck];
   await saveToStorage();
   dbHideNewDeck();
-  dbPopulateDeckSel();
-
-  // Auto-select the new deck
-  const sel = document.getElementById('dbDeckSel');
-  if (sel) {
-    sel.value = `${playerId}|${deckId}`;
-    await dbSelectDeck(`${playerId}|${deckId}`);
-  }
+  // Straight onto the mat, which writes the strip's switcher around it —
+  // a deck with no rows saved yet is on the list because it is open.
+  await dbSelectDeck(`${playerId}|${deckId}`);
 }
 
 // ── Import: CSV ────────────────────────────────────────────────────────────────
@@ -735,6 +736,20 @@ function _dbParseTextList(text) {
   return results;
 }
 
+/* A heading naming a board rather than a pile. Every site that writes these
+ * lists puts the commander under one, and most write a Sideboard or Maybeboard
+ * section too — cards that are *not in the deck*. Read as a category, they land
+ * in the mainboard and are counted as if they were in it; read as the board
+ * they name, they go where they belong and the deck size leaves them out.
+ * Anything else is an ordinary category. */
+function _dbImportBoard(heading) {
+  const h = (heading || '').trim();
+  if (/^commander$/i.test(h))          return DB_COMMANDER_BOARD;
+  if (/^side(board)?$/i.test(h))       return 'side';
+  if (/^maybe(board)?$/i.test(h))      return 'maybe';
+  return null;
+}
+
 async function _dbImportCards(cards) {
   if (!cards.length || !dbDeck) return;
   /* Before the first name is looked up, let alone added. Both ways in — a
@@ -750,19 +765,21 @@ async function _dbImportCards(cards) {
 
   for (const { name, qty, category } of cards) {
     /* A pasted list is a deck: every line of it goes into the mainboard —
-       except the ones under a "// Commander" heading, which every site that
-       writes one of these lists puts at the top of it and which this app's own
-       export writes too. A heading is the only thing a pasted list can say
-       about a board, so it is the one that is read. */
-    const isCmd    = /^commander$/i.test(category || '');
-    const board    = isCmd ? DB_COMMANDER_BOARD : DB_MAIN_BOARD;
-    const finalCat = isCmd ? dbAutoCategory(name) : (category || dbAutoCategory(name));
+       except the ones under a heading that names a board. Commander, Sideboard
+       and Maybeboard are the three every site that writes one of these lists
+       puts its off-deck cards under, and which this app's own export writes for
+       the commander too. A heading is the only thing a pasted list can say
+       about a board, so it is the one that is read; on a board, the heading is
+       spent and the pile comes from the card's own type. */
+    const board    = _dbImportBoard(category) || DB_MAIN_BOARD;
+    const onBoard  = board !== DB_MAIN_BOARD;
+    const finalCat = onBoard ? dbAutoCategory(name) : (category || dbAutoCategory(name));
     dbEnsureCat(finalCat);
     const existing = dbFindCard(dbPlace(board, name));
     if (existing) { existing.qty = (existing.qty || 1) + qty; }
     else {
       dbCards.push({ card_name: name, qty, category: finalCat, board, position: dbCards.length });
-      _dbRevealHeadBoard(board);
+      _dbRevealBoard(board);
     }
   }
 

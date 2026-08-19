@@ -633,6 +633,12 @@ function dbMoveCardsTo(refs, place) {
   _dbRevealHeadBoard(dbReadPlace(place).board);
 
   dbRender();
+  /* The readout too, not just the mat: a card leaving the deck for the
+     maybeboard is one fewer of the ninety-nine, and the count, the curve and
+     the rest are the mainboard's — so a move across boards changes them exactly
+     as adding or removing the card would, and the line has to be redrawn to say
+     so rather than waiting for the next time the deck is opened. */
+  dbRenderStats();
   _dbScheduleSave();
   if (commanders) _dbSyncCommanderRecord();
   return true;
@@ -682,6 +688,13 @@ async function _dbSave() {
       { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    /* The deck is built now, and the client's copy of that signal says so
+     * without waiting for the next refreshState. The server's own answer is
+     * SUM(qty) over the rows just written (routes/state.js), so it is computed
+     * the same way here — a deck filled and closed inside the polling window
+     * would otherwise drop off the Decks grid and the strip's switcher, both
+     * of which read deckCardCounts to mean "has cards". */
+    state.deckCardCounts[dbDeck.id] = body.cards.reduce((n, c) => n + (c.qty || 0), 0);
     _dbSetSaveStatus('Saved ✓');
     setTimeout(() => _dbSetSaveStatus(''), 2000);
   } catch (e) {

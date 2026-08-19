@@ -423,6 +423,18 @@ test('and a deck with nothing on the board falls back to what its record names',
   assert.ok(tab.calls().some(c => c.url.includes('/api/edhrec/commander/Atraxa')));
 });
 
+test('a pair of partners is asked about together, not one of the two', () => {
+  // EDHREC keys the pair under its own combined page: both names go up, joined
+  // for the server to slug and sort into the one page that is the two together.
+  const tab = loadTab([CMD2, CMD3, ...DECK], { commander: 'Krark' });
+  tab.run('dbLoadEdhrec()');
+  const url = tab.calls().find(c => c.url.includes('/api/edhrec/commander/'))?.url;
+  assert.ok(url, 'EDHREC was not asked at all');
+  const asked = decodeURIComponent(url.split('/api/edhrec/commander/')[1]);
+  assert.deepStrictEqual(asked.split('|').sort(), ['Krark', 'Sakashima'],
+    'both partners were not sent to EDHREC');
+});
+
 test('the export has the commander at the head of it', () => {
   // A Commander list without its commander is not a list anybody can play.
   const tab = loadTab([CMD2, CMD3, ...DECK], { commander: 'Krark' });
@@ -438,6 +450,23 @@ test('and a list pasted back in puts the commander where it came from', async ()
   assert.strictEqual(tab.at('main', 'Sol Ring').category, 'Ramp');
   assert.ok(!tab.answer('dbCats.map(c => c.name)').includes('Commander'),
     'the pasted heading made a category for it after all');
+});
+
+test('a pasted Sideboard and Maybeboard land off the deck, not in it', async () => {
+  // Cards under those headings are not in the deck, so they must not swell the
+  // mainboard the count is taken of — the whole reason the boards exist.
+  const tab = loadTab([], { cats: [] });
+  await tab.run(`_dbImportCards(_dbParseTextList(
+    '1 Sol Ring\\n\\n// Sideboard\\n1 Doom Blade\\n\\n// Maybeboard\\n1 Forest'))`);
+  assert.strictEqual(tab.at('main', 'Sol Ring').qty, 1);
+  assert.strictEqual(tab.at('side',  'Doom Blade').qty, 1);
+  assert.strictEqual(tab.at('maybe', 'Forest').qty, 1);
+  assert.strictEqual(tab.at('main', 'Doom Blade'), null, 'the sideboard card is in the deck');
+  assert.strictEqual(tab.at('main', 'Forest'), null, 'the maybeboard card is in the deck');
+  assert.ok(!tab.answer('dbCats.map(c => c.name)').some(n => /side|maybe/i.test(n)),
+    'a board heading was read as a pile');
+  tab.run('dbRenderStats()');
+  assert.match(tab.el('dbStatCards').innerHTML, /1\//, 'the off-deck cards were counted');
 });
 
 // ── Moving it, and not moving it ──────────────────────────────────────

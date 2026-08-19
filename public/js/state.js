@@ -64,6 +64,11 @@ const state = {
    * an arrow on, and the header is a shortcut into that chain now. */
   renderTimer: null,
   version: 0,  // optimistic-concurrency version from server
+  /* SUM(qty) per deck_id, server→client only (no whitelist). The built-deck
+   * signal the Decks grid keys off — `deckCardCounts[id] > 0` is "imported" —
+   * and already ownership-filtered by the server, so a deck missing here is
+   * either unbuilt or one this requester may not see. */
+  deckCardCounts: {},
 };
 
 let viewMode        = window.innerWidth < BP_SM ? 'grid' : 'list';
@@ -79,11 +84,13 @@ function stateToJSON() {
       // the palette move, having already been read for the slot it encoded.
       id: p.id, name: p.name, colorIdx: playerSlot(p),
       wantList: p.wantList || [],
+      folders: p.folders || [],
       decks: p.decks.map(d => ({
         id: d.id, source: d.source, deckId: d.deckId || null, url: d.url || '',
         name: d.name, nameStatus: d.nameStatus === 'loaded' ? 'loaded' : 'pending',
         commander: d.commander || '', commanderImg: d.commanderImg || null,
         cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',
+        folderId: d.folderId || null, private: d.private || false,
       })),
     })),
   };
@@ -111,20 +118,43 @@ function hydrateState(raw) {
    * reconcileColSorts in sortui.js. */
   reconcileColSorts(state.collections);
 
+  // The server's ownership-filtered built-deck counts. Server→client only, so
+  // it is read here but never written back through stateToJSON.
+  state.deckCardCounts = data.deckCardCounts || {};
+
   state.players = (data.players || []).map(p => ({
     id: p.id, name: p.name, colorIdx: playerSlot(p),
     wantList: p.wantList || [],
+    folders: p.folders || [],
     decks: (p.decks || []).map((d, i) => ({
       id: d.id || (d.deckId ? `arch_${d.deckId}` : `legacy_${p.id}_${i}`),
       source: d.source || 'manual', deckId: d.deckId || null, url: d.url || '',
       name: d.name || '', nameStatus: d.nameStatus || 'loaded',
       commander: d.commander || '', commanderImg: d.commanderImg || null,
       cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',
+      folderId: d.folderId || null, private: d.private || false,
       editing: false,
     })),
   }));
 }
 
+/* The offline cache — the blob loadFromStorage falls back to when the server
+ * cannot be reached. Written by the save path below when the server refuses,
+ * and re-written by a caller that rolled its change back afterwards: a refused
+ * save has already put the optimistic value in here, so a rollback that left it
+ * standing would hand the change back on the next offline load, after the app
+ * had told the person it did not take. */
+function cacheStateLocally() {
+  const data = stateToJSON();
+  if (typeof state.version === 'number') data.version = state.version;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+}
+
+/* Save the whole state blob. Answers whether the *server* took it: a caller
+ * that changed something on the strength of it (setDeckPrivate) has to be able
+ * to put it back, and a write that only reached localStorage is a change the
+ * next device will never see. Every caller that just wants the state saved can
+ * go on ignoring the answer. */
 async function saveToStorage() {
   const data = stateToJSON();
   // Include the current version for optimistic concurrency check
@@ -144,7 +174,7 @@ async function saveToStorage() {
       await loadFromStorage();
       if (typeof window !== 'undefined' && typeof renderAll === 'function') renderAll();
       alert('Your changes could not be saved because another session updated the state at the same time. The page has been refreshed with the latest data — please redo your change.');
-      return;
+      return false;
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -153,11 +183,12 @@ async function saveToStorage() {
     const json = await res.json().catch(() => ({}));
     if (typeof json.version === 'number') state.version = json.version;
     console.log(`[save] ✓ server accepted (version ${state.version})`);
-    return;
+    return true;
   } catch (e) {
     console.warn(`[save] ✗ server rejected (${e.message}), falling back to localStorage`);
   }
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  cacheStateLocally();
+  return false;
 }
 
 async function loadFromStorage() {
@@ -274,6 +305,8 @@ async function saveFaqSeen(tab) {
 }
 
 // ── Granular deck save (3.2) ──────────────────────────────────────────
+// Answers whether the server took it, the way saveToStorage does — the
+// fallback to the whole-state POST carries that answer through.
 async function savePlayerDecks(playerId) {
   const player = state.players.find(p => p.id === playerId);
   if (!player) return saveToStorage();
@@ -282,6 +315,7 @@ async function savePlayerDecks(playerId) {
     name: d.name, nameStatus: d.nameStatus === 'loaded' ? 'loaded' : 'pending',
     commander: d.commander || '', commanderImg: d.commanderImg || null,
     cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',
+    folderId: d.folderId || null, private: d.private || false,
   }));
   try {
     const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/decks`, {
@@ -295,7 +329,7 @@ async function savePlayerDecks(playerId) {
       const json = await res.json().catch(() => ({}));
       if (typeof json.version === 'number') state.version = json.version;
       console.log(`[save] ✓ PUT /api/players/${playerId}/decks (version ${state.version})`);
-      return;
+      return true;
     }
     console.warn(`[save] granular deck save returned ${res.status}, falling back`);
   } catch (e) {

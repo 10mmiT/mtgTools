@@ -2,9 +2,21 @@
 const express = require('express');
 const { db, writePrinting, deckCardRow } = require('../available-db');
 const history = require('../deck-history');
-const { requireAuth, requirePlayerAccess } = require('../middleware/auth');
+const { requireAuth, requirePlayerAccess, getSession } = require('../middleware/auth');
+const { deckVisibleTo } = require('./state');
 
 const router = express.Router();
+
+/* The read guard for a deck named by id. The write routes are owner-scoped by
+ * requirePlayerAccess already; the reads below are requireAuth only, so anyone
+ * logged in could otherwise pull a private deck's cards or history by id. A
+ * non-owner asking after a private deck gets a 404 — its existence is hidden,
+ * not confirmed with a 403. deckVisibleTo carries the open-mode no-op (the guest
+ * session is admin) and the owner/admin rule, shared with the /api/state filter. */
+function requireDeckVisible(req, res, next) {
+  if (deckVisibleTo(getSession(req), req.params.deckId)) return next();
+  res.status(404).json({ error: 'Not found' });
+}
 
 /* No Commander among them. The commander is a board — see DB_BOARDS in
  * public/js/deckview-boards.js — and a category of the same name would be a
@@ -26,7 +38,7 @@ const MAIN_BOARD = 'main';
 const boardOf = value => (typeof value === 'string' && value.trim()) || MAIN_BOARD;
 
 // GET /api/players/:playerId/decks/:deckId/cards
-router.get('/players/:playerId/decks/:deckId/cards', requireAuth, (req, res) => {
+router.get('/players/:playerId/decks/:deckId/cards', requireAuth, requireDeckVisible, (req, res) => {
   const { deckId } = req.params;
   const cards = db.prepare(
     'SELECT card_name, qty, category, board, position, printing FROM deck_cards WHERE deck_id = ? ORDER BY position, card_name'
@@ -168,12 +180,12 @@ router.put('/players/:playerId/decks/:deckId/categories', requirePlayerAccess,
 // snapshot is written live in deck-history.js; these are four ways in.
 
 // GET /api/players/:playerId/decks/:deckId/snapshots — the list, with diffs
-router.get('/players/:playerId/decks/:deckId/snapshots', requireAuth, (req, res) => {
+router.get('/players/:playerId/decks/:deckId/snapshots', requireAuth, requireDeckVisible, (req, res) => {
   res.json(history.list(req.params.deckId));
 });
 
 // GET /api/players/:playerId/decks/:deckId/snapshots/:id — one, whole
-router.get('/players/:playerId/decks/:deckId/snapshots/:id', requireAuth, (req, res) => {
+router.get('/players/:playerId/decks/:deckId/snapshots/:id', requireAuth, requireDeckVisible, (req, res) => {
   const snap = history.get(req.params.deckId, Number(req.params.id));
   if (!snap) return res.status(404).json({ error: 'No such snapshot' });
   res.json(snap);

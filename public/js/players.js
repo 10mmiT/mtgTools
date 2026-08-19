@@ -53,6 +53,7 @@ function addPlayerByName(name) {
     colorIdx: state.players.length % PLAYER_SLOTS,
     decks:    [],
     wantList: [],
+    folders:  [],
   });
   saveToStorage();
   renderPlayers();
@@ -138,6 +139,9 @@ async function confirmAddDeck(playerId) {
     cardCount:    null,
     bracket:      null,
     deckUrl:      normUrl,
+    // Public, said out loud: privacy is a deliberate act from the tile's ⋯,
+    // not a thing a deck can arrive already wearing.
+    private:      false,
     editing:      false,
   };
 
@@ -240,14 +244,14 @@ async function loadPlayerDeck(playerId, deckId) {
   renderResults();
 }
 
+/* Build, on a tile. It used to reach through the Deck Builder's picker and
+ * open whatever option matched — which silently did nothing for a deck the
+ * picker did not hold. The picker is your own built decks now, so that would
+ * be every tile in the Everyone view and every deck opened for the first
+ * time. The deck is opened directly, and the strip is written around it. */
 function openInDeckView(playerId, deckId) {
   setTab('deckview');
-  const sel = document.getElementById('dbDeckSel');
-  const val = `${playerId}|${deckId}`;
-  if (sel && [...sel.options].some(o => o.value === val)) {
-    sel.value = val;
-    dbSelectDeck(val);
-  }
+  dbSelectDeck(`${playerId}|${deckId}`);
 }
 
 // ── Edit deck ─────────────────────────────────────────────────────────────
@@ -306,12 +310,476 @@ async function saveEditDeck(playerId, deckId) {
   savePlayerDecks(playerId);
 }
 
-// ── Render players ────────────────────────────────────────────────────────
+// ── Whose decks this tab is showing ─────────────────────────────────────────
+// The tab lands you on a grid of your own built decks; a Mine / Everyone toggle
+// flips to the old per-player sections. This mirrors the Collections tab's
+// shelf scope (js/collections.js) — same "Mine needs somebody to be" rule, same
+// hide-the-control-when-nobody, its own localStorage key. It differs in one
+// place: the default is Mine here (the tab's headline) where Collections
+// defaults to Everyone.
+
+const DECK_SCOPE_KEY = 'mtgtools_deck_scope';
+
+/* Which view the tab is on — 'mine' or 'all'. "Mine" needs an identity, so an
+ * app that cannot say who you are reads 'all' whatever is stored: the control
+ * is not offered in that case, and a preference from a browser that once knew
+ * must not quietly hide every deck from somebody who cannot switch it back. */
+function deckScope() {
+  if (!myPlayerId()) return 'all';
+  // Default Mine — the headline of the tab is your own decks. Only an explicit
+  // 'all' reads as Everyone; anything else (unset, or a stale value) is Mine.
+  try { return localStorage.getItem(DECK_SCOPE_KEY) === 'all' ? 'all' : 'mine'; }
+  catch { return 'mine'; }
+}
+
+function setDeckScope(scope) {
+  try { localStorage.setItem(DECK_SCOPE_KEY, scope === 'mine' ? 'mine' : 'all'); } catch {}
+  renderPlayers();
+}
+
+/* Mounted once in the toolbar, synced on every render. Hidden — not disabled —
+ * when the app cannot say who you are, the way syncColScope does it: with
+ * nobody to be there is no "mine" to offer, so the whole mount goes and the tab
+ * is the Everyone view. */
+function syncDeckScope() {
+  const host = document.getElementById('deckScopeMount');
+  if (!host) return;
+  const me = myPlayerId();
+  host.classList.toggle('scope-mount-hidden', !me);
+  const sel = document.getElementById('deckScopeSel');
+  if (sel) sel.value = deckScope();
+}
+
+/* Who you are can change while the app is open — in open mode it is a name
+ * typed into Available@'s "Who are you?" bar — and it decides whether this tab
+ * shows your grid or everyone's sections. Called from there, mirroring
+ * colIdentityChanged. */
+let _deckIdentity = null;
+function deckIdentityChanged() {
+  const now = myPlayerId();
+  if (now === _deckIdentity) return;
+  _deckIdentity = now;
+  renderPlayers();
+}
+
+// ── Folders ─────────────────────────────────────────────────────────────────
+// Flat, per player, kept in the state blob beside their decks. A folder is how
+// *that person* organizes *their* decks; everyone else reads it. Creating,
+// renaming and removing one is a change to the player, so it goes through the
+// whole-state save; which folder a deck is in is a change to the deck, so that
+// goes through savePlayerDecks.
+
+/* Ids follow the deck convention (`d_…`), with a counter for the case that
+ * costs nothing to rule out: two folders made inside the same millisecond. */
+/* The order the sections are drawn in, and the order `position` is renumbered
+ * against. Stored order is not it: `position` is the field that carries the
+ * order, and drag-reorder (#39) will write it without touching the array. */
+function sortedFolders(player) {
+  return [...(player.folders || [])].sort((a, b) => (a.position || 0) - (b.position || 0));
+}
+
+function newFolderId(folders) {
+  const stamp = `f_${Date.now()}`;
+  if (!folders.some(f => f.id === stamp)) return stamp;
+  let n = 1;
+  while (folders.some(f => f.id === `${stamp}_${n}`)) n++;
+  return `${stamp}_${n}`;
+}
+
+function addFolder(playerId) {
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) return;
+  const name = (prompt('New folder name:') || '').trim();
+  if (!name) return;
+  player.folders.push({ id: newFolderId(player.folders), name, position: player.folders.length });
+  renderPlayers();
+  saveToStorage();
+}
+
+/* The name is the whole of a folder, so renaming is prompt-and-save. The id
+ * stays what it was: a deck names its folder by id, and a rename that minted a
+ * new one would empty the folder it just renamed. */
+function renameFolder(playerId, folderId) {
+  const player = state.players.find(p => p.id === playerId);
+  const folder = player?.folders.find(f => f.id === folderId);
+  if (!folder) return;
+  const name = (prompt('Rename folder:', folder.name) || '').trim();
+  if (!name || name === folder.name) return;
+  folder.name = name;
+  renderPlayers();
+  saveToStorage();
+}
+
+/* Removing a folder is removing the shelf, not the decks on it. Their
+ * `folderId` is left naming a folder that is no longer there, which the grid
+ * reads as loose — the whole reason this needs no migration. */
+function removeFolder(playerId, folderId) {
+  const player = state.players.find(p => p.id === playerId);
+  const folder = player?.folders.find(f => f.id === folderId);
+  if (!folder) return;
+  const n = player.decks.filter(d => d.folderId === folderId).length;
+  if (!confirm(`Remove the folder "${folder.name}"?${n ? ` Its ${n} deck${n !== 1 ? 's go' : ' goes'} back to loose.` : ''}`)) return;
+  // Renumbered, not just removed: `position` is what orders the sections, and
+  // a gap left in it would let the next folder made claim a place another one
+  // already holds.
+  player.folders = sortedFolders(player).filter(f => f.id !== folderId)
+    .map((f, i) => ({ ...f, position: i }));
+  renderPlayers();
+  saveToStorage();
+}
+
+/* Which folder a deck is in is a fact about the deck, so this goes through the
+ * granular deck save rather than the whole state. Optimistic like the rest of
+ * the tab: the tile moves, then the save follows. */
+function moveDeckToFolder(playerId, deckId, folderId) {
+  const player = state.players.find(p => p.id === playerId);
+  const deck   = player?.decks.find(d => d.id === deckId);
+  if (!deck) return;
+  const next = folderId || null;
+  if (deck.folderId === next) return;
+  deck.folderId = next;
+  renderPlayers();
+  savePlayerDecks(playerId);
+}
+
+// ── Private decks ───────────────────────────────────────────────────────────
+// A private deck is visible to its owner and to admins and to nobody else,
+// enforced by the server (routes/state.js) rather than by this tab. What lives
+// here is the way to say so — the ⋯ row that sets the flag — and the badge that
+// says it is set.
+
+/* Whether the flag means anything in this deployment.
+ *
+ * Open mode has no accounts, so the server cannot tell owner from stranger and
+ * cannot enforce privacy: the decision (docs/design/spec-deck-grid-and-folders.md)
+ * is that the flag is *inert* there rather than half-kept. So the tab offers no
+ * way to set it and draws no badge claiming it — a lock that keeps nobody out
+ * is worse than no lock at all. The flag itself is left alone, in state and
+ * through every save, so a deployment that later gains accounts keeps whatever
+ * was marked.
+ *
+ * Open mode is the `guest` session, the same test available.js and playmat.js
+ * make. Not myPlayerId(): open mode can say who you are (the remembered name
+ * behind Available@'s "Who are you?" bar) and still have nobody to enforce it. */
+function deckPrivacyEnforced() {
+  return !!currentUser && currentUser.username !== 'guest';
+}
+
+/* Marked private, or public again. Optimistic like the rest of the tab, and
+ * rolled back the way setCollectionOwner does it (js/collections.js): the tile
+ * changes, the save follows, and a server that will not take it gets the deck
+ * put back rather than left looking private to nobody but this browser. */
+async function setDeckPrivate(playerId, deckId, makePrivate) {
+  const player = state.players.find(p => p.id === playerId);
+  const deck   = player?.decks.find(d => d.id === deckId);
+  if (!deck) return;
+  const previous = !!deck.private;
+  const next     = !!makePrivate;
+  if (previous === next) return;
+
+  deck.private = next;
+  renderPlayers();
+
+  if (await savePlayerDecks(playerId)) return;
+
+  // Unless the save was a 409, which reloads the whole state and replaces every
+  // deck object with the server's. There is then nothing of ours left to put
+  // back, and writing the old value onto the fresh state would undo what the
+  // reload just told us — including a change another session made to this very
+  // flag. That path has already said its piece, so this one stays quiet.
+  const live = state.players.find(p => p.id === playerId)?.decks.find(d => d.id === deckId);
+  if (live !== deck) return;
+
+  deck.private = previous;
+  renderPlayers();
+  // The refused save left the optimistic value in the offline cache on its way
+  // past, and that cache is what an unreachable server is loaded from next
+  // time. Put the rolled-back state in there too, or the change comes back
+  // after the app has said it did not take.
+  cacheStateLocally();
+  alert(`Could not make "${deck.name}" ${next ? 'private' : 'public'} — the change was not saved, so the deck is still ${previous ? 'private' : 'public'}.`);
+}
+
+/* The privacy row on a deck's ⋯, shaped like deckFolderMenuItems below: one
+ * row saying which way the deck is currently facing, and no rows at all where
+ * the flag would not be enforced. */
+function deckPrivacyMenuItems(player, deck) {
+  if (!deckPrivacyEnforced()) return [];
+  return [{
+    label:   deck.private ? 'Make public' : 'Make private',
+    onclick: `setDeckPrivate('${jsAttr(player.id)}','${jsAttr(deck.id)}',${deck.private ? 'false' : 'true'})`,
+  }];
+}
+
+/* The badge a private deck wears. Text beside the lock rather than the lock
+ * alone: the tile's other two badges are words, and a padlock on its own has to
+ * be guessed at. Drawn only where the flag is enforced.
+ *
+ * Drawn off the flag alone, not off whose deck it is. The spec scopes the badge
+ * to "yours, or any as an admin", which is the same set as the decks that reach
+ * you at all — the server withholds everyone else's (routes/state.js). Gating
+ * it again here would buy nothing today, and on the day that filter regressed
+ * it would hide the leak: a stranger's private deck on your screen should be
+ * wearing the lock that makes it obvious, not passing for an ordinary deck. */
+function deckPrivateBadgeHtml(deck) {
+  if (!deckPrivacyEnforced() || !deck.private) return '';
+  return `<span class="deck-private-badge" title="Private — only you and an admin can see this deck">🔒 Private</span>`;
+}
+
+/* The folder rows on a deck's ⋯ menu, shaped like the owner rows on a
+ * collection's (js/collections.js colOwnerMenuItems): a section label, every
+ * folder with a tick on the one it is in, and — only when it is in one — the
+ * way back out. kebabMenuHtml has no submenus, so "Move to folder →" is that
+ * label with its choices under it. */
+function deckFolderMenuItems(player, deck) {
+  const folders = sortedFolders(player);
+  if (!folders.length) return [];
+  const inOne = folders.some(f => f.id === deck.folderId);
+  const items = [{ section: 'Move to folder' }];
+  for (const f of folders) {
+    items.push({
+      label: `${deck.folderId === f.id ? '✓ ' : ''}${esc(f.name)}`,
+      onclick: `moveDeckToFolder('${jsAttr(player.id)}','${jsAttr(deck.id)}','${jsAttr(f.id)}')`,
+    });
+  }
+  if (inOne) items.push({
+    label: 'Remove from folder',
+    onclick: `moveDeckToFolder('${jsAttr(player.id)}','${jsAttr(deck.id)}',null)`,
+  });
+  return items;
+}
+
+/* Where a deck came from, in one word. Written on a tile's badge and on a
+ * draft's row, which are the two places a deck is shown before it is opened —
+ * so the answer cannot be two different words depending on which. */
+function deckSourceLabel(d) {
+  return d.source === 'archidekt' ? 'Archidekt' : 'Manual';
+}
+
+// ── Render one deck tile ────────────────────────────────────────────────────
+// The tile the grid and the sections both draw. `player` owns the deck; the
+// action handlers are keyed by the pair, and `canEdit` gates the ⋯ menu.
+function deckTileHtml(player, d, canEdit) {
+  if (d.editing) {
+    return `<div class="deck-tile-edit" data-deck-id="${d.id}">
+      <div class="edit-label">Edit Deck</div>
+      <input type="text" name="edit-name"       value="${esc(d.name)}"      placeholder="Deck name…">
+      <input type="text" name="edit-commander"  value="${esc(d.commander)}" placeholder="Commander name…">
+      <input type="text" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
+             onkeydown="if(event.key==='Enter')saveEditDeck('${player.id}','${d.id}')">
+      <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
+        <button class="btn-primary"   style="flex:1;padding:var(--space-1) var(--space-2);font-size:var(--text-sm)" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
+        <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-sm)"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  const srcLabel     = deckSourceLabel(d);
+  const busy         = d.nameStatus === 'loading';
+  const nameClass    = d.nameStatus === 'loading' ? 'loading' : d.nameStatus === 'error' ? 'error' : '';
+  const bgStyle      = d.commanderImg ? `background-image:url('${d.commanderImg}')` : '';
+  /* What bracket its owner says it is. Drawn by js/deckview-legality.js,
+     which is where the five brackets are named and where the declaration is
+     made — this tile is one of the places the answer is read. */
+  const bracketBadge = dbBracketBadgeHtml(d.bracket);
+  /* draggable="false" on the link: an <a href> is draggable without being
+     asked, so a tile picked up by its View ↗ would start a drag of the URL
+     inside the drag of the deck. The tile is one object to the hand. */
+  const viewLink     = d.deckUrl
+    ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener" draggable="false">View ↗</a>` : '';
+  // The count sits with the name and the commander rather than on the
+  // action row: it is something the deck *is*, not something to do to
+  // it, and on a 260px tile the row it used to share has only enough
+  // width for the three controls.
+  const countInfo    = d.cardCount ? `<div class="deck-tile-meta">${d.cardCount} cards</div>` : '';
+  const cmdLine      = d.commander
+    ? `<div class="deck-tile-commander">Commander: ${esc(d.commander)}</div>` : '';
+  // Where it could be filed, if its owner has made anywhere to file it.
+  const folderItems  = deckFolderMenuItems(player, d);
+  // Which way it is facing, where that means anything.
+  const privacyItems = deckPrivacyMenuItems(player, d);
+
+  // Pickable up where its ⋯ is (js/deckdrag.js), which is the drag's whole
+  // relationship to the menu: the same decks, the same move, one hand quicker.
+  const drag = deckDragAttrs(player.id, d.id, canEdit);
+
+  return `<div class="deck-tile" data-deck-id="${d.id}" style="${bgStyle}"${drag}>
+    <div class="deck-tile-overlay">
+      <div class="deck-tile-top">
+        <span class="deck-source-badge">${srcLabel}</span>
+        ${bracketBadge}
+        ${deckPrivateBadgeHtml(d)}
+        ${viewLink}
+      </div>
+      <div class="deck-tile-middle">
+        <div class="deck-tile-name ${nameClass}">${esc(d.name)}</div>
+        ${cmdLine}
+        ${countInfo}
+      </div>
+      <div class="deck-tile-bottom">
+        <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
+        <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
+        ${canEdit ? kebabMenuHtml([
+          { label: 'Edit',   onclick: `startEditDeck('${player.id}','${d.id}')` },
+          ...privacyItems,
+          { divider: true },
+          ...folderItems,
+          ...(folderItems.length ? [{ divider: true }] : []),
+          { label: 'Remove', onclick: `removeDeck('${player.id}','${d.id}')`, danger: true },
+        ], { title: 'Deck actions', btnClass: 'kebab-btn-tile' }) : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Render the tab ──────────────────────────────────────────────────────────
 
 function renderPlayers() {
   const list = document.getElementById('playersList');
   if (!list) return;
 
+  // The first render records who you are, so deckIdentityChanged can tell a
+  // real change from the initial paint. syncDeckScope shows or hides the
+  // toolbar control to match.
+  _deckIdentity = myPlayerId();
+  syncDeckScope();
+
+  const scope = deckScope();
+  // Player administration — + Add Player — lives in the Everyone view, where
+  // the per-player sections are. The Mine grid is only your own decks.
+  const addBtn = document.getElementById('addPlayerRevealBtn');
+  if (addBtn) addBtn.style.display = scope === 'mine' ? 'none' : '';
+
+  if (scope === 'mine') renderMineGrid(list);
+  else                  renderEveryone(list);
+}
+
+// A flat grid of your own *built* decks. "Built" is the server's signal —
+// deckCardCounts[id] > 0 means the Deck Builder has saved deck_cards rows for
+// it (the field is documented where it is declared, in js/state.js, and the
+// Deck Builder's switcher reads it the same way); a deck that is only a name
+// and a link never appears here.
+function renderMineGrid(list) {
+  const me      = myPlayerId();
+  const player  = state.players.find(p => p.id === me);
+  const canEdit = currentUser?.role === 'admin' || isMyPlayer(me);
+  const decks   = player?.decks || [];
+  const isBuilt = d => (state.deckCardCounts?.[d.id] || 0) > 0;
+  const built   = decks.filter(isBuilt);
+  const drafts  = decks.filter(d => !isBuilt(d));
+
+  // The count is the grid's, which is what the view is. The drafts under it
+  // are decks nobody has started; counting them here would promise more decks
+  // than the grid can show.
+  const info = document.getElementById('playersInfo');
+  if (info) info.textContent = built.length
+    ? `${built.length} deck${built.length !== 1 ? 's' : ''}`
+    : '';
+
+  const body = !built.length && !(player?.folders || []).length
+    ? '<div class="empty-state">No built decks yet — open a deck in the Deck Builder to import its cards, or switch to Everyone’s decks above.</div>'
+    : folderedDecksHtml(player, built, canEdit);
+
+  list.innerHTML = body + draftsStripHtml(player, drafts);
+}
+
+// ── Not built yet ───────────────────────────────────────────────────────────
+/* The decks the grid above cannot show: yours, but never opened, so the server
+ * counts no deck_cards rows for them. They are not lost and they are not
+ * tiles — a tile is commander art, a card count and a place on a shelf, and a
+ * draft has none of the three. A row each, at the foot of the view, saying the
+ * two things known about it and offering the one thing to do with it: Build
+ * opens it on the mat, where an Archidekt deck imports its cards on first open
+ * (js/deckview-core.js) and stops being a draft on the next render.
+ *
+ * Not draggable, no Move to folder, no drop zone around it: a folder is a
+ * shelf for decks, and a draft is not on the shelves yet. Building it is what
+ * puts it within reach of one.
+ *
+ * The Mine view's alone. The Everyone view has always drawn every deck as a
+ * tile, built or not, and a strip there would say "not built yet" about other
+ * people's decks to somebody who cannot build them. */
+function draftsStripHtml(player, drafts) {
+  if (!drafts.length) return '';
+
+  const rows = drafts.map(d => `<div class="deck-draft-row" data-draft-id="${esc(d.id)}">
+    <span class="deck-draft-name">${esc(d.name)}</span>
+    <span class="deck-draft-source">${deckSourceLabel(d)}</span>
+    <button class="btn-secondary deck-draft-build" title="Open in Deck Builder"
+            onclick="openInDeckView('${jsAttr(player.id)}','${jsAttr(d.id)}')">Build</button>
+  </div>`).join('');
+
+  return `<div class="deck-drafts">
+    <div class="deck-drafts-header">Not built yet</div>
+    ${rows}
+  </div>`;
+}
+
+// ── Decks, in their folders ─────────────────────────────────────────────────
+// The loose zone first — decks in no folder, which is where a deck starts and
+// where a deck whose folder was removed comes back to — then a section per
+// folder in `position` order. Both views draw decks through here, so a folder
+// means the same thing whether you are looking at your grid or at everyone's
+// sections.
+
+/* Which decks belong where. A `folderId` naming a folder that is not in the
+ * list reads as loose: removing a folder is meant to cost nothing, so nothing
+ * rewrites the decks that were in it. */
+function groupDecksByFolder(folders, decks) {
+  const known = new Set(folders.map(f => f.id));
+  const loose = decks.filter(d => !d.folderId || !known.has(d.folderId));
+  const inFolder = new Map(folders.map(f => [f.id, []]));
+  for (const d of decks) if (d.folderId && known.has(d.folderId)) inFolder.get(d.folderId).push(d);
+  return { loose, inFolder };
+}
+
+function deckGridHtml(player, decks, canEdit) {
+  return `<div class="deck-tiles-grid">${decks.map(d => deckTileHtml(player, d, canEdit)).join('')}</div>`;
+}
+
+function folderedDecksHtml(player, decks, canEdit) {
+  const folders = sortedFolders(player);
+  const { loose, inFolder } = groupDecksByFolder(folders, decks);
+
+  // Somewhere to put a dragged tile down (js/deckdrag.js). The zones already
+  // say which player and which folder they are, for the tests to read the
+  // layout back; the drop reads the same two attributes.
+  const drop = deckZoneAttrs(canEdit);
+
+  const looseZone = `<div class="folder-zone folder-loose" data-player-id="${jsAttr(player.id)}" data-folder-id=""${drop}>
+    ${loose.length ? deckGridHtml(player, loose, canEdit)
+      : `<div class="player-no-decks">${decks.length ? 'Every deck is in a folder.' : 'No decks yet.'}</div>`}
+  </div>`;
+
+  const sections = folders.map(f => {
+    const held = inFolder.get(f.id);
+    return `<div class="folder-zone folder-section" data-player-id="${jsAttr(player.id)}" data-folder-id="${jsAttr(f.id)}"${drop}>
+      <div class="folder-header">
+        <span class="folder-name">${esc(f.name)}</span>
+        <span class="folder-count">${held.length} deck${held.length !== 1 ? 's' : ''}</span>
+        ${canEdit ? kebabMenuHtml([
+          { label: 'Rename', onclick: `renameFolder('${jsAttr(player.id)}','${jsAttr(f.id)}')` },
+          { divider: true },
+          { label: 'Remove folder', onclick: `removeFolder('${jsAttr(player.id)}','${jsAttr(f.id)}')`, danger: true },
+        ], { title: 'Folder actions' }) : ''}
+      </div>
+      ${held.length ? deckGridHtml(player, held, canEdit)
+        : '<div class="player-no-decks">Nothing filed here yet.</div>'}
+    </div>`;
+  }).join('');
+
+  const newFolder = canEdit
+    ? `<button class="btn-secondary folder-add" onclick="addFolder('${jsAttr(player.id)}')">+ New folder</button>`
+    : '';
+
+  return `${looseZone}${sections}${newFolder}`;
+}
+
+// The old per-player sectioned layout, demoted from default. Every player is a
+// collapsible section, editing enabled only where you own the player or are an
+// admin. Other players' private decks never arrive from the server, so there
+// is nothing to hide here.
+function renderEveryone(list) {
   const isAdmin = currentUser?.role === 'admin';
 
   // The strip's count, in the slot every other tab gives its result count.
@@ -332,63 +800,11 @@ function renderPlayers() {
   list.innerHTML = state.players.map(player => {
     const canEdit = isAdmin || isMyPlayer(player.id);
 
-    const tilesHTML = player.decks.map(d => {
-      if (d.editing) {
-        return `<div class="deck-tile-edit" data-deck-id="${d.id}">
-          <div class="edit-label">Edit Deck</div>
-          <input type="text" name="edit-name"       value="${esc(d.name)}"      placeholder="Deck name…">
-          <input type="text" name="edit-commander"  value="${esc(d.commander)}" placeholder="Commander name…">
-          <input type="text" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
-                 onkeydown="if(event.key==='Enter')saveEditDeck('${player.id}','${d.id}')">
-          <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
-            <button class="btn-primary"   style="flex:1;padding:var(--space-1) var(--space-2);font-size:var(--text-sm)" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
-            <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-sm)"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
-          </div>
-        </div>`;
-      }
-
-      const srcLabel     = d.source === 'archidekt' ? 'Archidekt' : 'Manual';
-      const busy         = d.nameStatus === 'loading';
-      const nameClass    = d.nameStatus === 'loading' ? 'loading' : d.nameStatus === 'error' ? 'error' : '';
-      const bgStyle      = d.commanderImg ? `background-image:url('${d.commanderImg}')` : '';
-      /* What bracket its owner says it is. Drawn by js/deckview-legality.js,
-         which is where the five brackets are named and where the declaration is
-         made — this tile is one of the places the answer is read. */
-      const bracketBadge = dbBracketBadgeHtml(d.bracket);
-      const viewLink     = d.deckUrl
-        ? `<a class="deck-tile-link" href="${esc(d.deckUrl)}" target="_blank" rel="noopener">View ↗</a>` : '';
-      // The count sits with the name and the commander rather than on the
-      // action row: it is something the deck *is*, not something to do to
-      // it, and on a 260px tile the row it used to share has only enough
-      // width for the three controls.
-      const countInfo    = d.cardCount ? `<div class="deck-tile-meta">${d.cardCount} cards</div>` : '';
-      const cmdLine      = d.commander
-        ? `<div class="deck-tile-commander">Commander: ${esc(d.commander)}</div>` : '';
-
-      return `<div class="deck-tile" data-deck-id="${d.id}" style="${bgStyle}">
-        <div class="deck-tile-overlay">
-          <div class="deck-tile-top">
-            <span class="deck-source-badge">${srcLabel}</span>
-            ${bracketBadge}
-            ${viewLink}
-          </div>
-          <div class="deck-tile-middle">
-            <div class="deck-tile-name ${nameClass}">${esc(d.name)}</div>
-            ${cmdLine}
-            ${countInfo}
-          </div>
-          <div class="deck-tile-bottom">
-            <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
-            <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
-            ${canEdit ? kebabMenuHtml([
-              { label: 'Edit',   onclick: `startEditDeck('${player.id}','${d.id}')` },
-              { divider: true },
-              { label: 'Remove', onclick: `removeDeck('${player.id}','${d.id}')`, danger: true },
-            ], { title: 'Deck actions', btnClass: 'kebab-btn-tile' }) : ''}
-          </div>
-        </div>
-      </div>`;
-    }).join('');
+    // Foldered exactly as the Mine grid is — a folder is a fact about the
+    // decks, so it cannot mean one thing in your grid and another in the
+    // section somebody else reads them in. That includes somebody with folders
+    // and nothing in them yet: their shelves are still theirs to manage.
+    const tilesHTML = folderedDecksHtml(player, player.decks, canEdit);
 
     const pCollapsed = !!collapseState[`player-${player.id}`];
     return `<div class="player-section">
@@ -411,10 +827,8 @@ function renderPlayers() {
           <button class="btn-secondary" style="padding:var(--space-1) var(--space-3);font-size:var(--text-sm)" onclick="document.getElementById('adf_${player.id}').classList.remove('open')">Cancel</button>
         </div>
       </div>` : ''}
-      <div class="deck-tiles-grid ${pCollapsed ? 'closed' : ''}" id="pb-player-${player.id}"
-           style="${pCollapsed ? 'display:none' : ''}">${tilesHTML ||
-        `<div class="player-no-decks">No decks yet${canEdit ? ' — click + Add Deck above' : ''}.</div>`
-      }</div>
+      <div class="player-decks ${pCollapsed ? 'closed' : ''}" id="pb-player-${player.id}"
+           style="${pCollapsed ? 'display:none' : ''}">${tilesHTML}</div>
     </div>`;
   }).join('');
 }

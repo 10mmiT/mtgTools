@@ -608,6 +608,18 @@ test('but carrying one onto a hidden board still leaves it hidden', () => {
     'the drop path started switching boards on');
 });
 
+test('moving a card to the maybeboard redraws the count without a reopen', () => {
+  // The move path draws the mat; the readout is the mainboard's, so a card
+  // leaving the deck for the maybeboard has to move the count then and there —
+  // not on the next time the deck is opened.
+  const tab = loadTab(DECK, ['Ramp', 'Lands'], []);
+  tab.run('dbRenderStats()');
+  assert.match(tab.el('dbStatCards').innerHTML, /6\/60/);
+  tab.run(`dbMoveCardsTo(['main/Doom Blade'], 'maybe')`);
+  assert.match(tab.el('dbStatCards').innerHTML, /5\/60/,
+    'the count still showed the maybeboard card as part of the deck');
+});
+
 test('an asked-for board beats the guess about where a bare name belongs', async () => {
   // Adding your commander by name puts it where the commander goes — unless
   // you have said where. A guess does not overrule an instruction.

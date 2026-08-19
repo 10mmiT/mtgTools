@@ -225,6 +225,8 @@ function loadTab(served = []) {
   const el = id => (els[id] ||= {
     innerHTML: '', textContent: '', title: '', value: '', style: {},
     setAttribute(k, v) { (this.attrs ||= {})[k] = v; },
+    // Opening a deck writes the strip's deck switcher, which appends options.
+    appendChild() {},
     classList: { toggle() {}, add() {}, remove() {} },
   });
 
@@ -264,6 +266,8 @@ function loadTab(served = []) {
      * decks is owned by anybody: that is test/deckowned.test.js's subject. */
     state: { collections: [], players: [{ id: 'p1', name: 'P1', decks: [{ id: 'd1', name: 'A deck' }] }] },
     myPlayerId: () => 'p1', colOwner: () => null, playerColor: () => '',
+    // Who is signed in, which the strip's two player lists are written from.
+    currentUser: { username: 'p1', role: 'player', playerId: 'p1' },
     scryfallMetaCache: new Map(),
     openCardByName() {},
     animateCardMove: (_el, paint) => paint(),

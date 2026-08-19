@@ -43,7 +43,7 @@
   </button>
   <button class="tab-btn" id="tab-btn-players" onclick="setTab('players')">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
-    <span class="tab-btn-label">Players &amp; Decks</span>
+    <span class="tab-btn-label">Decks</span>
   </button>
   <button class="tab-btn" id="tab-btn-scryfall" onclick="setTab('scryfall')">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -141,7 +141,7 @@
     </button>
     <button class="mob-nav-item" data-tab="players" onclick="setTab('players')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
-      Players &amp; Decks
+      Decks
     </button>
     <button class="mob-nav-item" data-tab="scryfall" onclick="setTab('scryfall')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -357,6 +357,18 @@
       <button class="btn-secondary" onclick="closeAddPlayer()">Cancel</button>
     </div>
     <span class="result-info" id="playersInfo"></span>
+    <!-- Whose decks this tab is showing. Default Mine — a grid of your own
+         built decks; Everyone is the old per-player sections. Hidden by
+         js/players.js in a deployment that cannot say who you are, where there
+         is no "mine" to offer. -->
+    <div id="deckScopeMount">
+      <select id="deckScopeSel" title="Whose decks this tab is showing"
+              aria-label="Whose decks this tab is showing"
+              onchange="setDeckScope(this.value)">
+        <option value="all">Decks: Everyone’s</option>
+        <option value="mine">Decks: Mine</option>
+      </select>
+    </div>
   </div>
   <div id="playersList"></div>
 </div><!-- /tab-players -->
@@ -781,8 +793,15 @@
 <div id="tab-deckview" class="tab-pane db-pane" data-db-mode="none" style="display:none">
 
   <div class="toolbar">
-    <select id="dbDeckSel" class="db-deck-sel" onchange="dbSelectDeck(this.value)">
-      <option value="">— Select a deck —</option>
+    <!-- Not a chooser any more. Opening a deck is the Decks tab's job — a
+         gallery of decks is where you pick among many — so what is left here
+         is a switcher between your own built decks while one is open, and it
+         goes behind the same attribute as every other control that needs a
+         deck to act on. Its first entry closes the deck rather than reopening
+         this tab's old front door. -->
+    <select id="dbDeckSel" class="db-deck-sel db-when-deck" onchange="dbSelectDeck(this.value)"
+            title="Switch to another of your decks" aria-label="Switch to another of your decks">
+      <option value="">— Close deck —</option>
     </select>
 
     <!-- Adding a card is what this tab is for and is done constantly, so it
@@ -872,9 +891,16 @@
        (§15.3), or the user's playmat where one is set — see .db-mat in
        tabs.css and --mat-fill in layout.css. -->
   <div id="dbDeckContent" class="db-mat">
+    <!-- The signpost. A mat with nothing on it used to carry a chooser above
+         it; opening a deck lives on the Decks tab now, so what stands here is
+         the way there — and beside it the one deck you can still start from
+         this tab, which is a new one. -->
     <div class="empty-state">
-      Select a deck above to start building.
-      <div class="db-empty-action"><button class="btn-secondary" onclick="dbShowNewDeck()">+ New deck</button></div>
+      Open a deck from the Decks tab.
+      <div class="db-empty-action">
+        <button class="btn-primary" onclick="setTab('players')">Go to Decks</button>
+        <button class="btn-secondary" onclick="dbShowNewDeck()">+ New deck</button>
+      </div>
     </div>
   </div>
 
@@ -1341,6 +1367,7 @@
 <script src="js/cardquery.js"></script>
 <script src="js/collections.js"></script>
 <script src="js/players.js"></script>
+<script src="js/deckdrag.js"></script>
 <script src="js/search.js"></script>
 <script src="js/sets.js"></script>
 <script src="js/wants.js"></script>

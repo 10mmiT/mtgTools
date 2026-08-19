@@ -111,6 +111,91 @@
   padding: var(--space-2) 0;
 }
 
+/* ── Folders ──────────────────────────────────────────────────────────── */
+/* A folder is the grouping a player already is — a heading over a grid
+   (§7.1) — one step quieter, so a shelf inside somebody's decks does not
+   compete with the name of whose decks they are: --text-base against the
+   header's --text-md, and no dot.
+
+   The loose zone carries no heading. Decks in no folder are where a deck
+   starts rather than a place somebody made, and a "Loose" label over them
+   would name a choice nobody took. */
+.folder-zone { margin-bottom: var(--space-4); }
+
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.folder-name  { font-weight: 700; font-size: var(--text-base); }
+/* The count takes the free space so the ⋯ sits at the end of the row, where
+   it does on the player header and on a tile. */
+.folder-count { flex: 1; color: var(--text-muted); font-size: var(--text-sm); }
+
+.folder-add { margin-top: var(--space-2); }
+
+/* ── Not built yet (js/players.js) ─────────────────────────────────────
+   The decks under the grid that have no cards in them yet. Rows rather
+   than tiles, because there is no art, no count and no shelf to draw —
+   and quieter than everything above them, so the strip reads as a
+   footnote to your decks rather than as another shelf of them. One line
+   separates it from the grid; the rows carry no fill of their own, so
+   nothing here is a surface (§7.3). */
+.deck-drafts {
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+.deck-drafts-header {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: var(--space-3) 0 var(--space-1);
+}
+.deck-draft-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+}
+/* The name takes the free space, so where the deck came from and the one
+   thing to do with it line up down the right of the strip — the column a
+   tile's ⋯ and a folder header's ⋯ are already in. It is --text-base against
+   the source's --text-sm for the same reason .deck-name is above .deck-stats:
+   the deck's name is what the row is, and the rest is what is known about it.
+
+   min-width and the ellipsis are what make "takes the free space" true in
+   both directions — a flex item will not shrink below its own content
+   otherwise, so one long deck name would push the row off the side of a
+   phone, where the budget for sideways scroll is zero (docs/testing.md). */
+.deck-draft-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.deck-draft-source { color: var(--text-muted); font-size: var(--text-sm); flex-shrink: 0; }
+
+/* Somewhere to put a dragged deck down (js/deckdrag.js), lit only while one is
+   over it. The dashed outline the Deck Builder lights a pile with
+   (.card-drop-target, below): a place to drop something should not be two
+   different things on two tabs. Drawn outside the zone rather than inside it,
+   so lighting up never moves the tiles it is drawn around. */
+.folder-zone.deck-drop-target {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  outline: 2px dashed var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* The hand, driven off the attribute the drag *is* rather than a class beside
+   it — the same rule [data-carry] follows in components.css — so the cursor
+   cannot offer to pick up a tile that will not move. */
+.deck-tile[draggable="true"] { cursor: grab; }
+
 .deck-tile {
   position: relative;
   border-radius: var(--radius-md);
@@ -153,6 +238,16 @@
   font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase;
   padding: 0 var(--space-1); border-radius: var(--radius-sm);
   background: var(--warning-soft); color: var(--warning); flex-shrink: 0;
+}
+/* Private — the deck reaches nobody but its owner and an admin. Neutral
+   rather than the bracket badge's warning colours: it says who the deck is
+   for, not that something is wrong with it. Drawn only where the flag is
+   enforced (js/players.js deckPrivacyEnforced), so in open mode this rule
+   never matches anything. */
+.deck-private-badge {
+  font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+  padding: 0 var(--space-1); border-radius: var(--radius-sm);
+  background: var(--surface-3); color: var(--text-muted); flex-shrink: 0;
 }
 .deck-tile-link {
   margin-left: auto; font-size: var(--text-xs);
@@ -1638,7 +1733,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
      labels.
 
      What it can do, and what this technique needs, is have the row to
-     itself: the only things beside it in .deck-tile-top are two badges,
+     itself: the only things beside it in .deck-tile-top are the badges,
      which are text and not targets, so the pad has nothing to overlap.
      The category heading below used to be padded the same way and did not
      have the row to itself — see .dv-section-fold. */
@@ -1898,9 +1993,16 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-body { flex-direction: column; }
   .db-menu { order: -1; flex: 0 0 auto; align-self: stretch; }
 }
-/* Someone with no decks at all lands on the empty mat, and the ⋯ menu is a
-   poor place to discover the one action that gets them out of it. */
-.db-empty-action { margin-top: var(--space-3); }
+/* The two ways off an empty mat, side by side under the signpost: the Decks
+   tab, where a deck is opened, and the one deck this tab can still start. The
+   ⋯ menu holds New deck too and is a poor place to discover either. */
+.db-empty-action {
+  margin-top: var(--space-3);
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  flex-wrap: wrap;
+}
 
 /* Two shapes, one strip: the controls that act on a deck's cards do not
    exist until a deck is loaded. An attribute on the pane rather than six
@@ -1921,10 +2023,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    reason [data-db-mode] above is one: two tiers spread across a dozen
    style.display calls are two tiers that will disagree.
 
-   Only ever while a deck is loaded. Folded with no deck the picker would be
-   hidden — and the picker is the one control that gets you a deck — so the
-   preference is kept and simply does not apply until there is something on the
-   mat to look at. */
+   Only ever while a deck is loaded. With no deck there is nothing on the strip
+   to fold — the controls, the switcher among them, need one — and what stands
+   on the mat instead is the signpost to the Decks tab, which is the way to a
+   deck. So the preference is kept and simply does not apply until there is
+   something on the mat to look at. */
 .db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .toolbar > :not(.db-fold):not(.db-save-status),
 .db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .db-analysis,
 .db-pane[data-db-mode="deck"]:not([data-db-fold="full"]) .db-bulk-bar,
