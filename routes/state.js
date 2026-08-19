@@ -111,6 +111,19 @@ function canSeeDeck(session, ownerId, deck) {
     || !deck?.private;
 }
 
+// The per-deckId form of canSeeDeck, for the deck-card / snapshot route guards:
+// find the deck's owner and private flag in state, then apply the same rule. A
+// deckId no player owns is not private, so it stays visible — the route already
+// answers emptiness on its own (and open mode's guest is admin, so nothing is
+// withheld there either).
+function deckVisibleTo(session, deckId) {
+  for (const p of (readState().players || [])) {
+    const deck = (p.decks || []).find(d => d.id === deckId);
+    if (deck) return canSeeDeck(session, p.id, deck);
+  }
+  return true;
+}
+
 function createLinkedPlayer(username) {
   const appState = readState();
   const players  = appState.players || [];
@@ -352,4 +365,4 @@ router.delete('/collections/:key', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = { router, createLinkedPlayer, readState, writeState };
+module.exports = { router, createLinkedPlayer, readState, writeState, deckVisibleTo };

@@ -231,6 +231,83 @@ describe('POST /api/state keeps other players’ private decks through a non-adm
   });
 });
 
+describe('Deck-card and snapshot reads 404 a private deck for a non-owner', () => {
+  let meId, otherId, meCookie, adminCookie;
+
+  beforeEach(async () => {
+    resetDb();
+    const db = dbModule.db;
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    meId    = uuidv4();
+    otherId = uuidv4();
+
+    db.prepare("INSERT OR REPLACE INTO app_state (key, value_json, version) VALUES ('state', ?, 0)")
+      .run(JSON.stringify({ players: [
+        { id: meId, name: 'Me', wantList: [], folders: [], decks: [
+          { id: 'mpriv', name: 'My secret', source: 'manual', private: true },
+        ] },
+        { id: otherId, name: 'Other', wantList: [], folders: [], decks: [
+          { id: 'opub', name: 'Their public', source: 'manual' },
+          { id: 'opriv', name: 'Their secret', source: 'manual', private: true },
+        ] },
+      ] }));
+    addCards('mpriv', 2); addCards('opub', 3); addCards('opriv', 4);
+
+    const h = bcrypt.hashSync('pp', 10);
+    db.prepare("INSERT INTO users (username, password_hash, role, player_id) VALUES ('me', ?, 'player', ?)").run(h, meId);
+    meCookie    = await loginAs('me', 'pp');
+    adminCookie = await loginAs('admin', 'testpass');
+  });
+
+  const cardsUrl = (playerId, deckId) => `/api/players/${playerId}/decks/${deckId}/cards`;
+  const snapsUrl = (playerId, deckId) => `/api/players/${playerId}/decks/${deckId}/snapshots`;
+
+  test('GET …/cards 404s for a non-owner on a private deck', async () => {
+    const res = await request.get(cardsUrl(otherId, 'opriv')).set('Cookie', meCookie);
+    assert.equal(res.status, 404, 'existence is hidden, not confirmed with a 403');
+  });
+
+  test('GET …/cards succeeds for the owner of a private deck', async () => {
+    const res = await request.get(cardsUrl(meId, 'mpriv')).set('Cookie', meCookie);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.cards[0].qty, 2);
+  });
+
+  test('GET …/cards succeeds for an admin on another player’s private deck', async () => {
+    const res = await request.get(cardsUrl(otherId, 'opriv')).set('Cookie', adminCookie);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.cards[0].qty, 4);
+  });
+
+  test('GET …/cards is unaffected for a public deck', async () => {
+    const res = await request.get(cardsUrl(otherId, 'opub')).set('Cookie', meCookie);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.cards[0].qty, 3);
+  });
+
+  test('GET …/snapshots 404s for a non-owner on a private deck', async () => {
+    const res = await request.get(snapsUrl(otherId, 'opriv')).set('Cookie', meCookie);
+    assert.equal(res.status, 404);
+  });
+
+  test('GET …/snapshots succeeds for the owner of a private deck', async () => {
+    const res = await request.get(snapsUrl(meId, 'mpriv')).set('Cookie', meCookie);
+    assert.equal(res.status, 200);
+    assert.ok(Array.isArray(res.body.snapshots));
+  });
+
+  test('GET …/snapshots succeeds for an admin on another player’s private deck', async () => {
+    const res = await request.get(snapsUrl(otherId, 'opriv')).set('Cookie', adminCookie);
+    assert.equal(res.status, 200);
+  });
+
+  test('GET …/snapshots/:id 404s for a non-owner on a private deck', async () => {
+    const res = await request.get(snapsUrl(otherId, 'opriv') + '/1').set('Cookie', meCookie);
+    assert.equal(res.status, 404);
+  });
+});
+
 after((_, done) => {
   const srv = getServer && getServer();
   function finish() {
