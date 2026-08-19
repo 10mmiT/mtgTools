@@ -136,6 +136,49 @@
 
 .folder-add { margin-top: var(--space-2); }
 
+/* ── Not built yet (js/players.js) ─────────────────────────────────────
+   The decks under the grid that have no cards in them yet. Rows rather
+   than tiles, because there is no art, no count and no shelf to draw —
+   and quieter than everything above them, so the strip reads as a
+   footnote to your decks rather than as another shelf of them. One line
+   separates it from the grid; the rows carry no fill of their own, so
+   nothing here is a surface (§7.3). */
+.deck-drafts {
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+.deck-drafts-header {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: var(--space-3) 0 var(--space-1);
+}
+.deck-draft-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+}
+/* The name takes the free space, so where the deck came from and the one
+   thing to do with it line up down the right of the strip — the column a
+   tile's ⋯ and a folder header's ⋯ are already in. It is --text-base against
+   the source's --text-sm for the same reason .deck-name is above .deck-stats:
+   the deck's name is what the row is, and the rest is what is known about it.
+
+   min-width and the ellipsis are what make "takes the free space" true in
+   both directions — a flex item will not shrink below its own content
+   otherwise, so one long deck name would push the row off the side of a
+   phone, where the budget for sideways scroll is zero (docs/testing.md). */
+.deck-draft-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.deck-draft-source { color: var(--text-muted); font-size: var(--text-sm); flex-shrink: 0; }
+
 /* Somewhere to put a dragged deck down (js/deckdrag.js), lit only while one is
    over it. The dashed outline the Deck Builder lights a pile with
    (.card-drop-target, below): a place to drop something should not be two

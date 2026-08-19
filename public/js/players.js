@@ -549,6 +549,13 @@ function deckFolderMenuItems(player, deck) {
   return items;
 }
 
+/* Where a deck came from, in one word. Written on a tile's badge and on a
+ * draft's row, which are the two places a deck is shown before it is opened —
+ * so the answer cannot be two different words depending on which. */
+function deckSourceLabel(d) {
+  return d.source === 'archidekt' ? 'Archidekt' : 'Manual';
+}
+
 // ── Render one deck tile ────────────────────────────────────────────────────
 // The tile the grid and the sections both draw. `player` owns the deck; the
 // action handlers are keyed by the pair, and `canEdit` gates the ⋯ menu.
@@ -567,7 +574,7 @@ function deckTileHtml(player, d, canEdit) {
     </div>`;
   }
 
-  const srcLabel     = d.source === 'archidekt' ? 'Archidekt' : 'Manual';
+  const srcLabel     = deckSourceLabel(d);
   const busy         = d.nameStatus === 'loading';
   const nameClass    = d.nameStatus === 'loading' ? 'loading' : d.nameStatus === 'error' ? 'error' : '';
   const bgStyle      = d.commanderImg ? `background-image:url('${d.commanderImg}')` : '';
@@ -656,19 +663,56 @@ function renderMineGrid(list) {
   const me      = myPlayerId();
   const player  = state.players.find(p => p.id === me);
   const canEdit = currentUser?.role === 'admin' || isMyPlayer(me);
-  const built   = (player?.decks || []).filter(d => (state.deckCardCounts?.[d.id] || 0) > 0);
+  const decks   = player?.decks || [];
+  const isBuilt = d => (state.deckCardCounts?.[d.id] || 0) > 0;
+  const built   = decks.filter(isBuilt);
+  const drafts  = decks.filter(d => !isBuilt(d));
 
+  // The count is the grid's, which is what the view is. The drafts under it
+  // are decks nobody has started; counting them here would promise more decks
+  // than the grid can show.
   const info = document.getElementById('playersInfo');
   if (info) info.textContent = built.length
     ? `${built.length} deck${built.length !== 1 ? 's' : ''}`
     : '';
 
-  if (!built.length && !(player?.folders || []).length) {
-    list.innerHTML = '<div class="empty-state">No built decks yet — open a deck in the Deck Builder to import its cards, or switch to Everyone’s decks above.</div>';
-    return;
-  }
+  const body = !built.length && !(player?.folders || []).length
+    ? '<div class="empty-state">No built decks yet — open a deck in the Deck Builder to import its cards, or switch to Everyone’s decks above.</div>'
+    : folderedDecksHtml(player, built, canEdit);
 
-  list.innerHTML = folderedDecksHtml(player, built, canEdit);
+  list.innerHTML = body + draftsStripHtml(player, drafts);
+}
+
+// ── Not built yet ───────────────────────────────────────────────────────────
+/* The decks the grid above cannot show: yours, but never opened, so the server
+ * counts no deck_cards rows for them. They are not lost and they are not
+ * tiles — a tile is commander art, a card count and a place on a shelf, and a
+ * draft has none of the three. A row each, at the foot of the view, saying the
+ * two things known about it and offering the one thing to do with it: Build
+ * opens it on the mat, where an Archidekt deck imports its cards on first open
+ * (js/deckview-core.js) and stops being a draft on the next render.
+ *
+ * Not draggable, no Move to folder, no drop zone around it: a folder is a
+ * shelf for decks, and a draft is not on the shelves yet. Building it is what
+ * puts it within reach of one.
+ *
+ * The Mine view's alone. The Everyone view has always drawn every deck as a
+ * tile, built or not, and a strip there would say "not built yet" about other
+ * people's decks to somebody who cannot build them. */
+function draftsStripHtml(player, drafts) {
+  if (!drafts.length) return '';
+
+  const rows = drafts.map(d => `<div class="deck-draft-row" data-draft-id="${esc(d.id)}">
+    <span class="deck-draft-name">${esc(d.name)}</span>
+    <span class="deck-draft-source">${deckSourceLabel(d)}</span>
+    <button class="btn-secondary deck-draft-build" title="Open in Deck Builder"
+            onclick="openInDeckView('${jsAttr(player.id)}','${jsAttr(d.id)}')">Build</button>
+  </div>`).join('');
+
+  return `<div class="deck-drafts">
+    <div class="deck-drafts-header">Not built yet</div>
+    ${rows}
+  </div>`;
 }
 
 // ── Decks, in their folders ─────────────────────────────────────────────────

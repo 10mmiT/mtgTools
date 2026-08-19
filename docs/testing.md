@@ -4,7 +4,7 @@ The test suite, the token-contract linter, and the screenshot/measurement script
 
 ## Testing
 
-The project ships a test suite using Node's built-in `node:test` runner and `supertest` — over 900 tests across 34 files, needing no browser and no network.
+The project ships a test suite using Node's built-in `node:test` runner and `supertest` — over 1,000 tests across 47 files, needing no browser and no network.
 
 ```bash
 npm test
