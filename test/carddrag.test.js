@@ -348,6 +348,9 @@ function loadDeck(cards) {
     renders: 0, saves: 0,
   };
   sandbox.dbRender   = () => { sandbox.renders++; };
+  /* deckview-render.js's: a move across boards moves the count, so the readout
+   * is redrawn with the mat. What it says is not this file's question. */
+  sandbox.dbRenderStats = () => {};
   /* deckview-core.js's: a card landing on the head of the deck puts that board
    * on the mat. Which board is showing is not this file's question. */
   sandbox._dbRevealHeadBoard = () => {};
@@ -477,6 +480,9 @@ function loadMat(cards, selected = []) {
     renders: 0, saves: 0,
   };
   sandbox.dbRender   = () => { sandbox.renders++; };
+  /* deckview-render.js's: a move across boards moves the count, so the readout
+   * is redrawn with the mat. What it says is not this file's question. */
+  sandbox.dbRenderStats = () => {};
   /* deckview-core.js's: a card landing on the head of the deck puts that board
    * on the mat. Which board is showing is not this file's question. */
   sandbox._dbRevealHeadBoard = () => {};

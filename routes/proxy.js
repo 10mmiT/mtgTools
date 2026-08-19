@@ -37,7 +37,14 @@ function fetchJson(url, headers) {
 
 router.get('/edhrec/commander/:name', requireAuth, async (req, res) => {
   const name = decodeURIComponent(req.params.name);
-  const slug = makeEdhrecSlug(name);
+  /* One commander, or two partners joined with '|'. EDHREC keys a partner pair
+     under both slugs sorted alphabetically and joined with '-' — the same page
+     whichever partner you name first. */
+  const slug = name.split('|')
+    .map(makeEdhrecSlug)
+    .filter(Boolean)
+    .sort()
+    .join('-');
   const cached = edhrecCache.get(slug);
   if (cached && Date.now() - cached.fetchedAt < EDHREC_TTL) return res.json(cached.data);
   try {

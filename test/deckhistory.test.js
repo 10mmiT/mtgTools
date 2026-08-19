@@ -508,9 +508,10 @@ function loadBuilder(cards, cats = CATS.map(c => ({ ...c }))) {
     calls: [],
   };
   sandbox.dbRender      = () => {};
-  /* deckview-core.js's: a card landing on the head of the deck puts that board
-   * on the mat. Which board is showing is not this file's question. */
+  /* deckview-core.js's: a card landing on a board that can be hidden puts it on
+   * the mat. Which board is showing is not this file's question. */
   sandbox._dbRevealHeadBoard = () => {};
+  sandbox._dbRevealBoard     = () => {};
   sandbox.dbRenderStats = () => {};
   sandbox.dbFetchCardData = async () => {};
   /* deckview-core.js's, which cannot be loaded beside these three: its

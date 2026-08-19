@@ -633,6 +633,12 @@ function dbMoveCardsTo(refs, place) {
   _dbRevealHeadBoard(dbReadPlace(place).board);
 
   dbRender();
+  /* The readout too, not just the mat: a card leaving the deck for the
+     maybeboard is one fewer of the ninety-nine, and the count, the curve and
+     the rest are the mainboard's — so a move across boards changes them exactly
+     as adding or removing the card would, and the line has to be redrawn to say
+     so rather than waiting for the next time the deck is opened. */
+  dbRenderStats();
   _dbScheduleSave();
   if (commanders) _dbSyncCommanderRecord();
   return true;

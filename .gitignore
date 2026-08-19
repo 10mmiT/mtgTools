@@ -26,6 +26,8 @@ data.bak/
 .claude/
 .agents/
 skills-lock.json
+CLAUDE.md
+docs/agents/
 
 # Run output
 *.log
