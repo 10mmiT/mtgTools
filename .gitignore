@@ -22,10 +22,13 @@ data.bak/
 # docs/records/ instead.
 .scratch/
 
-# Agent tooling
+# Agent tooling. The skill configuration under docs/agents/ and the CLAUDE.md
+# that points at it are local aids, not part of what the app is.
 .claude/
 .agents/
 skills-lock.json
+CLAUDE.md
+docs/agents/
 
 # Run output
 *.log
