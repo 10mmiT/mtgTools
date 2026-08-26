@@ -2,6 +2,7 @@
 const https   = require('https');
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
+const { queuedFetch: archidektFetch } = require('../archidekt-queue');
 
 const router = express.Router();
 
@@ -71,12 +72,38 @@ function proxyGet(url, headers, res) {
   });
 }
 
+// Archidekt goes through archidekt-queue.js instead of proxyGet, so that an
+// import's couple of hundred page requests are paced and a 429 is waited out
+// here rather than ending the import in the browser.
+async function proxyArchidekt(url, res) {
+  let apiRes;
+  try {
+    apiRes = await archidektFetch(url);
+  } catch (err) {
+    console.error(`Proxy error: ${err.message}`);
+    return res.status(500).json({ error: err.message });
+  }
+  console.log(`${apiRes.status} ${url}`);
+
+  // A 429 that survived the queue's retries has been rate-limited for long
+  // enough that waiting further is the user's call. Archidekt's own 429 body
+  // is an HTML page, so it is replaced with something the client can read and
+  // show: without it the browser reports a bare "HTTP 429".
+  if (apiRes.status === 429) {
+    return res.status(429).json({
+      error: 'Archidekt is rate-limiting this server. Wait a few minutes and update the collection again.',
+    });
+  }
+
+  const body = await apiRes.text().catch(() => '');
+  res.status(apiRes.status).type('application/json').send(body);
+}
+
 router.get('/archidekt/collection/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   const { page = 1, pageSize = 100 } = req.query;
   if (!/^\d+$/.test(id)) return res.status(400).json({ error: 'Invalid collection ID' });
-  proxyGet(`https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=${pageSize}`,
-    { 'User-Agent': 'MTGCollectionSearch/1.0' }, res);
+  proxyArchidekt(`https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=${pageSize}`, res);
 });
 
 router.get('/moxfield/collection/:slug/cards', requireAuth, (req, res) => {
@@ -98,7 +125,7 @@ router.get('/moxfield/collection/:slug/cards', requireAuth, (req, res) => {
 router.get('/archidekt/deck/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   if (!/^\d+$/.test(id)) return res.status(400).json({ error: 'Invalid deck ID' });
-  proxyGet(`https://archidekt.com/api/decks/${id}/`, { 'User-Agent': 'MTGCollectionSearch/1.0' }, res);
+  proxyArchidekt(`https://archidekt.com/api/decks/${id}/`, res);
 });
 
 // Legacy redirect
