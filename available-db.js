@@ -83,6 +83,39 @@ db.exec(`
     saved_at        TEXT,
     owner_player_id TEXT
   );
+  -- An import in flight. Fetching a six-thousand-card Archidekt collection is
+  -- 250 requests paced a second apart (see archidekt-queue.js), so it is a
+  -- four-minute job — long enough that it cannot live in the tab that started
+  -- it. A phone locks its screen, a browser discards a backgrounded tab, and
+  -- the four minutes are lost with it.
+  --
+  -- So the server runs the import and this table is where it keeps its place:
+  -- the cards gathered so far, the next page to ask for, and enough of the
+  -- collection's identity to write the finished thing into the collections
+  -- table. It is checkpointed as pages land rather than only at the end, so a
+  -- crash costs the last few pages instead of all of them.
+  --
+  -- A row is deleted once the import lands in collections; the rows that
+  -- outlive a run are the ones that failed, were cancelled, or were cut off by
+  -- a restart, and those are exactly the ones the user needs to see.
+  CREATE TABLE IF NOT EXISTS collection_imports (
+    key             TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    col_id          TEXT,
+    color           TEXT NOT NULL,
+    owner_player_id TEXT,
+    -- 'running' | 'interrupted' | 'error' | 'cancelled'
+    status          TEXT NOT NULL DEFAULT 'running',
+    next_page       INTEGER NOT NULL DEFAULT 1,
+    entries         INTEGER NOT NULL DEFAULT 0,
+    total           INTEGER,
+    cards_json      TEXT NOT NULL DEFAULT '{}',
+    error           TEXT,
+    started_by      TEXT,
+    started_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  );
   CREATE TABLE IF NOT EXISTS app_state (
     key        TEXT PRIMARY KEY,
     value_json TEXT NOT NULL DEFAULT '{}',
@@ -429,5 +462,14 @@ const deckCardRow = ({ printing, ...card }) => {
   const chosen = readPrinting(printing);
   return chosen ? { ...card, printing: chosen } : card;
 };
+
+/* Nothing is running yet, whatever the table says. A row still marked
+ * 'running' is one this process's predecessor was working on when it stopped,
+ * and no amount of waiting will advance it — the loop that was doing so is
+ * gone. Saying so at boot is what puts a Resume button in front of the person
+ * who started it, rather than a progress bar that will never move again.
+ *
+ * The gathered cards are left alone: that is what Resume picks up from. */
+db.prepare("UPDATE collection_imports SET status = 'interrupted' WHERE status = 'running'").run();
 
 module.exports = { db, DEFAULT_CAL_ID, readPrinting, writePrinting, deckCardRow };

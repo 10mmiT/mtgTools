@@ -1,0 +1,279 @@
+'use strict';
+/**
+ * Collection imports, run by the server rather than by the browser tab.
+ *
+ * Archidekt serves 25 rows a page whatever pageSize it is asked for, and its
+ * limiter allows about 80 requests a minute, so archidekt-queue.js paces us at
+ * one a second and a six-thousand-card collection takes four minutes. That is
+ * far too long to hold a phone awake for. The old client-side loop lost every
+ * page it had fetched the moment the tab was refreshed, backgrounded hard
+ * enough, or locked — and it saved nothing until the very last page, so there
+ * was nothing to come back to.
+ *
+ * Here the tab only starts the job and watches it. The loop lives in this
+ * process and checkpoints into collection_imports as it goes, so closing the
+ * tab costs nothing and a crash costs the last few pages.
+ *
+ * CSV imports are deliberately not here: the file is in the browser, and the
+ * server has no way to read it.
+ */
+const { db } = require('./available-db');
+const { queuedFetch: archidektFetch } = require('./archidekt-queue');
+
+// How often the gathered cards are written down. Every page would mean
+// rewriting a growing JSON blob 250 times — at six thousand cards that is
+// megabytes of churn to save a few seconds of refetching. Every tenth page
+// costs a crash ten pages, which is ten seconds of work.
+const CHECKPOINT_EVERY = 10;
+
+// A page that fails for a reason retrying cannot fix (a deleted collection, a
+// collection made private) should stop the import rather than hammer at it.
+// The rate limit is not in this class: archidekt-queue.js has already waited
+// that out by the time a 429 reaches us.
+const FATAL_STATUSES = new Set([400, 401, 403, 404, 410]);
+
+// key -> { cancelled } for the imports this process is actually running. The
+// table says what *should* be running; this says what is.
+const _running = new Map();
+
+const nowIso = () => new Date().toISOString();
+
+// ── Rows ──────────────────────────────────────────────────────────────────
+function getImport(key) {
+  return db.prepare('SELECT * FROM collection_imports WHERE key = ?').get(key) || null;
+}
+
+function listImports() {
+  return db.prepare('SELECT * FROM collection_imports ORDER BY started_at').all().map(r => ({
+    key:       r.key,
+    name:      r.name,
+    source:    r.source,
+    id:        r.col_id,
+    color:     r.color,
+    owner:     r.owner_player_id || null,
+    status:    r.status,
+    page:      r.next_page,
+    entries:   r.entries,
+    total:     r.total,
+    error:     r.error || null,
+    startedBy: r.started_by || null,
+    startedAt: r.started_at,
+    updatedAt: r.updated_at,
+    // Whether this process is the one working on it, which is not the same
+    // question as what the row says: a row can read 'running' for the moment
+    // between a restart and the boot sweep in available-db.js.
+    live: _running.has(r.key),
+  }));
+}
+
+function touch(key, fields) {
+  const sets = Object.keys(fields).map(k => `${k} = @${k}`).join(', ');
+  db.prepare(`UPDATE collection_imports SET ${sets}, updated_at = @updated_at WHERE key = @key`)
+    .run({ ...fields, key, updated_at: nowIso() });
+}
+
+// ── Page shapes ───────────────────────────────────────────────────────────
+// The same two source formats collections.js parses in the browser. They are
+// spelled out again rather than shared because there is no module system
+// spanning public/js and the server, and a wrong guess here is a silently
+// empty import.
+function pageUrl(source, id, page) {
+  return source === 'moxfield'
+    ? `https://api2.moxfield.com/v2/collection/${id}/cards?pageNumber=${page}&pageSize=100`
+    : `https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=100`;
+}
+
+function itemsOf(data, source) {
+  return source === 'moxfield' ? (data.data || data.items || []) : (data.results || []);
+}
+
+function totalOf(data, source) {
+  return source === 'moxfield' ? (data.totalResults ?? null) : (data.count ?? null);
+}
+
+function hasMore(data, source) {
+  return source === 'moxfield'
+    ? data.pageNumber * data.pageSize < data.totalResults
+    : !!data.next;
+}
+
+function parseCard(item, source) {
+  if (source === 'moxfield') {
+    const c = item.card || item;
+    return {
+      name: c.name || '',
+      type: c.type || c.typeLine || '',
+      mana: c.manaCost || '',
+      qty:  item.quantity || item.count || 1,
+    };
+  }
+  // Field for field what parseCard in public/js/collections.js reads, down to
+  // the array join and the zero default. A collection imported here and one
+  // imported in the browser have to come out identical, or re-importing an
+  // existing collection would silently rewrite every row in it.
+  const o = item.card?.oracleCard || {};
+  return {
+    name: o.name || item.card?.name || '',
+    type: (o.types || []).join(', '),
+    mana: o.manaCost || '',
+    qty:  item.quantity || 0,
+  };
+}
+
+// ── Starting and stopping ─────────────────────────────────────────────────
+/**
+ * Start an import, or resume one that stopped. Returns at once — the work
+ * happens on its own after this call.
+ *
+ * Re-starting one this process is already running is a no-op rather than an
+ * error: two tabs pressing Refresh is a normal thing to do, and the honest
+ * answer to the second is that it is already happening.
+ */
+function startImport(meta, startedBy) {
+  const { key, name, source, id, color, owner } = meta;
+  if (_running.has(key)) return { started: false, reason: 'already running' };
+
+  const prior = getImport(key);
+  // Only a stopped import is picked up where it left off. A fresh start, or
+  // one the caller asked to redo, begins at page 1 with nothing gathered —
+  // otherwise a Refresh would merge the new collection into the stale one and
+  // every card since removed would live forever.
+  const resume = !!(prior && prior.status === 'interrupted' && !meta.restart);
+
+  db.prepare(`
+    INSERT INTO collection_imports
+      (key, name, source, col_id, color, owner_player_id, status, next_page, entries, total, cards_json, error, started_by, started_at, updated_at)
+    VALUES (@key, @name, @source, @id, @color, @owner, 'running', @next_page, @entries, @total, @cards, NULL, @by, @at, @at)
+    ON CONFLICT(key) DO UPDATE SET
+      name = excluded.name, source = excluded.source, col_id = excluded.col_id,
+      color = excluded.color, owner_player_id = excluded.owner_player_id,
+      status = 'running', next_page = excluded.next_page, entries = excluded.entries,
+      total = excluded.total, cards_json = excluded.cards_json, error = NULL,
+      started_by = excluded.started_by, started_at = excluded.started_at,
+      updated_at = excluded.updated_at
+  `).run({
+    key, name, source, id: id || null, color: color || '#a855f7', owner: owner || null,
+    next_page: resume ? prior.next_page  : 1,
+    entries:   resume ? prior.entries    : 0,
+    total:     resume ? prior.total      : null,
+    cards:     resume ? prior.cards_json : '{}',
+    by: startedBy || null,
+    at: nowIso(),
+  });
+
+  const handle = { cancelled: false };
+  _running.set(key, handle);
+  // Deliberately not awaited: the HTTP request that asked for this returns
+  // immediately, and the loop reports itself through the table from here on.
+  const done = _run(key, handle).catch(e => {
+    console.error(`[import] ${key} died: ${e.message}`);
+    _running.delete(key);
+    try { touch(key, { status: 'interrupted', error: e.message }); } catch {}
+  });
+  // The promise is handed back for the tests, which have to be able to wait
+  // for a run they started. Nothing in the routes reads it.
+  return { started: true, resumed: resume, done };
+}
+
+/** Stop an import. The pages already gathered stay, so it can be resumed. */
+function cancelImport(key) {
+  const handle = _running.get(key);
+  if (handle) handle.cancelled = true;
+  const row = getImport(key);
+  if (!row) return false;
+  // 'interrupted' and not a 'cancelled' of its own: the two are the same thing
+  // to everyone downstream — a stopped import with its place kept — and one
+  // name for one state is fewer than two.
+  touch(key, { status: 'interrupted' });
+  return true;
+}
+
+/** Forget a stopped import, including the pages it had gathered. */
+function clearImport(key) {
+  const handle = _running.get(key);
+  if (handle) handle.cancelled = true;
+  const { changes } = db.prepare('DELETE FROM collection_imports WHERE key = ?').run(key);
+  return changes > 0;
+}
+
+// ── The loop ──────────────────────────────────────────────────────────────
+async function _run(key, handle) {
+  const row    = getImport(key);
+  const cards  = new Map(Object.entries(JSON.parse(row.cards_json || '{}')));
+  const source = row.source;
+  let page     = row.next_page;
+  let entries  = row.entries;
+  let total    = row.total;
+
+  const checkpoint = status => touch(key, {
+    status, next_page: page, entries, total,
+    cards_json: JSON.stringify(Object.fromEntries(cards)),
+  });
+
+  while (true) {
+    if (handle.cancelled) { checkpoint('interrupted'); _running.delete(key); return; }
+
+    const res = await archidektFetch(pageUrl(source, row.col_id, page));
+
+    if (!res.ok) {
+      const detail = res.status === 429
+        ? 'Archidekt is rate-limiting this server. Resume in a few minutes.'
+        : `HTTP ${res.status} from ${source}`;
+      // A rate limit or a server-side wobble is worth resuming from; a 404 is
+      // not. Both keep the pages already gathered — the difference is only
+      // whether the user is offered a Resume or told what went wrong.
+      checkpoint(FATAL_STATUSES.has(res.status) ? 'error' : 'interrupted');
+      touch(key, { error: detail });
+      _running.delete(key);
+      return;
+    }
+
+    const data = await res.json();
+    if (total === null) total = totalOf(data, source);
+
+    for (const item of itemsOf(data, source)) {
+      const card = parseCard(item, source);
+      if (!card.name) continue;
+      const seen = cards.get(card.name);
+      if (seen) seen.qty += card.qty;
+      else cards.set(card.name, card);
+      entries++;
+    }
+
+    const finished = !hasMore(data, source);
+    // The checkpoint records the page to ask for *next*, so the increment
+    // comes first: a crash between the two must not refetch a page whose
+    // cards are already counted, or every quantity on it would double.
+    page++;
+    if (!finished && page % CHECKPOINT_EVERY === 0) checkpoint('running');
+    if (finished) break;
+  }
+
+  _finish(key, row, cards, entries, total);
+  _running.delete(key);
+}
+
+/* The finished collection, moved into the table the rest of the app reads.
+ * One transaction: the import row must not disappear before the collection it
+ * became exists, or a refresh landing in between shows neither. */
+function _finish(key, row, cards, entries, total) {
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at, owner_player_id)
+      VALUES (@key, @name, @source, @id, @color, @cards, @entries, @total, @savedAt, @owner)
+      ON CONFLICT(key) DO UPDATE SET
+        name = excluded.name, source = excluded.source, col_id = excluded.col_id,
+        color = excluded.color, cards_json = excluded.cards_json,
+        entries = excluded.entries, total = excluded.total, saved_at = excluded.saved_at,
+        owner_player_id = excluded.owner_player_id
+    `).run({
+      key, name: row.name, source: row.source, id: row.col_id, color: row.color,
+      cards: JSON.stringify(Object.fromEntries(cards)),
+      entries, total, savedAt: nowIso(), owner: row.owner_player_id || null,
+    });
+    db.prepare('DELETE FROM collection_imports WHERE key = ?').run(key);
+  })();
+  console.log(`[import] ${key} finished: ${entries} rows`);
+}
+
+module.exports = { startImport, cancelImport, clearImport, listImports, getImport, _running };

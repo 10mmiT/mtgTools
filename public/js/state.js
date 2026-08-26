@@ -58,6 +58,12 @@ const BP_MD = 900;   // nav switches: bottom bar <-> sidebar, card modal <-> car
 const state = {
   collections: [],
   players:     [],
+  /* Collections the *server* is fetching right now, newest run last. Not a
+   * mirror of `collections`: an import has no cards to show until it lands,
+   * and one that was cut off outlives the tab that started it. Server to
+   * client only — the browser starts and stops imports through their own
+   * routes, never by writing this back. See collection-import.js. */
+  imports:     [],
   /* No `sort` here. Every view's sort is a chain in the `mtgtools_sort`
    * preference, read through getSortChain — this held a mirror of the
    * Collections tab's first criterion for the table header to write and draw
@@ -121,6 +127,12 @@ function hydrateState(raw) {
   // The server's ownership-filtered built-deck counts. Server→client only, so
   // it is read here but never written back through stateToJSON.
   state.deckCardCounts = data.deckCardCounts || {};
+
+  /* Imports ride along with /api/state so a tab opening mid-import shows it at
+   * once. A payload that predates the feature has no field, which is not the
+   * same as "none running" — but the only readers are the chips and the
+   * panel, and both draw nothing for an empty list, so the two agree here. */
+  if (Array.isArray(data.imports)) state.imports = data.imports;
 
   state.players = (data.players || []).map(p => ({
     id: p.id, name: p.name, colorIdx: playerSlot(p),

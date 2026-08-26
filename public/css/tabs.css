@@ -3399,3 +3399,90 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    page beside the one #cardTooltip already draws on every .card-link in the
    app, and on the mat both of them fired at once. What is left is in
    components.css, with the rest of the preview. */
+
+/* ── Import panel (deck column) ────────────────────────────────────────────
+   Collections the server is fetching, above the Deck panel. A big Archidekt
+   collection is a four-minute job paced against their rate limit, so it
+   outlives the tab that asked for it and needs somewhere to be seen — this
+   is that place on a wide window, and the chip row is that place everywhere
+   else. Absent from the DOM's flow entirely when nothing is importing. */
+.import-row {
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+}
+.import-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.import-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+.import-name {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The percentage is the one figure worth reading at a glance, so it holds the
+   right edge and keeps tabular figures — a number that reflows every two
+   seconds while it climbs is harder to read than one that does not. */
+.import-pct {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.import-bar {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  overflow: hidden;
+  margin-top: var(--space-2);
+}
+.import-bar-fill {
+  height: 100%;
+  background: var(--warning);
+  border-radius: var(--radius-full);
+  /* --dur-panel because this is paint that tracks a poll two seconds apart:
+     a bar that jumps is read as a glitch, one that eases is read as progress.
+     Multiplied by the motion token, so it does not move for someone who
+     asked for less movement. */
+  transition: width var(--dur-panel) var(--ease-tint);
+}
+/* A stopped import keeps its bar at the width it reached — how far it got is
+   what someone deciding whether to resume needs — but drops to the muted
+   colour so it does not read as still moving. */
+.import-bar-fill.is-stopped { background: var(--text-muted); }
+
+.import-meta {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+.import-actions {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+.import-btn {
+  font-size: var(--text-2xs);
+  padding: var(--space-1) var(--space-2);
+}
+.import-btn--quiet { color: var(--text-muted); }
+
+/* Said once under the list rather than on every row: it is the reassurance
+   that makes closing the page a reasonable thing to do, and the whole reason
+   the import moved to the server. */
+.import-note {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+}

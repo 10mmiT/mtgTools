@@ -267,6 +267,11 @@
 <!-- Deck comparison. A column beside the results on a wide window; the same
      panel, opened from the toolbar as a drawer, below 1280px. -->
 <div class="deck-col" data-drawer id="deckDrawer">
+  <!-- Collections the server is fetching. Above the Deck panel because an
+       import is a thing in flight and the deck is a thing at rest; empty and
+       display:none the rest of the time, which is nearly always. Rendered by
+       renderImports() in js/collections.js. -->
+  <div class="section import-section" id="importPanel" style="display:none"></div>
   <div class="section deck-section" id="deckPanel">
     <div class="deck-hdr">
       <div class="section-title">Deck</div>

@@ -308,10 +308,17 @@ let _lastStateSig = null;
 /* Three reasons to say no, and they are the whole of why this is not just a
  * fetch: a poll that lands while a collection or a deck is still arriving
  * would hydrate over the half of it that is in memory, and one that lands
- * every time a tab is switched would do it several times a second. */
+ * every time a tab is switched would do it several times a second.
+ *
+ * A server-side import is not one of those reasons. Its cards are nowhere in
+ * memory to be hydrated over — they are in collection_imports until the whole
+ * thing lands — so a refresh during one is safe, and refusing to refresh for
+ * the four minutes an import takes would freeze every other tab's data. What
+ * still holds the fetch off is a CSV import, which is genuinely half in
+ * memory while the file is being read. */
 async function refreshState() {
   if (document.visibilityState === 'hidden') return;
-  if (state.collections.some(c => c.status === 'loading' || c.status === 'updating')) return;
+  if (state.collections.some(c => c.status === 'loading' || c.status === 'updating' || c.updating)) return;
   if (state.players.some(p => p.decks.some(d => d.nameStatus === 'loading'))) return;
   if (Date.now() - _lastRefresh < 15_000) return;
   _lastRefresh = Date.now();
@@ -669,6 +676,10 @@ authInit().then(() => {
     _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load
     renderPlayers();
     renderCollections();
+    /* An import started before this tab existed — from a phone, or from a
+     * session that has since been closed — is still running on the server,
+     * and /api/state has just told us so. Start watching it. */
+    pollImports();
     mountViewToggle('colViewMount', ['list', 'grid', 'pile'], () => viewMode, setViewMode);
     setViewMode(viewMode); // renders results with the restored view mode
     initAvailable(); // Available is the default tab — start loading it immediately
