@@ -429,6 +429,19 @@
 
 table { width: 100%; border-collapse: collapse; font-size: var(--text-base); }
 #resultsTable { width: max-content; min-width: 100%; }
+/* Except when the only thing in it is an empty-state message. max-content
+   sized the table to that sentence, so a message longer than the viewport
+   made the table wider than the screen and .table-wrap scrolled the words
+   off the right — worst on a phone, and true of the message that shipped
+   here long before the import ones. Fixed layout plus a full width makes
+   the cell wrap instead. Set by colSayInstead in js/collections.js. */
+#resultsTable.is-empty { width: 100%; table-layout: fixed; }
+/* And no column headings over it. Fixed layout takes its widths from the
+   first row, and the message's cell spans 99 of them, so the two headings
+   would be squeezed into a couple of pixels each and print on top of one
+   another. They have nothing to head anyway while the table holds a
+   sentence, and nothing to sort. */
+#resultsTable.is-empty thead { display: none; }
 #resultsTable thead th { white-space: nowrap; }
 
 thead th {

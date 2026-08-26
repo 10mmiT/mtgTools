@@ -69,13 +69,6 @@ function parseInput(raw) {
   return null;
 }
 
-function apiPageUrl(col, page) {
-  if (col.source === 'moxfield') {
-    return `/api/moxfield/collection/${col.id}/cards?pageNumber=${page}&pageSize=100`;
-  }
-  return `/api/archidekt/collection/${col.id}?page=${page}&pageSize=100`;
-}
-
 function sourceLabel(source) {
   return { archidekt: 'Archidekt', moxfield: 'Moxfield',
            'csv-archidekt': 'CSV (Archidekt)', 'csv-moxfield': 'CSV (Moxfield)' }[source] || source;
@@ -257,95 +250,194 @@ function addFromUrl() {
     updating: false,
   };
 
-  state.collections.push(col);
   urlEl.value  = '';
   nameEl.value = '';
-  closeDrawers();   // the chip that replaces this form is what reports progress
+  closeDrawers();   // the import panel and the chip are what report progress
 
-  renderCollections();
-  renderResults();
-  fetchAllPages(col);
+  /* The collection is not pushed onto state.collections here. It does not
+   * exist yet — the server is about to spend four minutes fetching it, and
+   * until it lands there are no cards to put in a row. What stands in for it
+   * meanwhile is the import, which the panel and the chip row both draw. */
+  startImport(col);
 }
 
-// ── Fetch all API pages ───────────────────────────────────────────────────
-async function fetchAllPages(col) {
-  let page = 1;
-  col.cards   = new Map();
-  col.entries = 0;
-  col.error   = null;
-
+// ── Imports, which the server runs ────────────────────────────────────────
+/* This used to be a loop in the tab that fetched every page itself. It cannot
+ * be, any more: Archidekt's rate limit makes a big collection a four-minute
+ * job (see archidekt-queue.js), and a tab that is refreshed, backgrounded on a
+ * phone, or locked does not survive four minutes. Worse, the old loop wrote
+ * nothing until the final page, so an interruption lost all of it.
+ *
+ * So the browser's whole part is now: ask the server to start, watch, and
+ * pick up the finished collection. collection-import.js is the other half.
+ */
+async function startImport(col, { restart = false } = {}) {
   try {
-    while (true) {
-      const url = apiPageUrl(col, page);
-      const res = await fetch(url);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status} from ${col.source} API`);
-      }
-
-      const data = await res.json();
-      if (col.total === null) col.total = getTotalCount(data, col.source);
-
-      for (const item of getItems(data, col.source)) {
-        const card = parseCard(item, col.source);
-        if (!card.name) continue;
-        const ex = col.cards.get(card.name);
-        if (ex) ex.qty += card.qty;
-        else col.cards.set(card.name, card);
-        col.entries++;
-      }
-
-      renderCollections();
-      renderResults();
-      if (!hasMore(data, col.source)) break;
-      page++;
-    }
-
-    col.savedAt  = new Date().toISOString();
-    col.updating = false;
-    // Keep status 'loading' while saving so refreshState doesn't run and
-    // overwrite in-memory state before the SQLite write completes.
-    try {
-      await saveCollection(col);
-    } catch (e) {
-      col.status = 'error';
-      col.error  = `Saved locally but failed to persist: ${e.message}`;
-      renderCollections();
-      renderResults();
-      return;
-    }
-    col.status = 'loaded';
-  } catch (err) {
-    col.status   = 'error';
-    col.error    = err.message;
-    col.updating = false;
+    const res = await fetch(`/api/collections/${encodeURIComponent(col.key)}/import`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        name: col.name, source: col.source, id: col.id, color: col.color,
+        owner: col.owner ?? null, restart,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    if (Array.isArray(body.imports)) state.imports = body.imports;
+  } catch (e) {
+    /* A start that never took is shown as a failed import rather than an
+     * alert, so it lands in the same place as every other import problem and
+     * survives the user looking at another tab. */
+    state.imports = [...state.imports.filter(i => i.key !== col.key), {
+      key: col.key, name: col.name, source: col.source, id: col.id, color: col.color,
+      status: 'error', entries: 0, total: null, error: e.message, live: false,
+    }];
   }
-
+  renderImports();
   renderCollections();
-  renderResults();
+  renderImportEmptyState();
+  pollImports();
 }
 
-function getItems(data, source) {
-  return source === 'moxfield' ? (data.data || data.items || []) : (data.results || []);
-}
-
-function hasMore(data, source) {
-  if (source === 'moxfield') return data.pageNumber * data.pageSize < data.totalResults;
-  return !!data.next;
-}
-
-function getTotalCount(data, source) {
-  return source === 'moxfield' ? (data.totalResults ?? null) : (data.count ?? null);
-}
-
-function parseCard(item, source) {
-  if (source === 'moxfield') {
-    const c = item.card || item;
-    return { name: c.name || '', type: c.type || c.typeLine || '', mana: c.manaCost || '', qty: item.quantity || item.count || 1 };
+/** Stop one. `forget` throws away the pages it had gathered as well. */
+async function stopImport(key, forget = false) {
+  const qs = forget ? '?forget=1' : '';
+  try {
+    const res  = await fetch(`/api/imports/${encodeURIComponent(key)}${qs}`, { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (Array.isArray(body.imports)) state.imports = body.imports;
+    else state.imports = state.imports.filter(i => i.key !== key);
+  } catch {
+    state.imports = state.imports.filter(i => i.key !== key);
   }
-  const name = item.card?.oracleCard?.name || item.card?.name || '';
-  return { name, type: (item.card?.oracleCard?.types || []).join(', '), mana: item.card?.oracleCard?.manaCost || '', qty: item.quantity || 0 };
+  renderImports();
+  renderCollections();
+  renderImportEmptyState();
 }
+
+/** Pick a stopped import back up from where it got to. */
+function resumeImport(key) {
+  const imp = state.imports.find(i => i.key === key);
+  if (imp) startImport(imp);
+}
+
+/* ── The watch ──────────────────────────────────────────────────────────────
+ * One timer, started when an import is running and stopped when none is. The
+ * two-second beat is for the progress number to feel live at roughly a page a
+ * second; the payload is a handful of counters, not the cards.
+ */
+const IMPORT_POLL_MS = 2000;
+let _importTimer = null;
+
+function anyImportLive() {
+  return state.imports.some(i => i.status === 'running');
+}
+
+function pollImports() {
+  if (_importTimer || !anyImportLive()) return;
+  _importTimer = setInterval(async () => {
+    // A hidden tab is not being read by anyone, and on a phone it may be
+    // frozen anyway. The import does not need watching to make progress.
+    if (document.visibilityState === 'hidden') return;
+    try {
+      const res = await fetch('/api/imports');
+      if (!res.ok) return;
+      const { imports = [] } = await res.json();
+      const wasLive = new Set(state.imports.filter(i => i.status === 'running').map(i => i.key));
+      state.imports = imports;
+
+      // An import that was running and is now gone from the list has landed:
+      // its row is deleted the moment the collection it became is written. So
+      // that is the cue to go and fetch the collection itself.
+      const landed = [...wasLive].some(key => !imports.find(i => i.key === key));
+      if (landed) await reloadCollections();
+
+      renderImports();
+      renderCollections();
+      renderImportEmptyState();
+      if (!anyImportLive()) { clearInterval(_importTimer); _importTimer = null; }
+    } catch {}
+  }, IMPORT_POLL_MS);
+}
+
+/* The results table only needs redrawing on an import tick while it is empty,
+ * where the import *is* the content ("Importing … 1,225 of 6,247"). With a
+ * collection on the shelf the table is showing cards, and rebuilding every
+ * card element every two seconds would flash the grid and lose the scroll
+ * position for a number that is already climbing in two other places. */
+function renderImportEmptyState() {
+  if (!state.collections.length) renderResults();
+}
+
+/* ── The import panel ───────────────────────────────────────────────────────
+ * The fuller readout, in the deck column: which collections are being
+ * fetched, how far along, and the buttons to stop or resume one. It is only
+ * a column at >=1280px — below that the deck column is a drawer — so this is
+ * the desktop half of the pair and the chip row is the half a phone sees.
+ * Neither is the other's fallback; they show the same imports at the detail
+ * each surface has room for.
+ */
+function renderImports() {
+  const panel = document.getElementById('importPanel');
+  if (!panel) return;                     // tabs rendered on their own in tests
+
+  if (!state.imports.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+  panel.style.display = '';
+
+  panel.innerHTML = `
+    <div class="section-title">Importing</div>
+    ${state.imports.map(imp => {
+      const running = imp.status === 'running';
+      const pct = imp.total ? Math.min(100, Math.round((imp.entries / imp.total) * 100)) : null;
+
+      const line = running
+        ? (imp.total ? `${imp.entries.toLocaleString()} of ${imp.total.toLocaleString()} cards` : 'starting…')
+        : imp.status === 'error'
+          ? (imp.error || 'failed')
+          : `stopped at ${imp.entries.toLocaleString()} cards`;
+
+      /* The bar is left at its last width for a stopped import rather than
+       * reset or hidden: how far it got is exactly what someone deciding
+       * whether to resume wants to see. */
+      const bar = pct === null ? '' : `
+        <div class="import-bar"><div class="import-bar-fill${running ? '' : ' is-stopped'}" style="width:${pct}%"></div></div>`;
+
+      return `
+        <div class="import-row${running ? '' : ' is-stopped'}">
+          <div class="import-head">
+            <span class="import-dot" style="background:${imp.color}"></span>
+            <span class="import-name">${esc(imp.name)}</span>
+            <span class="import-pct">${running && pct !== null ? pct + '%' : ''}</span>
+          </div>
+          ${bar}
+          <div class="import-meta">${esc(line)}</div>
+          <div class="import-actions">
+            ${running
+              ? `<button class="btn-secondary import-btn" onclick="stopImport('${imp.key}')">Stop</button>`
+              : `<button class="btn-secondary import-btn" onclick="resumeImport('${imp.key}')">Resume</button>
+                 <button class="btn-secondary import-btn import-btn--quiet" onclick="stopImport('${imp.key}', true)">Discard</button>`}
+          </div>
+        </div>`;
+    }).join('')}
+    <div class="import-note">Imports run on the server — you can close this page.</div>`;
+}
+
+/* Pull the collections back from the server after an import lands. A whole
+ * /api/state read rather than a narrower one, because hydrateState is what
+ * knows how to turn the payload into the shape the tab renders from. */
+async function reloadCollections() {
+  try {
+    const res = await fetch('/api/state');
+    if (!res.ok) return;
+    hydrateState(await res.json());
+    renderResults();
+  } catch {}
+}
+
+/* getItems, getTotalCount, hasMore and parseCard used to live here, reading
+ * the page shapes of the two collection APIs. Nothing in the browser fetches
+ * those pages any more — the server does, so the readers moved with the loop
+ * to collection-import.js rather than being kept in two places. */
 
 // ── CSV Import ────────────────────────────────────────────────────────────
 function openCsvPicker(updateKey) {
@@ -444,21 +536,25 @@ async function saveCollection(col) {
 // ── Update / Remove collection ────────────────────────────────────────────
 function updateCollection(key) {
   const col = state.collections.find(c => c.key === key);
-  if (!col || col.updating || col.status === 'loading') return;
-  col.updating = true;
-  renderCollections();
+  if (!col || col.updating || state.imports.some(i => i.key === key && i.status === 'running')) return;
   if (col.source.startsWith('csv-')) {
+    col.updating = true;
+    renderCollections();
     openCsvPicker(key);
-  } else {
-    col.status = 'loading';
-    col.total  = null;
-    fetchAllPages(col);
+    return;
   }
+  /* A refresh starts over rather than resuming: the point of it is to replace
+   * what is on the shelf with what is on Archidekt now, and a resume would
+   * merge the two and keep every card since removed. The collection stays
+   * readable throughout — it is only overwritten when the import lands. */
+  startImport(col, { restart: true });
 }
 
 function removeCollection(key) {
   state.collections = state.collections.filter(c => c.key !== key);
+  state.imports     = state.imports.filter(i => i.key !== key);
   renderCollections();
+  renderImports();
   renderResults();
   fetch(`/api/collections/${encodeURIComponent(key)}`, { method: 'DELETE' })
     .catch(e => console.warn('Collection remove failed:', e.message));
@@ -478,9 +574,18 @@ function renderCollections() {
      removed changes a number on another tab. Guarded because this file is
      loaded on its own in the tests that assert this tab. */
   if (typeof dbShelvesChanged === 'function') dbShelvesChanged();
+  renderImports();
   const row = document.getElementById('collectionsChips');
 
-  if (!state.collections.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+  /* An import for a collection that is not on the shelf yet still gets a chip.
+   * The chip row is the one progress readout visible at every window width —
+   * the import panel lives in the deck column, which is a closed drawer below
+   * 1280px, i.e. on the phone this whole feature exists for. */
+  const pending = state.imports.filter(i => !state.collections.some(c => c.key === i.key));
+
+  if (!state.collections.length && !pending.length) {
+    row.style.display = 'none'; row.innerHTML = ''; return;
+  }
   row.style.display = '';
 
   /* Every loaded collection, including the ones whose cards this tab is not
@@ -490,44 +595,77 @@ function renderCollections() {
    * A chip that is off the shelf being looked at says so instead. */
   const shown = new Set(colShelf().map(c => c.key));
 
-  row.innerHTML = state.collections.map(col => {
-    const isCSV  = col.source.startsWith('csv-');
-    const isBusy = col.status === 'loading' || col.updating;
-    const owner  = colOwner(col);
-    const off    = !shown.has(col.key);
+  // A collection with an import against it is drawn from the import: the
+  // shelved copy is last week's, and what the user wants to see is the run
+  // that is replacing it. Pending imports have no collection at all yet.
+  const impFor = key => state.imports.find(i => i.key === key) || null;
 
-    // The count is also the progress bar: while pages are coming in it reads
-    // "1,240 / 5,600", and the left number climbs on every render.
-    const count = col.status === 'error' ? 'failed'
-      : col.status === 'loading'
-        ? (col.total ? `${col.entries.toLocaleString()} / ${col.total.toLocaleString()}` : 'connecting…')
-        : col.updating ? 'updating…'
+  row.innerHTML = [
+    ...state.collections.map(col => chipHtml(col, impFor(col.key), shown.has(col.key))),
+    ...pending.map(imp => chipHtml(null, imp, true)),
+  ].join('');
+}
+
+/* One chip. Either a shelved collection, an import, or a collection with an
+ * import running over it — hence both arguments, and either may be null. */
+function chipHtml(col, imp, onShelf) {
+  const running = imp && imp.status === 'running';
+  const stopped = imp && imp.status !== 'running';
+  const name    = col ? col.name   : imp.name;
+  const key     = col ? col.key    : imp.key;
+  const color   = col ? col.color  : imp.color;
+  const source  = col ? col.source : imp.source;
+  const isCSV   = source.startsWith('csv-');
+  const owner   = colOwner(col || imp);
+  const off     = !onShelf;
+
+  // The count is also the progress bar: while pages are coming in it reads
+  // "1,240 / 5,600", and the left number climbs on every poll.
+  const count = running
+    ? (imp.total ? `${imp.entries.toLocaleString()} / ${imp.total.toLocaleString()}` : 'starting…')
+    : stopped
+      ? (imp.status === 'error' ? 'failed' : 'paused')
+      : col.updating ? 'updating…'
+        : col.status === 'error' ? 'failed'
           : [...col.cards.values()].reduce((s, c) => s + c.qty, 0).toLocaleString();
 
-    const tip = col.status === 'error'
-      ? col.error
-      : [sourceLabel(col.source),
-         owner ? `${owner.name}’s` : 'the group’s',
-         col.savedAt ? `updated ${relTime(col.savedAt)}` : '',
-         off ? 'not on the shelf you are looking at' : ''].filter(Boolean).join(' · ');
+  const tip = imp && imp.error ? imp.error
+    : running ? `importing — page ${imp.page}${imp.startedBy ? `, started by ${imp.startedBy}` : ''}`
+    : stopped ? `import stopped at ${imp.entries.toLocaleString()} cards — resume from the Deck panel`
+    : col.status === 'error' ? col.error
+    : [sourceLabel(source),
+       owner ? `${owner.name}’s` : 'the group’s',
+       col.savedAt ? `updated ${relTime(col.savedAt)}` : '',
+       off ? 'not on the shelf you are looking at' : ''].filter(Boolean).join(' · ');
 
-    const cls = (col.status === 'error' ? ' chip--error' : isBusy ? ' chip--busy' : '')
-              + (off ? ' chip--off' : '');
+  const busy = running || (col && col.updating);
+  const bad  = (imp && imp.status === 'error') || (!imp && col && col.status === 'error');
+  const cls  = (bad ? ' chip--error' : busy ? ' chip--busy' : '') + (off ? ' chip--off' : '');
 
-    return `
+  /* A chip for an import with no collection behind it has no owner menu and
+   * no Remove — there is nothing on the shelf to own or take off it. Stopping
+   * the run is the panel's job, and the tooltip says so. */
+  const menu = busy ? ''
+    : !col ? kebabMenuHtml([
+        { label: 'Resume', onclick: `resumeImport('${key}')` },
+        { divider: true },
+        { label: 'Discard', onclick: `stopImport('${key}', true)`, danger: true },
+      ], { title: 'Import actions' })
+    : kebabMenuHtml([
+        { label: isCSV ? 'Re-import CSV' : 'Refresh', onclick: `updateCollection('${key}')` },
+        ...colOwnerMenuItems(col),
+        { divider: true },
+        { label: 'Remove', onclick: `removeCollection('${key}')`, danger: true },
+      ], { title: 'Collection actions' });
+
+  return `
       <span class="chip${cls}" title="${esc(tip)}">
-        <span class="chip-dot" style="background:${col.color}"></span>
-        <span class="chip-label">${esc(col.name)}</span>
+        <span class="chip-dot" style="background:${color}"></span>
+        <span class="chip-label">${esc(name)}</span>
         ${owner ? `<span class="chip-owner">${esc(owner.name)}</span>` : ''}
         <span class="chip-count">${count}</span>
-        ${isBusy ? '' : kebabMenuHtml([
-          { label: isCSV ? 'Re-import CSV' : 'Refresh', onclick: `updateCollection('${col.key}')` },
-          ...colOwnerMenuItems(col),
-          { divider: true },
-          { label: 'Remove', onclick: `removeCollection('${col.key}')`, danger: true },
-        ], { title: 'Collection actions' })}
+        ${menu}
       </span>`;
-  }).join('');
 }
 
 // ── Build merged + filtered rows ──────────────────────────────────────────
@@ -754,6 +892,13 @@ function scheduleRender() {
  * showed the getting-started hint — so the message goes into all three and
  * the display rules decide who reads it. */
 function colSayInstead(html, info = '') {
+  /* The table is `width: max-content` so its columns fit the widest card
+     name. A message is prose and not a column, and while it is the only row
+     in there it must not set that width — a sentence wider than the window
+     scrolled its own text off the right on a phone, which is where the
+     shortest sentences are hardest to write. .is-empty puts the table back
+     to the width of its container so the message wraps inside it. */
+  document.getElementById('resultsTable').classList.add('is-empty');
   document.getElementById('resultsBody').innerHTML =
     `<tr><td colspan="99" class="empty-state">${html}</td></tr>`;
   document.getElementById('cardGrid').innerHTML =
@@ -777,6 +922,23 @@ function renderResults() {
   document.getElementById('pileView').style.display = viewMode === 'pile' ? '' : 'none';
 
   if (!state.collections.length) {
+    /* Telling someone to add a collection while the server is part way
+       through fetching the one they just added is the wrong answer to the
+       question they are actually asking, which is whether it is working. */
+    const running = state.imports.find(i => i.status === 'running');
+    if (running) {
+      colSayInstead(running.total
+        ? `Importing ${running.name} — ${running.entries.toLocaleString()} of ${running.total.toLocaleString()} cards so far. This runs on the server, so you can close the page.`
+        : `Importing ${running.name}…`);
+      return;
+    }
+    const stopped = state.imports[0];
+    if (stopped) {
+      colSayInstead(stopped.status === 'error'
+        ? `Importing ${stopped.name} failed: ${stopped.error || 'unknown error'}`
+        : `Importing ${stopped.name} stopped at ${stopped.entries.toLocaleString()} cards — resume it from the Deck panel.`);
+      return;
+    }
     // "above" was the form directly over this table; it is the toolbar's
     // + Add button now, so the hint says which button it means.
     colSayInstead('No collections yet — add one with “+ Add” in the toolbar.');
@@ -852,6 +1014,8 @@ function renderResults() {
 function renderListView(rows, MAX) {
   const tbody  = document.getElementById('resultsBody');
   const header = document.getElementById('headerRow');
+  // Real rows: the columns size themselves again. See colSayInstead.
+  document.getElementById('resultsTable').classList.remove('is-empty');
 
   /* No stale field to reset: the chain is read against this tab's field list,
      so a criterion naming a column that is no longer on the table is dropped

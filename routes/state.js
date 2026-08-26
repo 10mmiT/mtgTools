@@ -4,6 +4,7 @@ const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { db }  = require('../available-db');
 const { getSession, requireAuth, requirePlayerAccess } = require('../middleware/auth');
+const imports = require('../collection-import');
 
 const DATA_FILE    = process.env.DATA_FILE || require('path').join(__dirname, '..', 'data', 'state.json');
 // A player's colour is one of eight theme-defined slots (--player-0…7); see
@@ -219,10 +220,14 @@ router.get('/state', requireAuth, (req, res) => {
         .map(r => [r.deck_id, r.n])
     );
 
-    res.json({ collections, players: visiblePlayers, version, deckCardCounts });
+    /* Imports in flight ride along with the state the page already fetches on
+     * load, so a tab that opens midway through one shows it immediately
+     * instead of after the first poll. The poll itself uses GET /api/imports,
+     * which is this list and nothing else. */
+    res.json({ collections, players: visiblePlayers, version, deckCardCounts, imports: imports.listImports() });
   } catch (e) {
     console.error('GET /api/state error:', e.message);
-    res.json({ collections: [], players: [], version: 0, deckCardCounts: {} });
+    res.json({ collections: [], players: [], version: 0, deckCardCounts: {}, imports: [] });
   }
 });
 
@@ -361,8 +366,53 @@ router.put('/collections/:key/owner', requireAuth, express.json(), (req, res) =>
 });
 
 router.delete('/collections/:key', requireAuth, (req, res) => {
-  db.prepare('DELETE FROM collections WHERE key = ?').run(decodeURIComponent(req.params.key));
+  const key = decodeURIComponent(req.params.key);
+  // An import still gathering pages for this collection has to go too, or it
+  // would finish minutes later and put the collection back.
+  imports.clearImport(key);
+  db.prepare('DELETE FROM collections WHERE key = ?').run(key);
   res.json({ ok: true });
+});
+
+/* ── Imports ───────────────────────────────────────────────────────────────
+ * Adding or refreshing an Archidekt or Moxfield collection is a job the
+ * server runs, not the tab — see collection-import.js for why. These three
+ * routes are the whole of the browser's part in it: start one, watch them,
+ * stop one. CSV imports never come through here; the file only exists in the
+ * browser, so those still POST the finished cards to /api/collections.
+ */
+const IMPORT_SOURCES = new Set(['archidekt', 'moxfield']);
+
+router.post('/collections/:key/import', requireAuth, express.json(), (req, res) => {
+  const key = decodeURIComponent(req.params.key);
+  const { name, source, id, color, restart } = req.body || {};
+  if (!name || !source) return res.status(400).json({ error: 'name and source required' });
+  if (!IMPORT_SOURCES.has(source)) return res.status(400).json({ error: `Cannot import a ${source} collection on the server` });
+  if (!id) return res.status(400).json({ error: 'id required' });
+
+  // Same rule as the whole-collection POST above: an owner that is not
+  // mentioned leaves the existing one alone rather than clearing it.
+  const given = Object.prototype.hasOwnProperty.call(req.body || {}, 'owner');
+  const owner = given ? readOwner(req.body.owner) : (imports.getImport(key)?.owner_player_id
+    || db.prepare('SELECT owner_player_id FROM collections WHERE key = ?').get(key)?.owner_player_id
+    || null);
+  if (owner === false) return res.status(400).json({ error: 'Unknown player' });
+
+  const started = imports.startImport({ key, name, source, id, color, owner, restart: !!restart },
+    getSession(req)?.username || null);
+  res.json({ ok: true, ...started, done: undefined, imports: imports.listImports() });
+});
+
+router.get('/imports', requireAuth, (req, res) => res.json({ imports: imports.listImports() }));
+
+/* Stopping one. `?forget=1` throws away the pages it had gathered as well —
+ * that is the difference between "not now" and "never mind", and a resume
+ * button in front of a job nobody wants is worse than no button. */
+router.delete('/imports/:key', requireAuth, (req, res) => {
+  const key = decodeURIComponent(req.params.key);
+  const gone = req.query.forget ? imports.clearImport(key) : imports.cancelImport(key);
+  if (!gone) return res.status(404).json({ error: 'No such import' });
+  res.json({ ok: true, imports: imports.listImports() });
 });
 
 module.exports = { router, createLinkedPlayer, readState, writeState, deckVisibleTo };
