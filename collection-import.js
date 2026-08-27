@@ -17,13 +17,16 @@
  * CSV imports are deliberately not here: the file is in the browser, and the
  * server has no way to read it.
  */
-const { db, writeCollectionCards } = require('./available-db');
+const { db, writeCollectionCards, addCardPrinting } = require('./available-db');
 const { queuedFetch: archidektFetch } = require('./archidekt-queue');
 
 // How often the gathered cards are written down. Every page would mean
 // rewriting a growing JSON blob 250 times — at six thousand cards that is
 // megabytes of churn to save a few seconds of refetching. Every tenth page
-// costs a crash ten pages, which is ten seconds of work.
+// costs a crash ten pages, which is ten seconds of work. The blob is three
+// times the size now each card carries the printings behind its quantity,
+// which is the same trade at three times the price and still the cheap side
+// of rewriting it 25 times as often.
 const CHECKPOINT_EVERY = 10;
 
 // A page that fails for a reason retrying cannot fix (a deleted collection, a
@@ -117,6 +120,49 @@ function parseCard(item, source) {
     type: (o.types || []).join(', '),
     mana: o.manaCost || '',
     qty:  item.quantity || 0,
+  };
+}
+
+/* A field of a page as a printing records one: text, or nothing at all.
+ * Archidekt sends its collector number, its condition and its language as
+ * numbers, and a printing is written down in strings — the value is kept as
+ * the source spells it rather than being interpreted, because two of the
+ * three are codes whose meaning this app has never had to know. */
+const asText = v => (typeof v === 'string' || typeof v === 'number') ? String(v).trim() : '';
+
+/**
+ * Which printing a row is — the half of every page the import used to throw
+ * away, so a shelf knew you own three Sol Rings and not which three. It is all
+ * on the row already, so recording it costs no request that was not being made
+ * anyway.
+ *
+ * Null where the source cannot say, which is the honest answer rather than a
+ * downgrade: those copies land in the unknown entry instead of being guessed
+ * at. Moxfield's per-row fields have not been checked against a real account,
+ * and until they are, a Moxfield shelf says it does not know.
+ */
+function parsePrinting(item, source) {
+  if (source !== 'archidekt') return null;
+  const card    = item.card || {};
+  const edition = card.edition || {};
+  return {
+    // A Scryfall id, confirmed against the real API. Without one there is
+    // nothing for this to be a printing *of*, and readCardPrinting says so by
+    // making it the unknown entry.
+    id:               asText(card.uid),
+    set:              asText(edition.editioncode),
+    set_name:         asText(edition.editionname),
+    collector_number: asText(card.collectorNumber),
+    // Said either way round, and never left silent. A foil is not a printing
+    // of its own in Scryfall's model — it is a finish on the same id, priced
+    // separately — so a row that says nothing about its finish is a foil
+    // folded into the ordinary copy somebody paid rather less for.
+    finish:           item.foil ? 'foil' : 'nonfoil',
+    // Both are one constant code across every row of a real collection. They
+    // are recorded because identity asks for them, and nothing may lean on
+    // them varying until they do — recorded identically, they split nothing.
+    lang:             asText(item.language),
+    condition:        asText(item.condition),
   };
 }
 
@@ -237,6 +283,12 @@ async function _run(key, handle) {
       const seen = cards.get(card.name);
       if (seen) seen.qty += card.qty;
       else cards.set(card.name, card);
+      // The row's copies, filed under the printing they are of. The quantity
+      // above and the breakdown here are counted from the same number, which
+      // is what keeps the breakdown summing to the quantity for every card on
+      // every shelf, whether or not the row named a printing.
+      const of = seen || card;
+      of.printings = addCardPrinting(of.printings, { ...parsePrinting(item, source), qty: card.qty });
       entries++;
     }
 

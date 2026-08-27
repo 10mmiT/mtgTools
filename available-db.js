@@ -614,6 +614,20 @@ function readCardPrintings(card) {
   return printings;
 }
 
+/** A card's breakdown with one more row's copies counted into it.
+ *
+ *  An import gathers a shelf a page at a time and writes down what it has as
+ *  it goes, so the copies arrive one row at a time rather than as a finished
+ *  list. They are folded together here, by readCardPrintings and so by the
+ *  same rule as everywhere else — an importer with its own idea of what makes
+ *  two copies the same card is how the two quietly stop agreeing.
+ *
+ *  Anything that is not a printing — a row whose source names none — becomes
+ *  the unknown entry, which is the answer readCardPrintings gives for every
+ *  copy it cannot attribute. */
+const addCardPrinting = (printings, raw) =>
+  readCardPrintings({ printings: [...(printings || []), raw] });
+
 /** A collection card as everything outside this database sees one: the fields
  *  it was stored with, its breakdown, and the quantity that breakdown sums
  *  to — which for a card stored before any of this existed is exactly the
@@ -664,6 +678,6 @@ db.prepare("UPDATE collection_imports SET status = 'interrupted' WHERE status = 
 module.exports = {
   db, DEFAULT_CAL_ID,
   readPrinting, writePrinting, deckCardRow,
-  CARD_PRINTING_FIELDS, readCardPrintings, collectionCardRow,
+  CARD_PRINTING_FIELDS, readCardPrintings, addCardPrinting, collectionCardRow,
   readCollectionCards, writeCollectionCards,
 };

@@ -27,7 +27,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mtgimport-'));
 process.env.DATA_FILE = path.join(tmpDir, 'state.json');
 process.env.MTGTOOLS_NO_BACKGROUND = '1';
 
-const { db }  = require('../available-db');
+const { db, readCollectionCards } = require('../available-db');
 const imports = require('../collection-import');
 
 // ── A stand-in for Archidekt ──────────────────────────────────────────────
@@ -40,6 +40,38 @@ let served;      // pages actually requested
 let failAt;      // { page, status } — one page answers with an error
 let holdAt;      // page at which to pause, so a test can act mid-import
 let held;        // resolve to let a held import continue
+
+const ROW_UID = 'ea20208b-4f1e-4d4c-9b4a-000000000001';
+const OTHER_UID = 'ea20208b-4f1e-4d4c-9b4a-000000000002';
+
+let requested;   // every URL the import actually asked for
+
+/** Answer every request with these payloads in turn, recording what was
+ *  asked for — which is what the no-extra-requests assertion reads. */
+function servePages(payloads) {
+  requested = [];
+  globalThis.fetch = async url => {
+    requested.push(String(url));
+    return Response.json(payloads[Math.min(requested.length - 1, payloads.length - 1)]);
+  };
+}
+
+/** One page of Archidekt rows, and nothing after it. */
+const serveRows = rows => servePages([{ count: rows.length, next: null, results: rows }]);
+
+/** A row of Archidekt's collection API, printing and all. */
+function archidektRow({ name = 'Sol Ring', qty = 1, uid = ROW_UID, set = 'c21',
+                        setName = 'Commander 2021', number = '263', foil = false,
+                        language = 1, condition = 1 } = {}) {
+  return {
+    quantity: qty, foil, language, condition,
+    card: {
+      uid, collectorNumber: number,
+      edition: { editioncode: set, editionname: setName },
+      oracleCard: { name, types: ['Artifact'], manaCost: '{1}' },
+    },
+  };
+}
 
 function stubArchidekt(totalRows) {
   served = [];
@@ -58,7 +90,7 @@ function stubArchidekt(totalRows) {
     const first = (page - 1) * PER_PAGE;
     const rows  = [];
     for (let i = first; i < Math.min(first + PER_PAGE, totalRows); i++) {
-      rows.push({ quantity: 1, card: { oracleCard: { name: `Card ${i}`, types: ['Creature'], manaCost: '{G}' } } });
+      rows.push(archidektRow({ name: `Card ${i}`, number: String(i), foil: i % 10 === 0 }));
     }
     return Response.json({
       count: totalRows,
@@ -72,7 +104,7 @@ const KEY = 'archidekt:702530';
 const META = { key: KEY, name: 'Tim’s shelf', source: 'archidekt', id: '702530', color: '#a855f7' };
 
 const row  = () => db.prepare('SELECT * FROM collection_imports WHERE key = ?').get(KEY);
-const shelf = () => db.prepare('SELECT * FROM collections WHERE key = ?').get(KEY);
+const shelf = (key = KEY) => db.prepare('SELECT * FROM collections WHERE key = ?').get(key);
 
 /* Every run started by a test, so the next one can be sure none is still
  * going. A loop left running does not just linger — it keeps calling
@@ -376,5 +408,199 @@ describe('Import routes', () => {
   test('the whole list needs a session', async () => {
     const res = await request.get('/api/imports');
     assert.notEqual(res.status, 200);
+  });
+});
+
+// ── The printing on every row ─────────────────────────────────────────────
+/* Archidekt names the printing of every copy it sends — the Scryfall id, the
+ * set, the collector number, the finish, the language and the condition — and
+ * the import kept the name and a running total and threw the rest away. So a
+ * shelf knew you own three Sol Rings and not which three, and no amount of
+ * asking Archidekt again would have told it: the answer was in the pages it
+ * had already fetched.
+ *
+ * These assert the parse and the arithmetic under it, because the invariant
+ * that matters — the breakdown adds up to the quantity — has to hold before
+ * anything reaches a browser. A copy that cannot be attributed is the unknown
+ * entry rather than a guess, which is the same rule the shelf itself keeps.
+ */
+/** A card of the saved shelf as everything outside the database sees one —
+ *  which is where the breakdown is always an array and always adds up, and so
+ *  the surface these assertions are about. */
+const importedInto = (key, name) => readCollectionCards(shelf(key).cards_json)[name];
+const imported = name => importedInto(KEY, name);
+
+describe('An import that records what the printings are', () => {
+  test('keeps the set, the collector number, the finish, the language and the condition', async () => {
+    serveRows([archidektRow({ qty: 2 })]);
+    await start().done;
+
+    const card = imported('Sol Ring');
+    assert.equal(card.qty, 2);
+    assert.deepEqual(card.printings, [{
+      id: ROW_UID, set: 'c21', set_name: 'Commander 2021',
+      collector_number: '263', finish: 'nonfoil', lang: '1', condition: '1', qty: 2,
+    }]);
+  });
+
+  test('splits a card held in more than one printing across them', async () => {
+    serveRows([
+      archidektRow({ qty: 2 }),
+      archidektRow({ qty: 1, uid: OTHER_UID, set: 'rav', setName: 'Ravnica', number: '266' }),
+    ]);
+    await start().done;
+
+    const card = imported('Sol Ring');
+    assert.equal(card.qty, 3, 'the quantity is what it always was');
+    assert.deepEqual(card.printings.map(p => [p.set, p.qty]), [['c21', 2], ['rav', 1]]);
+  });
+
+  test('and the breakdown adds up to what Archidekt said the quantity was', async () => {
+    // Against the numbers on the served rows and not against the stored
+    // quantity, which is the sum of the breakdown and would agree with itself
+    // however badly a row had been counted.
+    const sent = { 'Sol Ring': [2, 1], 'Llanowar Elves': [4], Forest: [7] };
+    serveRows([
+      archidektRow({ qty: 2 }),
+      archidektRow({ qty: 1, uid: OTHER_UID, set: 'rav', number: '266' }),
+      archidektRow({ name: 'Llanowar Elves', qty: 4, uid: OTHER_UID, set: 'dom', number: '168' }),
+      archidektRow({ name: 'Forest', qty: 7, uid: null }),
+    ]);
+    await start().done;
+
+    const shelved = readCollectionCards(shelf().cards_json);
+    assert.deepEqual(Object.keys(shelved).sort(), Object.keys(sent).sort());
+    for (const [name, rows] of Object.entries(sent)) {
+      const owned = rows.reduce((n, q) => n + q, 0);
+      assert.equal(shelved[name].qty, owned, `${name}: the quantity Archidekt sent`);
+      assert.equal(shelved[name].printings.reduce((n, p) => n + p.qty, 0), owned,
+        `${name}: and a breakdown that adds up to it`);
+    }
+  });
+
+  test('the same printing on two pages is one entry holding the copies of both', async () => {
+    // A played set and its spare are rarely next to each other in a real
+    // collection, and the pages are gathered one at a time and written down
+    // between whiles — so the fold has to survive the page boundary.
+    servePages([
+      { count: 2, next: '?page=2', results: [archidektRow({ qty: 2 })] },
+      { count: 2, next: null,      results: [archidektRow({ qty: 1 })] },
+    ]);
+    await start().done;
+
+    assert.equal(requested.length, 2, 'sanity: the two rows did arrive on two pages');
+    const card = imported('Sol Ring');
+    assert.equal(card.printings.length, 1, `one printing, got ${JSON.stringify(card.printings)}`);
+    assert.equal(card.printings[0].qty, 3);
+  });
+
+  test('a foil is a printing of its own, not an ordinary copy', async () => {
+    // Same Scryfall id on both rows: a foil is a finish rather than a
+    // printing, so without the finish these two would be one entry of three.
+    serveRows([
+      archidektRow({ qty: 2 }),
+      archidektRow({ qty: 1, foil: true }),
+    ]);
+    await start().done;
+
+    const card = imported('Sol Ring');
+    assert.equal(card.qty, 3);
+    assert.deepEqual(card.printings.map(p => [p.finish, p.qty]), [['nonfoil', 2], ['foil', 1]]);
+  });
+
+  test('a row that names no printing goes to the unknown entry rather than a guess', async () => {
+    serveRows([archidektRow({ qty: 3, uid: null })]);
+    await start().done;
+
+    const card = imported('Sol Ring');
+    assert.equal(card.qty, 3, 'the copies are still owned');
+    assert.deepEqual(card.printings, [{ id: null, qty: 3 }]);
+  });
+
+  test('and a source that cannot say is honest about it rather than downgraded quietly', async () => {
+    // Moxfield's per-row fields are unconfirmed, so its rows claim nothing.
+    servePages([{
+      pageNumber: 1, pageSize: 100, totalResults: 1,
+      data: [{ quantity: 2, card: { name: 'Sol Ring', type: 'Artifact', manaCost: '{1}' } }],
+    }]);
+    await start({ ...META, key: 'moxfield:abc', source: 'moxfield', id: 'abc' }).done;
+
+    const card = importedInto('moxfield:abc', 'Sol Ring');
+    assert.equal(card.qty, 2);
+    assert.deepEqual(card.printings, [{ id: null, qty: 2 }]);
+  });
+
+  test('does not split a card on language or condition, which say nothing today', async () => {
+    // Both come back as one constant code for every row in a real collection.
+    // Two copies of one printing are two copies, not two printings.
+    serveRows([
+      archidektRow({ qty: 2 }),
+      archidektRow({ qty: 1 }),
+    ]);
+    await start().done;
+
+    const card = imported('Sol Ring');
+    assert.equal(card.printings.length, 1, `one printing, got ${JSON.stringify(card.printings)}`);
+    assert.equal(card.printings[0].qty, 3);
+  });
+
+  test('the printings gathered before an interruption survive the resume', async () => {
+    // They are written down in the checkpoint and read back out of it, so a
+    // resumed import comes back with the copies it had already filed rather
+    // than with only the pages fetched after the stop.
+    stubArchidekt(500);
+    failAt = { page: 8, status: 500 };
+    await start().done;
+    assert.equal(row().status, 'interrupted');
+
+    stubArchidekt(500);
+    await start().done;
+
+    assert.deepEqual(imported('Card 3').printings, [{
+      id: ROW_UID, set: 'c21', set_name: 'Commander 2021',
+      collector_number: '3', finish: 'nonfoil', lang: '1', condition: '1', qty: 1,
+    }], 'a card from a page fetched before the stop');
+    assert.equal(imported('Card 10').printings[0].finish, 'foil');
+    assert.equal(imported('Card 400').printings[0].collector_number, '400',
+      'and one from a page fetched after it');
+  });
+
+  test('asks for nothing beyond the pages of the collection itself', async () => {
+    // The printing is on the rows the import was fetching anyway, so a shelf
+    // gains all of this without a single request that was not being made
+    // before — no lookup per card, and none per printing.
+    servePages([
+      { count: 3, next: '?page=2',
+        results: [archidektRow({ qty: 2 }), archidektRow({ qty: 1, uid: OTHER_UID, set: 'rav' })] },
+      { count: 3, next: null, results: [archidektRow({ name: 'Forest', qty: 7, uid: null })] },
+    ]);
+    await start().done;
+
+    assert.equal(imported('Sol Ring').printings.length, 2, 'sanity: it did record them');
+    assert.equal(requested.length, 2, `two pages, two requests; asked for ${requested}`);
+    for (const url of requested)
+      assert.match(url, /^https:\/\/archidekt\.com\/api\/collection\/702530\//);
+  });
+
+  test('leaves the collection already saved readable until the new one lands', async () => {
+    // Re-importing is how a shelf gains its printings, and it takes four
+    // minutes. Nobody may be left with nothing for those four minutes.
+    db.prepare(`
+      INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
+      VALUES (?, 'Tim’s shelf', 'archidekt', '702530', '#a855f7', ?, 1, 3, '2026-01-01T00:00:00.000Z')
+    `).run(KEY, JSON.stringify({ 'Sol Ring': { name: 'Sol Ring', type: 'Artifact', mana: '{1}', qty: 3 } }));
+
+    stubArchidekt(500);
+    holdAt = 12;
+    const { done } = start({ ...META, restart: true });
+    await reachHold();
+
+    const mid = JSON.parse(shelf().cards_json);
+    assert.equal(mid['Sol Ring'].qty, 3, 'the saved shelf is still there, mid-re-import');
+    assert.equal(shelf().entries, 1);
+
+    held();
+    await done;
+    assert.equal(shelf().entries, 500, 'and the new one replaces it once it has landed');
   });
 });
