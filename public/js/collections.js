@@ -547,7 +547,141 @@ function updateCollection(key) {
    * what is on the shelf with what is on Archidekt now, and a resume would
    * merge the two and keep every card since removed. The collection stays
    * readable throughout — it is only overwritten when the import lands. */
-  startImport(col, { restart: true });
+  return startImport(col, { restart: true });
+}
+
+// ── Shelves that do not know their printings ──────────────────────────────
+/* The offer to re-import a collection that has no printings, and the four
+ * rules that decide who is shown one.
+ *
+ * No collection in existence has printings until it is re-imported: the data
+ * was never stored, so there is nothing on disk to recover it from. That
+ * leaves the Printings column reading "unknown" the whole way down, which is
+ * the honest answer and looks exactly like a broken one. This strip is what
+ * makes it an answer somebody can do something about, rather than something
+ * they have to work out for themselves.
+ *
+ * It is an offer and not a nag, so it goes away and stays away:
+ *
+ *   acted on   the moment it is pressed, rather than when the server answers
+ *              — the start returns `{ ok: true }` long before the import is
+ *              in any list to draw from, and an offer still on screen invites
+ *              a second press that starts a second four-minute job
+ *   under way   a collection with an import against it already has a readout
+ *              and a Stop in the import panel; a stopped one has a Resume.
+ *              Two buttons for one job is worse than one
+ *   pointless   a CSV export has no edition column and this app does not read
+ *              Moxfield's rows for printings, so re-importing either of those
+ *              would hand back the same unknowns and the offer would return
+ *              forever. An empty shelf has nothing to know
+ *   not yours   somebody else's collection is their time to spend and their
+ *              data to change. Yours, the group's, or anything at all if you
+ *              are an admin or the app cannot say who you are — in which case
+ *              it makes no ownership distinction anywhere else either
+ */
+
+/* Sources a re-import could actually record printings from — which is the
+ * same list parsePrinting in collection-import.js reads, and has to stay it:
+ * an offer to fix something that the importer will not fix is a loop. */
+const COL_PRINTING_SOURCES = new Set(['archidekt']);
+
+/* Offers taken in this page's lifetime, and never given back. A re-import
+ * that lands with printings takes the offer away on its own; one that lands
+ * without them — a source that turns out to say nothing after all — must not
+ * put the same offer back up, which is the nag this set exists to prevent.
+ * A reload is what re-asks the question, and by then something has changed. */
+const _colOffersTaken = new Set();
+
+/** Does this shelf know what any of its cards are? One printing naming a real
+ *  card is enough: a shelf half accounted for has been re-imported already,
+ *  and doing it again would produce the same unknowns. */
+function colKnowsPrintings(col) {
+  const cards = col && col.cards;
+  // Not a shelf this tab can read is not a shelf to make offers about.
+  if (!cards || typeof cards.values !== 'function') return true;
+  for (const card of cards.values())
+    if ((card.printings || []).some(p => p && p.id)) return true;
+  return false;
+}
+
+/** Is starting a four-minute job against this shelf ours to do?
+ *
+ *  Asked of myPlayerId() and not of isMyPlayer(), which is the other question
+ *  and would be wrong here: it reads the logged-in account's linked player,
+ *  and open mode has no logged-in player at all — everybody is `guest`, and
+ *  who you are is the name remembered behind Available@'s "Who are you?" bar.
+ *  Through isMyPlayer, somebody in open mode would not be offered their own
+ *  shelf. Every ownership question on this tab is asked the same way. */
+function colMayReimport(col) {
+  const me = myPlayerId();
+  return !me || currentUser?.role === 'admin' || !col.owner || col.owner === me;
+}
+
+/* The shelves being offered a re-import, in the order the tab lists them.
+ * Read from the shelf being looked at rather than from every loaded
+ * collection: the strip sits above the table and explains what that table is
+ * saying, so it must not name a collection whose rows are not in it. */
+function colPrintingOffers() {
+  return colShelf().filter(col =>
+    COL_PRINTING_SOURCES.has(col.source)
+    && col.cards.size > 0
+    && !colKnowsPrintings(col)
+    && colMayReimport(col)
+    && !_colOffersTaken.has(col.key)
+    && !state.imports.some(i => i.key === col.key));
+}
+
+/* The strip itself, between the chips and the table. Absent from the flow
+ * entirely when every shelf knows what it holds, which is what it becomes for
+ * good once these have been re-imported. */
+function renderPrintingOffers() {
+  const box = document.getElementById('colPrintingOffer');
+  if (!box) return;                       // tabs rendered on their own in tests
+
+  const offers = colPrintingOffers();
+  if (!offers.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+
+  const one  = offers.length === 1;
+  const what = one
+    ? `<strong>${esc(offers[0].name)}</strong> does not record which printings it holds`
+    : `<strong>${offers.length} collections</strong> do not record which printings they hold`;
+
+  box.innerHTML = `
+    <div class="print-offer-say">
+      ${what} — that is what the Printings column is saying. Re-importing from
+      Archidekt records them. The import runs on the server, so you can close
+      this page while it works.
+    </div>
+    <div class="print-offer-acts">
+      ${one ? '' : `
+        <button class="btn-primary print-offer-btn"
+                onclick="reimportAllPrintings()">Re-import all ${offers.length}</button>`}
+      ${offers.map(col => `
+        <button class="btn-secondary print-offer-btn"
+                onclick="reimportPrintings('${jsAttr(col.key)}')">
+          Re-import${one ? '' : ` ${esc(col.name)}`}
+        </button>`).join('')}
+    </div>`;
+}
+
+/** Take one shelf's offer. */
+function reimportPrintings(key) {
+  if (!state.collections.some(c => c.key === key)) return;
+  _colOffersTaken.add(key);
+  renderPrintingOffers();
+  return updateCollection(key);
+}
+
+/** Take all of them, for somebody who owns the lot and does not want to press
+ *  a button per shelf. Only the ones actually being offered — a collection
+ *  that knows its printings, or that belongs to somebody else, is not swept
+ *  up by a button whose label says "all". */
+function reimportAllPrintings() {
+  const offers = colPrintingOffers();
+  for (const col of offers) _colOffersTaken.add(col.key);
+  renderPrintingOffers();
+  return Promise.all(offers.map(col => updateCollection(col.key)));
 }
 
 function removeCollection(key) {
@@ -575,6 +709,10 @@ function renderCollections() {
      loaded on its own in the tests that assert this tab. */
   if (typeof dbShelvesChanged === 'function') dbShelvesChanged();
   renderImports();
+  /* Which shelves still do not know their printings, which is a question of
+     the same three things this function already redraws for: what is loaded,
+     whose it is, and what is being imported. */
+  renderPrintingOffers();
   const row = document.getElementById('collectionsChips');
 
   /* An import for a collection that is not on the shelf yet still gets a chip.

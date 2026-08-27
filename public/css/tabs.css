@@ -36,6 +36,51 @@
   letter-spacing: .4px;
 }
 
+/* ── The offer to re-import a shelf with no printings ──────────────────
+   Between the chips and the table, because it is the answer to what the
+   table's Printings column is saying — every card on every shelf reads
+   "unknown" until somebody takes this. A quiet surface and not a warning
+   colour: nothing is wrong, there is simply something worth doing once.
+   Gone from the flow entirely the rest of the time, which after a
+   playgroup has taken it is always. */
+.print-offer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+/* The sentence takes the room that is going and wraps rather than pushing
+   the buttons off the end of a phone. */
+.print-offer-say {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.print-offer-say strong { color: var(--text); }
+
+.print-offer-acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* Named per collection, so the label is as long as somebody's collection
+   name — it truncates rather than setting the width of the strip. */
+.print-offer-btn {
+  font-size: var(--text-xs);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Players tab ────────────────────────────────────────────────────────
    The tab is its strip and its artwork (§9.9). A player used to be a
    --surface-1 box with a --surface-2 header bar inside it, which put a
