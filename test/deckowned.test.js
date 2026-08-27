@@ -40,13 +40,23 @@ const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
  * and who you are are exactly the two questions this ticket is built on, and a
  * stubbed answer to either would be a test of this file's opinion of them. */
 
+/* Each of them carries the printing Scryfall hands back for the name, because
+ * the real cache does — one card object per oracle id, and it is a real
+ * printing with a set and a collector number on it. A deck that has chosen no
+ * printing runs this one, so a fixture without it would put the whole
+ * printing question out of reach of every test here. */
 const CARDS = {
-  'Sol Ring': { name: 'Sol Ring', type_line: 'Artifact', cmc: 1, color_identity: [] },
-  'Cultivate': { name: 'Cultivate', type_line: 'Sorcery', cmc: 3, color_identity: ['G'] },
+  'Sol Ring': { name: 'Sol Ring', type_line: 'Artifact', cmc: 1, color_identity: [],
+                id: 'sr-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '263' },
+  'Cultivate': { name: 'Cultivate', type_line: 'Sorcery', cmc: 3, color_identity: ['G'],
+                 id: 'cu-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '188' },
   'Krenko, Mob Boss': { name: 'Krenko, Mob Boss', type_line: 'Legendary Creature — Goblin',
-                        cmc: 4, color_identity: ['R'] },
-  'Forest': { name: 'Forest', type_line: 'Basic Land — Forest', cmc: 0, color_identity: ['G'] },
-  'Mox Diamond': { name: 'Mox Diamond', type_line: 'Artifact', cmc: 0, color_identity: [] },
+                        cmc: 4, color_identity: ['R'],
+                        id: 'kr-m13', set: 'm13', set_name: 'Magic 2013', collector_number: '140' },
+  'Forest': { name: 'Forest', type_line: 'Basic Land — Forest', cmc: 0, color_identity: ['G'],
+              id: 'fo-unf', set: 'unf', set_name: 'Unfinity', collector_number: '239' },
+  'Mox Diamond': { name: 'Mox Diamond', type_line: 'Artifact', cmc: 0, color_identity: [],
+                   id: 'mo-stw', set: 'stw', set_name: 'Stronghold', collector_number: '138' },
 };
 
 /* Four cards in the deck and eight Forests, so that "copies, not rows" has
@@ -658,13 +668,45 @@ test('a matching copy is the answer whatever else is on the shelf', () => {
   assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'owned');
 });
 
-test('a deck that names no printing has nothing to mismatch', () => {
-  // The app picks the printing where the deck has not, so there is no printing
-  // it runs to be wrong about — the question is the name-level one again.
+test('a deck that names no printing runs the one Scryfall hands back', () => {
+  // A deck nobody has hand-picked art in is not a deck running no printing —
+  // it is a deck running the default, which is the printing the mat has been
+  // drawing all along. Almost every deck is this one, so a question it could
+  // not be asked would be a question nearly nothing could be asked.
+  const on = printings =>
+    loadTab({ collections: timsSolRings(...printings), deck: ringDeck(undefined) })
+      .answer(`dbPrintingState(dbMainCards()[0])`);
+  // CARDS['Sol Ring'] is the C21 one.
+  assert.strictEqual(on([{ ...SR.c21, qty: 1 }]), 'owned');
+  assert.strictEqual(on([{ ...SR.ltc, qty: 1 }]), 'other',
+    'the shelf’s Middle-earth copy answered for the default the deck draws');
+  assert.strictEqual(on([{ id: null, qty: 1 }]), 'unknown');
+  assert.strictEqual(on([]), 'none');
+});
+
+test('and a chosen printing beats the default', () => {
   const tab = loadTab({
-    collections: timsSolRings({ ...SR.ltc, qty: 1 }), deck: ringDeck(undefined),
+    collections: timsSolRings({ ...SR.ltc, qty: 1 }), deck: ringDeck(SR.ltc),
   });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'owned',
+    'the deck was measured against the default it was told not to run');
+});
+
+test('a name the app has no card data for is asked nothing', () => {
+  // The data is merely late — or the card is one live Scryfall has never heard
+  // of. Either way there is no printing to hold the shelf against, and marking
+  // the card over that would be the app reporting its own latency.
+  const tab = loadTab({
+    collections: [{ key: 'c:tim', name: 'Tim’s box', source: 'archidekt',
+                    color: '#a855f7', owner: 'p-tim',
+                    cards: { 'Ancestral Recall': { name: 'Ancestral Recall', qty: 1,
+                                                   printings: [{ ...SR.ltc, qty: 1 }] } } }],
+    deck: [{ card_name: 'Ancestral Recall', category: 'Ramp' }],
+  });
+  assert.strictEqual(tab.answer(`dbCardPrinting(dbMainCards()[0])`), null);
   assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'owned');
+  tab.onMat();
+  assert.doesNotMatch(tab.mat.innerHTML, /db-print-mark/);
 });
 
 test('the name-level counts are exactly what they were', () => {
@@ -705,9 +747,14 @@ test('the mat says which of the four it is', () => {
     'a card on nobody’s shelf is wearing a badge');
 });
 
-test('and wears no mark at all where the deck named no printing', () => {
-  assert.doesNotMatch(drawnFor(timsSolRings({ id: null, qty: 1 }), null), /db-print-mark/,
-    'a deck that chose nothing was told its printings are unknown');
+test('and marks a deck that chose nothing against the default it draws', () => {
+  assert.doesNotMatch(drawnFor(timsSolRings({ ...SR.c21, qty: 1 }), null), /db-print-mark/,
+    'the default the deck draws is on the shelf, and was marked anyway');
+  assert.match(drawnFor(timsSolRings({ ...SR.ltc, qty: 1 }), null), /db-print-mark-other/);
+  assert.match(drawnFor(timsSolRings({ ...SR.ltc, qty: 1 }), null), /this deck defaults to/,
+    'a printing nobody chose was described as one the deck runs');
+  assert.match(drawnFor(timsSolRings({ ...SR.c21, qty: 1 }), SR.foil), /this deck runs/,
+    'a printing somebody chose was described as one the deck fell into');
 });
 
 /* The mark is the shelf's answer and not one box's. Two boxes, one of them

@@ -180,9 +180,11 @@ function dbOwnsPrinting(cardName, printing) {
 function dbPrintingVerdict(held, wanted) {
   if (!held.length) return 'none';
   const want = printingIdentity(wanted);
-  /* A deck that has named no printing runs whichever one the app picks, so
-     there is nothing for the shelf to disagree with — the question falls back
-     to the name-level one, which is the one it was before this existed. */
+  /* No printing to ask about — the card data has not arrived, or there is
+     none. Not an answer of "the wrong one" and not one of "we do not know
+     which you own": we know perfectly well which printings are on the shelf
+     and simply have nothing to hold them against, so the question falls back
+     to the name-level one it was before any of this existed. */
   if (want === null) return 'owned';
   let unknown = false;
   for (const p of held) {
@@ -192,9 +194,32 @@ function dbPrintingVerdict(held, wanted) {
   return unknown ? 'unknown' : 'other';
 }
 
+/** The printing this card of the deck runs.
+ *
+ *  A deck names one only where somebody has chosen it, and a deck where
+ *  nobody has is not a deck running no printing — it is a deck running the
+ *  one Scryfall hands back, which is the printing the mat has been drawing
+ *  all along (see _dbCardImg). Treating the two differently would put the
+ *  whole question out of reach of every deck nobody has hand-picked art in,
+ *  which is nearly all of them.
+ *
+ *  Null only where the app has no card data for the name at all — a card
+ *  whose data has not arrived yet, or one live Scryfall has never heard of.
+ *  There is genuinely no printing to ask about there, and guessing at one
+ *  would mark a card over data that is merely late. */
+function dbCardPrinting(card) {
+  if (card.printing?.id) return card.printing;
+  const sf = dbCardData.get(card.card_name);
+  /* No finish, deliberately: the default is the ordinary card. A foil is
+     something somebody chooses, never something a deck falls into. */
+  return sf?.id
+    ? { id: sf.id, set: sf.set, set_name: sf.set_name, collector_number: sf.collector_number }
+    : null;
+}
+
 /** Which of the four one card of the deck is, against the shelf in scope. */
 function dbPrintingState(card) {
-  return dbPrintingVerdict(dbOwnedPrintings(card.card_name), card.printing);
+  return dbPrintingVerdict(dbOwnedPrintings(card.card_name), dbCardPrinting(card));
 }
 
 /** What to call the printings in a breakdown, for somebody reading. The
@@ -226,11 +251,17 @@ function dbOtherPrintings() {
   const rows = [];
   for (const card of dbMainCards()) {
     const held = dbOwnedPrintings(card.card_name);
-    if (dbPrintingVerdict(held, card.printing) !== 'other') continue;
+    const runs = dbCardPrinting(card);
+    if (dbPrintingVerdict(held, runs) !== 'other') continue;
     rows.push({
-      name: card.card_name,
-      runs: colPrintingLabel(card.printing),
-      held: dbPrintingLabels(held),
+      name:   card.card_name,
+      runs:   colPrintingLabel(runs),
+      /* Whether anybody actually asked for that printing, because the two are
+         different problems: a printing somebody chose is one they may want to
+         change their mind about, and a printing the deck merely fell into is
+         one nobody has thought about yet. */
+      chosen: !!card.printing?.id,
+      held:   dbPrintingLabels(held),
     });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
@@ -365,11 +396,16 @@ const DB_PRINT_MARKS = {
   unknown: { cls: 'db-print-mark-unknown', glyph: '?' },
 };
 
+/* "runs" where somebody chose it and "defaults to" where nobody did. The
+   distinction is the reader's to act on: a printing this deck fell into is
+   one to point at your own copy, and a printing somebody picked is one to
+   think again about. */
 function _dbPrintMarkTitle(state, card, held) {
-  const runs = colPrintingLabel(card.printing);
+  const runs = colPrintingLabel(dbCardPrinting(card));
+  const says = card.printing?.id ? 'this deck runs' : 'this deck defaults to';
   return state === 'unknown'
-    ? `Nobody recorded which printings these copies are — this deck runs ${runs}`
-    : `You have ${dbPrintingLabels(held).join(', ')} — not the ${runs} this deck runs`;
+    ? `Nobody recorded which printings these copies are — ${says} ${runs}`
+    : `You have ${dbPrintingLabels(held).join(', ')} — not the ${runs} ${says}`;
 }
 
 /** Whether the shelf has the printing this card runs, said in one glyph.
@@ -377,7 +413,7 @@ function _dbPrintMarkTitle(state, card, held) {
  *  problem have always looked like. */
 function _dbPrintMarkHtml(card) {
   const held  = dbOwnedPrintings(card.card_name);
-  const state = dbPrintingVerdict(held, card.printing);
+  const state = dbPrintingVerdict(held, dbCardPrinting(card));
   const mark  = DB_PRINT_MARKS[state];
   if (!mark) return '';
   return `<span class="db-print-mark ${mark.cls}"
@@ -529,7 +565,8 @@ function _dbOwnedPanelHtml() {
 function _dbOtherPrintingRowHtml(entry) {
   return `<div class="db-owned-row">
     <a class="card-link db-owned-name" href="#" data-name="${esc(entry.name)}">${esc(entry.name)}</a>
-    <span class="db-owned-print">runs <strong>${esc(entry.runs)}</strong>
+    <span class="db-owned-print">${entry.chosen ? 'runs' : 'defaults to'}
+      <strong>${esc(entry.runs)}</strong>
       — you have <strong>${esc(entry.held.join(', '))}</strong></span>
   </div>`;
 }
