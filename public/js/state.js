@@ -70,6 +70,16 @@ const state = {
    * an arrow on, and the header is a shortcut into that chain now. */
   renderTimer: null,
   version: 0,  // optimistic-concurrency version from server
+  /* The revision the last whole payload arrived stamped with, and what the
+   * next poll asks "anything newer than this?" with — not `version`, which is
+   * narrower and is the concurrency check's; see stateRev in routes/state.js
+   * for what each covers. Server→client only, and opaque: never ours to read
+   * a part of.
+   *
+   * Set only where a whole payload is taken in, never from a save's answer —
+   * a POST tells us our own write landed, not what else has happened
+   * elsewhere since we last looked. */
+  rev: null,
   /* SUM(qty) per deck_id, server→client only (no whitelist). The built-deck
    * signal the Decks grid keys off — `deckCardCounts[id] > 0` is "imported" —
    * and already ownership-filtered by the server, so a deck missing here is
@@ -136,6 +146,13 @@ function cardPrintings(card) {
 function hydrateState(raw) {
   // Migrate old bare-array format
   const data = Array.isArray(raw) ? { collections: raw, players: [] } : raw;
+
+  /* The revision this payload was cut at, adopted here because here is where
+   * every whole payload lands — the first load, a reload after an import, the
+   * poll. A blob restored from localStorage has none, and leaving the old one
+   * standing is right: it says what the server last told us, and the next poll
+   * is what corrects it. */
+  if (typeof data.rev === 'string') state.rev = data.rev;
 
   state.collections = (data.collections || []).map(d => ({
     key: d.key, name: d.name, source: d.source, id: d.id || null,
@@ -250,6 +267,43 @@ async function loadFromStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) hydrateState(JSON.parse(raw));
   } catch {}
+}
+
+/* Is anything half-arrived that a poll would land on top of?
+ *
+ * Two things in this app exist in the tab before they exist on the server: a
+ * CSV being read out of a file the browser was handed, and a deck whose name
+ * is still being fetched from Archidekt. Hydrating a payload over either
+ * throws away the half that is only in memory, so the poll asks this first and
+ * waits for the next one.
+ *
+ * A server-side import is not one of them. Its cards are nowhere in memory to
+ * be hydrated over — they sit in collection_imports until the whole thing
+ * lands — so refreshing during one is safe, and refusing to for the four
+ * minutes an import takes would freeze every other tab's data. */
+function stateIsMidFlight() {
+  return state.collections.some(c => c.status === 'loading' || c.status === 'updating' || c.updating)
+      || state.players.some(p => (p.decks || []).some(d => d.nameStatus === 'loading'));
+}
+
+/* The poll's fetch: the whole state, but only when there is a new one.
+ *
+ * The revision goes up with the ask and the server answers `unchanged` without
+ * building a payload at all, which is the point — this used to be a full
+ * download every thirty seconds, stringified at both ends to discover that
+ * nobody had touched anything. Nothing here serialises the payload, and
+ * nothing may: the answer to "did it change?" is the server's.
+ *
+ * Answers with the payload to render from, or null for nothing to do —
+ * unchanged, unreachable, or refused all read the same to a caller whose only
+ * other option is to try again in thirty seconds. */
+async function fetchStateIfChanged() {
+  try {
+    const res = await fetch('/api/state' + (state.rev ? `?since=${encodeURIComponent(state.rev)}` : ''));
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json && json.unchanged ? null : json;
+  } catch { return null; }
 }
 
 // ── Appearance preferences (server DB with localStorage fallback) ─────────

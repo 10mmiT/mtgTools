@@ -54,6 +54,32 @@ function writeState(data, checkVersion) {
   return (db.prepare('SELECT version FROM app_state WHERE key = ?').get('state')?.version || 1);
 }
 
+/* The revision a poll asks with — "is there anything newer than this?".
+ *
+ * Two counters and the viewer. The first is the version app_state already
+ * keeps for optimistic concurrency, which covers the players blob: every
+ * player, deck record, folder and want list. The second is the counter the
+ * triggers in available-db.js push along, which covers the three tables the
+ * blob knows nothing about: the shelf, the cards decks are built from, and the
+ * imports still arriving.
+ *
+ * The viewer is part of it because the payload is not one payload. Private
+ * decks are filtered per requester (canSeeDeck), so two sessions holding the
+ * same two counters are not owed the same answer — and a player promoted to
+ * admin mid-session would otherwise be told "unchanged" and never see the
+ * decks they had just earned. It is the requester's own role and player id,
+ * which is nothing they do not already know about themselves.
+ *
+ * Opaque to the browser, which only ever hands it back. */
+function stateRev(sess) {
+  const row = db.prepare(`
+    SELECT (SELECT version FROM app_state WHERE key = 'state') AS playersVersion,
+           (SELECT version FROM app_state WHERE key = 'rev')   AS tablesRev
+  `).get() || {};
+  const viewer = sess?.role === 'admin' ? 'admin' : (sess?.playerId || 'none');
+  return `${row.playersVersion || 0}.${row.tablesRev || 0}.${viewer}`;
+}
+
 function deepEqual(a, b) {
   if (a === b) return true;
   if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
@@ -189,6 +215,19 @@ function disownGonePlayers(players) {
 router.get('/state', requireAuth, (req, res) => {
   try {
     const sess = getSession(req);
+    /* Read the revision before anything else, and answer a poll that already
+     * holds it without building the payload at all — which is the whole point:
+     * a shelf of six thousand cards is not parsed, shaped and serialised every
+     * thirty seconds to say that nobody has touched it.
+     *
+     * Before, and not after: a write landing between the payload and the
+     * revision would stamp stale data with the current number and the change
+     * would never arrive. Landing between the revision and the payload costs
+     * one extra full answer on the next poll, which is the harmless direction
+     * for the race to fall. */
+    const rev = stateRev(sess);
+    if (req.query.since && req.query.since === rev) return res.json({ unchanged: true, rev });
+
     const { players = [], version = 0 } = readState();
     const collections = db.prepare('SELECT * FROM collections ORDER BY rowid').all().map(r => {
       try {
@@ -239,9 +278,15 @@ router.get('/state', requireAuth, (req, res) => {
      * load, so a tab that opens midway through one shows it immediately
      * instead of after the first poll. The poll itself uses GET /api/imports,
      * which is this list and nothing else. */
-    res.json({ collections, players: visiblePlayers, version, deckCardCounts, imports: imports.listImports() });
+    /* `version` is the concurrency check's and stays the players blob's alone
+     * — a POST hands it back and a mismatch is a 409. `rev` is the poll's, and
+     * covers the shelf and the built decks as well; the two are not
+     * interchangeable and neither can stand in for the other. */
+    res.json({ collections, players: visiblePlayers, version, rev, deckCardCounts, imports: imports.listImports() });
   } catch (e) {
     console.error('GET /api/state error:', e.message);
+    // No `rev` on the way out of the catch: an empty state that claimed the
+    // current revision would leave the tab believing it had seen everything.
     res.json({ collections: [], players: [], version: 0, deckCardCounts: {}, imports: [] });
   }
 });

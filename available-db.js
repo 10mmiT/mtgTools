@@ -389,6 +389,50 @@ if (!db.prepare('SELECT 1 FROM app_state WHERE key = ?').get(COMMANDER_MIGRATION
   })();
 }
 
+// ── The state revision ───────────────────────────────────────────────────────
+/* What the thirty-second poll asks with, so that the answer to "has anything
+ * changed?" is two integers rather than the whole application state built as
+ * text at both ends. See stateRev() in routes/state.js, which reads it.
+ *
+ * app_state already carries a version for optimistic concurrency, but it only
+ * moves when the players blob is written — and half of what GET /api/state
+ * answers with is not in that blob. The shelf is the collections table and the
+ * built-deck counts are deck_cards, either of which can change without the
+ * version moving an inch, and an import in flight is collection_imports. So
+ * this row is the other half of the revision: a counter every write to those
+ * three tables pushes along.
+ *
+ * By trigger and not by each route, because the writers are spread across
+ * routes/state.js, routes/decks.js and collection-import.js, and one that
+ * forgot would show up as a phone left on a table that never caught up. The
+ * INSERT … ON CONFLICT is so the counter re-seeds itself rather than going
+ * quiet if the row is ever missing — a test suite that wipes app_state between
+ * cases would otherwise leave every later poll saying nothing had changed.
+ *
+ * collection_imports is in it because an import in flight is in the payload
+ * too — a tab that opens or polls midway through one shows it, and a tab that
+ * did not know about an import started on another device is exactly who that
+ * is for. It is checkpointed every page, so an import does mean a full payload
+ * on each poll for the four minutes it runs; that is what the poll cost before
+ * this change and no more, and it only happens while something really is
+ * arriving. A tab watching an import has its own two-second /api/imports poll
+ * and does not wait on this.
+ *
+ * Written after the migrations above rather than in the CREATE block, because
+ * a trigger body naming app_state.version cannot be created before the
+ * pre-3.1 migration has added that column. */
+for (const table of ['collections', 'deck_cards', 'collection_imports']) {
+  for (const event of ['INSERT', 'UPDATE', 'DELETE']) {
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS bump_rev_${table}_${event.toLowerCase()}
+      AFTER ${event} ON ${table} BEGIN
+        INSERT INTO app_state (key, value_json, version) VALUES ('rev', '{}', 1)
+          ON CONFLICT(key) DO UPDATE SET version = version + 1;
+      END;
+    `);
+  }
+}
+
 const DEFAULT_CAL_ID = 'default';
 
 // Ensure the default calendar exists

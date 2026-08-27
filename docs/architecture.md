@@ -1,6 +1,6 @@
 # Architecture
 
-How the code is laid out, the one piece of derived data worth explaining (the set index), and the records that supersede what each large effort was planned from. For the test suite and measurement tooling see [testing.md](testing.md).
+How the code is laid out, the two pieces of derived data worth explaining (the set index and the state revision), and the records that supersede what each large effort was planned from. For the test suite and measurement tooling see [testing.md](testing.md).
 
 ## Project Structure
 
@@ -28,7 +28,7 @@ mtgtools/
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
-├── test/              # 24 files, run by `npm test`
+├── test/              # 51 files, run by `npm test`
 │   ├── server.test.js       # HTTP seam — auth, state, admin, decks, prefs
 │   ├── prefs-open-mode.test.js  # Preferences with no accounts to hang them on
 │   ├── tokens.test.js       # Token-contract lint, asserted over the delivered CSS
@@ -152,6 +152,20 @@ The sweep is sequential on purpose: one request in the shared queue at a time, s
 `GET /api/sets` answers the whole picker in one request — the set list, filtered and sorted, with each set's card count and owned count. "Owned" means what it has always meant on that tab: a card counts if any collection holds a card of that name, whichever printing. Both sides ask Scryfall the same `unique=cards` question, so a tile reading "176 / 286 owned" opens onto 286 cards with 176 ownership badges.
 
 Deleting `scryfall.db` costs nothing but the refill.
+
+## The state revision
+
+An open tab polls `GET /api/state` every thirty seconds so that a collection imported on somebody else's laptop, a deck renamed on a phone or a card added to a want list turns up without a reload. Almost every one of those polls finds nothing. The first version of it downloaded the whole payload — every collection, every card on every shelf — and stringified it to compare against the last one, which is a full serialisation on the server and another in the tab, twice a minute, to learn nothing. On a phone it was the most expensive thing the page did while sitting still.
+
+So the poll asks with a revision, and a server that has nothing newer answers `{ unchanged: true }` without building a payload at all. The revision is `stateRev()` in `routes/state.js`: two counters and the viewer.
+
+The first counter is the `version` on the `app_state` row, which already existed for optimistic concurrency — it moves whenever the players blob is written, which covers every player, deck record, folder and want list. The second is a counter of its own, because half of what the route answers with is not in that blob: the shelf is the `collections` table, the built-deck counts are `deck_cards`, and an import in flight is `collection_imports`, any of which can change without the version moving. Nine triggers in `available-db.js` push that counter along on every insert, update and delete against those three tables — by trigger rather than by each route, because the writers are spread across `routes/state.js`, `routes/decks.js` and `collection-import.js`, and one that forgot would show as a tab that never caught up. It also means a second process against the same database is covered for free.
+
+The viewer is the third part because the payload is not one payload: private decks are filtered per requester, so two sessions holding the same two counters are not owed the same answer.
+
+An import is the one thing that moves the counter often — it checkpoints every page for four minutes — and it is in there deliberately: a tab that did not start it learns about it the same way it always did, from the `imports` list riding along in the payload. That does mean a full payload on each poll while an import runs, which is exactly what every poll cost before this change, and only while something really is arriving. A tab watching an import does not wait on it: that has its own two-second `/api/imports` poll.
+
+`version` and `rev` are not interchangeable and neither can stand in for the other: `version` is the concurrency check's, handed back on a POST and answered with a 409 on a mismatch, and it stays the players blob's alone.
 
 ## Design records
 
