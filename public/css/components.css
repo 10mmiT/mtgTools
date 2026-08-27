@@ -1835,6 +1835,13 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 
 .td-meta { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
 .td-meta .ms { vertical-align: -1px; }
+
+/* Which printings of a card the shelf holds. Every collection reads "unknown"
+   until it is re-imported, so that word is on screen a great deal — quiet
+   enough not to shout, and never a blank cell, which would read as owning
+   none of the card. */
+.td-print { font-size: var(--text-sm); white-space: nowrap; }
+.print-unknown { color: var(--text-muted); font-style: italic; }
 .rarity-tag { font-size: var(--text-xs); font-weight: 700; }
 .rarity-tag.r-common   { color: var(--text-muted); }
 /* Uncommon is silver; --mc-c (colourless) is the themed grey that already

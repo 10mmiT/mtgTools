@@ -102,6 +102,37 @@ function stateToJSON() {
   };
 }
 
+/* Which printings of a card are on a shelf — the browser's one answer to it.
+ *
+ * The server sends the breakdown on every card, unknown entries and all (see
+ * readCardPrintings in available-db.js), so most of the time this is just the
+ * field. It exists anyway, and everything reads printings through it, because
+ * a collection the browser built itself — a CSV parsed in this tab, which has
+ * never been near the server's shape helpers — has no such field, and the
+ * honest answer for it is *unknown* and never *owns none*.
+ *
+ * Derived where it is read rather than stamped onto every card at hydration:
+ * a twelve-thousand-card shelf is re-hydrated on every poll, and the few
+ * hundred rows actually on screen are the only ones anybody asks about. */
+function cardPrintings(card) {
+  const qty  = Math.max(0, Math.trunc(Number(card?.qty)) || 0);
+  const list = Array.isArray(card?.printings) ? card.printings : [];
+  const out  = [];
+  let attributed = 0;
+  for (const p of list) {
+    const n = Math.max(0, Math.trunc(Number(p?.qty)) || 0);
+    if (!n) continue;
+    out.push({ ...p, id: typeof p.id === 'string' && p.id ? p.id : null, qty: n });
+    attributed += n;
+  }
+  if (attributed < qty) {
+    const unknown = out.find(p => p.id === null);
+    if (unknown) unknown.qty += qty - attributed;
+    else out.push({ id: null, qty: qty - attributed });
+  }
+  return out;
+}
+
 function hydrateState(raw) {
   // Migrate old bare-array format
   const data = Array.isArray(raw) ? { collections: raw, players: [] } : raw;

@@ -463,6 +463,134 @@ const deckCardRow = ({ printing, ...card }) => {
   return chosen ? { ...card, printing: chosen } : card;
 };
 
+// ── Which printings a collection holds ───────────────────────────────────────
+/* What a collection card's breakdown holds, and why it is never absent.
+ *
+ * A collection knew you own three Sol Rings and not which three. The
+ * breakdown is the answer: one entry per physical identity, each with the
+ * number of copies behind it, and the entries always add up to the card's
+ * quantity.
+ *
+ * Identity is the Scryfall id plus the finish, the language and the
+ * condition. Finish has to be in it: a foil is not a printing of its own in
+ * Scryfall's model — it is a finish on the same id, priced separately — so a
+ * foil and an ordinary copy would collapse into one entry without it.
+ * Language and condition carry no information in the data available today,
+ * both coming back as one constant code, and nothing may be built that
+ * depends on them varying until they do.
+ *
+ * The entry that matters most is the one that names no printing at all:
+ * `{ id: null, qty }`. No collection in existence has printings until it is
+ * re-imported, so every card starts there — and an absent field would be a
+ * case each of fifteen readers has to remember, one of which would forget and
+ * tell somebody their shelf is empty. Making "we do not know" a value in the
+ * data is what stops that.
+ *
+ * These functions are the only way in and out, as readPrinting is for a deck
+ * card, so the shape is one thing rather than a convention. */
+const CARD_PRINTING_FIELDS =
+  ['id', 'set', 'set_name', 'collector_number', 'finish', 'lang', 'condition'];
+
+/** How many copies an entry claims: a whole number of physical cards, and
+ *  nothing else. Anything unreadable is none. */
+function readQty(raw) {
+  const n = Math.trunc(Number(raw));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** One entry of a breakdown — trimmed to the fields above, in that order,
+ *  with its quantity last. Null where it claims no copies at all.
+ *
+ *  A field that is missing stays missing rather than becoming an empty
+ *  string, and an entry naming no id is *the* unknown entry rather than a
+ *  half-described printing: an id is what makes this point at a real card. */
+function readCardPrinting(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const qty = readQty(raw.qty);
+  if (!qty) return null;
+  if (typeof raw.id !== 'string' || !raw.id.trim()) return { id: null, qty };
+  const printing = {};
+  for (const field of CARD_PRINTING_FIELDS) {
+    if (typeof raw[field] === 'string' && raw[field] !== '') printing[field] = raw[field];
+  }
+  printing.qty = qty;
+  return printing;
+}
+
+/** What two entries have to agree on to be copies of the same physical card. */
+const printingKey = p =>
+  p.id === null ? ' unknown' : CARD_PRINTING_FIELDS.map(f => p[f] || '').join(' ');
+
+/** A card's breakdown: always an array, always summing to the quantity.
+ *
+ *  The printings are authoritative and the quantity is their sum, so copies
+ *  the breakdown cannot account for are neither dropped nor guessed at — they
+ *  land in the unknown entry, which is how a card with no breakdown at all
+ *  reads as one unknown entry equal to every copy on the shelf. */
+function readCardPrintings(card) {
+  const merged = new Map();
+  const list = Array.isArray(card && card.printings) ? card.printings : [];
+  for (const raw of list) {
+    const printing = readCardPrinting(raw);
+    if (!printing) continue;
+    const key  = printingKey(printing);
+    const seen = merged.get(key);
+    if (seen) seen.qty += printing.qty;
+    else merged.set(key, printing);
+  }
+  const printings  = [...merged.values()];
+  const attributed = printings.reduce((sum, p) => sum + p.qty, 0);
+  /* Only ever upwards. A breakdown claiming more copies than the quantity did
+   * is the answer, because the breakdown is the authoritative half — and a
+   * card nobody owns a copy of has no breakdown at all rather than an entry
+   * saying zero, which would be a phantom row on every empty name. */
+  const missing = readQty(card && card.qty) - attributed;
+  if (missing > 0) {
+    const unknown = merged.get(' unknown');
+    if (unknown) unknown.qty += missing;
+    else printings.push({ id: null, qty: missing });
+  }
+  return printings;
+}
+
+/** A collection card as everything outside this database sees one: the fields
+ *  it was stored with, its breakdown, and the quantity that breakdown sums
+ *  to — which for a card stored before any of this existed is exactly the
+ *  quantity it already had. */
+function collectionCardRow(card) {
+  const printings = readCardPrintings(card);
+  const qty = printings.reduce((sum, p) => sum + p.qty, 0);
+  const row = { ...card, printings };
+  // A row that never named a quantity and owns nothing does not gain one.
+  if ('qty' in row || qty) row.qty = qty;
+  return row;
+}
+
+/** Every card of a collection, from the column's text or from an object. */
+function readCollectionCards(value) {
+  let raw = value;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return {}; } }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const cards = {};
+  for (const [name, card] of Object.entries(raw))
+    if (card && typeof card === 'object' && !Array.isArray(card))
+      cards[name] = collectionCardRow(card);
+  return cards;
+}
+
+/** The same, as the column stores it.
+ *
+ *  A breakdown that knows nothing is not written down: it says precisely what
+ *  the quantity beside it already said, and a collection imported before any
+ *  of this existed must not be rewritten row by row to be told so. Absent and
+ *  "one unknown entry" mean the same thing, and readCollectionCards reads the
+ *  shorter of the two back as the longer. */
+const writeCollectionCards = cards => JSON.stringify(
+  Object.fromEntries(Object.entries(readCollectionCards(cards)).map(([name, card]) => {
+    const { printings, ...rest } = card;
+    return [name, printings.some(p => p.id !== null) ? { ...rest, printings } : rest];
+  })));
+
 /* Nothing is running yet, whatever the table says. A row still marked
  * 'running' is one this process's predecessor was working on when it stopped,
  * and no amount of waiting will advance it — the loop that was doing so is
@@ -472,4 +600,9 @@ const deckCardRow = ({ printing, ...card }) => {
  * The gathered cards are left alone: that is what Resume picks up from. */
 db.prepare("UPDATE collection_imports SET status = 'interrupted' WHERE status = 'running'").run();
 
-module.exports = { db, DEFAULT_CAL_ID, readPrinting, writePrinting, deckCardRow };
+module.exports = {
+  db, DEFAULT_CAL_ID,
+  readPrinting, writePrinting, deckCardRow,
+  CARD_PRINTING_FIELDS, readCardPrintings, collectionCardRow,
+  readCollectionCards, writeCollectionCards,
+};

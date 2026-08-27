@@ -672,6 +672,12 @@ function chipHtml(col, imp, onShelf) {
 const COL_META_FIELDS = new Set(['cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price']);
 
 const COL_COLUMNS = [
+  /* Which printings the shelf holds. On by default, unlike every column
+     below it: those are card facts that have to be fetched before they can be
+     shown, and this is a fact about the collection itself, already in hand.
+     It is the one place the tab answers "which one have I got", so it is on
+     until somebody turns it off. */
+  { key: 'printings', label: 'Printings',      default: true },
   { key: 'mana',   label: 'Mana Value',        default: false },
   { key: 'color',  label: 'Color',             default: false },
   { key: 'type',   label: 'Type',              default: false },
@@ -1024,6 +1030,11 @@ function renderListView(rows, MAX) {
 
   // ── Header ──
   let h = '<th data-sort="name">Card Name</th>';
+  /* No `data-sort`, and deliberately: "which printings" is not an order, and
+     a header handing the sort control a field its list has never heard of is
+     a table sorted on nothing. The gesture is skipped below rather than
+     wired to a field that does not exist. */
+  if (cols.printings) h += '<th class="th-print">Printings</th>';
   if (cols.mana)   h += '<th data-sort="cmc">MV</th>';
   if (cols.color)  h += '<th data-sort="color">Color</th>';
   if (cols.type)   h += '<th data-sort="type">Type</th>';
@@ -1057,6 +1068,9 @@ function renderListView(rows, MAX) {
   const sort = colSortNow();
   header.querySelectorAll('th').forEach(th => {
     const field = th.dataset.sort;
+    // A column that is not a sort says nothing about sorting and does nothing
+    // when clicked. See the Printings header above.
+    if (!field) return;
     th.title = 'Sort by this column — shift-click to add it to the sort';
     th.onclick = e => _colSort?.set(
       (e.shiftKey ? appendSortColumn : chooseSortColumn)(colSortNow(), field, colSortFields()));
@@ -1085,6 +1099,7 @@ function renderListView(rows, MAX) {
     const total = r.qtys.reduce((s, q) => s + q, 0);
     const m = scryfallMetaCache.get(r.name) || {};
     let metaCells = '';
+    if (cols.printings) metaCells += colPrintingsCell(r.name);
     if (cols.mana)   metaCells += `<td class="td-meta">${colMV(m)}</td>`;
     if (cols.color)  metaCells += `<td class="td-meta">${colColor(m)}</td>`;
     if (cols.type)   metaCells += `<td class="td-meta">${esc(colType(m))}</td>`;
@@ -1102,6 +1117,82 @@ function renderListView(rows, MAX) {
       <td class="td-total">${total}</td>
     </tr>`;
   }).join('');
+}
+
+// ── Which printings the shelf holds ───────────────────────────────────────
+/* The Printings column, and the one thing it must never say.
+ *
+ * No collection has printings until it is re-imported, so today every card on
+ * every shelf reads *unknown* — and unknown is the whole point of the column
+ * arriving before the data does. A blank cell, or a dash, would read as a
+ * shelf holding none of the card, which is the app telling somebody their
+ * collection has been wiped. So the copies nobody can attribute are named as
+ * such, and they are counted.
+ *
+ * A row is a card across the whole shelf, exactly as the Total column beside
+ * it is, so the copies are added up across every collection being shown.
+ * Grouped by what the cell actually shows — the set and the finish — because
+ * two entries that read the same are one line, and the collector number, the
+ * set's full name and the finish go in the tooltip where the detail belongs.
+ * Language and condition are in a printing's identity but not on this row:
+ * both are one constant code in the data available today, so a column showing
+ * them would be a column of the same word. */
+function colPrintingLabel(printing) {
+  const set = (printing.set || '').toUpperCase();
+  return (set || '?') + (printing.finish === 'foil' ? ' ✦' : '');
+}
+
+/* A set code and a finish are not a printing: one set can hold the ordinary
+   Sol Ring and its extended-art twin, and both read `C21` here. So the
+   tooltip names every collector number in the group rather than the first
+   one's — a line claiming #263 over a copy that is #514 is worse than a line
+   that names neither. */
+function colPrintingTitle(group) {
+  const bits = [group.setName || 'Unknown set'];
+  if (group.numbers.size) bits.push([...group.numbers].map(n => `#${n}`).join(', '));
+  if (group.foil) bits.push('foil');
+  return bits.join(' ');
+}
+
+/** The shelf's copies of one card, grouped as the cell shows them: the
+ *  unknown entry last, and the rest heaviest first. */
+function colPrintingsOf(name) {
+  const groups = new Map();
+  for (const col of colShelf()) {
+    const card = col.cards.get(name);
+    if (!card) continue;
+    for (const printing of cardPrintings(card)) {
+      const label = printing.id === null ? null : colPrintingLabel(printing);
+      let group = groups.get(label);
+      if (!group) {
+        group = { label, qty: 0, numbers: new Set(),
+                  setName: printing.set_name || printing.set || '',
+                  foil: printing.finish === 'foil' };
+        groups.set(label, group);
+      }
+      group.qty += printing.qty;
+      if (printing.collector_number) group.numbers.add(printing.collector_number);
+    }
+  }
+  return [...groups.values()].sort((a, b) =>
+    (a.label === null) - (b.label === null) ||
+    b.qty - a.qty ||
+    String(a.label).localeCompare(String(b.label)));
+}
+
+function colPrintingsCell(name) {
+  const groups = colPrintingsOf(name);
+  if (!groups.length) return '<td class="td-print">—</td>';
+  /* A shelf that knows nothing about a card says one word rather than "3×
+     unknown": the count is the Total column's job, and this cell is answering
+     which ones, not how many. Where only *some* of the copies are accounted
+     for the count comes back, because there the number is the news. */
+  if (groups.length === 1 && groups[0].label === null)
+    return '<td class="td-print"><span class="print-unknown" title="Nobody recorded which printings these copies are">unknown</span></td>';
+  const parts = groups.map(g => g.label === null
+    ? `<span class="print-unknown">${g.qty}× unknown</span>`
+    : `<span title="${esc(colPrintingTitle(g))}">${g.qty}× ${esc(g.label)}</span>`);
+  return `<td class="td-print">${parts.join(', ')}</td>`;
 }
 
 // ── Metadata cell renderers ───────────────────────────────────────────────

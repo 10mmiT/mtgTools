@@ -17,7 +17,7 @@
  * CSV imports are deliberately not here: the file is in the browser, and the
  * server has no way to read it.
  */
-const { db } = require('./available-db');
+const { db, writeCollectionCards } = require('./available-db');
 const { queuedFetch: archidektFetch } = require('./archidekt-queue');
 
 // How often the gathered cards are written down. Every page would mean
@@ -268,7 +268,7 @@ function _finish(key, row, cards, entries, total) {
         owner_player_id = excluded.owner_player_id
     `).run({
       key, name: row.name, source: row.source, id: row.col_id, color: row.color,
-      cards: JSON.stringify(Object.fromEntries(cards)),
+      cards: writeCollectionCards(Object.fromEntries(cards)),
       entries, total, savedAt: nowIso(), owner: row.owner_player_id || null,
     });
     db.prepare('DELETE FROM collection_imports WHERE key = ?').run(key);

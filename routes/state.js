@@ -2,7 +2,7 @@
 const express = require('express');
 const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { db }  = require('../available-db');
+const { db, readCollectionCards, writeCollectionCards } = require('../available-db');
 const { getSession, requireAuth, requirePlayerAccess } = require('../middleware/auth');
 const imports = require('../collection-import');
 
@@ -194,7 +194,22 @@ router.get('/state', requireAuth, (req, res) => {
       try {
         return {
           key: r.key, name: r.name, source: r.source, id: r.col_id,
-          color: r.color, cards: JSON.parse(r.cards_json || '{}'),
+          /* Read through the shape helpers, so every card arrives with the
+             breakdown of its printings — and a card stored before any of that
+             existed arrives with one unknown entry equal to its quantity
+             rather than with nothing.
+
+             Parsed here rather than by handing over the column's text, which
+             the helper would also take: a row of unreadable JSON has to reach
+             the catch below and cost the collection its place in the answer.
+             Swallowed, it would come back as a shelf with no cards on it,
+             which is this feature's own worst failure wearing a new hat.
+
+             The unknown entries are sent rather than left to the browser to
+             infer, though it could: the whole design is that "we do not know"
+             is a value and not an absence, and the fields repeat so hard that
+             compression() takes them back off the wire almost entirely. */
+          color: r.color, cards: readCollectionCards(JSON.parse(r.cards_json || '{}')),
           entries: r.entries, total: r.total, savedAt: r.saved_at,
           owner: r.owner_player_id || null,
         };
@@ -345,7 +360,7 @@ router.post('/collections', requireAuth, express.json({ limit: '10mb' }), (req, 
         owner_player_id = CASE WHEN @given THEN @owner ELSE collections.owner_player_id END
     `).run({
       key, name, source, id: id || null, color: color || '#a855f7',
-      cards: JSON.stringify(cards || {}), entries: entries || 0,
+      cards: writeCollectionCards(cards || {}), entries: entries || 0,
       total: total || null, savedAt: savedAt || null,
       owner, given: given ? 1 : 0,
     });

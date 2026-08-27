@@ -359,14 +359,16 @@ describe('one shelf or everyone’s', () => {
   test('the table is the shelf: its columns, its cards and its totals', () => {
     const tab = loadTab({ collections: SHELVES, players: PLAYERS, user: AS_TIM });
     const everyones = tab.table();
+    // Printings is a column of the table now and not a collection on the
+    // shelf; test/collectionprintings.test.js is what it means.
     assert.deepEqual(everyones.columns,
-      ['Card Name', 'Tim’s box', 'Anna’s box', 'The cupboard', 'Total']);
+      ['Card Name', 'Printings', 'Tim’s box', 'Anna’s box', 'The cupboard', 'Total']);
     assert.deepEqual(everyones.rows, ['Cultivate', 'Sol Ring']);
     assert.deepEqual(everyones.totals, [1, 7], 'the Total column counts the shelf');
 
     tab.run(`setColScope('mine')`);
     const mine = tab.table();
-    assert.deepEqual(mine.columns, ['Card Name', 'Tim’s box', 'Total']);
+    assert.deepEqual(mine.columns, ['Card Name', 'Printings', 'Tim’s box', 'Total']);
     assert.deepEqual(mine.rows, ['Sol Ring'], 'a card only somebody else owns is on my shelf');
     assert.deepEqual(mine.totals, [1]);
   });
