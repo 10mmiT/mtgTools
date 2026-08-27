@@ -41,23 +41,35 @@ const LEA_ART = 'https://cards.scryfall.io/normal/lea-sol-ring.jpg';
  * the gallery reads. The Commander 2021 one is the default — it is the card
  * `/cards/named` hands back — the Ravnica one is the pretty one somebody would
  * go looking for, and the Alpha one has no Cardmarket price, which is a real
- * state and not an edge case: nobody is selling those. */
+ * state and not an edge case: nobody is selling those.
+ *
+ * `finishes` is on all three because it is on all of Scryfall's: a printing
+ * says which of nonfoil, foil and etched it was ever made in, and the price of
+ * each is a field of its own. Only the Commander 2021 one was made in two,
+ * which is why it is the one the finish is asserted through. */
 const C21 = {
   id: 'aa11bb22-cc33-dd44-ee55-ff6677889900',
   set: 'c21', set_name: 'Commander 2021', collector_number: '263',
-  image_uris: { normal: C21_ART }, prices: { eur: '1.20', usd: '1.40' },
+  image_uris: { normal: C21_ART }, finishes: ['nonfoil', 'foil'],
+  prices: { eur: '1.20', eur_foil: '3.80', usd: '1.40' },
 };
 const RAV = {
   id: '6e9f2eb0-8ca1-4e9d-9f2b-0a1b2c3d4e5f',
   set: 'rav', set_name: 'Ravnica: City of Guilds', collector_number: '266',
-  image_uris: { normal: RAV_ART }, prices: { eur: '4.50', usd: '5.10' },
+  image_uris: { normal: RAV_ART }, finishes: ['nonfoil'],
+  prices: { eur: '4.50', usd: '5.10' },
 };
 const LEA = {
   id: 'cc99dd88-ee77-ff66-aa55-bb4433221100',
   set: 'lea', set_name: 'Limited Edition Alpha', collector_number: '270',
-  image_uris: { normal: LEA_ART }, prices: { eur: null, usd: null },
+  image_uris: { normal: LEA_ART }, finishes: ['nonfoil'],
+  prices: { eur: null, usd: null },
 };
 const PRINTS = [C21, RAV, LEA];
+
+/** The four tiles a deck's gallery draws for those three printings: the
+ *  Commander 2021 one twice, once per finish, then the other two. */
+const DECK_TILES = ['c21', 'c21 foil', 'rav', 'lea'];
 
 /** The card the detail was opened on: Sol Ring, in its default printing. */
 const CARD = { ...C21, name: 'Sol Ring', prints_search_uri: 'https://api.scryfall.com/prints' };
@@ -74,11 +86,34 @@ const RAV_SNAPSHOT = {
   chosen_at: '2026-08-15',
 };
 
+/** And the Commander 2021 one, which is the printing that comes in two
+ *  finishes — the ordinary copy, whose snapshot says nothing about which. */
+const C21_SNAPSHOT = {
+  id: C21.id,
+  set: 'c21',
+  set_name: 'Commander 2021',
+  collector_number: '263',
+  image: C21_ART,
+  price_eur: '1.20',
+  chosen_at: '2026-08-15',
+};
+
 /** The context the deck's Inspect hands the gallery. */
 const CTX = { deckId: 'd1', playerId: 'p1', deckName: 'A deck', ref: 'main/Sol Ring' };
 
 /** Every `onclick` in a run of markup, in the order the tiles are drawn. */
 const presses = html => [...html.matchAll(/onclick="([^"]*)"/g)].map(m => m[1]);
+/** Each tile's label, lower-cased and with the foil's mark spelt out, so that
+ *  what is asserted reads as the row of tiles somebody is looking at. */
+const tiles = html => [...html.matchAll(/class="card-print-set">([^<]*)</g)]
+  .map(m => m[1].replace(/ · #[0-9]+/, '').replace('✦', 'foil').trim().toLowerCase());
+/** The ones with the ring on, in the same terms. */
+const ringed = html => [...html.matchAll(
+  /class="card-print-tile( current)?"[^]*?class="card-print-set">([^<]*)</g)]
+  .filter(m => m[1])
+  .map(m => m[2].replace(/ · #[0-9]+/, '').replace('✦', 'foil').trim().toLowerCase());
+/** What each tile says the printing costs, in the order they are drawn. */
+const priced = html => [...html.matchAll(/class="card-print-price">([^<]*)</g)].map(m => m[1]);
 /** The `src` of every picture in it. */
 const pictures = html => [...html.matchAll(/<img[^>]*\bsrc="([^"]*)"/g)].map(m => m[1]);
 
@@ -103,6 +138,7 @@ function loadGallery({ runs = null, accept = true } = {}) {
     history: { state: null, pushState() {}, replaceState() {}, back() {} },
     BP_MD: 900,
     esc: s => String(s),
+    jsAttr: s => String(s),
     setTab() {},
     scryfallFetch: async () => ({ ok: true, json: async () => ({ data: PRINTS }) }),
     // The deck, as the gallery sees it: it can be asked what it runs, and told.
@@ -157,6 +193,41 @@ test('a printing nobody is selling has no price, rather than a free one', () => 
   const snap = loadGallery().answer(`cardPrintingSnapshot(${JSON.stringify(LEA)}, '2026-08-15')`);
   assert.strictEqual('price_eur' in snap, false, 'an unpriced printing was written down as free');
   assert.strictEqual(snap.image, LEA_ART, 'and it is still a picture');
+});
+
+test('a foil is snapshotted as the finish it is, at the price of that finish', () => {
+  /* The eighth field, and the reason there is one. A foil is not a printing of
+   * its own — it is the same id, priced separately — so a snapshot that named
+   * the printing and not the finish would price a €3.80 card at €1.20 and put
+   * the wrong one in the export. */
+  const app = loadGallery();
+  const foil = app.answer(`cardPrintingSnapshot(${JSON.stringify({ ...C21, finish: 'foil' })}, '2026-08-15')`);
+  assert.deepStrictEqual(foil, { ...C21_SNAPSHOT, price_eur: '3.80', finish: 'foil' });
+  assert.strictEqual(
+    app.run(`JSON.stringify(cardPrintingSnapshot(${JSON.stringify({ ...C21, finish: 'foil' })}, '2026-08-15'))`),
+    JSON.stringify({ ...C21_SNAPSHOT, price_eur: '3.80', finish: 'foil' }),
+    'the finish did not come last, so the column and the browser order the same keys two ways');
+});
+
+test('and an ordinary copy says nothing about its finish at all', () => {
+  /* Both halves of the byte-for-byte promise are here: a printing chosen
+   * before the field existed carries nothing, so a printing chosen now in the
+   * finish everything is unless it says otherwise must carry nothing either. */
+  const app  = loadGallery();
+  const snap = app.answer(`cardPrintingSnapshot(${JSON.stringify({ ...C21, finish: 'nonfoil' })}, '2026-08-15')`);
+  assert.deepStrictEqual(snap, C21_SNAPSHOT);
+  assert.strictEqual(app.answer(`cardPrintingSnapshot(${JSON.stringify(C21)}, '2026-08-15')`).finish, undefined,
+    'a printing asked for in no finish was given one');
+});
+
+test('a foil nobody is selling has no price to borrow from the card beside it', () => {
+  // The rule the ordinary printing already lives by, reaching the finish:
+  // unknown is not free, and it is not the other finish's price either.
+  const app  = loadGallery();
+  const only = { ...C21, prices: { eur: '1.20' } };
+  const snap = app.answer(`cardPrintingSnapshot(${JSON.stringify({ ...only, finish: 'foil' })}, '2026-08-15')`);
+  assert.strictEqual('price_eur' in snap, false, 'the foil was priced at the ordinary copy’s price');
+  assert.strictEqual(snap.finish, 'foil', 'and it stopped being a foil');
 });
 
 test('a two-faced printing is snapshotted by its front', () => {
@@ -244,26 +315,81 @@ test('and a printing with no price says so rather than saying nothing', async ()
   assert.match(alpha.slice(0, 200), /—/, 'an unpriced printing said nothing at all');
 });
 
+test('a printing that comes in two finishes is two tiles, one for each', async () => {
+  /* Which is what choosing a finish is, here: a foil is a different thing to
+   * run and a different thing to pay for, so it is a different thing to press.
+   * The Commander 2021 printing is made in both and appears twice; the other
+   * two were only ever made one way and appear once. */
+  assert.deepStrictEqual(tiles(await loadGallery().section(CTX)), DECK_TILES);
+});
+
+test('and each tile is priced as the finish it is', async () => {
+  // €1.20 for the ordinary Commander 2021 copy and €3.80 for its foil, off the
+  // two fields Scryfall prices them in. The Alpha one is nobody's, either way.
+  assert.deepStrictEqual(priced(await loadGallery().section(CTX)),
+    ['€1.20', '€3.80', '€4.50', '—']);
+});
+
+test('a foil nobody has priced says so rather than borrowing the price beside it', async () => {
+  const app  = loadGallery();
+  const only = { ...C21, prices: { eur: '1.20' } };
+  const html = app.run(`cardPrintsHtml([${JSON.stringify(only)}], { forDeck: ${JSON.stringify(CTX)} })`);
+  assert.deepStrictEqual(priced(html), ['€1.20', '—']);
+});
+
+test('a printing sold only as a foil is ringed by a deck that named no finish', async () => {
+  /* Every deck that chose a printing before this field existed named no
+     finish, and some of those printings were never sold any other way. The
+     ring means "this is the one you run", so it goes on the tile rather than
+     nowhere — and pressing it writes the finish the deck was always running. */
+  const app  = loadGallery({ runs: { ...C21_SNAPSHOT, price_eur: '3.80' } });
+  const only = { ...C21, finishes: ['foil'] };
+  const html = app.run(`cardPrintsHtml([${JSON.stringify(only)}], {
+    currentId: '${C21.id}', currentFinish: '', forDeck: ${JSON.stringify(CTX)} })`);
+  assert.deepStrictEqual(tiles(html), ['c21 foil']);
+  assert.deepStrictEqual(ringed(html), ['c21 foil']);
+  assert.deepStrictEqual(presses(html), [`cardChoosePrinting('${C21.id}', 'foil')`]);
+});
+
+test('but without a deck they are one tile, because they are one picture', async () => {
+  /* The finish is a fact about what you would buy, and this gallery is not
+   * choosing anything. The door stays shut, as it does for the price. */
+  assert.deepStrictEqual(tiles(await loadGallery().section()), ['c21', 'rav', 'lea']);
+});
+
 test('the printing the deck runs is the one that is ringed', async () => {
   const app  = loadGallery({ runs: RAV_SNAPSHOT });
   const html = await app.section(CTX);
-  const tiles = [...html.matchAll(/<button class="card-print-tile( current)?"/g)].map(m => !!m[1]);
-  assert.deepStrictEqual(tiles, [false, true, false], 'the ring is not on the deck’s printing');
+  assert.deepStrictEqual(ringed(html), ['rav'], 'the ring is not on the deck’s printing');
 });
 
 test('and where the deck has chosen none, it is the one the app picks', async () => {
   // Which is the default printing — the card the detail was opened on. A deck
-  // that has never chosen is running that one, and the ring says so.
+  // that has never chosen is running that one, and the ring says so. In the
+  // finish it comes in unless somebody says otherwise, which is the ordinary
+  // one: a deck has never been given a foil by default and is not now.
   const app  = loadGallery({ runs: null });
-  const html = await app.section(CTX);
-  const tiles = [...html.matchAll(/<button class="card-print-tile( current)?"/g)].map(m => !!m[1]);
-  assert.deepStrictEqual(tiles, [true, false, false]);
+  assert.deepStrictEqual(ringed(await app.section(CTX)), ['c21']);
+});
+
+test('and the ring is on the finish it runs, not just the printing', async () => {
+  /* The deck runs the foil. Ringing the ordinary copy beside it would be the
+   * gallery saying the deck runs a card it does not, and the press that would
+   * fix it looks like the one already made. */
+  const foil = { ...C21_SNAPSHOT, price_eur: '3.80', finish: 'foil' };
+  assert.deepStrictEqual(ringed(await loadGallery({ runs: foil }).section(CTX)), ['c21 foil']);
+  assert.deepStrictEqual(ringed(await loadGallery({ runs: C21_SNAPSHOT }).section(CTX)), ['c21']);
 });
 
 test('a press chooses the printing rather than going to look at it', async () => {
   const app  = loadGallery();
   const html = await app.section(CTX);
-  assert.deepStrictEqual(presses(html), PRINTS.map(p => `cardChoosePrinting('${p.id}')`));
+  assert.deepStrictEqual(presses(html), [
+    `cardChoosePrinting('${C21.id}')`,
+    `cardChoosePrinting('${C21.id}', 'foil')`,
+    `cardChoosePrinting('${RAV.id}')`,
+    `cardChoosePrinting('${LEA.id}')`,
+  ]);
 });
 
 test('and what it hands the deck is the snapshot for the tile that was pressed', async () => {
@@ -279,6 +405,24 @@ test('and what it hands the deck is the snapshot for the tile that was pressed',
     'the snapshot does not say what day its price was the price on');
 });
 
+test('and a press on the foil tile hands it over as a foil, priced as one', async () => {
+  const app = loadGallery();
+  await app.section(CTX);
+  app.run(`cardChoosePrinting('${C21.id}', 'foil')`);
+  const [told] = app.chosen();
+  assert.deepStrictEqual({ ...told.printing, chosen_at: '2026-08-15' },
+    { ...C21_SNAPSHOT, price_eur: '3.80', finish: 'foil' });
+});
+
+test('while the tile beside it hands over the ordinary copy, which names no finish', async () => {
+  const app = loadGallery();
+  await app.section(CTX);
+  app.run(`cardChoosePrinting('${C21.id}')`);
+  const [told] = app.chosen();
+  assert.strictEqual('finish' in told.printing, false, 'the ordinary copy was given a finish');
+  assert.strictEqual(told.printing.price_eur, '1.20');
+});
+
 test('and the ring moves to it', async () => {
   /* The gallery is open in front of you when you press, so it has to answer.
    * The mat behind it is redrawn by the deck; this is the modal's own half. */
@@ -288,9 +432,7 @@ test('and the ring moves to it', async () => {
   // The deck now runs what it was told, which is what the redraw asks it for.
   app.run(`dbPrintingFor = () => (${JSON.stringify(RAV_SNAPSHOT)})`);
   app.run(`cardChoosePrinting('${RAV.id}')`);
-  const tiles = [...app.section_().matchAll(/<button class="card-print-tile( current)?"/g)]
-    .map(m => !!m[1]);
-  assert.deepStrictEqual(tiles, [false, true, false]);
+  assert.deepStrictEqual(ringed(app.section_()), ['rav']);
 });
 
 test('a press the deck will not take moves nothing', async () => {
@@ -489,6 +631,27 @@ test('and the choice rides home on the deck’s ordinary save', async () => {
   tab.run(`dbChoosePrinting(dbPrintingContext('main/Sol Ring'), ${JSON.stringify(RAV_SNAPSHOT)})`);
   const body = await tab.saved();
   assert.deepStrictEqual(body.cards.find(c => c.card_name === 'Sol Ring').printing, RAV_SNAPSHOT);
+});
+
+// ── What the deck then costs ──────────────────────────────────────────────
+
+test('the deck is priced at the finish it runs, not at the printing', async () => {
+  /* The readout reads the snapshot on the card and nothing behind it, so this
+   * is the whole of what the finish is worth: press the foil and the deck's
+   * total moves by the difference between the two prices. Sol Ring alone is
+   * priced here — the Forests have no price in the cache, which is a real
+   * state the readout already says out loud. */
+  const tab = loadTab();
+  tab.run(`dbInspectCard('main/Sol Ring')`);
+  await tab.run(`loadPrints(${JSON.stringify(CARD)}, _cardReqSeq, 'prints')`);
+
+  tab.run(`cardChoosePrinting('${C21.id}')`);
+  assert.strictEqual(tab.answer('dbDeckTotals().price').eur, 1.2);
+
+  tab.run(`cardChoosePrinting('${C21.id}', 'foil')`);
+  assert.strictEqual(tab.answer('dbDeckTotals().price').eur, 3.8,
+    'the deck is costed at the ordinary copy of a card it runs a foil of');
+  assert.strictEqual(tab.printing('Sol Ring').finish, 'foil');
 });
 
 // ── The deck, checked again at the press ──────────────────────────────────

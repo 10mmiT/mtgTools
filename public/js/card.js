@@ -303,16 +303,57 @@ async function loadRulings(card, seq, sectionId = 'cardDetail-rulings') {
       <dd class="card-ruling-text">${cardOracleHtml(r.comment)}</dd>`).join('') + `</dl>`;
 }
 
+/* Which finishes a printing was made in, and what each of them is worth.
+ *
+ * A foil is not a printing of its own in Scryfall's model: one id carries a
+ * `finishes` list and a price per finish, so "the foil Sol Ring" is a printing
+ * *and* a finish, and a deck that could not say the second could not say which
+ * of the two it runs.
+ *
+ * The ordinary finish is the absence. nonfoil is what a card is unless somebody
+ * says otherwise, and written down it would be a default value sitting beside
+ * printings chosen before the field existed, which carry nothing — two
+ * spellings of one card, and the History panel calls the difference a change.
+ * available-db.js's readPrinting() drops it on the way in for the same reason. */
+const CARD_ORDINARY_FINISH = 'nonfoil';
+
+/** The finishes a printing can be run in, named as the snapshot names them —
+ *  the empty string for the ordinary one. A printing that does not say was only
+ *  ever made the ordinary way, which is what saying nothing means everywhere
+ *  else here too. */
+function cardPrintFinishes(print) {
+  const made = Array.isArray(print?.finishes) && print.finishes.length
+    ? print.finishes : [CARD_ORDINARY_FINISH];
+  return made.map(finish => (finish === CARD_ORDINARY_FINISH ? '' : finish));
+}
+
+/** What Cardmarket quotes this printing in this finish at. Each finish has a
+ *  price field of its own, and one nobody has quoted is unknown — never the
+ *  price of the finish standing next to it, which is a different card to buy. */
+const cardFinishPrice = (print, finish) =>
+  (finish ? print?.prices?.[`eur_${finish}`] : print?.prices?.eur);
+
+/** How a finish is said on a tile: the foil's mark, which is the one the
+ *  Collections table already reads as foil, and the word itself for the rarer
+ *  ones nobody has a symbol for. */
+const cardFinishMark = finish =>
+  (finish ? (finish === 'foil' ? ' ✦' : ` ${finish}`) : '');
+
 /* A printing, as the deck records one: the trimmed snapshot specified in
    docs/design/spec-printings.md, taken on the day it was chosen.
  *
- * The seven fields in that order and nothing else, and a field that is missing
+ * The eight fields in that order and nothing else, and a field that is missing
  * stays missing. Both halves of that matter and neither is tidiness. The order
  * is because the deck's history decides whether a state has changed by
- * serialising it, and the same seven keys in two orders are two states — a row
+ * serialising it, and the same eight keys in two orders are two states — a row
  * in the History panel for a change nobody made. The absence is the rule the
  * deck's total already lives by: a printing Cardmarket has no price for is
  * unknown, and unknown is not free.
+ *
+ * The finish comes in on the printing rather than as an argument of its own,
+ * because what is being snapshotted is the pair — this printing, in this
+ * finish — and that pair is what a tile is. Scryfall's own record has no such
+ * field, so nothing is being overwritten by putting it there.
  *
  * available-db.js's readPrinting() is the same shape from the other side, and
  * has to be: what the browser sends here is what the column stores, and a
@@ -323,19 +364,24 @@ async function loadRulings(card, seq, sectionId = 'cardDetail-rulings') {
  * asserted; nothing but a test passes one. */
 function cardPrintingSnapshot(print, today = new Date().toISOString().slice(0, 10)) {
   if (!print?.id) return null;
+  const finish = print.finish === CARD_ORDINARY_FINISH ? '' : (print.finish || '');
   const from = {
     id:               print.id,
     set:              print.set,
     set_name:         print.set_name,
     collector_number: print.collector_number,
     // The picture the mat will draw. A two-faced printing is its front, as
-    // every other picture of one in the app is.
+    // every other picture of one in the app is. Both finishes of a printing
+    // are the same picture: what a foil costs differs, what it looks like
+    // is not something Scryfall has a second scan of.
     image:            print.image_uris?.normal || print.card_faces?.[0]?.image_uris?.normal,
-    price_eur:        print.prices?.eur,
+    price_eur:        cardFinishPrice(print, finish),
     chosen_at:        today,
+    finish,
   };
   const snapshot = {};
-  for (const field of ['id', 'set', 'set_name', 'collector_number', 'image', 'price_eur', 'chosen_at']) {
+  for (const field of ['id', 'set', 'set_name', 'collector_number', 'image',
+                       'price_eur', 'chosen_at', 'finish']) {
     if (typeof from[field] === 'string' && from[field] !== '') snapshot[field] = from[field];
   }
   return snapshot;
@@ -347,29 +393,47 @@ function cardPrintingSnapshot(print, today = new Date().toISOString().slice(0, 1
    these printings and this situation, what is on offer and what does pressing
    one do?
 
-   `currentId` is the printing that is ringed. Outside a deck that is the one
-   you are looking at, which is what the ring has always meant here; inside one
-   it is the printing the deck runs, which is the same fact pointed at
-   something else — the tile with the ring is the one you already have.
+   `currentId` and `currentFinish` are the tile that is ringed. Outside a deck
+   that is the printing you are looking at, which is what the ring has always
+   meant here; inside one it is the printing the deck runs, which is the same
+   fact pointed at something else — the tile with the ring is the one you
+   already have. Both halves have to match, because the foil beside the card
+   the deck runs is a card the deck does not run.
 
    `forDeck` is what turns a gallery into a chooser. It adds the price, because
-   what a printing costs is part of choosing one and no part of browsing them,
-   and it changes what a press does. */
-function cardPrintsHtml(prints, { currentId = '', forDeck = null } = {}) {
-  return prints.map(p => {
+   what a printing costs is part of choosing one and no part of browsing them;
+   it splits a printing into one tile per finish, for the same reason twice
+   over — a foil is a different thing to run and a different thing to pay for,
+   and the same thing to look at; and it changes what a press does. */
+function cardPrintsHtml(prints, { currentId = '', currentFinish = '', forDeck = null } = {}) {
+  return prints.flatMap(p => {
     const img = p.image_uris?.normal || p.image_uris?.large || p.card_faces?.[0]?.image_uris?.normal;
-    const isCurrent = p.id === currentId;
     const label = `${esc(p.set_name)} #${esc(p.collector_number || '')}`;
-    /* A press on the tile is the choice, rather than a second control in its
-       corner: arriving from a deck changes what the gallery is for, so the
-       tile does the thing you came to do. */
-    const press = forDeck ? `cardChoosePrinting('${p.id}')` : `openCardById('${p.id}')`;
-    const title = forDeck ? `Run ${label} in ${esc(forDeck.deckName || 'this deck')}` : label;
-    return `<button class="card-print-tile${isCurrent ? ' current' : ''}" onclick="${press}" title="${title}">
+    const finishes = forDeck ? cardPrintFinishes(p) : [''];
+    /* Which of this printing's tiles the ring would go on. The finish the deck
+       named, and the first tile when it named one this printing does not come
+       in — a card sold only as a foil is one tile, and a deck that chose it
+       before the field existed named no finish at all. The ring says "this is
+       the printing you run", so it belongs somewhere rather than nowhere. */
+    const ringAt = Math.max(finishes.indexOf(currentFinish), 0);
+    return finishes.map((finish, i) => {
+      const isCurrent = p.id === currentId && i === ringAt;
+      const price = cardFinishPrice(p, finish);
+      /* A press on the tile is the choice, rather than a second control in its
+         corner: arriving from a deck changes what the gallery is for, so the
+         tile does the thing you came to do. The ordinary finish is not named
+         in the press, as it is not named in the snapshot the press takes. */
+      const press = forDeck
+        ? `cardChoosePrinting('${p.id}'${finish ? `, '${jsAttr(finish)}'` : ''})`
+        : `openCardById('${p.id}')`;
+      const named = finish ? `${label} (${esc(finish)})` : label;
+      const title = forDeck ? `Run ${named} in ${esc(forDeck.deckName || 'this deck')}` : label;
+      return `<button class="card-print-tile${isCurrent ? ' current' : ''}" onclick="${press}" title="${title}">
       ${img ? `<img class="card-img" loading="lazy" src="${img}" alt="${esc(p.set_name)}">` : `<div class="card-print-ph"></div>`}
-      <span class="card-print-set">${(p.set || '').toUpperCase()} · #${esc(p.collector_number || '')}</span>
-      ${forDeck ? `<span class="card-print-price">${p.prices?.eur ? `€${esc(p.prices.eur)}` : '—'}</span>` : ''}
+      <span class="card-print-set">${(p.set || '').toUpperCase()} · #${esc(p.collector_number || '')}${cardFinishMark(finish)}</span>
+      ${forDeck ? `<span class="card-print-price">${price ? `€${esc(price)}` : '—'}</span>` : ''}
     </button>`;
+    });
   }).join('');
 }
 
@@ -380,10 +444,14 @@ function cardPrintsHtml(prints, { currentId = '', forDeck = null } = {}) {
  *  others have a number reads as a tile that has not finished loading. */
 function cardPrintsSectionHtml(prints, opts = {}) {
   const { forDeck = null } = opts;
+  /* The count is of printings and the tiles are of printings in a finish, so a
+     card made in foil has more tiles than the heading says. Said out loud in
+     the line below rather than counted differently: the section is a list of
+     what else this card has been printed as, and a foil is the same printing. */
   // The app's own card grid (§9.6), so the gallery is sized like every other
   // grid of card images rather than by a number written for this tab alone.
   return `<div class="section-title">Other Printings &amp; Alt-Art (${prints.length})</div>
-    ${forDeck ? `<div class="help-text">Press one to run it in <strong>${esc(forDeck.deckName || 'this deck')}</strong>. The ring is the printing it runs now.</div>` : ''}
+    ${forDeck ? `<div class="help-text">Press one to run it in <strong>${esc(forDeck.deckName || 'this deck')}</strong>. The ring is the printing it runs now, and a printing sold in more than one finish has a tile for each.</div>` : ''}
     <div class="card-grid">${cardPrintsHtml(prints, opts)}</div>`;
 }
 
@@ -400,6 +468,10 @@ function _cardPaintPrints() {
   const chosen = _cardForDeck ? dbPrintingFor(_cardForDeck) : null;
   el.innerHTML = cardPrintsSectionHtml(_cardPrints, {
     currentId: chosen?.id || _cardPrintCard.id,
+    /* A deck that has chosen nothing is running the printing the app picks, in
+       the finish a card is unless somebody says otherwise — so the ring lands
+       on the ordinary tile, never on the foil beside it. */
+    currentFinish: chosen?.finish || '',
     forDeck:   _cardForDeck,
   });
 }
@@ -412,9 +484,10 @@ function _cardPaintPrints() {
  * press in any of those situations does nothing at all — including moving the
  * ring, because a ring that moved would be the card detail claiming a choice
  * the deck never made. */
-function cardChoosePrinting(id) {
+function cardChoosePrinting(id, finish = '') {
   if (!_cardForDeck) return false;
-  const printing = cardPrintingSnapshot(_cardPrints.find(p => p.id === id));
+  const print = _cardPrints.find(p => p.id === id);
+  const printing = print && cardPrintingSnapshot({ ...print, finish });
   if (!printing || !dbChoosePrinting(_cardForDeck, printing)) return false;
   _cardPaintPrints();
   return true;

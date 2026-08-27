@@ -319,6 +319,71 @@ describe('a chosen printing', () => {
   });
 });
 
+// ── And the finish it runs in ─────────────────────────────────────────────
+// The field arrived after decks had been carrying printings for a fortnight,
+// so the risk is not the new state, it is the old one: a panel that compares
+// two states as strings will call every deck in the app changed if a printing
+// serialises by so much as a key differently than it did.
+
+describe('a printing chosen before a finish could be named', () => {
+  /* The bytes such a printing was stored as. Written out rather than built
+   * from the code under test, because what is being asserted is that the code
+   * still agrees with what is already on disk. */
+  const LEGACY_PRINTING =
+    '{"id":"6e9f2eb0-8ca1-4e9d-9f2b-0a1b2c3d4e5f","set":"rav",' +
+    '"set_name":"Ravnica: City of Guilds","collector_number":"266",' +
+    '"image":"https://cards.scryfall.io/normal/rav-sol-ring.jpg",' +
+    '"price_eur":"4.50","chosen_at":"2026-08-14"}';
+
+  /** The deck that carries it — one card, in the shape both paths read. */
+  const ravnica  = () => ({ ...SOL_RING, board: 'main', position: 0,
+                            printing: JSON.parse(LEGACY_PRINTING) });
+  /** And the snapshot it was taken as, before any of this. */
+  const legacyState = () => JSON.stringify({
+    cards: [{ card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main', position: 0,
+              printing: JSON.parse(LEGACY_PRINTING) }],
+    categories: CATS.map((c, i) => ({ name: c.name, position: i })),
+  });
+
+  test('is snapshotted byte-for-byte as it was', () => {
+    store(DECK, [ravnica()], CATS);
+    history.noteSave(DECK);
+    assert.equal(
+      db.prepare('SELECT state_json FROM deck_snapshots WHERE deck_id = ?').get(DECK).state_json,
+      legacyState(), 'the deck serialises differently than the snapshot already on disk');
+  });
+
+  test('so opening the deck and saving it writes no row at all', () => {
+    /* The whole of the risk, in one test. Nobody has touched this deck: the
+     * cards endpoint hands it to the browser, the browser hands it back on the
+     * first autosave, and the History panel must have nothing to say about it.
+     * Both rules are exercised, because a forced snapshot carries the
+     * browser's copy and rule 1 reads the database's. */
+    db.prepare('INSERT INTO deck_snapshots (deck_id, taken_at, reason, state_json) VALUES (?,?,?,?)')
+      .run(DECK, Date.now() - DAY, 'edit', legacyState());
+    store(DECK, [ravnica()], CATS);
+    history.noteSave(DECK);
+    history.force(DECK, 'import', { cards: [ravnica()], categories: CATS });
+    assert.equal(rowsOf(DECK).length, 1, 'a deck nobody touched was recorded as having changed');
+  });
+
+  test('while the foil beside it is a state of its own, both ways round', () => {
+    // The field earns its place by making these two different, and the two
+    // paths into a snapshot have to agree about that as they do about the rest.
+    const foil = { ...ravnica(), printing: { ...JSON.parse(LEGACY_PRINTING),
+                                             price_eur: '11.90', finish: 'foil' } };
+    store(DECK, [foil], CATS);
+    const t0 = Date.now();
+    history.noteSave(DECK, t0);
+    assert.notEqual(
+      db.prepare('SELECT state_json FROM deck_snapshots WHERE deck_id = ?').get(DECK).state_json,
+      legacyState(), 'the foil snapshotted as the ordinary card');
+    history.force(DECK, 'import', { cards: [foil], categories: CATS }, t0 + SECOND);
+    assert.equal(rowsOf(DECK).length, 1, 'the two paths wrote the foil down differently');
+    assert.equal(history.get(DECK, rowsOf(DECK)[0].id).cards[0].printing.finish, 'foil');
+  });
+});
+
 // ── The caps ──────────────────────────────────────────────────────────────
 
 describe('the caps', () => {

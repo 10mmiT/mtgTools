@@ -410,26 +410,42 @@ if (!exists) {
  * visibly: chosen_at is what says so, and what a later re-pricing pass will
  * read.
  *
- * One column of JSON rather than seven columns of their own because nothing on
+ * One column of JSON rather than eight columns of their own because nothing on
  * this side ever queries these fields — the export, the mat and the readout are
  * all the browser's, and the row is carried whole — and because it is the shape
  * scryfall.db already stores a card in.
+ *
+ * The finish is last because it arrived last. A foil is not a printing of its
+ * own in Scryfall's model — it is a finish on the same id, priced separately —
+ * so until it was here a deck could not say which of the two it runs. Appended
+ * rather than filed beside the set it belongs with: decks had been carrying the
+ * seven fields for a fortnight, and a printing that serialises differently than
+ * the one already on disk is a History row for a change nobody made.
  *
  * These functions are the only way in and out, so the shape is one thing rather
  * than a convention. All of them are total: anything that is not a printing is
  * null, which is the same answer as a card nobody has chosen one for. */
 const PRINTING_FIELDS =
-  ['id', 'set', 'set_name', 'collector_number', 'image', 'price_eur', 'chosen_at'];
+  ['id', 'set', 'set_name', 'collector_number', 'image', 'price_eur', 'chosen_at', 'finish'];
+
+/* The finish a card has unless somebody says otherwise. Written down it would
+ * be a default value in the data, and the same printing chosen a fortnight ago
+ * carries nothing — so the ordinary card would have two spellings and the panel
+ * would call one of them a change. There is one way to say it, and it is
+ * silence, which is what a card is a name unless a printing says otherwise. */
+const ORDINARY_FINISH = 'nonfoil';
 
 /** A printing, from the column's text or from a client's object — trimmed to
  *  the fields above, in that order, or null if it names no printing.
  *
  *  The fixed order is not tidiness: the deck's history decides whether a state
- *  has changed by serialising it, and two orderings of the same seven keys
+ *  has changed by serialising it, and two orderings of the same eight keys
  *  would be two states — a row in the History panel for a change nobody made.
  *
  *  A field that is missing stays missing rather than becoming an empty string.
- *  A printing Cardmarket has no price for is unknown, and unknown is not free. */
+ *  A printing Cardmarket has no price for is unknown, and unknown is not free —
+ *  and an ordinary card is one that says nothing about its finish, which is the
+ *  same rule reaching the field that was added last. */
 function readPrinting(value) {
   let raw = value;
   if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return null; } }
@@ -441,6 +457,7 @@ function readPrinting(value) {
   for (const field of PRINTING_FIELDS) {
     if (typeof raw[field] === 'string' && raw[field] !== '') printing[field] = raw[field];
   }
+  if (printing.finish === ORDINARY_FINISH) delete printing.finish;
   return printing;
 }
 
