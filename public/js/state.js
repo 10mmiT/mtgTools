@@ -143,6 +143,28 @@ function cardPrintings(card) {
   return out;
 }
 
+/* Whether two copies are the same card to somebody asking whether they own
+ * one. Narrower than the shelf's own idea of a copy's identity, and
+ * deliberately: the shelf files a copy under its Scryfall id, its finish, its
+ * language *and* its condition, because those are what tell two physical
+ * cards apart in a box. None of that makes a lightly played German Sol Ring a
+ * different card from the one a deck runs — you own it, and you can sleeve
+ * it — so language and condition roll up here and finish does not. A foil is
+ * priced separately and is a different thing to run, which is the whole
+ * reason a deck can name one.
+ *
+ * Null for the copies nobody has attributed to a printing. They are not a
+ * printing anybody can name and must never answer for one, which is what
+ * keeps "we do not know which" from reading as "the wrong one".
+ *
+ * The ordinary finish is the absence of one — the same spelling readPrinting()
+ * enforces on the way in — so a printing that says `nonfoil` out loud and one
+ * that says nothing are one printing here rather than two. */
+const printingIdentity = printing =>
+  printing && typeof printing.id === 'string' && printing.id
+    ? `${printing.id} ${printing.finish && printing.finish !== 'nonfoil' ? printing.finish : ''}`
+    : null;
+
 function hydrateState(raw) {
   // Migrate old bare-array format
   const data = Array.isArray(raw) ? { collections: raw, players: [] } : raw;

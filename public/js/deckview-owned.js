@@ -104,6 +104,138 @@ function dbOwnedQty(cardName) {
   return qty;
 }
 
+// ── Which printing, not just which card ───────────────────────────────────
+/* The sharper question, and the reason the shelf learned to record printings
+ * at all. A deck that reads as fully owned may still be a deck nobody can
+ * sleeve, because the box holds a different edition of half of it — so the
+ * mat answers four things rather than two:
+ *
+ *   owned    the shelf has the printing this deck runs
+ *   other    the shelf has the card, in a printing this deck does not run
+ *   unknown  the shelf has the card and nobody recorded which printing
+ *   none     the shelf has no copy at all
+ *
+ * The third is the one that must not be got wrong, and it is not an edge
+ * case: every collection in existence is in it until somebody re-imports it.
+ * Read as `none` it would tell a whole playgroup their shelves are empty;
+ * read as `other` it would tell them to go and buy cards they already own.
+ * So it is a state of its own and it outranks a mismatch — a copy nobody
+ * wrote down might well be the one the deck runs, and the honest answer to
+ * "is it" is that we do not know.
+ *
+ * dbOwnedQty() above is untouched by any of this. The name-level count is
+ * what "87 of 99" has always meant and what the want list, the Sets tab and
+ * the search scope all still ask; the printing is a second question asked
+ * beside it, never a correction to it. */
+
+/** Which printings of a card the shelf in scope holds, and how many of each.
+ *
+ *  Folded across the shelves, because "do I own it" is asked of the shelf and
+ *  not of one box on it, and across language and condition, because
+ *  printingIdentity() says those do not make it a different card. The unknown
+ *  entry comes back in the list like any other: it is an answer, and dropping
+ *  it here is how every reader downstream would come to forget it. */
+function dbOwnedPrintings(cardName) {
+  const merged = new Map();
+  for (const col of dbOwnShelf()) {
+    const card = col.cards.get(cardName);
+    if (!card) continue;
+    for (const held of cardPrintings(card)) {
+      const seen = merged.get(printingIdentity(held));
+      if (seen) { seen.qty += held.qty; continue; }
+      /* The two fields the rollup just threw away are dropped from the row as
+         well rather than left showing whichever copy happened to be first: a
+         breakdown saying `de` over copies in three languages is worse than
+         one that says nothing. */
+      const { lang, condition, ...rest } = held;
+      merged.set(printingIdentity(held), { ...rest });
+    }
+  }
+  return [...merged.values()];
+}
+
+/** Whether the shelf in scope holds a particular printing of a card.
+ *
+ *  Never true of a printing nobody can name, which is both halves of the
+ *  unknown case: a deck that has chosen nothing does not own "the printing it
+ *  runs", and a shelf full of unattributed copies does not answer for one.
+ *
+ *  The plain yes-or-no, for anybody asking about a printing that is not a
+ *  card in a deck — the gallery ringing what you own, and the printing
+ *  optimiser's "prefer the ones I have". Inside this module the question is
+ *  always four-valued and dbPrintingVerdict is what answers it: a yes/no here
+ *  would fold "we do not know" into "no", which is the one thing this ticket
+ *  exists to stop. */
+function dbOwnsPrinting(cardName, printing) {
+  return printingIdentity(printing) !== null
+      && dbPrintingVerdict(dbOwnedPrintings(cardName), printing) === 'owned';
+}
+
+/** Which of the four a set of held copies makes of the printing a deck runs.
+ *
+ *  The order is the whole rule. A copy that matches is the answer whatever
+ *  else is in the box; an unattributed copy beats a mismatch; and a mismatch
+ *  is only reported where every copy on the shelf has been accounted for and
+ *  none of them is the one. */
+function dbPrintingVerdict(held, wanted) {
+  if (!held.length) return 'none';
+  const want = printingIdentity(wanted);
+  /* A deck that has named no printing runs whichever one the app picks, so
+     there is nothing for the shelf to disagree with — the question falls back
+     to the name-level one, which is the one it was before this existed. */
+  if (want === null) return 'owned';
+  let unknown = false;
+  for (const p of held) {
+    if (printingIdentity(p) === want) return 'owned';
+    if (p.id === null) unknown = true;
+  }
+  return unknown ? 'unknown' : 'other';
+}
+
+/** Which of the four one card of the deck is, against the shelf in scope. */
+function dbPrintingState(card) {
+  return dbPrintingVerdict(dbOwnedPrintings(card.card_name), card.printing);
+}
+
+/** What to call the printings in a breakdown, for somebody reading. The
+ *  unattributed copies drop out: they are not a printing anybody can name,
+ *  and "C21, unknown" in a list of editions reads as an edition. */
+const dbPrintingLabels = printings =>
+  printings.filter(p => p.id !== null).map(colPrintingLabel);
+
+/** And the deck's, as a count of cards in each of the four.
+ *
+ *  Cards and not copies, unlike every other number on the readout, because a
+ *  printing is chosen once per card and not once per copy: eight Forests are
+ *  eight of the same Forest, and a deck "8 in another printing" over one line
+ *  of the list would be counting the same wrong decision eight times. */
+function dbPrintingCounts() {
+  const counts = { owned: 0, other: 0, unknown: 0, none: 0 };
+  for (const card of dbMainCards()) counts[dbPrintingState(card)]++;
+  return counts;
+}
+
+/** The cards you own but not as the deck names them: what it runs, and what
+ *  you have instead. The actionable half — each of these is a decision
+ *  between changing the deck's printing and buying the one it names.
+ *
+ *  The shelf is walked once per card rather than once for the verdict and
+ *  again for the labels: this runs on every draw of the panel, and the shelf
+ *  it walks is every collection loaded. */
+function dbOtherPrintings() {
+  const rows = [];
+  for (const card of dbMainCards()) {
+    const held = dbOwnedPrintings(card.card_name);
+    if (dbPrintingVerdict(held, card.printing) !== 'other') continue;
+    rows.push({
+      name: card.card_name,
+      runs: colPrintingLabel(card.printing),
+      held: dbPrintingLabels(held),
+    });
+  }
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /* Who *else* has it — every loaded collection that is not on the shelf being
  * counted, grouped by the person it belongs to. This is the half that answers
  * "who could lend me the rest", and it is why the missing list is worth opening
@@ -207,26 +339,67 @@ function dbOwnChipShows(card) {
 }
 
 // ── The badges on a card ──────────────────────────────────────────────────
-/* What the mat draws where sfCardOwnership() used to be drawn. Two differences,
- * and both are this ticket:
+/* What the mat draws where sfCardOwnership() used to be drawn. Two
+ * differences from it, and both are ownership tickets:
  *
  * It is scoped. A badge saying a card is owned when the question on the strip
  * is "do *I* own it" is the badge answering a question nobody asked.
  *
  * And when the shelf in scope has none of it, whoever does is named instead —
- * in their own colour, marked as somebody else's. That is the same sentence the
- * missing list makes, said on the card, and it is what makes the Borrowable
- * chip legible: a dimmed name is a card you would have to ask for. */
-function dbCardOwnership(cardName) {
+ * in their own colour, marked as somebody else's. That is the same sentence
+ * the missing list makes, said on the card, and it is what makes the
+ * Borrowable chip legible: a dimmed name is a card you would have to ask for.
+ *
+ * The printing is not a third difference, because it is not a fact about a
+ * badge. A badge is one box; the question is one shelf. Marking each box with
+ * its own verdict would put a ⇄ on the box holding the Ravnica Sol Ring while
+ * the box beside it holds the one the deck runs — a warning on a card with
+ * nothing wrong with it, contradicting the readout, which folds the shelf
+ * together and would rightly say nothing at all. So the mark is one mark, it
+ * comes after the badges, and it answers exactly what the readout answers. */
+const DB_PRINT_MARKS = {
+  /* ⇄ for a swap that would have to happen, ? for a question nobody has
+     answered. Marks beside the badges rather than colours over them: the
+     badge's colour is whose box it is and has been for a long time. */
+  other:   { cls: 'db-print-mark-other',   glyph: '⇄' },
+  unknown: { cls: 'db-print-mark-unknown', glyph: '?' },
+};
+
+function _dbPrintMarkTitle(state, card, held) {
+  const runs = colPrintingLabel(card.printing);
+  return state === 'unknown'
+    ? `Nobody recorded which printings these copies are — this deck runs ${runs}`
+    : `You have ${dbPrintingLabels(held).join(', ')} — not the ${runs} this deck runs`;
+}
+
+/** Whether the shelf has the printing this card runs, said in one glyph.
+ *  Nothing at all where it has, which is what the three states that are not a
+ *  problem have always looked like. */
+function _dbPrintMarkHtml(card) {
+  const held  = dbOwnedPrintings(card.card_name);
+  const state = dbPrintingVerdict(held, card.printing);
+  const mark  = DB_PRINT_MARKS[state];
+  if (!mark) return '';
+  return `<span class="db-print-mark ${mark.cls}"
+    title="${esc(_dbPrintMarkTitle(state, card, held))}">${mark.glyph}</span>`;
+}
+
+/* Takes the deck's card rather than its name, because the printing the deck
+ * runs is half the question now and it lives on the row. */
+function dbCardOwnership(card) {
   const mine = dbOwnShelf()
-    .filter(c => c.cards.has(cardName))
+    .filter(c => c.cards.has(card.card_name))
     .map(c => `<span class="sf-badge" style="border-color:${c.color}">
         <span class="sf-dot" style="background:${c.color}"></span>
-        ${esc(c.name)} ×${c.cards.get(cardName).qty}
+        ${esc(c.name)} ×${c.cards.get(card.card_name).qty}
       </span>`).join('');
-  if (mine) return mine;
+  if (mine) return mine + _dbPrintMarkHtml(card);
 
-  return dbHoldersOf(cardName).map(h =>
+  /* Somebody else's box carries no mark. What is on offer there is a phone
+     call, and which printing they have is a thing to settle with the person
+     once they have said yes — a ⇄ on a card you do not have is detail about a
+     card you cannot use. */
+  return dbHoldersOf(card.card_name).map(h =>
     `<span class="sf-badge db-badge-elsewhere" style="border-color:${h.ink}"
        title="${esc(`${h.who} — ${h.collection} ×${h.qty}`)}">
       <span class="sf-dot" style="background:${h.ink}"></span>
@@ -251,9 +424,26 @@ function dbRenderOwnStat() {
               : dbOwnScope() === 'mine' ? 'you own'
               : dbOwnScope() === 'group' ? 'the group owns'
               : 'we own';
+  /* The second sentence, and only when there is one to say. Cards owned in a
+     printing this deck does not run are not missing — the count beside them
+     is right and stays right — but they are what stands between the deck and
+     being sleeved as it is written, which is the question the whole line is
+     asked for. A deck with none of them says nothing about printings, which
+     is every deck whose shelves have not been re-imported yet: unknown is not
+     news, and a permanent note about it would be the app nagging.
+     Cards and not copies, which is why it says so: the number in front of it
+     counts copies, and two units in one line that did not name themselves
+     would be read as one. */
+  const other = dbPrintingCounts().other;
+  /* The green is the count's and stays the count's. It has meant "you own
+     every copy of this" since long before printings existed, the count has
+     not moved by a copy, and a second question answered beside it is not a
+     reason to take the first question's answer away. */
   const all = total > 0 && owned === total;
-  el.innerHTML = `<strong style="color:${all ? 'var(--success)' : ''}">${owned}</strong> of ${total} ${esc(whose)}`;
-  el.title = `${esc(scope.hint)} — open for what is missing`;
+  el.innerHTML = `<strong style="color:${all ? 'var(--success)' : ''}">${owned}</strong> of ${total} ${esc(whose)}`
+    + (other ? ` <span class="db-stat-otherprint">${other} card${other === 1 ? '' : 's'} in another printing</span>` : '');
+  el.title = `${esc(scope.hint)} — open for what is missing`
+    + (other ? `, and the ${other} you have in another printing` : '');
 }
 
 // ── What is missing, and who has it ───────────────────────────────────────
@@ -289,9 +479,19 @@ function _dbSyncOwnedPanel() {
  * "who could lend me this" is answered by looking rather than by reading. */
 function _dbOwnedPanelHtml() {
   const { total, owned, short } = dbDeckOwnership();
-  if (!short.length) {
+  /* A third list, and a third problem. These are cards you have — the count
+     above counts them — in an edition the deck does not name, so neither of
+     the other two sections is true of them and neither is a want list: you
+     already own the card. What is on offer is a choice. */
+  const others = dbOtherPrintings();
+  /* Said in two places — on its own where there is nothing else to report,
+     and as the header over the printings where there is — so it is written
+     once. Two copies of one sentence is two sentences the day somebody
+     edits one of them. */
+  const allHere = `Every one of the ${total} is on the shelf`;
+  if (!short.length && !others.length) {
     return `<div class="db-owned-hdr">
-        <span class="db-owned-title">Every one of the ${total} is on the shelf</span>
+        <span class="db-owned-title">${allHere}</span>
         ${_dbOwnedCloseHtml()}
       </div>`;
   }
@@ -308,14 +508,30 @@ function _dbOwnedPanelHtml() {
 
   return `
     <div class="db-owned-hdr">
-      <span class="db-owned-title">${missing} of ${total} missing — ${owned} on the shelf</span>
+      <span class="db-owned-title">${short.length
+        ? `${missing} of ${total} missing — ${owned} on the shelf`
+        : allHere}</span>
       ${_dbWantAllHtml()}
       ${_dbOwnedCloseHtml()}
     </div>
     ${section('Somebody else has these', borrowable.map(_dbOwnedRowHtml),
               'ask, or buy your own')}
     ${section('Nobody has these', nobodys.map(_dbOwnedRowHtml),
-              'not in any collection loaded')}`;
+              'not in any collection loaded')}
+    ${section('You have these in another printing', others.map(_dbOtherPrintingRowHtml),
+              'change the deck’s printing, or buy the one it names')}`;
+}
+
+/* No want button on these rows. The card is on the shelf — what is wanted is
+   a particular printing of it, and wanting a printing is a different feature
+   from wanting a card. Until somebody asks for it, the row says what the deck
+   runs and what the shelf has, and the decision is the reader's. */
+function _dbOtherPrintingRowHtml(entry) {
+  return `<div class="db-owned-row">
+    <a class="card-link db-owned-name" href="#" data-name="${esc(entry.name)}">${esc(entry.name)}</a>
+    <span class="db-owned-print">runs <strong>${esc(entry.runs)}</strong>
+      — you have <strong>${esc(entry.held.join(', '))}</strong></span>
+  </div>`;
 }
 
 function _dbOwnedCloseHtml() {

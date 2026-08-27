@@ -54,7 +54,8 @@ mtgtools/
 │   ├── deckcommander.test.js # The commander as a board rather than a category
 │   ├── deckfilter.test.js   # The deck's filter box — the query language run over one deck
 │   ├── collectionowner.test.js # Whose shelf is whose — the column, the shelf, the open-mode name
-│   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and who has them
+│   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and
+│   │                        # whether it is the printing the deck runs
 │   └── decklegality.test.js # Legal or the reason it is not, the bracket estimate, and tonight's bracket
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
@@ -108,7 +109,7 @@ mtgtools/
 │       ├── deckview-edit.js     # Deck Builder: card/category edits, move modal, autosave
 │       ├── deckview-panels.js   # Deck Builder: search/autocomplete, drag/drop, EDHREC, import/export
 │       ├── deckview-history.js  # Deck Builder: snapshots, the History drawer, restoring
-│       ├── deckview-owned.js    # Deck Builder: what of the deck you own — the scopes, the missing list, the want-list send
+│       ├── deckview-owned.js    # Deck Builder: what of the deck you own — the scopes, the four printing states, the missing list, the want-list send
 │       ├── deckview-totals.js   # Deck Builder: one pass over the deck — what it costs, what finishing it costs, the curve, the types, the split
 │       ├── deckview-legality.js # Deck Builder: whether the deck is legal, and the bracket it looks like — with the reasoning
 │       ├── deckview-mana.js     # Deck Builder: the pips the deck's costs ask for against the sources its lands make, and the calculator filled from it
