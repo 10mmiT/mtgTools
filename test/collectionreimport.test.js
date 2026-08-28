@@ -71,7 +71,7 @@ function loadTab({ collections, players, user, remembered } = {}) {
       },
       setAttribute(k, v) { el.attrs[k] = v; },
       getAttribute(k) { return el.attrs[k]; },
-      addEventListener() {}, removeEventListener() {}, focus() {},
+      addEventListener() {}, removeEventListener() {}, focus() {}, click() {},
       querySelector() { return fakeEl(); },
       querySelectorAll() { return []; },
       appendChild() {},
@@ -147,6 +147,13 @@ function loadTab({ collections, players, user, remembered } = {}) {
         .filter(c => c.method === 'POST' && /\/import$/.test(c.url))
         .map(c => decodeURIComponent(c.url.replace(/^.*\/collections\/(.*)\/import$/, '$1')));
     },
+    /** The whole-collection writes, as they went over the wire. */
+    saved() {
+      return calls.filter(c => c.method === 'POST' && /\/api\/collections$/.test(c.url))
+                  .map(c => c.body);
+    },
+    /** The chip row, drawn — one chip per collection, ⋯ menu and all. */
+    chips() { run('renderCollections()'); return el('collectionsChips').innerHTML; },
   };
 }
 
@@ -267,12 +274,114 @@ describe('a shelf a re-import could not help', () => {
     assert.equal(tab.offer().shown, false);
   });
 
-  /* Moxfield's per-row fields have not been checked against a real account,
-   * so the importer records nothing for one; see parsePrinting. */
-  test('nor is a Moxfield one, whose rows this app does not read printings from', () => {
+  /* Nor is a Moxfield one, for the same reason: nothing can fetch it — their
+   * API answers 403 to this server — so its way back onto the shelf is the
+   * export, which is a file somebody chooses. That is the ⋯ menu's, below. */
+  test('nor is a Moxfield one, whose way back is a file rather than a press', () => {
     const mox = unknownShelf('moxfield:1', { source: 'moxfield' });
     const tab = loadTab({ collections: [mox], players: PLAYERS, user: AS_TIM });
     assert.equal(tab.offer().shown, false);
+  });
+});
+
+// ── The shelves Moxfield left behind ─────────────────────────────────
+/* A `moxfield` shelf was imported by the tab itself, back when the tab did
+ * the fetching. Nothing can create one any more and nothing can fetch one, so
+ * what is left is the shelves themselves — and the failure to prevent is the
+ * one the way out used to have: downloading the export and importing it lands
+ * a *second* collection under a `csv:` key of its own, sitting beside the one
+ * it was meant to replace. Fixing a shelf must not mean deleting your own.
+ *
+ * So the export goes onto the shelf that asked for it, keeping the key it has
+ * always had — and everything hanging off that key, which is its name, its
+ * colour and whose it is. The cards and the printings are the file's.
+ */
+describe('a Moxfield shelf, from before their API refused this server', () => {
+  const MOX_HEAD = '"Count","Tradelist Count","Name","Edition","Condition","Language",'
+    + '"Foil","Tags","Last Modified","Collector Number","Alter","Proxy","Purchase Price"';
+  const MOX_EXPORT = [MOX_HEAD,
+    '"1","1","Sol Ring","blc","Near Mint","English","","","2025-07-28 11:08:05.310000","129","False","False",""',
+    '"3","1","Sol Ring","tdc","Near Mint","English","","","2025-08-06 10:03:40.507000","106","False","False",""',
+    '"1","1","Cultivate","c21","Near Mint","English","foil","","2025-08-06 10:03:40.507000","263","False","False",""',
+  ].join('\n') + '\n';
+
+  /** The shelf as it has sat in the database for a year: a Moxfield source, a
+   *  key naming the collection it was fetched from, and no printings. */
+  const moxShelf = () => unknownShelf('moxfield:abc', {
+    source: 'moxfield', id: 'abc', name: 'Tim’s Moxfield box', color: '#3b82f6',
+  });
+
+  /** The tab with that shelf on it, and the export chosen for it. */
+  async function reimported() {
+    const tab = loadTab({ collections: [moxShelf()], players: PLAYERS, user: AS_TIM });
+    tab.run(`updateCollection('moxfield:abc')`);
+    await tab.run(`importCsvText(${JSON.stringify(MOX_EXPORT)}, 'moxfield_haves.csv')`);
+    return tab;
+  }
+
+  test('is offered the export in its ⋯ menu, not a Refresh that cannot work', () => {
+    const chips = loadTab({ collections: [moxShelf()], players: PLAYERS, user: AS_TIM }).chips();
+    assert.match(chips, /Re-import CSV/);
+    assert.doesNotMatch(chips, /Refresh/,
+      'the menu still offers to fetch a collection nothing can fetch');
+  });
+
+  test('and taking it asks for a file rather than starting an import', async () => {
+    const tab = loadTab({ collections: [moxShelf()], players: PLAYERS, user: AS_TIM });
+    await tab.run(`updateCollection('moxfield:abc')`);
+    assert.deepEqual(tab.started(), [], 'a four-minute job that answers 403');
+    assert.equal(tab.run('pendingCsvKey'), 'moxfield:abc',
+      'the file picker was not told which shelf the file is for');
+  });
+
+  test('the export lands on that shelf and does not become a second one', async () => {
+    const tab = await reimported();
+    assert.deepEqual(tab.saved().map(c => c.key), ['moxfield:abc']);
+    assert.equal(tab.run('state.collections.length'), 1,
+      'fixing a shelf left a copy of it beside the original');
+  });
+
+  test('keeping its name, its colour and whose it is', async () => {
+    const [saved] = (await reimported()).saved();
+    assert.equal(saved.name,  'Tim’s Moxfield box');
+    assert.equal(saved.color, '#3b82f6');
+    assert.equal(saved.owner, 'p-tim');
+  });
+
+  /* The shelf is what the file says it is once the file has been read: a CSV
+   * shelf, with no collection on somebody's server behind it any more. */
+  test('and stopping being a Moxfield shelf on the way', async () => {
+    const [saved] = (await reimported()).saved();
+    assert.equal(saved.source, 'csv-moxfield');
+    assert.equal(saved.id, null, 'a shelf that comes from a file has no id to fetch');
+  });
+
+  test('the cards and the printings are the export’s own', async () => {
+    const [saved] = (await reimported()).saved();
+    const sol = saved.cards['Sol Ring'];
+    assert.equal(sol.qty, 4);
+    assert.deepEqual(sol.printings.map(p => [p.set, p.collector_number, p.qty]),
+      [['blc', '129', 1], ['tdc', '106', 3]]);
+    assert.equal(saved.cards['Cultivate'].printings[0].finish, 'foil');
+  });
+
+  test('and the breakdown still sums to the quantity', async () => {
+    const [saved] = (await reimported()).saved();
+    for (const [name, card] of Object.entries(saved.cards)) {
+      const total = (card.printings || []).reduce((n, p) => n + p.qty, 0);
+      assert.equal(total, card.qty,
+        `${name}: the breakdown says ${total} copies and the quantity says ${card.qty}`);
+    }
+  });
+
+  /* The other half of the same rule: a shelf that *can* be fetched still is,
+   * and pressing its Refresh does not open a file picker. */
+  test('while an Archidekt shelf refreshes from Archidekt as it always did', async () => {
+    const tab = loadTab({ collections: [unknownShelf('archidekt:1')], players: PLAYERS, user: AS_TIM });
+    assert.match(tab.chips(), /Refresh/);
+    await tab.run(`updateCollection('archidekt:1')`);
+    assert.deepEqual(tab.started(), ['archidekt:1']);
+    assert.equal(tab.run('pendingCsvKey'), null);
   });
 });
 

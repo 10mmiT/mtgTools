@@ -352,17 +352,19 @@ describe('Import routes', () => {
     held();
   });
 
-  /* api2.moxfield.com is behind Cloudflare and answers 403 to this server, as
-   * it does to any. Starting the job anyway is four minutes of nothing
-   * followed by a status code, so it is refused before it begins — and the
-   * refusal has to say where the way in is, because a Moxfield collection
-   * does have one and it carries the printings. */
-  test('a Moxfield collection is refused — its API answers 403 to any server', async () => {
+  /* Archidekt is the only site this route fetches from, and the only source
+   * that gets a sentence of its own. api2.moxfield.com is behind Cloudflare
+   * and answers 403 to this server, so nothing in the app asks for a Moxfield
+   * collection any longer — a link is refused where it is pasted, and the
+   * shelves that predate that are re-imported from the export instead. What
+   * is asserted here is that the route starts nothing for one regardless: it
+   * refuses every source it cannot fetch, without knowing which is which. */
+  test('a Moxfield collection is refused — nothing in the app fetches one', async () => {
     const res = await request.post('/api/collections/moxfield%3Aabc/import')
       .set('Cookie', await cookie())
       .send({ name: 'A Moxfield shelf', source: 'moxfield', id: 'abc' });
     assert.equal(res.status, 400);
-    assert.match(res.body.error, /CSV/);
+    assert.match(res.body.error, /moxfield/);
     assert.equal(imports.getImport('moxfield:abc'), null, 'a job was started anyway');
   });
 

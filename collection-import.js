@@ -17,8 +17,9 @@
  * CSV imports are deliberately not here: the file is in the browser, and the
  * server has no way to read it. Neither is Moxfield — api2.moxfield.com is
  * behind Cloudflare and answers 403 to this server, so a Moxfield collection
- * arrives as its CSV export like any other file, and routes/state.js refuses
- * a link to one before a job is ever started.
+ * arrives as its CSV export like any other file — a link to one is refused
+ * where it is pasted, and the shelves that predate that are re-imported from
+ * the export in place.
  */
 const { db, writeCollectionCards, addCardPrinting } = require('./available-db');
 const { queuedFetch: archidektFetch } = require('./archidekt-queue');
@@ -81,8 +82,8 @@ function touch(key, fields) {
 // ── Page shapes ───────────────────────────────────────────────────────────
 // Archidekt's, and only Archidekt's. api2.moxfield.com is behind Cloudflare
 // and answers 403 to this server, so there is no second page shape to read —
-// routes/state.js refuses a Moxfield collection before a job is ever started,
-// and a Moxfield shelf comes in from the CSV export the browser parses.
+// routes/state.js starts a job for no other source, and a Moxfield shelf
+// comes in from the CSV export the browser parses.
 const pageUrl = (id, page) =>
   `https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=100`;
 

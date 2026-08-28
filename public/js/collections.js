@@ -136,9 +136,10 @@ function importCSV(text, filename) {
  * and refusing it silently teaches nobody where the way in is — so the
  * refusal names the export, which is a Moxfield collection's route onto a
  * shelf and carries the printings besides. */
-/* Said again on the other side of the wire, as MOXFIELD_REFUSAL in
- * routes/state.js, which is what a shelf imported from Moxfield back when the
- * tab did the fetching gets when somebody presses Refresh on it. */
+/* The only place this is said. The server has no sentence about Moxfield at
+ * all any more: nothing asks it for one, because a link is turned down here
+ * and a shelf imported from Moxfield back when the tab did the fetching is
+ * re-imported from the export in place — see COL_FETCH_SOURCES. */
 const MOXFIELD_REFUSAL =
   'Moxfield’s API refuses this server (Cloudflare), so a collection link cannot be fetched. '
   + 'On Moxfield use Collection → Download (CSV), then Import CSV here — the export names '
@@ -153,6 +154,9 @@ function parseInput(raw) {
   return null;
 }
 
+/* 'moxfield' is here to name the shelves that predate the CSV import and for
+ * nothing else: nothing creates one and nothing fetches one, so this is the
+ * last of that source and only until none of those shelves is left. */
 function sourceLabel(source) {
   return { archidekt: 'Archidekt', moxfield: 'Moxfield',
            'csv-archidekt': 'CSV (Archidekt)', 'csv-moxfield': 'CSV (Moxfield)' }[source] || source;
@@ -540,65 +544,80 @@ document.getElementById('csvInput').addEventListener('change', e => {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = async ev => {
-    try {
-      const { cards, source } = importCSV(ev.target.result, file.name);
-      const total = [...cards.values()].reduce((s, c) => s + c.qty, 0);
-
-      if (pendingCsvKey) {
-        const col = state.collections.find(c => c.key === pendingCsvKey);
-        if (col) {
-          col.cards    = cards;
-          col.entries  = total;
-          col.total    = cards.size;
-          col.source   = source;
-          col.status   = 'loaded';
-          col.error    = null;
-          col.savedAt  = new Date().toISOString();
-          col.updating = false;
-          await saveCollection(col);
-        }
-        pendingCsvKey = null;
-      } else {
-        const name = pendingCsvName || file.name.replace(/\.csv$/i, '');
-        document.getElementById('addError').style.display = 'none';
-
-        const col = {
-          key:      `csv:${Date.now()}`,
-          name,
-          source,
-          id:       null,
-          color:    COLORS[state.collections.length % COLORS.length],
-          owner:    pendingCsvOwner,
-          cards,
-          status:   'loaded',
-          entries:  total,
-          total:    cards.size,
-          error:    null,
-          savedAt:  new Date().toISOString(),
-          updating: false,
-        };
-        state.collections.push(col);
-        await saveCollection(col);
-        document.getElementById('nameInput').value = '';
-        pendingCsvOwner = null;
-        closeDrawers();
-      }
-
-      renderCollections();
-      renderResults();
-    } catch (err) {
-      alert('Could not parse CSV: ' + err.message);
-      if (pendingCsvKey) {
-        const col = state.collections.find(c => c.key === pendingCsvKey);
-        if (col) col.updating = false;
-        pendingCsvKey = null;
-      }
-      renderCollections();
-    }
-  };
+  reader.onload = ev => importCsvText(ev.target.result, file.name);
   reader.readAsText(file);
 });
+
+/* A chosen file, read and put where it goes: onto the shelf that asked for it,
+ * or onto a new one. Apart from the input's change event because *where* is
+ * the whole of it — openCsvPicker names a shelf when the file is a re-import
+ * — and nothing past the read has anything to do with a file input. */
+async function importCsvText(text, fileName) {
+  try {
+    const { cards, source } = importCSV(text, fileName);
+    const total = [...cards.values()].reduce((s, c) => s + c.qty, 0);
+
+    if (pendingCsvKey) {
+      /* The same shelf, re-imported. Its key, its name, its colour and its
+       * owner are untouched — everything anybody has hung off it stays hung
+       * off it, and a second collection beside the first would mean deleting
+       * your own shelf to fix it. What the export replaces is the cards, the
+       * printings, and what kind of shelf this is: a Moxfield collection
+       * imported back when the tab did the fetching becomes the CSV shelf its
+       * export makes it, and the id it was fetched by goes with it, there
+       * being nothing left to fetch. */
+      const col = state.collections.find(c => c.key === pendingCsvKey);
+      if (col) {
+        col.cards    = cards;
+        col.entries  = total;
+        col.total    = cards.size;
+        col.source   = source;
+        col.id       = null;
+        col.status   = 'loaded';
+        col.error    = null;
+        col.savedAt  = new Date().toISOString();
+        col.updating = false;
+        await saveCollection(col);
+      }
+      pendingCsvKey = null;
+    } else {
+      const name = pendingCsvName || fileName.replace(/\.csv$/i, '');
+      document.getElementById('addError').style.display = 'none';
+
+      const col = {
+        key:      `csv:${Date.now()}`,
+        name,
+        source,
+        id:       null,
+        color:    COLORS[state.collections.length % COLORS.length],
+        owner:    pendingCsvOwner,
+        cards,
+        status:   'loaded',
+        entries:  total,
+        total:    cards.size,
+        error:    null,
+        savedAt:  new Date().toISOString(),
+        updating: false,
+      };
+      state.collections.push(col);
+      await saveCollection(col);
+      document.getElementById('nameInput').value = '';
+      pendingCsvOwner = null;
+      closeDrawers();
+    }
+
+    renderCollections();
+    renderResults();
+  } catch (err) {
+    alert('Could not parse CSV: ' + err.message);
+    if (pendingCsvKey) {
+      const col = state.collections.find(c => c.key === pendingCsvKey);
+      if (col) col.updating = false;
+      pendingCsvKey = null;
+    }
+    renderCollections();
+  }
+}
 
 // ── Collection persistence (SQLite-backed via server) ─────────────────────
 async function saveCollection(col) {
@@ -619,10 +638,22 @@ async function saveCollection(col) {
 }
 
 // ── Update / Remove collection ────────────────────────────────────────────
+/* The sources there is somewhere to fetch from, which is Archidekt and
+ * nothing else. Every other shelf is re-imported from an export somebody
+ * chooses: the CSV ones, whose file only ever existed in the browser, and the
+ * Moxfield ones from before api2.moxfield.com began answering 403 to this
+ * server, which are fetched by nothing now and created by nothing either.
+ *
+ * Asked as "can this be fetched" rather than "is this a Moxfield shelf", so
+ * that a shelf whose site this app cannot reach needs no rule of its own —
+ * the way back onto the shelf is the export, for every one of them. */
+const COL_FETCH_SOURCES = new Set(['archidekt']);
+const colFromFile = source => !COL_FETCH_SOURCES.has(source);
+
 function updateCollection(key) {
   const col = state.collections.find(c => c.key === key);
   if (!col || col.updating || state.imports.some(i => i.key === key && i.status === 'running')) return;
-  if (col.source.startsWith('csv-')) {
+  if (colFromFile(col.source)) {
     col.updating = true;
     renderCollections();
     openCsvPicker(key);
@@ -655,25 +686,24 @@ function updateCollection(key) {
  *   under way   a collection with an import against it already has a readout
  *              and a Stop in the import panel; a stopped one has a Resume.
  *              Two buttons for one job is worse than one
- *   pointless   a Moxfield shelf cannot be re-imported at all: their API
- *              refuses this server, and the export it does come in from is a
- *              file. A CSV shelf is the same — both record their printings
- *              now, but only from a file somebody chooses, which is the ⋯
- *              menu's Re-import CSV and not a strip that would have to open a
- *              file picker per shelf and could not do "all" at all. An empty
- *              shelf has nothing to know
+ *   pointless   a shelf that is not fetched from anywhere cannot be fixed by
+ *              a press: a CSV shelf, and a Moxfield one whose API refuses
+ *              this server, both record their printings now, but only from a
+ *              file somebody chooses — which is the ⋯ menu's Re-import CSV
+ *              and not a strip that would have to open a file picker per
+ *              shelf and could not do "all" at all. An empty shelf has
+ *              nothing to know
  *   not yours   somebody else's collection is their time to spend and their
  *              data to change. Yours, the group's, or anything at all if you
  *              are an admin or the app cannot say who you are — in which case
  *              it makes no ownership distinction anywhere else either
  */
 
-/* Sources this strip can re-import with one press — which is Archidekt and
- * nothing else, because a press is all a strip has. A CSV shelf records its
- * printings too, and gains them by being imported again from the ⋯ menu with
- * the export in hand. An offer to fix something the press will not fix is a
- * loop, which is the one thing this set exists to prevent. */
-const COL_PRINTING_SOURCES = new Set(['archidekt']);
+/* What this strip can re-import is what a press can re-import, which is what
+ * the server can fetch: COL_FETCH_SOURCES above. A shelf that comes in from a
+ * file records its printings too, and gains them by being imported again from
+ * the ⋯ menu with the export in hand. An offer to fix something the press
+ * will not fix is a loop, which is the one thing that rule exists to prevent. */
 
 /* Offers taken in this page's lifetime, and never given back. A re-import
  * that lands with printings takes the offer away on its own; one that lands
@@ -713,7 +743,7 @@ function colMayReimport(col) {
  * saying, so it must not name a collection whose rows are not in it. */
 function colPrintingOffers() {
   return colShelf().filter(col =>
-    COL_PRINTING_SOURCES.has(col.source)
+    !colFromFile(col.source)
     && col.cards.size > 0
     && !colKnowsPrintings(col)
     && colMayReimport(col)
@@ -843,7 +873,7 @@ function chipHtml(col, imp, onShelf) {
   const key     = col ? col.key    : imp.key;
   const color   = col ? col.color  : imp.color;
   const source  = col ? col.source : imp.source;
-  const isCSV   = source.startsWith('csv-');
+  const byFile  = colFromFile(source);
   const owner   = colOwner(col || imp);
   const off     = !onShelf;
 
@@ -880,7 +910,10 @@ function chipHtml(col, imp, onShelf) {
         { label: 'Discard', onclick: `stopImport('${key}', true)`, danger: true },
       ], { title: 'Import actions' })
     : kebabMenuHtml([
-        { label: isCSV ? 'Re-import CSV' : 'Refresh', onclick: `updateCollection('${key}')` },
+        /* A shelf nothing can fetch is offered its export instead of a Refresh
+         * that would only be turned down — the CSV shelves, and the Moxfield
+         * ones from before their API began refusing this server. */
+        { label: byFile ? 'Re-import CSV' : 'Refresh', onclick: `updateCollection('${key}')` },
         ...colOwnerMenuItems(col),
         { divider: true },
         { label: 'Remove', onclick: `removeCollection('${key}')`, danger: true },

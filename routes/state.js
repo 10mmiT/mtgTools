@@ -441,30 +441,21 @@ router.delete('/collections/:key', requireAuth, (req, res) => {
  * imports never come through here; the file only exists in the browser, so
  * those still POST the finished cards to /api/collections.
  *
- * Archidekt is the only site there is to fetch from. api2.moxfield.com is
- * behind Cloudflare and answers 403 to this server — so a Moxfield collection
- * is refused here rather than started, and told where its way in is. Shelves
- * imported from Moxfield back when the tab did the fetching still exist, and
- * this is the sentence their Refresh gets.
+ * Archidekt is the only site there is to fetch from. Every other shelf comes
+ * in from an export the browser parses — the CSV ones, and the Moxfield ones
+ * from before api2.moxfield.com began answering 403 to this server, which the
+ * tab now re-imports from the export in place rather than refreshing. So this
+ * route refuses every source it cannot fetch, and needs to know the name of
+ * none of them.
  */
 const IMPORT_SOURCES = new Set(['archidekt']);
-/* Said again on the other side of the wire, as MOXFIELD_REFUSAL in
- * public/js/collections.js, where a pasted link is turned down before a
- * request is made at all. Both have to exist and both have to say the same
- * thing: this one is what a shelf imported from Moxfield years ago gets when
- * somebody presses Refresh on it. */
-const MOXFIELD_REFUSAL =
-  'Moxfield’s API refuses this server (Cloudflare), so a collection link cannot be fetched. '
-  + 'On Moxfield use Collection → Download (CSV), then Import CSV here — the export names '
-  + 'the printings too.';
 
 router.post('/collections/:key/import', requireAuth, express.json(), (req, res) => {
   const key = decodeURIComponent(req.params.key);
   const { name, source, id, color, restart } = req.body || {};
   if (!name || !source) return res.status(400).json({ error: 'name and source required' });
   if (!IMPORT_SOURCES.has(source)) {
-    return res.status(400).json({ error: source === 'moxfield' ? MOXFIELD_REFUSAL
-      : `Cannot import a ${source} collection on the server` });
+    return res.status(400).json({ error: `Cannot import a ${source} collection on the server` });
   }
   if (!id) return res.status(400).json({ error: 'id required' });
 
