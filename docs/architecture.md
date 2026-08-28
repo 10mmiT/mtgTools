@@ -28,7 +28,7 @@ mtgtools/
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
-├── test/              # 53 files, run by `npm test`
+├── test/              # 54 files, run by `npm test`
 │   ├── server.test.js       # HTTP seam — auth, state, admin, decks, prefs
 │   ├── prefs-open-mode.test.js  # Preferences with no accounts to hang them on
 │   ├── tokens.test.js       # Token-contract lint, asserted over the delivered CSS
@@ -54,6 +54,7 @@ mtgtools/
 │   ├── deckboards.test.js   # Two Sol Rings — the maybeboard, the sideboard, and the count
 │   ├── deckcommander.test.js # The commander as a board rather than a category
 │   ├── deckfilter.test.js   # The deck's filter box — the query language run over one deck
+│   ├── collectioncsv.test.js # What a real CSV export says about its printings, and what it does not
 │   ├── collectionowner.test.js # Whose shelf is whose — the column, the shelf, the open-mode name
 │   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and
 │   │                        # whether it is the printing the deck runs

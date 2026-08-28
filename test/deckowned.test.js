@@ -660,6 +660,33 @@ test('and so does a shelf that knows some of its copies and not the rest', () =>
   assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'unknown');
 });
 
+/* A Moxfield CSV shelf: every copy has an edition and a collector number and
+   none of them has a Scryfall id. Those copies *might* be the printing the
+   deck runs — nothing here can tell without asking Scryfall — so they are the
+   unknown answer and never the mismatch that would send somebody out to buy a
+   card they already own. */
+test('copies known only by set and number are unknown, not a mismatch', () => {
+  const tab = loadTab({
+    collections: timsSolRings({ set: 'c21', collector_number: '263', qty: 1 }),
+    deck: ringDeck(SR.c21),
+  });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'unknown');
+  assert.deepStrictEqual(tab.answer('dbPrintingCounts()'),
+    { owned: 0, other: 0, unknown: 1, none: 0 });
+});
+
+/* They are still two printings to look at, and the card page lists them —
+   folding them into one row would put one copy's set over the other's. */
+test('and two of them stay two, rather than folding into one unknown', () => {
+  const tab = loadTab({ collections: timsSolRings(
+    { set: 'c21', collector_number: '263', qty: 1 },
+    { set: 'ltc', collector_number: '284', qty: 2 },
+  ) });
+  assert.deepStrictEqual(
+    tab.answer(`dbOwnedPrintings('Sol Ring').map(p => [p.set, p.collector_number, p.qty])`),
+    [['c21', '263', 1], ['ltc', '284', 2]]);
+});
+
 test('a matching copy is the answer whatever else is on the shelf', () => {
   const tab = loadTab({
     collections: timsSolRings({ ...SR.c21, qty: 1 }, { ...SR.ltc, qty: 1 }, { id: null, qty: 4 }),
@@ -745,6 +772,17 @@ test('the mat says which of the four it is', () => {
 
   assert.doesNotMatch(drawnFor([]), /sf-badge/,
     'a card on nobody’s shelf is wearing a badge');
+});
+
+/* The mark is right for a Moxfield CSV shelf — those copies might be the one
+   the deck runs — but the sentence under it must not tell somebody nobody
+   recorded printings the app is listing by set and number two tabs away. */
+test('and the mark over a shelf with no ids does not call it a blank one', () => {
+  const html = drawnFor(timsSolRings({ set: 'c21', collector_number: '263', qty: 1 }));
+  assert.match(html, /db-print-mark-unknown/);
+  assert.doesNotMatch(html, /Nobody recorded/,
+    'a shelf that named its editions was told it had recorded nothing');
+  assert.match(html, /You have C21/);
 });
 
 test('and marks a deck that chose nothing against the default it draws', () => {

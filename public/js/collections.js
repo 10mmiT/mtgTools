@@ -21,48 +21,132 @@ function parseCSVRows(text) {
   return rows;
 }
 
+/* Which columns of an export say what.
+ *
+ * Read by the header rather than by where a column sits, because the header
+ * line is the only promise an export makes — and the two formats are told
+ * apart by the column holding the quantity, which is the one column each has
+ * and the other does not.
+ *
+ * The printing columns are the half of both files that was never read. Both
+ * were checked against a real export before any of this was promised:
+ *
+ *   Archidekt  names the Scryfall ID outright, beside the edition code, the
+ *              edition name and the collector number. Every row of a 6,004-row
+ *              export carried all four
+ *   Moxfield   names the edition and the collector number and no Scryfall id
+ *              anywhere in the file — which is a printing all the same, being
+ *              the same identity said the other way round
+ *
+ * A row that says nothing lands in the unknown entry with its copies intact.
+ * Nothing here is completed from a card's name.
+ *
+ * What a printing is made of is not restated here: CARD_PRINTING_FIELDS in
+ * js/state.js is the shape, and every column below is named for the field it
+ * fills.
+ */
+const CSV_FORMATS = [
+  { source: 'csv-archidekt',
+    cols: { qty: 'quantity', name: 'name', id: 'scryfall id',
+            set: 'edition code', set_name: 'edition name',
+            collector_number: 'collector number', finish: 'finish',
+            lang: 'language', condition: 'condition' } },
+  { source: 'csv-moxfield',
+    cols: { qty: 'count', name: 'name', set: 'edition',
+            collector_number: 'collector number', finish: 'foil',
+            lang: 'language', condition: 'condition' } },
+];
+
+/* The finish, spelled the way Scryfall spells it and the way the Archidekt
+ * import already writes it down — so a shelf imported from a file and one
+ * imported from the API say the same word about the same card. Archidekt
+ * writes "Normal", Moxfield leaves the cell empty; both mean the copy nobody
+ * paid extra for. Anything else is kept as the export said it. */
+function csvFinish(cell) {
+  const said = (cell || '').trim().toLowerCase();
+  return !said || said === 'normal' ? 'nonfoil' : said;
+}
+
+/* A row is an acquisition, not a card: a card held in four editions is four
+ * rows, and both exports write the quantity per row. This used to keep the
+ * first row of a name and drop the rest, on the belief that Archidekt
+ * repeated an oracle-level total on every one — it does not, and a real
+ * 7,943-copy export imported as 5,057. */
 function importCSV(text, filename) {
   const rows = parseCSVRows(text);
   if (rows.length < 2) throw new Error('CSV appears to be empty.');
   const header = rows[0].map(h => h.trim().toLowerCase());
-  const cards  = new Map();
-
-  if (header[0] === 'quantity') {
-    // Archidekt: Quantity is the oracle-card total repeated per row — take first occurrence.
-    const qi = 0, ni = 1;
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      const qty  = parseInt(r[qi], 10) || 0;
-      const name = (r[ni] || '').trim();
-      if (!name || qty <= 0 || cards.has(name)) continue;
-      cards.set(name, { name, type: '', mana: '', qty });
-    }
-    return { cards, source: 'csv-archidekt' };
-
-  } else if (header[0] === 'count') {
-    // Moxfield: Count, Tradelist Count, Name, ...
-    const qi = 0, ni = 2;
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      const qty  = parseInt(r[qi], 10) || 0;
-      const name = (r[ni] || '').trim();
-      if (!name || qty <= 0) continue;
-      const existing = cards.get(name);
-      if (existing) existing.qty += qty;
-      else cards.set(name, { name, type: '', mana: '', qty });
-    }
-    return { cards, source: 'csv-moxfield' };
-
-  } else {
-    throw new Error(`Unrecognised CSV format (first column: "${header[0]}"). Expected Archidekt or Moxfield export.`);
+  const format = CSV_FORMATS.find(f => header.includes(f.cols.qty));
+  if (!format) {
+    // Named by what was looked for and not found, because the file somebody
+    // chose is nearly always a decklist or somebody else's site's export, and
+    // "no Quantity column" is the sentence that says which.
+    throw new Error('Unrecognised CSV format: no "Quantity" or "Count" column. '
+      + 'Expected an Archidekt or Moxfield collection export.');
   }
+  const at = Object.fromEntries(
+    Object.entries(format.cols).map(([field, col]) => [field, header.indexOf(col)]));
+
+  /* Gathered by name, and under each name by printing, because that is the
+   * shape the shelf is stored in — and this tab draws what it has just parsed
+   * long before the server has seen a byte of it. The fold is the one
+   * addCardPrinting does on the server, said again here: an importer with its
+   * own idea of what makes two copies the same card is how the two quietly
+   * stop agreeing. */
+  const held = new Map();
+
+  for (let i = 1; i < rows.length; i++) {
+    const row  = rows[i];
+    const cell = field => (at[field] >= 0 ? String(row[at[field]] ?? '').trim() : '');
+    const name = cell('name');
+    const qty  = parseInt(cell('qty'), 10) || 0;
+    if (!name || qty <= 0) continue;
+
+    let entry = held.get(name);
+    if (!entry) held.set(name, entry = {
+      card: { name, type: '', mana: '', qty: 0 }, printings: new Map(),
+    });
+    entry.card.qty += qty;
+
+    const printing = {};
+    for (const field of CARD_PRINTING_FIELDS) {
+      const value = field === 'finish' ? csvFinish(cell('finish')) : cell(field);
+      if (value) printing[field] = value;
+    }
+    const seen = entry.printings.get(cardPrintingKey(printing));
+    if (seen) seen.qty += qty;
+    else entry.printings.set(cardPrintingKey(printing),
+      namesPrinting(printing) ? { ...printing, qty } : { id: null, qty });
+  }
+
+  const cards = new Map();
+  for (const [name, entry] of held)
+    cards.set(name, { ...entry.card, printings: [...entry.printings.values()] });
+  return { cards, source: format.source };
 }
 
 // ── URL Parsing ───────────────────────────────────────────────────────────
+/* What was pasted — a collection to fetch, a refusal with a reason, or
+ * nothing recognisable.
+ *
+ * A Moxfield collection URL is refused by name rather than left to fall
+ * through to "that is not a valid URL", because it is a perfectly valid one:
+ * api2.moxfield.com is behind Cloudflare and answers 403 to this server, as
+ * it does to any. Accepting it starts a four-minute job that cannot finish,
+ * and refusing it silently teaches nobody where the way in is — so the
+ * refusal names the export, which is a Moxfield collection's route onto a
+ * shelf and carries the printings besides. */
+/* Said again on the other side of the wire, as MOXFIELD_REFUSAL in
+ * routes/state.js, which is what a shelf imported from Moxfield back when the
+ * tab did the fetching gets when somebody presses Refresh on it. */
+const MOXFIELD_REFUSAL =
+  'Moxfield’s API refuses this server (Cloudflare), so a collection link cannot be fetched. '
+  + 'On Moxfield use Collection → Download (CSV), then Import CSV here — the export names '
+  + 'the printings too.';
+
 function parseInput(raw) {
   raw = (raw || '').trim();
-  const mox = raw.match(/moxfield\.com\/collection\/([\w-]+)/);
-  if (mox) return { source: 'moxfield', id: mox[1] };
+  if (/moxfield\.com\/collection\//.test(raw)) return { refused: MOXFIELD_REFUSAL };
   const ark = raw.match(/archidekt\.com.*\/(\d+)\/?/);
   if (ark) return { source: 'archidekt', id: ark[1] };
   if (/^\d+$/.test(raw)) return { source: 'archidekt', id: raw };
@@ -226,6 +310,7 @@ function addFromUrl() {
   const errEl  = document.getElementById('addError');
 
   const parsed = parseInput(urlEl.value);
+  if (parsed?.refused) { showError(errEl, parsed.refused); return; }
   if (!parsed) { showError(errEl, 'Enter a valid Archidekt collection URL or numeric ID.'); return; }
 
   const key = `${parsed.source}:${parsed.id}`;
@@ -570,19 +655,24 @@ function updateCollection(key) {
  *   under way   a collection with an import against it already has a readout
  *              and a Stop in the import panel; a stopped one has a Resume.
  *              Two buttons for one job is worse than one
- *   pointless   a CSV export has no edition column and this app does not read
- *              Moxfield's rows for printings, so re-importing either of those
- *              would hand back the same unknowns and the offer would return
- *              forever. An empty shelf has nothing to know
+ *   pointless   a Moxfield shelf cannot be re-imported at all: their API
+ *              refuses this server, and the export it does come in from is a
+ *              file. A CSV shelf is the same — both record their printings
+ *              now, but only from a file somebody chooses, which is the ⋯
+ *              menu's Re-import CSV and not a strip that would have to open a
+ *              file picker per shelf and could not do "all" at all. An empty
+ *              shelf has nothing to know
  *   not yours   somebody else's collection is their time to spend and their
  *              data to change. Yours, the group's, or anything at all if you
  *              are an admin or the app cannot say who you are — in which case
  *              it makes no ownership distinction anywhere else either
  */
 
-/* Sources a re-import could actually record printings from — which is the
- * same list parsePrinting in collection-import.js reads, and has to stay it:
- * an offer to fix something that the importer will not fix is a loop. */
+/* Sources this strip can re-import with one press — which is Archidekt and
+ * nothing else, because a press is all a strip has. A CSV shelf records its
+ * printings too, and gains them by being imported again from the ⋯ menu with
+ * the export in hand. An offer to fix something the press will not fix is a
+ * loop, which is the one thing this set exists to prevent. */
 const COL_PRINTING_SOURCES = new Set(['archidekt']);
 
 /* Offers taken in this page's lifetime, and never given back. A re-import
@@ -600,7 +690,7 @@ function colKnowsPrintings(col) {
   // Not a shelf this tab can read is not a shelf to make offers about.
   if (!cards || typeof cards.values !== 'function') return true;
   for (const card of cards.values())
-    if ((card.printings || []).some(p => p && p.id)) return true;
+    if ((card.printings || []).some(namesPrinting)) return true;
   return false;
 }
 
@@ -1300,7 +1390,7 @@ function colPrintingsOf(name) {
     const card = col.cards.get(name);
     if (!card) continue;
     for (const printing of cardPrintings(card)) {
-      const label = printing.id === null ? null : colPrintingLabel(printing);
+      const label = namesPrinting(printing) ? colPrintingLabel(printing) : null;
       let group = groups.get(label);
       if (!group) {
         group = { label, qty: 0, numbers: new Set(),

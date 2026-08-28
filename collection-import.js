@@ -15,7 +15,10 @@
  * tab costs nothing and a crash costs the last few pages.
  *
  * CSV imports are deliberately not here: the file is in the browser, and the
- * server has no way to read it.
+ * server has no way to read it. Neither is Moxfield — api2.moxfield.com is
+ * behind Cloudflare and answers 403 to this server, so a Moxfield collection
+ * arrives as its CSV export like any other file, and routes/state.js refuses
+ * a link to one before a job is ever started.
  */
 const { db, writeCollectionCards, addCardPrinting } = require('./available-db');
 const { queuedFetch: archidektFetch } = require('./archidekt-queue');
@@ -76,40 +79,18 @@ function touch(key, fields) {
 }
 
 // ── Page shapes ───────────────────────────────────────────────────────────
-// The same two source formats collections.js parses in the browser. They are
-// spelled out again rather than shared because there is no module system
-// spanning public/js and the server, and a wrong guess here is a silently
-// empty import.
-function pageUrl(source, id, page) {
-  return source === 'moxfield'
-    ? `https://api2.moxfield.com/v2/collection/${id}/cards?pageNumber=${page}&pageSize=100`
-    : `https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=100`;
-}
+// Archidekt's, and only Archidekt's. api2.moxfield.com is behind Cloudflare
+// and answers 403 to this server, so there is no second page shape to read —
+// routes/state.js refuses a Moxfield collection before a job is ever started,
+// and a Moxfield shelf comes in from the CSV export the browser parses.
+const pageUrl = (id, page) =>
+  `https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=100`;
 
-function itemsOf(data, source) {
-  return source === 'moxfield' ? (data.data || data.items || []) : (data.results || []);
-}
+const itemsOf = data => data.results || [];
+const totalOf = data => data.count ?? null;
+const hasMore = data => !!data.next;
 
-function totalOf(data, source) {
-  return source === 'moxfield' ? (data.totalResults ?? null) : (data.count ?? null);
-}
-
-function hasMore(data, source) {
-  return source === 'moxfield'
-    ? data.pageNumber * data.pageSize < data.totalResults
-    : !!data.next;
-}
-
-function parseCard(item, source) {
-  if (source === 'moxfield') {
-    const c = item.card || item;
-    return {
-      name: c.name || '',
-      type: c.type || c.typeLine || '',
-      mana: c.manaCost || '',
-      qty:  item.quantity || item.count || 1,
-    };
-  }
+function parseCard(item) {
   // Field for field what parseCard in public/js/collections.js reads, down to
   // the array join and the zero default. A collection imported here and one
   // imported in the browser have to come out identical, or re-importing an
@@ -136,19 +117,18 @@ const asText = v => (typeof v === 'string' || typeof v === 'number') ? String(v)
  * on the row already, so recording it costs no request that was not being made
  * anyway.
  *
- * Null where the source cannot say, which is the honest answer rather than a
- * downgrade: those copies land in the unknown entry instead of being guessed
- * at. Moxfield's per-row fields have not been checked against a real account,
- * and until they are, a Moxfield shelf says it does not know.
+ * A row that says nothing is not downgraded quietly: readCardPrinting turns
+ * whatever this hands back into the unknown entry where it names no printing,
+ * so those copies are counted and never guessed at.
  */
-function parsePrinting(item, source) {
-  if (source !== 'archidekt') return null;
+function parsePrinting(item) {
   const card    = item.card || {};
   const edition = card.edition || {};
   return {
-    // A Scryfall id, confirmed against the real API. Without one there is
-    // nothing for this to be a printing *of*, and readCardPrinting says so by
-    // making it the unknown entry.
+    // A Scryfall id, confirmed against the real API. Where a row has none,
+    // the edition code and the collector number below are the same identity
+    // said the other way round and stand in for it; a row with neither is the
+    // unknown entry, which is readCardPrinting's answer and not one made here.
     id:               asText(card.uid),
     set:              asText(edition.editioncode),
     set_name:         asText(edition.editionname),
@@ -246,7 +226,6 @@ function clearImport(key) {
 async function _run(key, handle) {
   const row    = getImport(key);
   const cards  = new Map(Object.entries(JSON.parse(row.cards_json || '{}')));
-  const source = row.source;
   let page     = row.next_page;
   let entries  = row.entries;
   let total    = row.total;
@@ -259,12 +238,12 @@ async function _run(key, handle) {
   while (true) {
     if (handle.cancelled) { checkpoint('interrupted'); _running.delete(key); return; }
 
-    const res = await archidektFetch(pageUrl(source, row.col_id, page));
+    const res = await archidektFetch(pageUrl(row.col_id, page));
 
     if (!res.ok) {
       const detail = res.status === 429
         ? 'Archidekt is rate-limiting this server. Resume in a few minutes.'
-        : `HTTP ${res.status} from ${source}`;
+        : `HTTP ${res.status} from Archidekt`;
       // A rate limit or a server-side wobble is worth resuming from; a 404 is
       // not. Both keep the pages already gathered — the difference is only
       // whether the user is offered a Resume or told what went wrong.
@@ -275,10 +254,10 @@ async function _run(key, handle) {
     }
 
     const data = await res.json();
-    if (total === null) total = totalOf(data, source);
+    if (total === null) total = totalOf(data);
 
-    for (const item of itemsOf(data, source)) {
-      const card = parseCard(item, source);
+    for (const item of itemsOf(data)) {
+      const card = parseCard(item);
       if (!card.name) continue;
       const seen = cards.get(card.name);
       if (seen) seen.qty += card.qty;
@@ -288,11 +267,11 @@ async function _run(key, handle) {
       // is what keeps the breakdown summing to the quantity for every card on
       // every shelf, whether or not the row named a printing.
       const of = seen || card;
-      of.printings = addCardPrinting(of.printings, { ...parsePrinting(item, source), qty: card.qty });
+      of.printings = addCardPrinting(of.printings, { ...parsePrinting(item), qty: card.qty });
       entries++;
     }
 
-    const finished = !hasMore(data, source);
+    const finished = !hasMore(data);
     // The checkpoint records the page to ask for *next*, so the increment
     // comes first: a crash between the two must not refetch a page whose
     // cards are already counted, or every quantity on it would double.

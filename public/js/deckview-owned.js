@@ -128,6 +128,21 @@ function dbOwnedQty(cardName) {
  * the search scope all still ask; the printing is a second question asked
  * beside it, never a correction to it. */
 
+/* What two held copies have to agree on to be one line of the breakdown.
+ *
+ * printingIdentity() wherever the shelf recorded a Scryfall id, because that
+ * is the identity every other question in this module is asked in. Where it
+ * did not — a Moxfield CSV names the set and the collector number and no id
+ * anywhere in the file — those two are the key instead: they are still two
+ * printings, and folding them together would put one copy's set over the
+ * other's on the card page. Copies nobody attributed at all remain the one
+ * bucket they have always been. */
+const dbHeldKey = held =>
+  printingIdentity(held)
+    ?? (namesPrinting(held)
+        ? `${held.set} ${held.collector_number} ${held.finish || ''}`
+        : null);
+
 /** Which printings of a card the shelf in scope holds, and how many of each.
  *
  *  Folded across the shelves, because "do I own it" is asked of the shelf and
@@ -141,14 +156,15 @@ function dbOwnedPrintings(cardName) {
     const card = col.cards.get(cardName);
     if (!card) continue;
     for (const held of cardPrintings(card)) {
-      const seen = merged.get(printingIdentity(held));
+      const key  = dbHeldKey(held);
+      const seen = merged.get(key);
       if (seen) { seen.qty += held.qty; continue; }
       /* The two fields the rollup just threw away are dropped from the row as
          well rather than left showing whichever copy happened to be first: a
          breakdown saying `de` over copies in three languages is worse than
          one that says nothing. */
       const { lang, condition, ...rest } = held;
-      merged.set(printingIdentity(held), { ...rest });
+      merged.set(key, { ...rest });
     }
   }
   return [...merged.values()];
@@ -189,7 +205,11 @@ function dbPrintingVerdict(held, wanted) {
   let unknown = false;
   for (const p of held) {
     if (printingIdentity(p) === want) return 'owned';
-    if (p.id === null) unknown = true;
+    /* A copy with no identity to compare — one nobody attributed at all, and
+       one a shelf knows only as a set and a number, which no amount of
+       reading can hold against the Scryfall id a deck names. Both mean the
+       same thing here: it might be this printing, so it is not a mismatch. */
+    if (printingIdentity(p) === null) unknown = true;
   }
   return unknown ? 'unknown' : 'other';
 }
@@ -224,9 +244,11 @@ function dbPrintingState(card) {
 
 /** What to call the printings in a breakdown, for somebody reading. The
  *  unattributed copies drop out: they are not a printing anybody can name,
- *  and "C21, unknown" in a list of editions reads as an edition. */
+ *  and "C21, unknown" in a list of editions reads as an edition. A printing
+ *  the shelf knows by its set and number and not by an id is one anybody can
+ *  name, and stays. */
 const dbPrintingLabels = printings =>
-  printings.filter(p => p.id !== null).map(colPrintingLabel);
+  printings.filter(namesPrinting).map(colPrintingLabel);
 
 /** And the deck's, as a count of cards in each of the four.
  *
@@ -403,9 +425,18 @@ const DB_PRINT_MARKS = {
 function _dbPrintMarkTitle(state, card, held) {
   const runs = colPrintingLabel(dbCardPrinting(card));
   const says = card.printing?.id ? 'this deck runs' : 'this deck defaults to';
-  return state === 'unknown'
-    ? `Nobody recorded which printings these copies are — ${says} ${runs}`
-    : `You have ${dbPrintingLabels(held).join(', ')} — not the ${runs} ${says}`;
+  if (state !== 'unknown')
+    return `You have ${dbPrintingLabels(held).join(', ')} — not the ${runs} ${says}`;
+  /* Two different unknowns, and the wrong sentence over either is worse than
+     the mark on its own. A shelf that recorded nothing says so. A shelf that
+     named its editions and collector numbers and no Scryfall id — every row
+     of a Moxfield export — has said out loud what it holds, and what it
+     cannot do is hold that against an id; telling somebody nobody recorded
+     these would be the app disowning data it is displaying two tabs away. */
+  const named = dbPrintingLabels(held);
+  return named.length
+    ? `You have ${named.join(', ')} — whether one is the ${runs} ${says} cannot be said`
+    : `Nobody recorded which printings these copies are — ${says} ${runs}`;
 }
 
 /** Whether the shelf has the printing this card runs, said in one glyph.

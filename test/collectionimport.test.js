@@ -352,6 +352,20 @@ describe('Import routes', () => {
     held();
   });
 
+  /* api2.moxfield.com is behind Cloudflare and answers 403 to this server, as
+   * it does to any. Starting the job anyway is four minutes of nothing
+   * followed by a status code, so it is refused before it begins — and the
+   * refusal has to say where the way in is, because a Moxfield collection
+   * does have one and it carries the printings. */
+  test('a Moxfield collection is refused — its API answers 403 to any server', async () => {
+    const res = await request.post('/api/collections/moxfield%3Aabc/import')
+      .set('Cookie', await cookie())
+      .send({ name: 'A Moxfield shelf', source: 'moxfield', id: 'abc' });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /CSV/);
+    assert.equal(imports.getImport('moxfield:abc'), null, 'a job was started anyway');
+  });
+
   test('a CSV collection is refused — the file only exists in the browser', async () => {
     const res = await request.post('/api/collections/csv-archidekt:box/import')
       .set('Cookie', await cookie())
@@ -509,7 +523,7 @@ describe('An import that records what the printings are', () => {
   });
 
   test('a row that names no printing goes to the unknown entry rather than a guess', async () => {
-    serveRows([archidektRow({ qty: 3, uid: null })]);
+    serveRows([archidektRow({ qty: 3, uid: null, set: null, setName: null, number: null })]);
     await start().done;
 
     const card = imported('Sol Ring');
@@ -517,17 +531,25 @@ describe('An import that records what the printings are', () => {
     assert.deepEqual(card.printings, [{ id: null, qty: 3 }]);
   });
 
-  test('and a source that cannot say is honest about it rather than downgraded quietly', async () => {
-    // Moxfield's per-row fields are unconfirmed, so its rows claim nothing.
-    servePages([{
-      pageNumber: 1, pageSize: 100, totalResults: 1,
-      data: [{ quantity: 2, card: { name: 'Sol Ring', type: 'Artifact', manaCost: '{1}' } }],
-    }]);
-    await start({ ...META, key: 'moxfield:abc', source: 'moxfield', id: 'abc' }).done;
+  /* A set and a collector number is the same identity as a Scryfall id said
+   * the other way round, so a row that has the first and not the second is a
+   * printing rather than a shrug — which is the rule a Moxfield CSV export,
+   * where no row anywhere names an id, is read by. */
+  test('a row naming its edition and number but no id is still a printing', async () => {
+    serveRows([archidektRow({ qty: 2, uid: null })]);
+    await start().done;
 
-    const card = importedInto('moxfield:abc', 'Sol Ring');
-    assert.equal(card.qty, 2);
-    assert.deepEqual(card.printings, [{ id: null, qty: 2 }]);
+    assert.deepEqual(imported('Sol Ring').printings, [{
+      set: 'c21', set_name: 'Commander 2021', collector_number: '263',
+      finish: 'nonfoil', lang: '1', condition: '1', qty: 2,
+    }]);
+  });
+
+  test('but half of one is not: a set with no number is the unknown entry', async () => {
+    serveRows([archidektRow({ qty: 2, uid: null, number: null })]);
+    await start().done;
+
+    assert.deepEqual(imported('Sol Ring').printings, [{ id: null, qty: 2 }]);
   });
 
   test('does not split a card on language or condition, which say nothing today', async () => {

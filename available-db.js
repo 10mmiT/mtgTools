@@ -559,28 +559,47 @@ function readQty(raw) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+/** A field somebody actually filled in. */
+const printingSaid = v => typeof v === 'string' && v.trim() !== '';
+
+/** Whether an entry points at a real card — the question the unknown entry is
+ *  the answer to.
+ *
+ *  A Scryfall id names a printing outright. So does a set with a collector
+ *  number: it is the same identity said the other way round, the one
+ *  Scryfall's own /cards/:set/:number answers to, and the only one two of the
+ *  three exports this app reads carry at all — Moxfield's CSV names no id
+ *  anywhere in the file. Either is a printing.
+ *
+ *  Anything less is not: a set code on its own is a shelf of cards rather
+ *  than a card, and completing it from the card's name would be a guess. */
+const namesPrinting = p =>
+  !!p && (printingSaid(p.id) || (printingSaid(p.set) && printingSaid(p.collector_number)));
+
 /** One entry of a breakdown — trimmed to the fields above, in that order,
  *  with its quantity last. Null where it claims no copies at all.
  *
  *  A field that is missing stays missing rather than becoming an empty
- *  string, and an entry naming no id is *the* unknown entry rather than a
- *  half-described printing: an id is what makes this point at a real card. */
+ *  string, and an entry naming no printing at all is *the* unknown entry
+ *  rather than a half-described one. */
 function readCardPrinting(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const qty = readQty(raw.qty);
   if (!qty) return null;
-  if (typeof raw.id !== 'string' || !raw.id.trim()) return { id: null, qty };
   const printing = {};
   for (const field of CARD_PRINTING_FIELDS) {
     if (typeof raw[field] === 'string' && raw[field] !== '') printing[field] = raw[field];
   }
+  if (!namesPrinting(printing)) return { id: null, qty };
   printing.qty = qty;
   return printing;
 }
 
-/** What two entries have to agree on to be copies of the same physical card. */
+/** What two entries have to agree on to be copies of the same physical card.
+ *  The unknown entry is one bucket however many rows land in it, which is the
+ *  one key here that is not a description of a card. */
 const printingKey = p =>
-  p.id === null ? ' unknown' : CARD_PRINTING_FIELDS.map(f => p[f] || '').join(' ');
+  namesPrinting(p) ? CARD_PRINTING_FIELDS.map(f => p[f] || '').join(' ') : ' unknown';
 
 /** A card's breakdown: always an array, always summing to the quantity.
  *
@@ -663,7 +682,7 @@ function readCollectionCards(value) {
 const writeCollectionCards = cards => JSON.stringify(
   Object.fromEntries(Object.entries(readCollectionCards(cards)).map(([name, card]) => {
     const { printings, ...rest } = card;
-    return [name, printings.some(p => p.id !== null) ? { ...rest, printings } : rest];
+    return [name, printings.some(namesPrinting) ? { ...rest, printings } : rest];
   })));
 
 /* Nothing is running yet, whatever the table says. A row still marked
@@ -678,6 +697,6 @@ db.prepare("UPDATE collection_imports SET status = 'interrupted' WHERE status = 
 module.exports = {
   db, DEFAULT_CAL_ID,
   readPrinting, writePrinting, deckCardRow,
-  CARD_PRINTING_FIELDS, readCardPrintings, addCardPrinting, collectionCardRow,
+  CARD_PRINTING_FIELDS, namesPrinting, readCardPrintings, addCardPrinting, collectionCardRow,
   readCollectionCards, writeCollectionCards,
 };

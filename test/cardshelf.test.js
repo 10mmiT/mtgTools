@@ -205,6 +205,27 @@ test('a card carrying no breakdown at all is unknown, never owned-none', async (
   assert.deepStrictEqual(lines(await app.draw()), ['2× unknown printing']);
 });
 
+/* A Moxfield CSV names the edition and the collector number of every row and
+   no Scryfall id anywhere in the file. That is a printing — the same identity
+   said the other way round — and drawing it as "unknown printing" over a line
+   that says SNC #47 would be the app refusing to read its own data. */
+test('a printing known only by its set and number is still a printing', async () => {
+  const app = loadCard({ collections: [shelf('c:tim', 'p-tim', held(3, [
+    { set: 'snc', collector_number: '47', finish: 'nonfoil', qty: 2 },
+    { set: 'mh2', collector_number: '277', finish: 'etched', qty: 1 },
+  ]))] });
+  const rows = lines(await app.draw());
+  assert.deepStrictEqual(rows, ['2× SNC #47', '1× MH2 #277 etched']);
+});
+
+test('and two of them are two lines, not one claiming the other’s set', async () => {
+  const app = loadCard({ collections: [shelf('c:tim', 'p-tim', held(2, [
+    { set: 'snc', collector_number: '47', finish: 'nonfoil', qty: 1 },
+    { set: 'blc', collector_number: '129', finish: 'nonfoil', qty: 1 },
+  ]))] });
+  assert.strictEqual(lines(await app.draw()).length, 2);
+});
+
 test('half an answer is drawn as half an answer', async () => {
   const app = loadCard({ collections: [shelf('c:tim', 'p-tim',
     held(3, [{ ...C21, qty: 2 }, { id: null, qty: 1 }]))] });

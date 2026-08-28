@@ -112,6 +112,32 @@ function stateToJSON() {
   };
 }
 
+/** A field somebody actually filled in. */
+const printingSaid = v => typeof v === 'string' && v.trim() !== '';
+
+/* Whether an entry points at a real card, which is what tells a printing from
+ * the unknown entry. namesPrinting in available-db.js is the same rule, said
+ * again because there is no module system spanning public/js and the server:
+ * a Scryfall id, or a set with a collector number — and Moxfield's CSV export
+ * carries only the second, no id anywhere in the file. A set code with no
+ * number is not half a printing; it is the unknown entry, and the card's name
+ * may not be used to finish it. */
+const namesPrinting = p =>
+  !!p && (printingSaid(p.id) || (printingSaid(p.set) && printingSaid(p.collector_number)));
+
+/* The fields that make a printing, in the order they are written down, and
+ * what two copies have to agree on to be the same physical card — the browser
+ * side of CARD_PRINTING_FIELDS and printingKey in available-db.js, said again
+ * for the same reason namesPrinting is. A collection parsed in this tab folds
+ * its copies with this long before the server has seen a byte of it, and an
+ * importer with its own idea of what makes two copies the same card is how
+ * the two quietly stop agreeing. */
+const CARD_PRINTING_FIELDS =
+  ['id', 'set', 'set_name', 'collector_number', 'finish', 'lang', 'condition'];
+
+const cardPrintingKey = p =>
+  namesPrinting(p) ? CARD_PRINTING_FIELDS.map(f => p[f] || '').join(' ') : ' unknown';
+
 /* Which printings of a card are on a shelf — the browser's one answer to it.
  *
  * The server sends the breakdown on every card, unknown entries and all (see
@@ -136,7 +162,7 @@ function cardPrintings(card) {
     attributed += n;
   }
   if (attributed < qty) {
-    const unknown = out.find(p => p.id === null);
+    const unknown = out.find(p => !namesPrinting(p));
     if (unknown) unknown.qty += qty - attributed;
     else out.push({ id: null, qty: qty - attributed });
   }
@@ -153,9 +179,13 @@ function cardPrintings(card) {
  * priced separately and is a different thing to run, which is the whole
  * reason a deck can name one.
  *
- * Null for the copies nobody has attributed to a printing. They are not a
- * printing anybody can name and must never answer for one, which is what
- * keeps "we do not know which" from reading as "the wrong one".
+ * Null for the copies nobody has attributed to a printing — and null too for
+ * the ones a shelf knows only as a set and a number, which is everything a
+ * Moxfield CSV holds. Those are a printing to look at and to count; they are
+ * not one to hold against a deck's chosen id, because the deck names a
+ * Scryfall id and nothing here can say whether it is this one without asking
+ * Scryfall. Both must never answer for a printing, which is what keeps "we do
+ * not know which" from reading as "the wrong one".
  *
  * The ordinary finish is the absence of one — the same spelling readPrinting()
  * enforces on the way in — so a printing that says `nonfoil` out loud and one

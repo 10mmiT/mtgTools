@@ -201,6 +201,39 @@ describe('a collection that does know its printings', () => {
     assert.deepEqual(printings.map(p => p.finish), ['nonfoil', 'foil']);
   });
 
+  /* A Moxfield CSV export names the edition and the collector number of every
+   * row and no Scryfall id anywhere in the file. That is the same identity
+   * said the other way round — the one Scryfall's own /cards/:set/:number
+   * answers to — so it is a printing and not a shrug. */
+  test('a printing named by set and number is kept, id or no id', async () => {
+    await save({ 'A Little Chat': { name: 'A Little Chat', qty: 1, printings: [
+      { set: 'snc', collector_number: '47', finish: 'nonfoil', qty: 1 },
+    ] } });
+    const card = (await collection(cookie, 'archidekt:2')).cards['A Little Chat'];
+    assert.equal(card.qty, 1);
+    assert.deepEqual(card.printings, [
+      { set: 'snc', collector_number: '47', finish: 'nonfoil', qty: 1 }]);
+  });
+
+  test('and it is written down rather than flattened back to a quantity', async () => {
+    await save({ 'A Little Chat': { name: 'A Little Chat', qty: 1, printings: [
+      { set: 'snc', collector_number: '47', finish: 'nonfoil', qty: 1 },
+    ] } }, 'csv-moxfield:box');
+    assert.deepEqual(storedCards('csv-moxfield:box'), { 'A Little Chat': {
+      name: 'A Little Chat', qty: 1,
+      printings: [{ set: 'snc', collector_number: '47', finish: 'nonfoil', qty: 1 }],
+    } });
+  });
+
+  /* Half a printing is not a printing: one set holds hundreds of cards, and
+   * completing it from the card's name would be the guess this whole feature
+   * exists to refuse. */
+  test('a set with no collector number is the unknown entry, not half an answer', async () => {
+    await save({ 'Sol Ring': { name: 'Sol Ring', qty: 2, printings: [{ set: 'snc', qty: 2 }] } });
+    assert.deepEqual((await collection(cookie, 'archidekt:2')).cards['Sol Ring'].printings,
+      [{ id: null, qty: 2 }]);
+  });
+
   test('a breakdown that names no printing at all is the unknown entry', async () => {
     await save({ 'Sol Ring': { name: 'Sol Ring', qty: 2, printings: [{ qty: 2 }] } });
     assert.deepEqual((await collection(cookie, 'archidekt:2')).cards['Sol Ring'].printings,
@@ -399,6 +432,22 @@ describe('the Printings column', () => {
     const title = table.printingTitles[0][0];
     assert.match(title, /#263/);
     assert.match(title, /#514/, 'the row names one twin’s number over both of them');
+  });
+
+  /* A Moxfield CSV shelf: every copy is a set and a number, and no copy has a
+   * Scryfall id. The column reads those the way it reads any other — the set
+   * code, the number in the tooltip — because "unknown" over a row the shelf
+   * can name would be the app refusing to read its own data. */
+  test('says what a shelf that knows only the set and number holds', () => {
+    const mox = shelf('c:mox', { 'Sol Ring': { name: 'Sol Ring', qty: 3, printings: [
+      { set: 'c21', collector_number: '263', finish: 'nonfoil', qty: 2 },
+      { set: 'ltc', collector_number: '284', finish: 'foil', qty: 1 },
+    ] } });
+    const table = loadTab({ collections: [mox], players: PLAYERS, user: AS_TIM }).table();
+    assert.match(table.printings[0], /2× C21/);
+    assert.match(table.printings[0], /1× LTC ✦/);
+    assert.doesNotMatch(table.printings[0], /unknown/);
+    assert.match(table.printingTitles[0][0], /#263/);
   });
 
   /* Half re-imported is a real state: a shelf whose CSV rows carry no edition

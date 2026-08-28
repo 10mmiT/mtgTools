@@ -331,7 +331,7 @@ async function loadRulings(card, seq, sectionId = 'cardDetail-rulings') {
 function cardShelfHeld(name) {
   const key = p => `${p.set || ''} ${p.collector_number || ''}`;
   return dbOwnedPrintings(name).sort((a, b) =>
-    (a.id === null) - (b.id === null) ||
+    (!namesPrinting(a)) - (!namesPrinting(b)) ||
     b.qty - a.qty ||
     key(a).localeCompare(key(b)));
 }
@@ -354,13 +354,15 @@ function cardShelfScope() {
  *  the app telling somebody their collection is empty. */
 function cardShelfRowHtml(p) {
   const qty = `<span class="card-shelf-qty">${p.qty}×</span>`;
-  if (p.id === null) {
+  if (!namesPrinting(p)) {
     return `<li class="card-shelf-row">${qty}
       <span class="print-unknown" title="Nobody recorded which printings these copies are">unknown printing</span></li>`;
   }
   /* The set's own name and the code the rest of the app says it by, because
      this is the page with room for both — and the code alone where a shelf
-     recorded one without the other, rather than "C21 (C21)". */
+     recorded one without the other, rather than "C21 (C21)". A shelf that
+     knows the printing by its set and number and not by a Scryfall id — every
+     row of a Moxfield export — has only the code, and says it. */
   const set  = (p.set || '').toUpperCase();
   const said = p.set_name ? `${esc(p.set_name)}${set ? ` (${esc(set)})` : ''}`
              : set ? esc(set) : 'Unknown set';
