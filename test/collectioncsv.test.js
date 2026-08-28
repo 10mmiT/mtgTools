@@ -203,6 +203,16 @@ describe('an Archidekt CSV export', () => {
     assert.equal(card(out, 'Chance Encounter').printings[0].finish, 'etched');
   });
 
+  test('and a word neither export has ever written is not made into a finish', () => {
+    // The three Scryfall names or nothing, which is the rule the API import
+    // keeps too — see finishOf in collection-import.js. A fourth spelling
+    // reaching a shelf is a finish that nothing reading it understands, and
+    // the two doors into one collection would answer differently again.
+    const out = loadTab().csv(archidekt(
+      '1,Chance Encounter,Shimmering,NM,2025-08-06,EN,,,Modern Horizons 2,mh2,526248,49a4b0c9-a35b-4b55-ab27-7246bbca0d16,277'));
+    assert.equal(card(out, 'Chance Encounter').printings[0].finish, 'nonfoil');
+  });
+
   test('a name with a comma in it survives, printing and all', () => {
     const out = loadTab().csv(archidekt(ARK_ROWS.comma));
     const c = sums(out, "Abdel Adrian, Gorion's Ward");

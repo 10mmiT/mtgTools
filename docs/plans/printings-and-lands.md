@@ -34,6 +34,7 @@ Facts first, because three of them changed a decision.
 | Does storing printings blow up the payload? | **No.** Raw 0.40 → 1.15 MB (2.8×), but **gzipped 78 → 87 KB (1.1×)** — the fields repeat, so they compress away, and `compression()` is already on |
 | What does full physical identity cost? | **One extra entry per 500 rows.** 500 sampled rows → 499 distinct by id, 500 by id+finish+language+condition |
 | Do condition and language carry information? | **Not today.** Both are `1` for all 500 sampled rows. Only *finish* varies — 13 foils, 2.6% |
+| Which field is the finish? | **`item.modifier`**, not `item.foil` — `Normal` / `Foil` / `Etched`, the three `card.options` enumerates. `item.foil` is `false` on all 3,319 rows of a sampled collection, its 16 foils included |
 | Do all printings have a price? | **No.** Sol Ring: 135 prints, 5 digital-only, and only **96 of 130 paper prints** carry a EUR price |
 
 ### The bound that did not bind
@@ -100,10 +101,17 @@ item.card.uid                  ea20208b-…   ← a Scryfall id, confirmed
 item.card.edition.editioncode  thb
 item.card.edition.editionname  Theros Beyond Death
 item.card.collectorNumber      13
-item.foil                      false        ← the only one that varies today
+item.modifier                  Normal       ← the finish; the only one that varies
+item.foil                      false        ← dead: false on every row, foils included
 item.condition                 1
 item.language                  1
 ```
+
+`item.foil` was read as the finish and is not one. Measured over all 3,319 rows of a
+public collection it is `false` everywhere, including on all 16 rows whose `modifier`
+says `Foil`. The finish is `item.modifier`, whose three values are the three
+`item.card.options` enumerates — `Normal`, `Foil`, `Etched` — which are Scryfall's
+`nonfoil`, `foil` and `etched`. See #52.
 
 `collection-import.js` reduces all of it to `{ name, type, mana, qty }` and merges by
 name. **No new API calls are needed for feature 1** — only a wider parse and a wider

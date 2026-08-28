@@ -418,6 +418,22 @@ describe('the Printings column', () => {
     assert.match(table.printings[0], /✦/, 'nothing on the row says one of them is a foil');
   });
 
+  /* And the same for the finishes that have no symbol. An etched copy is a
+   * third thing, priced apart from both the ordinary card and the foil, so a
+   * cell reading plain `C21` over one is the row telling somebody they own a
+   * card they do not — the same wrong as the foil above, one finish along. */
+  test('names an etched copy as one rather than folding it into the ordinary cell', () => {
+    const known = shelf('c:etched', { 'Sol Ring': { name: 'Sol Ring', qty: 2, printings: [
+      { ...C21, qty: 1 }, { ...C21, finish: 'etched', qty: 1 },
+    ] } });
+    const table = loadTab({ collections: [known], players: PLAYERS, user: AS_TIM }).table();
+    assert.equal(table.printingTitles[0].length, 2,
+      'the etched copy was counted as an ordinary one');
+    assert.match(table.printings[0], /1× C21 etched/);
+    assert.ok(table.printingTitles[0].some(t => /etched/.test(t)),
+      'and nothing behind the row says which of the two it is');
+  });
+
   /* A set code is not a printing. One set holds the ordinary Sol Ring and its
    * extended-art twin, and both read C21 on this row — so the detail behind
    * the row has to name both numbers, rather than asserting the first one's

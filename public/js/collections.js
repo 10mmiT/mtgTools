@@ -59,13 +59,21 @@ const CSV_FORMATS = [
 
 /* The finish, spelled the way Scryfall spells it and the way the Archidekt
  * import already writes it down — so a shelf imported from a file and one
- * imported from the API say the same word about the same card. Archidekt
- * writes "Normal", Moxfield leaves the cell empty; both mean the copy nobody
- * paid extra for. Anything else is kept as the export said it. */
-function csvFinish(cell) {
-  const said = (cell || '').trim().toLowerCase();
-  return !said || said === 'normal' ? 'nonfoil' : said;
-}
+ * imported from the API say the same word about the same card. Archidekt's
+ * Finish column writes "Normal", "Foil" or "Etched", which is the same
+ * vocabulary its API's `modifier` carries; Moxfield's Foil column writes
+ * "foil", "etched" or nothing at all. Both spell the ordinary copy in their
+ * own way and both mean the card nobody paid extra for.
+ *
+ * A word neither has ever written is that ordinary copy rather than a fourth
+ * finish of its own. finishOf in collection-import.js is this same rule on the
+ * API side, said again because there is no module system spanning public/js
+ * and the server — and the two have to agree, or one collection would answer
+ * differently depending on which way it came in, which is the whole complaint
+ * this pair was written to end. */
+const CSV_FINISHES = { '': 'nonfoil', normal: 'nonfoil', foil: 'foil', etched: 'etched' };
+
+const csvFinish = cell => CSV_FINISHES[(cell || '').trim().toLowerCase()] || 'nonfoil';
 
 /* A row is an acquisition, not a card: a card held in four editions is four
  * rows, and both exports write the quantity per row. This used to keep the
@@ -1456,6 +1464,16 @@ function renderListView(rows, MAX) {
 }
 
 // ── Which printings the shelf holds ───────────────────────────────────────
+/* How a finish is said on this row: the foil's mark, and the word itself for
+ * the rarer ones nobody has a symbol for. cardFinishMark in js/card.js is the
+ * same rule for a card tile, said again here because there is no module system
+ * spanning public/js and this tab is read without that file beside it.
+ *
+ * The ordinary copy says nothing, which is what lets an unmarked cell read as
+ * the plain card rather than as a cell somebody forgot to fill in. */
+const colFinishMark = finish =>
+  (!finish || finish === 'nonfoil') ? '' : (finish === 'foil' ? ' ✦' : ` ${finish}`);
+
 /* The Printings column, and the one thing it must never say.
  *
  * No collection has printings until it is re-imported, so today every card on
@@ -1475,7 +1493,7 @@ function renderListView(rows, MAX) {
  * them would be a column of the same word. */
 function colPrintingLabel(printing) {
   const set = (printing.set || '').toUpperCase();
-  return (set || '?') + (printing.finish === 'foil' ? ' ✦' : '');
+  return (set || '?') + colFinishMark(printing.finish);
 }
 
 /* A set code and a finish are not a printing: one set can hold the ordinary
@@ -1486,7 +1504,7 @@ function colPrintingLabel(printing) {
 function colPrintingTitle(group) {
   const bits = [group.setName || 'Unknown set'];
   if (group.numbers.size) bits.push([...group.numbers].map(n => `#${n}`).join(', '));
-  if (group.foil) bits.push('foil');
+  if (group.finish) bits.push(group.finish);
   return bits.join(' ');
 }
 
@@ -1503,7 +1521,9 @@ function colPrintingsOf(name) {
       if (!group) {
         group = { label, qty: 0, numbers: new Set(),
                   setName: printing.set_name || printing.set || '',
-                  foil: printing.finish === 'foil' };
+                  // The word, not a flag: there are three finishes and the two
+                  // that are not ordinary both have to name themselves.
+                  finish: printing.finish === 'nonfoil' ? '' : (printing.finish || '') };
         groups.set(label, group);
       }
       group.qty += printing.qty;

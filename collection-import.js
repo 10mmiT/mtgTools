@@ -112,6 +112,36 @@ function parseCard(item) {
  * three are codes whose meaning this app has never had to know. */
 const asText = v => (typeof v === 'string' || typeof v === 'number') ? String(v).trim() : '';
 
+/* Archidekt's word for a finish, in Scryfall's spelling.
+ *
+ * Every row carries `item.modifier`, and `item.card.options` beside it
+ * enumerates the finishes that printing comes in — the set the modifier is
+ * drawn from. Over all 3,319 rows of a sampled public collection those options
+ * hold three values and no others: Normal, Foil and Etched, which are
+ * Scryfall's nonfoil, foil and etched said in Archidekt's voice. The CSV
+ * export's Finish column spells them the same way, so the two ways a
+ * collection reaches a shelf now agree on the word as well as the card.
+ *
+ * A modifier nobody has seen before is the ordinary copy rather than a fourth
+ * finish of its own. Scryfall knows three, a shelf is read by fifteen things
+ * that know those three, and a spelling invented here would be a finish none
+ * of them could say anything about — worse than the small, visible wrong of
+ * calling it plain.
+ */
+const FINISHES = { normal: 'nonfoil', foil: 'foil', etched: 'etched' };
+
+/* The finish of one row.
+ *
+ * `item.foil` is not consulted, and this is the whole of why the import used
+ * to be wrong. It is not a field that merely fails to mention etched: it is
+ * `false` on every row of a real collection, on all 16 foils of the sampled
+ * one as much as on the 3,303 ordinary copies. Reading it filed every foil
+ * somebody paid extra for as a card they did not buy — the etched complaint
+ * was one case of that, and the narrower one.
+ */
+const finishOf = item => FINISHES[String(item.modifier || '').trim().toLowerCase()]
+                      || 'nonfoil';
+
 /**
  * Which printing a row is — the half of every page the import used to throw
  * away, so a shelf knew you own three Sol Rings and not which three. It is all
@@ -134,11 +164,11 @@ function parsePrinting(item) {
     set:              asText(edition.editioncode),
     set_name:         asText(edition.editionname),
     collector_number: asText(card.collectorNumber),
-    // Said either way round, and never left silent. A foil is not a printing
-    // of its own in Scryfall's model — it is a finish on the same id, priced
-    // separately — so a row that says nothing about its finish is a foil
-    // folded into the ordinary copy somebody paid rather less for.
-    finish:           item.foil ? 'foil' : 'nonfoil',
+    // Never left silent. A finish is not a printing of its own in Scryfall's
+    // model — it is a face on the same id, priced separately — so it has to be
+    // in a copy's identity or a foil and the ordinary card collapse into one
+    // entry. Which word, and why not item.foil, is finishOf above.
+    finish:           finishOf(item),
     // Both are one constant code across every row of a real collection. They
     // are recorded because identity asks for them, and nothing may lean on
     // them varying until they do — recorded identically, they split nothing.

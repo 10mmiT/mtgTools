@@ -59,12 +59,20 @@ function servePages(payloads) {
 /** One page of Archidekt rows, and nothing after it. */
 const serveRows = rows => servePages([{ count: rows.length, next: null, results: rows }]);
 
-/** A row of Archidekt's collection API, printing and all. */
+/** A row of Archidekt's collection API, printing and all.
+ *
+ *  `modifier` is Archidekt's word for the finish and takes one of the three
+ *  values `card.options` enumerates — Normal, Foil, Etched. `foil` is sent
+ *  beside it and is `false` on every row of a real collection, foils included:
+ *  all 3,319 rows of a sampled public one, 16 of them `modifier: "Foil"`, and
+ *  not a single `foil: true` among them. It is a dead field, and it is served
+ *  here dead so that a test cannot pass by reading it. */
 function archidektRow({ name = 'Sol Ring', qty = 1, uid = ROW_UID, set = 'c21',
-                        setName = 'Commander 2021', number = '263', foil = false,
+                        setName = 'Commander 2021', number = '263', modifier = 'Normal',
                         language = 1, condition = 1 } = {}) {
   return {
-    quantity: qty, foil, language, condition,
+    quantity: qty, foil: false, language, condition,
+    ...(modifier === null ? {} : { modifier }),
     card: {
       uid, collectorNumber: number,
       edition: { editioncode: set, editionname: setName },
@@ -90,7 +98,8 @@ function stubArchidekt(totalRows) {
     const first = (page - 1) * PER_PAGE;
     const rows  = [];
     for (let i = first; i < Math.min(first + PER_PAGE, totalRows); i++) {
-      rows.push(archidektRow({ name: `Card ${i}`, number: String(i), foil: i % 10 === 0 }));
+      rows.push(archidektRow({ name: `Card ${i}`, number: String(i),
+                               modifier: i % 10 === 0 ? 'Foil' : 'Normal' }));
     }
     return Response.json({
       count: totalRows,
@@ -515,13 +524,72 @@ describe('An import that records what the printings are', () => {
     // printing, so without the finish these two would be one entry of three.
     serveRows([
       archidektRow({ qty: 2 }),
-      archidektRow({ qty: 1, foil: true }),
+      archidektRow({ qty: 1, modifier: 'Foil' }),
     ]);
     await start().done;
 
     const card = imported('Sol Ring');
     assert.equal(card.qty, 3);
     assert.deepEqual(card.printings.map(p => [p.finish, p.qty]), [['nonfoil', 2], ['foil', 1]]);
+  });
+
+  /* Archidekt sends the finish in `item.modifier`, whose three values are the
+   * three `card.options` enumerates and the three Scryfall knows: Normal,
+   * Foil, Etched. `item.foil` — the only field the import used to read — is
+   * `false` on every row of a real collection, foils and all, so the old parse
+   * did not merely miss etched copies: it filed every foil as an ordinary one.
+   *
+   * The rows these serve carry `foil: false` throughout, exactly as the real
+   * API does, so nothing below can pass by reading the field that lies. */
+  test('an etched copy is etched, and not the ordinary card somebody paid less for', async () => {
+    serveRows([archidektRow({ qty: 1, modifier: 'Etched' })]);
+    await start().done;
+
+    assert.equal(imported('Sol Ring').printings[0].finish, 'etched');
+  });
+
+  test('a foil is a foil though the row’s own foil field says otherwise', async () => {
+    serveRows([archidektRow({ qty: 1, modifier: 'Foil' })]);
+    await start().done;
+
+    assert.equal(imported('Sol Ring').printings[0].finish, 'foil');
+  });
+
+  test('the three finishes of one printing are three entries, not one of three', async () => {
+    // Same Scryfall id on all three: a finish is not a printing of its own, so
+    // the finish is what keeps them apart at all.
+    serveRows([
+      archidektRow({ qty: 2 }),
+      archidektRow({ qty: 1, modifier: 'Foil' }),
+      archidektRow({ qty: 4, modifier: 'Etched' }),
+    ]);
+    await start().done;
+
+    const card = imported('Sol Ring');
+    assert.equal(card.qty, 7);
+    assert.deepEqual(card.printings.map(p => [p.finish, p.qty]),
+      [['nonfoil', 2], ['foil', 1], ['etched', 4]]);
+  });
+
+  test('a row that says nothing about its finish is the ordinary copy', async () => {
+    serveRows([archidektRow({ qty: 2, modifier: null })]);
+    await start().done;
+
+    assert.equal(imported('Sol Ring').printings[0].finish, 'nonfoil');
+  });
+
+  test('and a word Archidekt has never sent is not made into a finish of its own', async () => {
+    // The three Scryfall names or nothing: a fourth spelling arriving one day
+    // must not become a fourth entry that no reader of a shelf understands.
+    serveRows([
+      archidektRow({ qty: 2 }),
+      archidektRow({ qty: 1, modifier: 'Shimmering' }),
+    ]);
+    await start().done;
+
+    const card = imported('Sol Ring');
+    assert.equal(card.qty, 3);
+    assert.deepEqual(card.printings.map(p => [p.finish, p.qty]), [['nonfoil', 3]]);
   });
 
   test('a row that names no printing goes to the unknown entry rather than a guess', async () => {
