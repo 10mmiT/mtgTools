@@ -71,7 +71,9 @@ function loadTab({ collections, players, user, remembered } = {}) {
       },
       setAttribute(k, v) { el.attrs[k] = v; },
       getAttribute(k) { return el.attrs[k]; },
-      addEventListener() {}, removeEventListener() {}, focus() {}, click() {},
+      on: {},
+      addEventListener(type, fn) { (el.on[type] = el.on[type] || []).push(fn); },
+      removeEventListener() {}, focus() {}, click() {},
       querySelector() { return fakeEl(); },
       querySelectorAll() { return []; },
       appendChild() {},
@@ -154,6 +156,11 @@ function loadTab({ collections, players, user, remembered } = {}) {
     },
     /** The chip row, drawn — one chip per collection, ⋯ menu and all. */
     chips() { run('renderCollections()'); return el('collectionsChips').innerHTML; },
+    /** An event on one of the tab's elements, as the browser would fire it —
+     *  which is how the file picker is closed here, listener wiring and all. */
+    fire(id, type, ev = {}) {
+      for (const fn of el(id).on[type] || []) fn(ev);
+    },
   };
 }
 
@@ -188,6 +195,17 @@ const knownShelf = (key, extra) => shelf(key, {
   'Sol Ring': { name: 'Sol Ring', type: 'Artifact', mana: '{1}', qty: 3,
                 printings: [{ ...C21, qty: 3 }] },
 }, extra);
+
+/** A real Moxfield collection export, three rows of it: the printings are the
+ *  edition and the collector number, there being no id anywhere in the file.
+ *  What a re-imported shelf is made of, wherever the picker was opened from. */
+const MOX_HEAD = '"Count","Tradelist Count","Name","Edition","Condition","Language",'
+  + '"Foil","Tags","Last Modified","Collector Number","Alter","Proxy","Purchase Price"';
+const MOX_EXPORT = [MOX_HEAD,
+  '"1","1","Sol Ring","blc","Near Mint","English","","","2025-07-28 11:08:05.310000","129","False","False",""',
+  '"3","1","Sol Ring","tdc","Near Mint","English","","","2025-08-06 10:03:40.507000","106","False","False",""',
+  '"1","1","Cultivate","c21","Near Mint","English","foil","","2025-08-06 10:03:40.507000","263","False","False",""',
+].join('\n') + '\n';
 
 describe('a shelf that does not know its printings', () => {
   test('offers to re-import itself, by name', () => {
@@ -264,23 +282,155 @@ describe('a shelf that does know', () => {
   });
 });
 
-describe('a shelf a re-import could not help', () => {
-  /* The file is in the browser and the CSV has no edition column in it. An
-   * offer here would be answered by re-picking the file and getting the same
-   * unknowns back — a nag with no end. */
-  test('a CSV collection is not offered one, because the export cannot say', () => {
-    const csv = unknownShelf('csv:1', { source: 'csv-archidekt', id: null });
-    const tab = loadTab({ collections: [csv], players: PLAYERS, user: AS_TIM });
+/* Both exports carry their printings — Archidekt's names the Scryfall id and
+ * Moxfield's names the edition and the collector number — so a shelf that came
+ * in as a file has the same fix in front of it as a fetched one, and a strip
+ * that skipped it left a whole column of "unknown" with nothing to do about it.
+ * What it takes is a file, which is one press to open the picker, and which is
+ * why the bulk button below cannot include it. */
+describe('a shelf whose way back is a file', () => {
+  const csvShelf = extra => unknownShelf('csv:1',
+    { source: 'csv-archidekt', id: null, ...extra });
+
+  test('a CSV shelf is offered a re-import, like any other', () => {
+    const tab = loadTab({ collections: [csvShelf()], players: PLAYERS, user: AS_TIM });
+    assert.deepEqual(tab.offer().keys, ['csv:1']);
+  });
+
+  test('and so is a Moxfield one, whose API refuses this server', () => {
+    const mox = unknownShelf('moxfield:1', { source: 'moxfield' });
+    const tab = loadTab({ collections: [mox], players: PLAYERS, user: AS_TIM });
+    assert.deepEqual(tab.offer().keys, ['moxfield:1']);
+  });
+
+  test('pressing it opens the file picker rather than starting an import', async () => {
+    const tab = loadTab({ collections: [csvShelf()], players: PLAYERS, user: AS_TIM });
+    tab.offer();
+    await tab.run(`reimportPrintings('csv:1')`);
+    assert.deepEqual(tab.started(), [],
+      'a shelf whose file is in the browser was fetched from somewhere');
+    assert.equal(tab.run('pendingCsvKey'), 'csv:1',
+      'the file picker was not told which shelf the file is for');
+  });
+
+  test('and the strip says a file is what it will ask for', () => {
+    const tab = loadTab({ collections: [csvShelf()], players: PLAYERS, user: AS_TIM });
+    assert.match(tab.offer().text, /file/i);
+  });
+
+  test('and the offer goes the moment it is taken', async () => {
+    const tab = loadTab({ collections: [csvShelf()], players: PLAYERS, user: AS_TIM });
+    assert.equal(tab.offer().shown, true);
+    await tab.run(`reimportPrintings('csv:1')`);
+    assert.equal(tab.offer().shown, false, 'the offer is still there after being taken');
+  });
+
+  /* The rule the ⋯ menu's re-import already obeys, asserted from the strip
+   * because that is a second way into the same picker: the file lands on the
+   * shelf it was chosen for and does not become a collection of its own. */
+  test('the file lands on that shelf, key, name, colour and owner intact', async () => {
+    const shelf = csvShelf({ source: 'csv-moxfield', name: 'Tim’s box', color: '#3b82f6' });
+    const tab = loadTab({ collections: [shelf], players: PLAYERS, user: AS_TIM });
+    tab.offer();
+    await tab.run(`reimportPrintings('csv:1')`);
+    await tab.run(`importCsvText(${JSON.stringify(MOX_EXPORT)}, 'moxfield_haves.csv')`);
+
+    const [saved] = tab.saved();
+    assert.equal(saved.key,   'csv:1');
+    assert.equal(saved.name,  'Tim’s box');
+    assert.equal(saved.color, '#3b82f6');
+    assert.equal(saved.owner, 'p-tim');
+    assert.equal(tab.run('state.collections.length'), 1,
+      'fixing a shelf left a copy of it beside the original');
+    assert.deepEqual(saved.cards['Sol Ring'].printings.map(pr => [pr.set, pr.qty]),
+      [['blc', 1], ['tdc', 3]]);
+  });
+});
+
+/* Neither fetched nor exported: a source with no way back at all. The rule the
+ * strip has always had, asked now of the shelves that are actually stuck rather
+ * than of the ones that only needed a file. */
+describe('a shelf nothing can re-import', () => {
+  const orphan = () => unknownShelf('deckbox:1', { source: 'deckbox', id: null });
+
+  test('is not offered one, there being nothing behind the button', () => {
+    const tab = loadTab({ collections: [orphan()], players: PLAYERS, user: AS_TIM });
     assert.equal(tab.offer().shown, false);
   });
 
-  /* Nor is a Moxfield one, for the same reason: nothing can fetch it — their
-   * API answers 403 to this server — so its way back onto the shelf is the
-   * export, which is a file somebody chooses. That is the ⋯ menu's, below. */
-  test('nor is a Moxfield one, whose way back is a file rather than a press', () => {
-    const mox = unknownShelf('moxfield:1', { source: 'moxfield' });
-    const tab = loadTab({ collections: [mox], players: PLAYERS, user: AS_TIM });
-    assert.equal(tab.offer().shown, false);
+  test('and its ⋯ menu offers neither a Refresh nor a file', () => {
+    const chips = loadTab({ collections: [orphan()], players: PLAYERS, user: AS_TIM }).chips();
+    assert.doesNotMatch(chips, /Refresh|Re-import CSV/);
+  });
+});
+
+/* Pressing an offer marks it taken and sets the shelf updating, and a picker
+ * closed with nothing chosen used to leave both standing until the page was
+ * reloaded — a chip reading "updating…" for ever and an offer that could not be
+ * taken a second time, which are one bug seen from two sides. */
+describe('a file picker closed with nothing chosen', () => {
+  const csvShelf = () => unknownShelf('csv:1', { source: 'csv-archidekt', id: null });
+
+  test('leaves the shelf as it was: not updating, and still offered', async () => {
+    const tab = loadTab({ collections: [csvShelf()], players: PLAYERS, user: AS_TIM });
+    tab.offer();
+    await tab.run(`reimportPrintings('csv:1')`);
+    tab.fire('csvInput', 'cancel');
+
+    assert.equal(tab.run('state.collections[0].updating'), false,
+      'the chip reads “updating…” for a job nobody started');
+    assert.equal(tab.run('pendingCsvKey'), null,
+      'the next file chosen anywhere lands on this shelf');
+    assert.deepEqual(tab.offer().keys, ['csv:1'],
+      'the offer was spent by a picker that did nothing');
+  });
+
+  test('and the ⋯ menu’s re-import can be taken again after one', async () => {
+    const tab = loadTab({ collections: [csvShelf()], players: PLAYERS, user: AS_TIM });
+    await tab.run(`updateCollection('csv:1')`);
+    tab.fire('csvInput', 'cancel');
+    await tab.run(`updateCollection('csv:1')`);
+    assert.equal(tab.run('pendingCsvKey'), 'csv:1',
+      'a shelf still marked updating turns its own re-import down');
+  });
+
+  /* Not every browser fires `cancel`: some answer a picker closed with nothing
+   * chosen by firing `change` with no file on it. Both say the same thing. */
+  test('including a browser that says so with a change event and no file', async () => {
+    const tab = loadTab({ collections: [csvShelf()], players: PLAYERS, user: AS_TIM });
+    tab.offer();
+    await tab.run(`reimportPrintings('csv:1')`);
+    tab.fire('csvInput', 'change', { target: { files: [], value: 'haves.csv' } });
+
+    assert.equal(tab.run('state.collections[0].updating'), false);
+    assert.deepEqual(tab.offer().keys, ['csv:1']);
+  });
+
+  /* The same slot seen from the other side: one pendingCsvKey and one file
+   * input, so a second shelf asking for a file takes the claim off the first.
+   * The first shelf must be let go of rather than left holding an answer that
+   * is never coming. */
+  test('and a second shelf asking for a file lets the first one go', async () => {
+    const tab = loadTab({
+      collections: [csvShelf(), unknownShelf('csv:2', { source: 'csv-moxfield', id: null })],
+      players: PLAYERS, user: AS_TIM,
+    });
+    tab.offer();
+    await tab.run(`reimportPrintings('csv:1')`);
+    await tab.run(`reimportPrintings('csv:2')`);
+
+    assert.equal(tab.run('pendingCsvKey'), 'csv:2', 'the file lands on the shelf nobody pressed');
+    assert.equal(tab.run('state.collections[0].updating'), false,
+      'the shelf that lost the picker is updating for ever');
+    assert.deepEqual(tab.offer().keys, ['csv:1']);
+  });
+
+  test('and a picker opened to add a collection adds none', () => {
+    const tab = loadTab({ collections: [], players: PLAYERS, user: AS_TIM });
+    tab.run('openCsvPicker()');
+    tab.fire('csvInput', 'cancel');
+    assert.equal(tab.run('state.collections.length'), 0);
+    assert.equal(tab.run('pendingCsvKey'), null);
   });
 });
 
@@ -297,13 +447,6 @@ describe('a shelf a re-import could not help', () => {
  * colour and whose it is. The cards and the printings are the file's.
  */
 describe('a Moxfield shelf, from before their API refused this server', () => {
-  const MOX_HEAD = '"Count","Tradelist Count","Name","Edition","Condition","Language",'
-    + '"Foil","Tags","Last Modified","Collector Number","Alter","Proxy","Purchase Price"';
-  const MOX_EXPORT = [MOX_HEAD,
-    '"1","1","Sol Ring","blc","Near Mint","English","","","2025-07-28 11:08:05.310000","129","False","False",""',
-    '"3","1","Sol Ring","tdc","Near Mint","English","","","2025-08-06 10:03:40.507000","106","False","False",""',
-    '"1","1","Cultivate","c21","Near Mint","English","foil","","2025-08-06 10:03:40.507000","263","False","False",""',
-  ].join('\n') + '\n';
 
   /** The shelf as it has sat in the database for a year: a Moxfield source, a
    *  key naming the collection it was fetched from, and no printings. */
@@ -432,7 +575,7 @@ describe('whose shelf it is', () => {
 });
 
 describe('the bulk action', () => {
-  test('is offered once there is more than one shelf to fix', () => {
+  test('is offered once there is more than one shelf a press can fix', () => {
     const one = loadTab({ collections: [unknownShelf('archidekt:1')], players: PLAYERS, user: AS_TIM });
     assert.equal(one.offer().all, false, 'one shelf does not need a “do them all”');
 
@@ -441,6 +584,57 @@ describe('the bulk action', () => {
       players: PLAYERS, user: AS_TIM,
     });
     assert.equal(two.offer().all, true);
+  });
+
+  /* One file picker and one pendingCsvKey: a sweep cannot ask for four files,
+   * so it takes the shelves the server can fetch and says which rather than
+   * claiming the lot. The rest keep the button of their own that opens the
+   * picker. */
+  test('covers only the shelves that need no file, and its label says which', () => {
+    const tab = loadTab({
+      collections: [
+        unknownShelf('archidekt:1'),
+        unknownShelf('archidekt:2', { owner: null }),
+        unknownShelf('csv:3', { source: 'csv-moxfield', id: null }),
+      ],
+      players: PLAYERS, user: AS_TIM,
+    });
+    const offer = tab.offer();
+    assert.equal(offer.all, true);
+    assert.match(offer.text, /all 2 from Archidekt/,
+      'a button labelled “all” that leaves a shelf where it is');
+    assert.deepEqual(offer.keys, ['archidekt:1', 'archidekt:2', 'csv:3'],
+      'the shelf the sweep skips is not offered a press of its own either');
+  });
+
+  test('and leaves the shelves that need a file offered, not swept', async () => {
+    const tab = loadTab({
+      collections: [
+        unknownShelf('archidekt:1'),
+        unknownShelf('archidekt:2', { owner: null }),
+        unknownShelf('csv:3', { source: 'csv-moxfield', id: null }),
+      ],
+      players: PLAYERS, user: AS_TIM,
+    });
+    tab.offer();
+    await tab.run('reimportAllPrintings()');
+    assert.deepEqual(tab.started().sort(), ['archidekt:1', 'archidekt:2']);
+    assert.equal(tab.run('pendingCsvKey'), null,
+      'a sweep opened a file picker somebody has to answer');
+    assert.deepEqual(tab.offer().keys, ['csv:3']);
+  });
+
+  test('and is not offered where only one shelf can be swept', () => {
+    const tab = loadTab({
+      collections: [
+        unknownShelf('archidekt:1'),
+        unknownShelf('csv:2', { source: 'csv-archidekt', id: null, owner: null }),
+      ],
+      players: PLAYERS, user: AS_TIM,
+    });
+    const offer = tab.offer();
+    assert.equal(offer.all, false, 'one fetchable shelf does not need a “do them all”');
+    assert.deepEqual(offer.keys, ['archidekt:1', 'csv:2'], 'both are still offered one apiece');
   });
 
   test('re-imports every shelf that lacks printings, and nothing else', async () => {

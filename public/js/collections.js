@@ -530,6 +530,13 @@ async function reloadCollections() {
 
 // ── CSV Import ────────────────────────────────────────────────────────────
 function openCsvPicker(updateKey) {
+  /* A picker still waiting on an answer is let go of first. pendingCsvKey is
+   * one slot and there is one file input behind it, so a second shelf asking
+   * for a file used to overwrite the first shelf's claim on it and leave that
+   * shelf `updating` with its offer spent — until a reload, and with the whole
+   * tab's state poll held off meanwhile. Released here rather than refused,
+   * because the shelf somebody just pressed is the one they mean. */
+  if (pendingCsvKey && pendingCsvKey !== updateKey) cancelCsvPicker();
   pendingCsvKey   = updateKey;
   pendingCsvName  = updateKey ? null : document.getElementById('nameInput').value.trim();
   // Read now, not in the reader's callback: the drawer that carries the field
@@ -538,10 +545,34 @@ function openCsvPicker(updateKey) {
   document.getElementById('csvInput').click();
 }
 
+/* The picker closed with nothing chosen, which is a thing people do — they
+ * meant a different shelf, or the export is not downloaded yet.
+ *
+ * Opening it marks the shelf `updating` and spends the offer above the table,
+ * and neither is given back by the file arriving, because no file arrives: a
+ * cancelled picker fires `cancel` and never `change`. Left to itself that is a
+ * chip reading "updating…" until the page is reloaded and an offer that cannot
+ * be taken a second time — one bug seen from two sides. So the press is undone
+ * in full, and the shelf is exactly what it was before it. */
+function cancelCsvPicker() {
+  const key = pendingCsvKey;
+  pendingCsvKey = pendingCsvName = pendingCsvOwner = null;
+  if (key) {
+    const col = state.collections.find(c => c.key === key);
+    if (col) col.updating = false;
+    _colOffersTaken.delete(key);
+  }
+  renderCollections();
+}
+
+document.getElementById('csvInput').addEventListener('cancel', () => cancelCsvPicker());
+
 document.getElementById('csvInput').addEventListener('change', e => {
   const file = e.target.files[0];
   e.target.value = '';
-  if (!file) return;
+  // A browser that answers a cancelled picker with a fileless `change` rather
+  // than a `cancel` says the same thing, and is answered the same way.
+  if (!file) { cancelCsvPicker(); return; }
 
   const reader = new FileReader();
   reader.onload = ev => importCsvText(ev.target.result, file.name);
@@ -610,11 +641,9 @@ async function importCsvText(text, fileName) {
     renderResults();
   } catch (err) {
     alert('Could not parse CSV: ' + err.message);
-    if (pendingCsvKey) {
-      const col = state.collections.find(c => c.key === pendingCsvKey);
-      if (col) col.updating = false;
-      pendingCsvKey = null;
-    }
+    // A file that turned out to be a decklist leaves the shelf untouched, so
+    // it leaves the offer standing too: the next file might be the export.
+    if (pendingCsvKey) cancelCsvPicker();
     renderCollections();
   }
 }
@@ -638,22 +667,41 @@ async function saveCollection(col) {
 }
 
 // ── Update / Remove collection ────────────────────────────────────────────
-/* The sources there is somewhere to fetch from, which is Archidekt and
- * nothing else. Every other shelf is re-imported from an export somebody
- * chooses: the CSV ones, whose file only ever existed in the browser, and the
- * Moxfield ones from before api2.moxfield.com began answering 403 to this
- * server, which are fetched by nothing now and created by nothing either.
+/* How a shelf comes back onto the shelf, in two lists and one question.
  *
- * Asked as "can this be fetched" rather than "is this a Moxfield shelf", so
- * that a shelf whose site this app cannot reach needs no rule of its own —
- * the way back onto the shelf is the export, for every one of them. */
+ * The sources there is somewhere to fetch from, which is Archidekt and nothing
+ * else. The rest come back from an export somebody chooses: the CSV ones,
+ * whose file only ever existed in the browser, and the Moxfield ones from
+ * before api2.moxfield.com began answering 403 to this server, which are
+ * fetched by nothing now and created by nothing either. Both exports name
+ * their printings, so both are a real way back and not a consolation.
+ *
+ * Asked as "how does this come back" rather than "is this a Moxfield shelf",
+ * so that a shelf whose site this app cannot reach needs no rule of its own,
+ * and asked in one place because the ⋯ menu and the offer strip above the
+ * table must not disagree about it. A source in neither list is a shelf
+ * nothing can re-import: no Refresh in its menu, no offer above the table,
+ * both of which would be buttons that do nothing. Nothing writes such a shelf
+ * today — the list is what keeps that true if something ever does. */
 const COL_FETCH_SOURCES = new Set(['archidekt']);
-const colFromFile = source => !COL_FETCH_SOURCES.has(source);
+const COL_FILE_SOURCES  = new Set(['moxfield', 'csv-archidekt', 'csv-moxfield']);
+
+/** How this shelf comes back: 'fetch' — the server has somewhere to fetch it
+ *  from, so a press is the whole of it — 'file', from an export somebody
+ *  chooses, or null, meaning nothing can. */
+function colReimportBy(source) {
+  return COL_FETCH_SOURCES.has(source) ? 'fetch'
+       : COL_FILE_SOURCES.has(source)  ? 'file'
+       : null;
+}
+const colFromFile = source => colReimportBy(source) === 'file';
 
 function updateCollection(key) {
   const col = state.collections.find(c => c.key === key);
   if (!col || col.updating || state.imports.some(i => i.key === key && i.status === 'running')) return;
-  if (colFromFile(col.source)) {
+  const by = colReimportBy(col.source);
+  if (!by) return;
+  if (by === 'file') {
     col.updating = true;
     renderCollections();
     openCsvPicker(key);
@@ -686,30 +734,30 @@ function updateCollection(key) {
  *   under way   a collection with an import against it already has a readout
  *              and a Stop in the import panel; a stopped one has a Resume.
  *              Two buttons for one job is worse than one
- *   pointless   a shelf that is not fetched from anywhere cannot be fixed by
- *              a press: a CSV shelf, and a Moxfield one whose API refuses
- *              this server, both record their printings now, but only from a
- *              file somebody chooses — which is the ⋯ menu's Re-import CSV
- *              and not a strip that would have to open a file picker per
- *              shelf and could not do "all" at all. An empty shelf has
- *              nothing to know
+ *   pointless   a shelf nothing can re-import cannot be fixed by any press,
+ *              and an empty one has nothing to know. Both exports do carry
+ *              their printings, so a shelf that came in as a file is offered
+ *              one like any other — what it takes is a file, so its press
+ *              opens the picker rather than starting a job
  *   not yours   somebody else's collection is their time to spend and their
  *              data to change. Yours, the group's, or anything at all if you
  *              are an admin or the app cannot say who you are — in which case
  *              it makes no ownership distinction anywhere else either
  */
 
-/* What this strip can re-import is what a press can re-import, which is what
- * the server can fetch: COL_FETCH_SOURCES above. A shelf that comes in from a
- * file records its printings too, and gains them by being imported again from
- * the ⋯ menu with the export in hand. An offer to fix something the press
- * will not fix is a loop, which is the one thing that rule exists to prevent. */
+/* What this strip can re-import is what colReimportBy answers for: a fetched
+ * shelf, whose press starts the job, and a shelf that comes back from an
+ * export, whose press opens the file picker. One press either way, which is
+ * all a strip has. An offer to fix something no press will fix is a loop,
+ * which is the one thing that rule exists to prevent. */
 
-/* Offers taken in this page's lifetime, and never given back. A re-import
- * that lands with printings takes the offer away on its own; one that lands
- * without them — a source that turns out to say nothing after all — must not
- * put the same offer back up, which is the nag this set exists to prevent.
- * A reload is what re-asks the question, and by then something has changed. */
+/* Offers taken in this page's lifetime, and given back only by a picker closed
+ * with nothing chosen — see cancelCsvPicker, where a press that did nothing is
+ * undone in full. A re-import that lands with printings takes the offer away on
+ * its own; one that lands without them — a source that turns out to say nothing
+ * after all — must not put the same offer back up, which is the nag this set
+ * exists to prevent. A reload is what re-asks the question, and by then
+ * something has changed. */
 const _colOffersTaken = new Set();
 
 /** Does this shelf know what any of its cards are? One printing naming a real
@@ -743,7 +791,7 @@ function colMayReimport(col) {
  * saying, so it must not name a collection whose rows are not in it. */
 function colPrintingOffers() {
   return colShelf().filter(col =>
-    !colFromFile(col.source)
+    colReimportBy(col.source)
     && col.cards.size > 0
     && !colKnowsPrintings(col)
     && colMayReimport(col)
@@ -762,25 +810,46 @@ function renderPrintingOffers() {
   if (!offers.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
   box.style.display = '';
 
+  /* The shelves one press can sweep, which is the fetched ones and no others:
+   * there is one file picker and one shelf pendingCsvKey can name, so a button
+   * that opened four of them is not a thing anybody can answer. The rest keep
+   * the press of their own, and the label says which shelves it takes rather
+   * than saying "all" over the ones it leaves. */
+  const sweep = offers.filter(col => colReimportBy(col.source) === 'fetch');
+  const from  = esc([...new Set(sweep.map(col => sourceLabel(col.source)))].join(' and '));
+  const filed = offers.length - sweep.length;
+
   const one  = offers.length === 1;
   const what = one
     ? `<strong>${esc(offers[0].name)}</strong> does not record which printings it holds`
     : `<strong>${offers.length} collections</strong> do not record which printings they hold`;
 
+  /* Said in the terms of the shelves actually being offered: a page with
+   * nothing fetchable on it must not promise a job that runs on the server,
+   * and one with nothing filed must not mention a file picker nobody will see. */
+  const how = [
+    sweep.length
+      ? `Re-importing from ${from} records them, and runs on the server — so you
+         can close this page while it works.`
+      : '',
+    filed
+      ? `${sweep.length ? 'The rest come back from' : 'Re-importing records them from'}
+         the export the shelf came from, so pressing one opens the file picker.`
+      : '',
+  ].filter(Boolean).join(' ');
+
   box.innerHTML = `
     <div class="print-offer-say">
-      ${what} — that is what the Printings column is saying. Re-importing from
-      Archidekt records them. The import runs on the server, so you can close
-      this page while it works.
+      ${what} — that is what the Printings column is saying. ${how}
     </div>
     <div class="print-offer-acts">
-      ${one ? '' : `
+      ${sweep.length < 2 ? '' : `
         <button class="btn-primary print-offer-btn"
-                onclick="reimportAllPrintings()">Re-import all ${offers.length}</button>`}
+                onclick="reimportAllPrintings()">Re-import all ${sweep.length} from ${from}</button>`}
       ${offers.map(col => `
         <button class="btn-secondary print-offer-btn"
                 onclick="reimportPrintings('${jsAttr(col.key)}')">
-          Re-import${one ? '' : ` ${esc(col.name)}`}
+          Re-import${one ? '' : ` ${esc(col.name)}`}${colFromFile(col.source) ? '…' : ''}
         </button>`).join('')}
     </div>`;
 }
@@ -793,12 +862,15 @@ function reimportPrintings(key) {
   return updateCollection(key);
 }
 
-/** Take all of them, for somebody who owns the lot and does not want to press
- *  a button per shelf. Only the ones actually being offered — a collection
- *  that knows its printings, or that belongs to somebody else, is not swept
- *  up by a button whose label says "all". */
+/** Take the offers a single press can take, for somebody who owns the lot and
+ *  does not want to press a button per shelf. Only the ones actually being
+ *  offered — a collection that knows its printings, or that belongs to
+ *  somebody else, is not swept up by a button whose label says "all" — and
+ *  only the fetched ones: a shelf that comes back from a file needs a file
+ *  each, and there is one picker. Those keep their own press, and the label
+ *  names the source rather than claiming the lot. */
 function reimportAllPrintings() {
-  const offers = colPrintingOffers();
+  const offers = colPrintingOffers().filter(col => colReimportBy(col.source) === 'fetch');
   for (const col of offers) _colOffersTaken.add(col.key);
   renderPrintingOffers();
   return Promise.all(offers.map(col => updateCollection(col.key)));
@@ -873,7 +945,7 @@ function chipHtml(col, imp, onShelf) {
   const key     = col ? col.key    : imp.key;
   const color   = col ? col.color  : imp.color;
   const source  = col ? col.source : imp.source;
-  const byFile  = colFromFile(source);
+  const by      = colReimportBy(source);
   const owner   = colOwner(col || imp);
   const off     = !onShelf;
 
@@ -912,8 +984,11 @@ function chipHtml(col, imp, onShelf) {
     : kebabMenuHtml([
         /* A shelf nothing can fetch is offered its export instead of a Refresh
          * that would only be turned down — the CSV shelves, and the Moxfield
-         * ones from before their API began refusing this server. */
-        { label: byFile ? 'Re-import CSV' : 'Refresh', onclick: `updateCollection('${key}')` },
+         * ones from before their API began refusing this server. One that
+         * neither can be fetched nor read back from a file is offered neither:
+         * the menu keeps the owner and the Remove, which still work. */
+        ...(by ? [{ label: by === 'file' ? 'Re-import CSV' : 'Refresh',
+                    onclick: `updateCollection('${key}')` }] : []),
         ...colOwnerMenuItems(col),
         { divider: true },
         { label: 'Remove', onclick: `removeCollection('${key}')`, danger: true },
