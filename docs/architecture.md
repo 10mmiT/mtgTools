@@ -28,7 +28,7 @@ mtgtools/
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
-├── test/              # 51 files, run by `npm test`
+├── test/              # 53 files, run by `npm test`
 │   ├── server.test.js       # HTTP seam — auth, state, admin, decks, prefs
 │   ├── prefs-open-mode.test.js  # Preferences with no accounts to hang them on
 │   ├── tokens.test.js       # Token-contract lint, asserted over the delivered CSS
@@ -47,6 +47,7 @@ mtgtools/
 │   ├── carddrag.test.js     # Hit-testing piles, the fan, the drop's effect
 │   ├── cardmenu.test.js     # Where a menu asked for at a point is drawn
 │   ├── cardcache.test.js    # The cached card's shape, and the version that re-imports it
+│   ├── cardshelf.test.js    # Which printings of this card are held, and the shelf that cannot say
 │   ├── deckdrag.test.js     # Picking a deck tile up, the zone that would take it, and where it lands
 │   ├── deckhistory.test.js  # When a deck is snapshotted, the caps, and what a restore puts back
 │   ├── deckframe.test.js    # The builder's frame — what folds away, and what stays
@@ -91,7 +92,8 @@ mtgtools/
 │       ├── cardmove.js    # Cards travelling to where a re-render put them: measured before and after
 │       ├── carddrag.js    # Carrying a card, or a handful: the lag, the lean, the fan, the pile that would take it
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches
-│       ├── card.js        # Card Detail tab (oracle text, rulings, prices, alt-art printings)
+│       ├── card.js        # Card Detail tab (oracle text, rulings, prices, the printings of it
+│       │                  # on the shelf, alt-art printings)
 │       ├── cardquery.js   # Scryfall query syntax, parsed and run against the local card cache
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks

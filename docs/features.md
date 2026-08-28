@@ -71,6 +71,7 @@ A tab-by-tab tour of what MTG Tools does. For setup and configuration see [confi
 - Format legality badges (Standard, Pioneer, Modern, Legacy, Vintage, Commander, Pauper)
 - Official **rulings** for the card, pulled from Scryfall
 - Links to view the card on **Scryfall** or buy it on **Cardmarket**
+- **Which printings of it are on the shelf.** Above the gallery, the copies actually held: a line per printing with its count — `2× Commander 2021 (C21) #263`, `1× Mystical Archive (STA) #5 ✦` — which is the Collections row's summary written out in full, on the page where a printing is looked at properly. A shelf nobody has re-imported says `3× unknown printing` rather than showing a short list: the copies are counted, and *unknown* is never drawn as owning none. It answers for the shelf the ownership scope is set to — yours, the group's, everyone's — and says under the heading which of the three that was, so a count is never mistaken for the whole playgroup's; a card you have none of names whoever does, in their colour, the same way the mat's badges do. An app with no collection loaded at all has no shelf, and says nothing about one
 - **Other Printings & Alt-Art gallery** at the bottom — every printing of the card; click any one to load that specific version. Opened from a card in a deck you can edit, the same gallery **chooses** instead of navigating — see the Deck Builder's *which printing the deck runs*, below
 - Ctrl/Cmd-clicking a card anywhere still opens it on Scryfall in a new tab
 

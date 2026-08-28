@@ -1604,6 +1604,29 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .card-ruling-text:last-child { margin-bottom: 0; }
 
+/* What of this card is on the shelf. A list of short lines rather than the
+   Collections row's single summary, because this is the detailed answer and a
+   line per printing is what "which ones have I got" looks like written down.
+   It takes the reading measure (§8.3) like the rulings above it: these are
+   sentences, and a sentence across the gallery's full width is unreadable. */
+.card-shelf-list { list-style: none; margin: 0; padding: 0; }
+.card-shelf-row {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  font-size: var(--text-md); line-height: var(--leading-normal);
+  color: var(--text);
+}
+/* The count leads the line and lines up down the list — tabular figures, so
+   ten copies of one printing does not shunt the edition it names sideways. */
+.card-shelf-qty {
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  min-width: var(--space-6); text-align: right;
+}
+/* The finish is a fact about the printing beside it, not a second printing. */
+.card-shelf-finish { color: var(--text-muted); }
+/* The badges naming whoever does have it, when the shelf in scope does not —
+   the same row of badges the mat draws, with the same spacing. */
+.card-shelf-elsewhere { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
+
 /* A printing is a card too, so the tile around it goes the way the grids'
    did, and so does its nudge: what is left is the layout and the label. */
 .card-print-tile {

@@ -233,6 +233,7 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
     <!-- Rulings are prose and take the reading measure; the printings below
          them are a grid of card images and take the full width (§8.3). -->
     <div class="card-detail-section content-prose" id="${rId}"><div class="section-title">Rulings</div><div class="help-text">Loading rulings…</div></div>
+    ${cardShelfSectionHtml(card.name)}
     <div class="card-detail-section" id="${pId}"><div class="section-title">Other Printings &amp; Alt-Art</div><div class="help-text">Loading printings…</div></div>
   `;
 
@@ -301,6 +302,103 @@ async function loadRulings(card, seq, sectionId = 'cardDetail-rulings') {
     `<dl class="card-rulings">` + rulings.map(r => `
       <dt class="card-ruling-date">${esc((r.published_at || '').slice(0, 10))}</dt>
       <dd class="card-ruling-text">${cardOracleHtml(r.comment)}</dd>`).join('') + `</dl>`;
+}
+
+// ── What of this card is on the shelf ─────────────────────────────────────
+/* Which printings of this card are held, and how many of each.
+ *
+ * The Collections table answers the same question in one line of a row
+ * somebody is scanning past — `2× C21, 1× STA ✦` — and that is all a row has
+ * room to be. This is where the detailed answer lives, which is why it lives
+ * *here*: the card is already where a printing is looked at properly and
+ * already where one is chosen for a deck, so the printings you have and the
+ * printings there are stand one above the other.
+ *
+ * It reads the shelf through js/deckview-owned.js, and that is the point
+ * rather than a borrowing. There is one rule in this app about whose shelf is
+ * whose — yours, the group's, everyone's — and the mark on a card in a deck,
+ * the count above it and this list all have to be answering the same
+ * question, or the card contradicts the mat that opened it.
+ *
+ * Drawn from state as the card is drawn, rather than fetched: every copy of
+ * this is already in the browser. A shelf that changes while the card stands
+ * open is not redrawn, which is the same bargain the rest of the detail makes
+ * — it is a card as it was when you opened it. */
+
+/** The copies in scope, ordered for reading: the ones nobody attributed last,
+ *  because they are the answer that is not an edition, and the rest heaviest
+ *  first. Ties go by set and number so a redraw does not shuffle them. */
+function cardShelfHeld(name) {
+  const key = p => `${p.set || ''} ${p.collector_number || ''}`;
+  return dbOwnedPrintings(name).sort((a, b) =>
+    (a.id === null) - (b.id === null) ||
+    b.qty - a.qty ||
+    key(a).localeCompare(key(b)));
+}
+
+/* Whose shelf the list just answered for, said under the heading. A number of
+ * copies that does not say whose is a number somebody will read as the whole
+ * playgroup's — and with nobody to be there is no "mine" to narrow to, which
+ * is dbOwnShelf() handing back every loaded collection and is said as such
+ * rather than as the group's. */
+function cardShelfScope() {
+  const id = myPlayerId() ? dbOwnScope() : 'all';
+  return DB_OWN_SCOPES.find(s => s.id === id) || DB_OWN_SCOPES[0];
+}
+
+/** One line: how many, and of what.
+ *
+ *  The unattributed copies are counted like any other line and named as what
+ *  they are. A shelf that has not been re-imported holds every copy of every
+ *  card in this state, so drawing it as a shorter list — or as no list — is
+ *  the app telling somebody their collection is empty. */
+function cardShelfRowHtml(p) {
+  const qty = `<span class="card-shelf-qty">${p.qty}×</span>`;
+  if (p.id === null) {
+    return `<li class="card-shelf-row">${qty}
+      <span class="print-unknown" title="Nobody recorded which printings these copies are">unknown printing</span></li>`;
+  }
+  /* The set's own name and the code the rest of the app says it by, because
+     this is the page with room for both — and the code alone where a shelf
+     recorded one without the other, rather than "C21 (C21)". */
+  const set  = (p.set || '').toUpperCase();
+  const said = p.set_name ? `${esc(p.set_name)}${set ? ` (${esc(set)})` : ''}`
+             : set ? esc(set) : 'Unknown set';
+  const finish = p.finish && p.finish !== CARD_ORDINARY_FINISH ? p.finish : '';
+  return `<li class="card-shelf-row">${qty}
+    <span class="card-shelf-print">${said}${p.collector_number ? ` #${esc(p.collector_number)}` : ''}</span>${
+    finish ? `<span class="card-shelf-finish" title="${esc(finish)}">${esc(cardFinishMark(finish))}</span>` : ''}</li>`;
+}
+
+/* Nothing in scope, which is two different pieces of news. Nobody at all has
+   the card, or you do not and somebody else does — and the second is the
+   sentence the badges on the mat already make: an empty answer scoped to you
+   is not "nobody has this", and the person who does is the point. */
+function cardShelfNoneHtml(name) {
+  const holders = dbHoldersOf(name);
+  if (!holders.length) return `<div class="help-text card-shelf-note">No copies on the shelf.</div>`;
+  return `<div class="help-text card-shelf-note">No copies on the shelf — somebody else has one.</div>
+    <div class="card-shelf-elsewhere">${holders.map(h => `
+      <span class="sf-badge db-badge-elsewhere" style="border-color:${h.ink}"
+        title="${esc(`${h.who} — ${h.collection} ×${h.qty}`)}">
+        <span class="sf-dot" style="background:${h.ink}"></span>
+        ${esc(h.who)} ×${h.qty}
+      </span>`).join('')}</div>`;
+}
+
+/** The section, or nothing at all where there is no shelf to answer about —
+ *  an app nobody has loaded a collection into has no shelf, and a card that
+ *  said "no copies" there would be reporting an absence of collections as a
+ *  fact about the card. */
+function cardShelfSectionHtml(name) {
+  if (!(state.collections || []).some(c => c.status === 'loaded')) return '';
+  const held  = cardShelfHeld(name);
+  const total = held.reduce((n, p) => n + p.qty, 0);
+  return `<div class="card-detail-section content-prose card-shelf">
+    <div class="section-title">On the shelf${total ? ` (${total})` : ''}</div>
+    <div class="help-text card-shelf-scope">${esc(cardShelfScope().hint)}</div>
+    ${held.length ? `<ul class="card-shelf-list">${held.map(cardShelfRowHtml).join('')}</ul>`
+                  : cardShelfNoneHtml(name)}</div>`;
 }
 
 /* Which finishes a printing was made in, and what each of them is worth.
