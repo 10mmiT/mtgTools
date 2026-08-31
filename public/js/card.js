@@ -593,14 +593,38 @@ function cardChoosePrinting(id, finish = '') {
   return true;
 }
 
+/** Every printing behind a `prints_search_uri`, to the end of the pages.
+ *
+ *  Scryfall pages a search at 175 cards and says so with `has_more`, and a
+ *  loader that took the first page and stopped was silently telling somebody
+ *  that a card comes in fewer printings than it does — the alt-art you are
+ *  looking for simply not there, with nothing on screen to say a page was
+ *  dropped. Which is a gallery bug and, since the printing optimiser reads the
+ *  same list, a pool cut off at 175 candidates too. One loader, so the two
+ *  cannot come to disagree about what printings a card has.
+ *
+ *  A page that fails ends the walk rather than failing the lot: the printings
+ *  that did arrive are a shorter answer, and no answer at all is a worse one. */
+async function cardAllPrints(url) {
+  const out = [];
+  let next = url;
+  while (next) {
+    let page;
+    try {
+      const res = await scryfallFetch(next);
+      if (!res.ok) break;
+      page = await res.json();
+    } catch { break; }
+    out.push(...(page.data || []));
+    next = page.has_more ? page.next_page : null;
+  }
+  return out;
+}
+
 async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
   const el = document.getElementById(sectionId);
   if (!card.prints_search_uri) { if (el) el.style.display = 'none'; return; }
-  let prints = [];
-  try {
-    const res = await scryfallFetch(card.prints_search_uri);
-    if (res.ok) prints = (await res.json()).data || [];
-  } catch {}
+  const prints = await cardAllPrints(card.prints_search_uri);
   if (seq !== _cardReqSeq || !el) return;
   if (!prints.length) { el.style.display = 'none'; return; }
 

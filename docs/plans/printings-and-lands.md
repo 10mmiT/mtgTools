@@ -67,7 +67,7 @@ special-treatment variants from recent sets, not old cards. Hence the amendment.
 | **Change detection** | `refreshState` stops stringifying the whole payload to decide whether anything changed; it uses the server's existing `version` / an ETag. Tripling per-poll CPU on a phone is not worth it |
 | **Unknown state** | A distinct third reading — *owned, printing unknown* — wherever ownership is shown, plus a one-time banner offering to re-import. A third state with no way out is just nagging |
 | **Deck printing shape** | `PRINTING_FIELDS` gains `finish`, appended last and omitted when absent, so decks stored before the change serialise byte-for-byte and no phantom History rows appear |
-| **Optimize: pool** | Paper only. Not reserved, not oversized, released ≥ 2003-07-28, **not serialized**. One pool shared by both modes — admissibility is a property of the printing, not of which button was pressed |
+| **Optimize: pool** | ~~Paper only. Not reserved, not oversized, released ≥ 2003-07-28, **not serialized**. One pool shared by both modes — admissibility is a property of the printing, not of which button was pressed~~ **Amended by #53 — see below.** The pool itself is unchanged; what it governs is |
 | **Optimize: finish** | Finish follows price: cheapest may pick a foil when the foil is cheaper, dearest likewise. This is why the deck shape needed `finish` |
 | **Optimize: unpriced** | Skipped. A printing with no price is unknown, not free, and must never win "cheapest" — but it never clears an existing choice either |
 | **Optimize: dearest** | Bounded as above and otherwise honest. It still lands on a €1,957 Sol Ring, because that is genuinely the most expensive admissible printing |
@@ -222,15 +222,32 @@ a mismatch and not as unowned.
 
 ## Step 3 — Optimize a deck's printings
 
+> **Amended by #53, and this is what shipped.** The row in the decisions table above says
+> "one pool shared by both modes", which was written when there were two. There are three,
+> and the third proposes no purchase — so the rule is now: **the pool decides what the app
+> will send you to buy, not what it will let you keep.** Cheapest and dearest are bounded by
+> it; prefer-owned is not, and settles on a printing already on the shelf even where that
+> printing is Reserved List, serialized, older than the bound or unpriced. The pool's own
+> membership is exactly as specified below.
+
 - Modes: **cheapest**, **most expensive**, and **prefer printings I own** falling back
   to cheapest
-- One admissible pool for every mode: paper, priced, not reserved, not oversized,
-  released ≥ 2003-07-28, not serialized. Every (printing, finish) pair is a separate
+- The admissible pool, which bounds the two buying modes: paper, priced, not reserved, not
+  oversized, released ≥ 2003-07-28, not serialized. Every (printing, finish) pair is a separate
   candidate with its own price
+- Basic lands are excluded from every mode, decided from the local card data before any
+  request goes out — the printing of a basic is chosen for how it looks and never for money
 - Prints per card over `/api/scryfall`, paced by the shared queue. A hundred-card deck
   is ~100 requests at ~9/s ≈ **11 seconds** — a progress bar, not a spinner
-- Writes through `dbChoosePrinting` (`deckview-edit.js:148`), but the run lands in
-  History as **one entry**, restorable as a single undo
+- Writes through `dbChoosePrintings` (`deckview-edit.js`) — a bulk sibling of
+  `dbChoosePrinting`, sharing its guards, that renders the mat once and schedules one save
+  however many cards moved — but the run lands in History as **one entry**, restorable as a
+  single undo. Three reasons rather than one (`optimize-cheapest`, `optimize-dearest`,
+  `optimize-owned`), because cheapest and dearest are opposites and the row has to say which
+  ran
+- The shared printings loader follows Scryfall's paging to the end. It stopped after the
+  first page, which cut the pool off at 175 candidates — and cut the card gallery off at the
+  same place, which was a bug nobody had reported
 
 **Test:** cheapest and dearest pick the right pair from a known price set; a foil wins
 when the foil is cheaper; unpriced and inadmissible printings are never chosen and

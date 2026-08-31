@@ -146,13 +146,34 @@ function dbPrintingFor(ctx) {
  * Answers whether it happened, because the gallery has a ring to move and must
  * not move it for a press the deck refused. */
 function dbChoosePrinting(ctx, printing) {
-  const card = _dbPrintingCard(ctx);
-  if (!card || !printing?.id) return false;
-  card.printing = printing;
+  return dbChoosePrintings([{ ctx, printing }]) === 1;
+}
+
+/* The same choice, made for a whole deck at once — what the printing optimiser
+ * applies through.
+ *
+ * The door and the guards are the ones above: every row goes through
+ * _dbPrintingCard(), so a card that has left the deck since the proposal was
+ * made is dropped rather than written to, and a run aimed at a deck that is no
+ * longer open writes nothing at all. What differs is only that the mat is
+ * redrawn once and one save is scheduled, however many cards moved — ninety-nine
+ * renders and ninety-nine debounce resets is a frozen tab.
+ *
+ * Answers how many of them landed, because a partial apply is something to be
+ * reported rather than assumed complete. */
+function dbChoosePrintings(items) {
+  let applied = 0;
+  for (const { ctx, printing } of items || []) {
+    const card = _dbPrintingCard(ctx);
+    if (!card || !printing?.id) continue;
+    card.printing = printing;
+    applied++;
+  }
+  if (!applied) return 0;
   dbRender();
   dbRenderStats();
   _dbScheduleSave();
-  return true;
+  return applied;
 }
 
 /* ⓘ Inspect, from the mat. The one door in the app that opens a gallery which

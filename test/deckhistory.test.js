@@ -384,6 +384,55 @@ describe('a printing chosen before a finish could be named', () => {
   });
 });
 
+// ── Operations that name themselves ───────────────────────────────────────
+/* A forced snapshot is refused a reason the server has not heard of, and the
+ * browser swallows the refusal — so a reason missing from the set is an
+ * operation that has quietly been taking no snapshot at all, with nothing on
+ * screen to say so. Which is exactly what had happened to switching a
+ * commander, and is the risk the optimiser's three reasons carry.
+ */
+
+describe('the operations that can take a snapshot', () => {
+  const LIVE = { cards: [SOL_RING, DOOM_BLADE, FOREST], categories: CATS };
+
+  test('include a run of the printing optimiser, in each of its three modes', () => {
+    /* Three reasons and not one, because cheapest and dearest are opposites:
+       "before the printings were optimized" over two rows is a panel that
+       cannot tell the run that made the deck cheap from the one that made it
+       expensive, which is the whole point of the row. */
+    for (const mode of ['cheapest', 'dearest', 'owned']) {
+      history.force(DECK, `optimize-${mode}`,
+        { ...LIVE, cards: [...LIVE.cards, card(`Filler ${mode}`)] });
+    }
+    assert.deepEqual(rowsOf(DECK).map(r => r.reason),
+      ['optimize-owned', 'optimize-dearest', 'optimize-cheapest']);
+  });
+
+  test('and switching the commander, which has been taking none', () => {
+    // The browser has forced this one since the day commanders could be
+    // switched from the mat; the server has been answering 400 to it, and the
+    // browser does not read the answer.
+    history.force(DECK, 'commander', LIVE);
+    assert.deepEqual(rowsOf(DECK).map(r => r.reason), ['commander']);
+  });
+
+  test('and a run puts every printing it changed back', () => {
+    /* The undo the whole preview is built around. One row for a ninety-nine
+       card run is only worth having if restoring it is the deck as it was,
+       printing by printing — a restore that put half of them back would be a
+       worse loss than the run it was undoing. */
+    const runs = [
+      { ...SOL_RING,   printing: { id: 'p-sol', set: 'c21', chosen_at: '2026-08-30' } },
+      { ...DOOM_BLADE, printing: { id: 'p-doom', set: 'm13', chosen_at: '2026-08-30' } },
+      { ...FOREST,     printing: { id: 'p-forest', set: 'unf', chosen_at: '2026-08-30' } },
+    ];
+    history.force(DECK, 'optimize-cheapest', { cards: runs, categories: CATS });
+    const back = history.get(DECK, rowsOf(DECK)[0].id);
+    assert.deepEqual(back.cards.map(c => c.printing?.id),
+      ['p-sol', 'p-doom', 'p-forest']);
+  });
+});
+
 // ── The caps ──────────────────────────────────────────────────────────────
 
 describe('the caps', () => {

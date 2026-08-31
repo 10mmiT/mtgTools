@@ -116,6 +116,7 @@ mtgtools/
 │       ├── deckview-totals.js   # Deck Builder: one pass over the deck — what it costs, what finishing it costs, the curve, the types, the split
 │       ├── deckview-legality.js # Deck Builder: whether the deck is legal, and the bracket it looks like — with the reasoning
 │       ├── deckview-mana.js     # Deck Builder: the pips the deck's costs ask for against the sources its lands make, and the calculator filled from it
+│       ├── deckview-optimize.js # Deck Builder: picking a printing for every card at once — the three modes, the admissible pool, the preview and the bulk apply
 │       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling

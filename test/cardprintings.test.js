@@ -262,6 +262,27 @@ test('and it is the printing you are looking at that is ringed', async () => {
   assert.deepStrictEqual(ringed, [CARD.id], 'the ring is on the printing the detail is showing');
 });
 
+/* Scryfall pages a printings search at 175 cards. A card with more than that
+ * — a Sol Ring, a Lightning Bolt, a Llanowar Elves — had its gallery quietly
+ * cut off at the first page, with nothing on screen to say a page was dropped:
+ * the alt-art somebody came here to find was simply not there. */
+test('every page of printings is drawn, not just the first', async () => {
+  const app = loadGallery();
+  app.run(`_pages = ${JSON.stringify({
+    'https://api.scryfall.com/prints': { data: [PRINTS[0]], has_more: true,
+                                         next_page: 'https://api.scryfall.com/prints?page=2' },
+    'https://api.scryfall.com/prints?page=2': { data: PRINTS.slice(1), has_more: false },
+  })}`);
+  app.run(`scryfallFetch = async url => { _asked.push(url); return { ok: true, json: async () => _pages[url] }; }`);
+  app.run('_asked = []');
+  const html = await app.section();
+  assert.deepStrictEqual(app.answer('_asked'),
+    ['https://api.scryfall.com/prints', 'https://api.scryfall.com/prints?page=2']);
+  assert.match(html, new RegExp(`Other Printings &amp; Alt-Art \\(${PRINTS.length}\\)`),
+    'the count is the first page rather than the card');
+  for (const p of PRINTS) assert.ok(html.includes(p.id), `${p.set_name} was left on a page nobody read`);
+});
+
 test('and the section says nothing about any deck', async () => {
   const html = await loadGallery().section();
   assert.match(html, /Other Printings/);

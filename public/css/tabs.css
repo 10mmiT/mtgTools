@@ -2355,6 +2355,125 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    fight that and reintroduce the jump it's meant to prevent. */
 .db-bulk-bar, #dbDeckContent { overflow-anchor: none; }
 
+/* ── Optimize printings ──────────────────────────────────────────────────────
+   One window with four states — pick a mode, watch it fetch, read the
+   proposal, see what happened — so the run is a single thing on screen rather
+   than a spinner that turns into a table. Nothing here is a new colour or a
+   new size: the surfaces, the money and the muted text are the tab's own.
+
+   The table scrolls inside the box rather than growing it: a ninety-nine card
+   run proposes as many rows, and a modal taller than the viewport is a modal
+   whose Apply button cannot be reached. */
+.db-opt-box {
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.db-opt-title {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+.db-opt-lede { margin: 0; }
+
+/* The three modes, as a column of buttons rather than a select: each carries a
+   sentence saying what it does, and "most expensive" needs its sentence read
+   before it is pressed rather than after it lands on a four-figure Sol Ring. */
+.db-opt-modes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.db-opt-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  text-align: left;
+  padding: var(--space-3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--dur-tint) var(--ease-tint),
+              background var(--dur-tint) var(--ease-tint);
+}
+.db-opt-mode:hover { border-color: var(--border-strong); background: var(--surface-3); }
+.db-opt-mode.current { border-color: var(--primary); }
+.db-opt-mode-name { font-weight: 700; font-size: var(--text-base); }
+.db-opt-mode-hint { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* What the pool is, in words. Said on the picker and again while it fetches,
+   because it is the answer to the question the result will provoke. */
+.db-opt-pool,
+.db-opt-note {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.db-opt-progress-line { font-size: var(--text-sm); }
+.db-opt-progress {
+  height: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.db-opt-progress-bar {
+  height: 100%;
+  background: var(--primary);
+  transition: width var(--dur-base) var(--ease-tint);
+}
+
+.db-opt-total {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.db-opt-scroll {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.db-opt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.db-opt-table th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  background: var(--surface-1);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.db-opt-table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.db-opt-name { font-weight: 600; }
+.db-opt-qty,
+.db-opt-from { color: var(--text-muted); }
+/* The money column reads down, so it is tabular and right-aligned like every
+   other column of figures in the app. */
+.db-opt-money {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* A cheapest run swapping a card to foil is the result most likely to be
+   reported as a bug, so it is marked rather than left to be noticed. */
+.db-opt-foil {
+  font-size: var(--text-xs);
+  color: var(--warning);
+}
+.db-opt-empty { padding: var(--space-5) var(--space-4); }
+.db-opt-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
 /* Manage Categories modal */
 .db-catmodal-list {
   display: flex;

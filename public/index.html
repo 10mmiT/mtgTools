@@ -999,6 +999,11 @@
       <button class="db-menu-item db-when-deck" onclick="dbExportClipboard()">Copy to clipboard</button>
       <button class="db-menu-item db-when-deck" onclick="dbExportCsv()">Download CSV</button>
       <button class="db-menu-item db-when-deck" onclick="dbExportTxt()">Download .txt</button>
+      <!-- Hidden rather than disabled on somebody else's deck, which is how
+           Delete below already behaves: an edit you are not allowed to make is
+           not an edit to be offered greyed out. -->
+      <button class="db-menu-item db-when-deck" id="dbOptimizeBtn" style="display:none"
+              onclick="dbShowOptimize()" title="Pick a printing for every card in the deck at once">Optimize printings…</button>
       <button class="db-menu-item db-menu-danger db-when-deck" id="dbDeleteDeckBtn" style="display:none" onclick="dbDeleteDeck()">Delete Deck</button>
     </div>
   </aside>
@@ -1191,6 +1196,21 @@
         <button class="btn-primary" onclick="dbImportText()">Import</button>
         <button class="btn-secondary" onclick="dbHideImportText()">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Optimize printings. One window throughout: the mode picker, then a
+       progress bar you can abandon, then the proposal in place, then what
+       happened. js/deckview-optimize.js writes the body; the shell is here
+       because every other overlay on this tab is. -->
+  <div id="dbOptimizeOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideOptimize()">
+    <div class="card-modal-box db-opt-box">
+      <div class="db-opt-title">Optimize printings</div>
+      <div class="section-label db-opt-lede">
+        Pick a printing for every card in this deck at once. Nothing is written until you press Apply,
+        and the whole run lands as one row in History.
+      </div>
+      <div id="dbOptimizeBody"></div>
     </div>
   </div>
 
@@ -1395,6 +1415,7 @@
 <script src="js/deckview-totals.js"></script>
 <script src="js/deckview-legality.js"></script>
 <script src="js/deckview-mana.js"></script>
+<script src="js/deckview-optimize.js"></script>
 <script src="js/pick.js"></script>
 <script src="js/rss.js"></script>
 <script src="js/admin.js"></script>
