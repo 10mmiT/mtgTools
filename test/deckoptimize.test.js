@@ -199,6 +199,24 @@ test('a foil wins when the foil is cheaper, and never when it is dearer', () => 
   assert.strictEqual(dear.foil, false);
 });
 
+test('two printings at the same price settle the same way every time', () => {
+  /* A run proposing one thing on Monday and another on Tuesday over an
+     unchanged deck is a bug nobody can reproduce on purpose. The order the
+     pages happened to arrive in is a property of the network; the Scryfall id
+     is a property of the card. */
+  const tie = {
+    'Cultivate': [
+      printing({ id: 'cu-zzz', set: 'zzz', collector_number: '1', prices: { eur: '0.30' } }),
+      printing({ id: 'cu-aaa', set: 'aaa', collector_number: '2', prices: { eur: '0.30' } }),
+    ],
+  };
+  const forwards  = plan({ mode: 'cheapest', prints: { ...PRINTS, ...tie } });
+  const backwards = plan({ mode: 'cheapest',
+    prints: { ...PRINTS, Cultivate: [...tie.Cultivate].reverse() } });
+  assert.strictEqual(proposed(forwards)['Cultivate'], 'cu-aaa');
+  assert.strictEqual(proposed(backwards)['Cultivate'], 'cu-aaa');
+});
+
 test('a printing nobody has quoted can never win', () => {
   // Both of Krenko's are admissible in every other way and neither has a
   // price. Unknown is not free, so cheapest cannot be won by one.
@@ -422,14 +440,33 @@ function loadTab({ deck = DECK, shelves = [], user = AS_TIM, deckOwner = 'p-tim'
         n => CARDS[n]?.prints_search_uri === url)] || [], has_more: false };
       return { ok: true, status: 200, json: async () => page };
     },
+    /* Every request the app made, and — for the snapshots route — a store that
+       hands back what it was given. A run's undo is the whole reason it is one
+       History row, so the round trip has to be drivable rather than assumed. */
+    snaps: [],
     fetch: async (url, opts = {}) => {
-      sandbox.calls.push({ url, method: opts.method || 'GET',
-                           body: opts.body ? JSON.parse(opts.body) : null });
-      return { ok: true, status: 200, json: async () => ({ ok: true, version: 7 }) };
+      const method = opts.method || 'GET';
+      const body   = opts.body ? JSON.parse(opts.body) : null;
+      sandbox.calls.push({ url, method, body });
+      if (/\/snapshots$/.test(url) && method === 'POST') {
+        const id = sandbox.snaps.push({ ...body, id: sandbox.snaps.length + 1 });
+        return { ok: true, status: 200, json: async () => ({ ok: true, snapshot: { id } }) };
+      }
+      const one = url.match(/\/snapshots\/(\d+)$/);
+      if (one) {
+        const snap = sandbox.snaps[Number(one[1]) - 1];
+        return { ok: true, status: 200, json: async () => snap };
+      }
+      return { ok: true, status: 200, json: async () => ({ ok: true, version: 7, snapshots: [], current: {} }) };
     },
     renderMana: () => '', renderPrice: () => '',
     openDrawer() {}, closeDrawers() {}, renderDeck() {},
     ensureScryfallImages: async () => {},
+    /* js/scryfall.js's, stubbed rather than loaded: that file also defines
+       scryfallFetch, and the run's requests are the thing this harness counts.
+       A restore looks the deck's names up on its way past, and every one this
+       file cares about is already in dbCardData. */
+    fetchCardCollection: async () => [],
     scryfallCache: new Map(), scryfallMetaCache: new Map(),
     deck: null, deckFilter: false, viewMode: 'list',
     animateCardMove: (_el, paint) => paint(),
@@ -470,6 +507,8 @@ function loadTab({ deck = DECK, shelves = [], user = AS_TIM, deckOwner = 'p-tim'
       return answer('_dbOptRun.plan');
     },
     apply: () => run('dbOptimizeApply()'),
+    /** Put the newest snapshot back, the way the History panel's Restore does. */
+    restore: () => run('dbRestoreSnapshot(1)'),
     /** What the deck costs, as the readout reads it. */
     price: () => { run('dbRenderStats()'); return answer('dbDeckTotals().price'); },
     printingOf: name => answer(`dbCards.find(c => c.card_name === ${JSON.stringify(name)}).printing || null`),
@@ -660,4 +699,80 @@ test('and every handler it writes into markup is a function it defines', () => {
       ...[...MARKUP.matchAll(/onclick="[^"]*?\b(dbShowOptimize|dbHideOptimize)\(/g)].map(m => m[1])])) {
     assert.match(src, new RegExp(`function ${fn}\\b`), `${fn}() is pressed and never defined`);
   }
+});
+
+// ── Reading the result ────────────────────────────────────────────────────
+
+test('the preview says what the pool was, where the pool decided anything', () => {
+  // The screen the four-figure Sol Ring appears on is the screen that has to
+  // carry the sentence explaining it — a bound stated two screens ago is a
+  // bound nobody is reading when the result provokes the question.
+  const tab = loadTab();
+  tab.run(`_dbOptRun = { phase: 'preview', mode: 'dearest',
+    plan: dbOptimizePlan({ cards: dbCards, cardData: dbCardData, mode: 'dearest',
+                           prints: new Map(), owned: new Map() }) }`);
+  tab.run('_dbOptPaint()');
+  assert.match(tab.body(), /8th Edition/, 'the preview does not say what it was bounded by');
+});
+
+test('and does not, where it decided nothing', () => {
+  // Prefer-owned proposes no purchase, so the buying bound is not the rule it
+  // followed and saying it would be an explanation of the wrong answer.
+  const tab = loadTab();
+  tab.run(`_dbOptRun = { phase: 'preview', mode: 'owned',
+    plan: dbOptimizePlan({ cards: dbCards, cardData: dbCardData, mode: 'owned',
+                           prints: new Map(), owned: new Map() }) }`);
+  tab.run('_dbOptPaint()');
+  assert.doesNotMatch(tab.body(), /8th Edition/);
+});
+
+test('a total over the deck says so when the table shows rows outside it', async () => {
+  /* The figure is the move the price readout will make, which counts the
+     mainboard and the commander. A table listing a maybeboard row beside it is
+     a table that visibly does not add up, unless it says why. */
+  const tab = loadTab({ deck: [
+    { card_name: 'Sol Ring',  board: 'main',  category: 'Ramp', qty: 1 },
+    { card_name: 'Cultivate', board: 'maybe', category: 'Ramp', qty: 1 },
+  ] });
+  await tab.optimize('cheapest');
+  assert.match(tab.body(), /1 of them off the boards the price counts/);
+});
+
+test('and says nothing about it when every row is in the deck', async () => {
+  const tab = loadTab();
+  await tab.optimize('cheapest');
+  assert.doesNotMatch(tab.body(), /off the boards/);
+});
+
+// ── The undo ──────────────────────────────────────────────────────────────
+
+test('restoring the run’s History row puts every printing back', async () => {
+  /* The reason a ninety-nine card run is worth one row. A restore that put
+     half the printings back would be a worse loss than the run it was undoing,
+     and it is a loss nobody reports — the cards are all still in the deck and
+     only their art has changed. */
+  const tab = loadTab();
+  await tab.optimize('cheapest');
+  await tab.apply();
+  assert.strictEqual(tab.printingOf('Sol Ring').id, 'sr-ltr');
+
+  await tab.restore();
+  assert.strictEqual(tab.printingOf('Sol Ring'), null, 'the printing survived its own undo');
+  assert.strictEqual(tab.printingOf('Cultivate'), null);
+  assert.deepStrictEqual(tab.answer('dbCards.map(c => c.card_name)'),
+    DECK.map(c => c.card_name), 'and the deck came back as something else');
+});
+
+test('and a run applied over a chosen printing restores that one, not nothing', async () => {
+  // The row holds the deck as it was, which is not the same as a deck nobody
+  // had chosen anything in.
+  const chosen = { id: 'sr-c21', set: 'c21', set_name: 'Commander 2021',
+                   collector_number: '263', chosen_at: '2026-01-01' };
+  const tab = loadTab({ deck: DECK.map(c =>
+    (c.card_name === 'Sol Ring' ? { ...c, printing: chosen } : c)) });
+  await tab.optimize('cheapest');
+  await tab.apply();
+  assert.strictEqual(tab.printingOf('Sol Ring').id, 'sr-ltr');
+  await tab.restore();
+  assert.deepStrictEqual(tab.printingOf('Sol Ring'), chosen);
 });

@@ -647,6 +647,54 @@ describe('Deck history: /api/players/:id/decks/:deckId/snapshots', () => {
     assert.equal(res.status, 400);
   });
 
+  /* The gate that refuses an unknown reason is the route's own, and the browser
+     does not read the answer to a forced snapshot — so a reason the server has
+     not heard of is an operation quietly taking no snapshot at all, with
+     nothing on screen to say so. Which is exactly what had happened to
+     switching a commander, and is the risk the optimiser's three carry. */
+  test('a reason the browser really sends is one the route really takes', async () => {
+    for (const reason of ['commander', 'optimize-cheapest', 'optimize-dearest', 'optimize-owned']) {
+      require('../deck-history')._forget(DECK);
+      const res = await request.post(`/api/players/${playerId}/decks/${DECK}/snapshots`)
+        .set('Cookie', playerCookie).send({ reason, ...body(['Sol Ring', reason]) });
+      assert.equal(res.status, 200, `the route answered ${res.status} to ${reason}`);
+      assert.equal(res.body.snapshot.reason, reason, 'and stored it as something else');
+    }
+  });
+
+  /* A ninety-nine card optimiser run is worth one History row only if restoring
+     that row is the deck as it was, printing by printing. */
+  test('a snapshot carrying printings hands every one of them back', async () => {
+    const printed = names => ({
+      cards: names.map((n, i) => ({
+        card_name: n, qty: 1, category: 'Ramp', position: i,
+        printing: { id: `p-${n.toLowerCase().replace(/\W+/g, '')}`, set: 'c21', chosen_at: '2026-08-31' },
+      })),
+      categories: [{ name: 'Ramp', position: 0 }],
+    });
+    const forced = await request.post(`/api/players/${playerId}/decks/${DECK}/snapshots`)
+      .set('Cookie', playerCookie)
+      .send({ reason: 'optimize-cheapest', ...printed(['Sol Ring', 'Cultivate', 'Forest']) });
+    assert.equal(forced.status, 200);
+
+    await save(playerCookie, ['Island']);   // the run, and then some editing over it
+
+    const snap = await request
+      .get(`/api/players/${playerId}/decks/${DECK}/snapshots/${forced.body.snapshot.id}`)
+      .set('Cookie', playerCookie);
+    assert.deepEqual(snap.body.cards.map(c => c.printing?.id),
+      ['p-solring', 'p-cultivate', 'p-forest']);
+
+    // Restored the way the browser restores: the snapshot's cards, saved.
+    const back = await request.put(`/api/players/${playerId}/decks/${DECK}/cards`)
+      .set('Cookie', playerCookie)
+      .send({ cards: snap.body.cards, categories: snap.body.categories });
+    assert.equal(back.status, 200);
+    const now = await request.get(`/api/players/${playerId}/decks/${DECK}/cards`).set('Cookie', playerCookie);
+    assert.deepEqual(now.body.cards.map(c => c.printing?.id).sort(),
+      ['p-cultivate', 'p-forest', 'p-solring']);
+  });
+
   test('and has to be aimed at your own deck', async () => {
     const res = await request.post(`/api/players/${playerId}/decks/${DECK}/snapshots`)
       .set('Cookie', otherCookie).send({ reason: 'import', ...body(['Sol Ring']) });

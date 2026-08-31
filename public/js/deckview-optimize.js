@@ -65,11 +65,20 @@ const DB_OPT_POOL_SAID =
 
 // ── Reading a printing ────────────────────────────────────────────────────
 
-/* A basic land, off the type line — js/deckview-legality.js's rule for the
- * copy limit and js/deckview-mana.js's for the split, said a third time here
- * because this module must answer it before any request goes out and cannot
- * reach either of them without the tab. The printing of a basic is chosen for
- * how it looks and never for money, so a run leaves forty Forests alone. */
+/* A basic land, off the type line — js/deckview-legality.js's rule for the copy
+ * limit, written out again here rather than borrowed because there is nothing
+ * to borrow: that one is a line inside a function that takes a card name and
+ * reads the live cache, and dbOptimizePlan() is a function of its arguments.
+ * The same rule over a card object handed in is what this is, and the two must
+ * stay the same rule — a basic is four-of-any-number in one and untouchable in
+ * the other, and both are the same fact about the card.
+ *
+ * (js/deckview-mana.js's `_dbIsBasic` looks shorter and is not a third answer:
+ * it is asked only of a card already known to be a land, so its caller has
+ * already done the half that is missing from it.)
+ *
+ * The printing of a basic is chosen for how it looks and never for money, so a
+ * run leaves forty Forests alone. */
 const _dbOptIsBasic = sf => {
   const line = (sf?.type_line || '').toLowerCase();
   return line.includes('basic') && line.includes('land');
@@ -113,24 +122,30 @@ function _dbOptBuyable(print) {
    against the printing the deck already runs without three ideas of sameness. */
 const _dbOptId = c => printingIdentity({ id: c.print.id, finish: c.finish });
 
-/* Cheapest, and dearest, and the tie-break that makes both repeatable. A run
-   over the same deck twice must propose the same thing, so ties go to the
-   Scryfall id rather than to whatever order the pages happened to arrive in. */
-const _dbOptCheapest = list =>
-  list.reduce((best, c) => (!best || c.price < best.price
+/* The winner of a list, and the tie-break that makes a run repeatable.
+ *
+ * Cheapest and dearest are one walk with the comparison turned round, so they
+ * are written once: two reduces differing in a `<` is two places for the
+ * tie-break to be got wrong, and a run over the same deck twice proposing two
+ * different things is the kind of bug nobody can reproduce on purpose. Ties go
+ * to the Scryfall id rather than to whatever order the pages happened to arrive
+ * in, which is the only order that is a property of the card rather than of the
+ * network. */
+const _dbOptBest = (list, beats) =>
+  list.reduce((best, c) => (!best || beats(c, best)
     || (c.price === best.price && _dbOptId(c) < _dbOptId(best)) ? c : best), null);
 
-const _dbOptDearest = list =>
-  list.reduce((best, c) => (!best || c.price > best.price
-    || (c.price === best.price && _dbOptId(c) < _dbOptId(best)) ? c : best), null);
+const _dbOptCheapest = list => _dbOptBest(list, (c, best) => c.price < best.price);
+const _dbOptDearest  = list => _dbOptBest(list, (c, best) => c.price > best.price);
 
 /* Cheapest among the ones you own, where owning one with no price is still
    owning it. The unpriced sort last rather than first: an unknown price cannot
-   win against a known one, which is the same rule the pool lives by. */
+   win against a known one, which is the same rule the pool lives by — and
+   between two unpriced copies the tie-break above is the whole answer. */
 const _dbOptCheapestOwned = list => {
   const priced = list.filter(c => c.price !== null);
   return priced.length ? _dbOptCheapest(priced)
-       : list.slice().sort((a, b) => (_dbOptId(a) < _dbOptId(b) ? -1 : 1))[0] || null;
+                       : _dbOptBest(list, () => false);
 };
 
 /** The printing this card of the deck runs today — the chosen one, or the one
@@ -159,8 +174,8 @@ function _dbOptWas(card, sf) {
    purse in js/deckview-totals.js. The run covers every board; the total it
    promises covers the ones the readout reads, or it would promise a move the
    readout will not make. */
-const _dbOptInPurse = card =>
-  [DB_MAIN_BOARD, DB_COMMANDER_BOARD].includes(card.board || DB_MAIN_BOARD);
+const DB_OPT_PURSE = [DB_MAIN_BOARD, DB_COMMANDER_BOARD];
+const _dbOptInPurse = card => DB_OPT_PURSE.includes(card.board || DB_MAIN_BOARD);
 
 // ── The decision ──────────────────────────────────────────────────────────
 
@@ -256,10 +271,10 @@ function dbOptimizePlan({ cards = [], cardData = new Map(), prints = new Map(),
  *  and minus the ones the app has no data for. Decided from the local cache
  *  before any request goes out, so a deck with thirty-seven Forests in it costs
  *  thirty-seven fewer requests than it has cards. */
-function dbOptimizeNames(cards = dbCards, cardData = dbCardData) {
+function dbOptimizeNames() {
   const names = new Set();
-  for (const card of cards) {
-    const sf = cardData.get(card.card_name);
+  for (const card of dbCards) {
+    const sf = dbCardData.get(card.card_name);
     if (sf && !_dbOptIsBasic(sf)) names.add(card.card_name);
   }
   return [...names];
@@ -390,10 +405,17 @@ function _dbOptFooterHtml(plan) {
 
   const left = bits.length
     ? `<div class="db-opt-note">Left alone: ${esc(bits.join(', '))}.</div>` : '';
+  /* Said as what the count actually is — cards this mode could not answer from
+     the shelf — rather than as "fell back to cheapest", which is true of the
+     ones that then found something and misleading about the ones that did not.
+     Re-importing helps every card in the number either way: the printing it
+     would find is the printing this mode wants, and prefer-owned is not bound
+     by the pool, so even a Reserved List copy would then win. */
   const fell = plan.unattributed
     ? `<div class="db-opt-note">${plan.unattributed} card${plan.unattributed === 1 ? '' : 's'}
-       fell back to the cheapest printing because your copies do not say which printing
-       they are. Re-import the collection on the Collections tab to fix that.</div>` : '';
+       could not be settled onto your copies, because the shelf does not record which
+       printings those copies are. Re-import the collection on the Collections tab and
+       it can be.</div>` : '';
   return left + fell;
 }
 
@@ -411,9 +433,15 @@ function _dbOptPreviewHtml(plan) {
       <td class="db-opt-money">${esc(_dbOptDelta(p.delta))}</td>
     </tr>`).join('');
 
+  /* The total is the move the deck's price readout will make, which counts the
+     mainboard and the commander and no other board. So a run that also proposes
+     something for a sideboard says so, rather than leaving a table whose rows
+     visibly do not add up to the figure above them. */
+  const outside = plan.picks.filter(p => !DB_OPT_PURSE.includes(p.board)).length;
   return `
     <div class="db-opt-total">${plan.picks.length} card${plan.picks.length === 1 ? '' : 's'} would change
-      · deck price ${esc(_dbOptDelta(plan.delta))}</div>
+      · deck price ${esc(_dbOptDelta(plan.delta))}${outside
+        ? ` <span class="db-opt-aside">(${outside} of them off the boards the price counts)</span>` : ''}</div>
     <div class="db-opt-scroll">
       <table class="db-opt-table">
         <thead><tr><th>Card</th><th>Runs now</th><th>Would run</th><th>Change</th></tr></thead>
@@ -448,7 +476,13 @@ function _dbOptBodyHtml(run) {
     return `<div class="db-opt-note">${esc(said)} The deck as it was is the newest row in History.</div>
       <div class="db-opt-actions"><button class="btn-primary" onclick="dbHideOptimize()">Close</button></div>`;
   }
-  return _dbOptPreviewHtml(run.plan);
+  /* The pool is said again under the proposal, and not only on the picker: the
+     preview is the screen the four-figure Sol Ring actually appears on, and a
+     bound stated two screens ago is a bound nobody is reading when the result
+     provokes the question. Prefer-owned is not bounded by it and does not say
+     it. */
+  return _dbOptPreviewHtml(run.plan)
+    + (run.mode === 'owned' ? '' : `<div class="db-opt-pool">${esc(DB_OPT_POOL_SAID)}</div>`);
 }
 
 /* Drawn where it stands, from the run and nothing else — so the progress bar,
