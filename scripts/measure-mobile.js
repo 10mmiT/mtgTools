@@ -53,6 +53,7 @@ const EXTRA_VIEWS = {
   'deckview-analysis': 'deckview',
   'deckview-legality': 'deckview',
   'deckview-mana':    'deckview',
+  'deckview-lands':   'deckview',
   'deckview-menu':    'deckview',
   'rss-panel':        'available',
   'collections-list': 'collections',
@@ -102,6 +103,7 @@ const OPEN_FAQ = `(() => {
  * working as a fault. */
 const SCOPES = {
   'deckview-search':  '#dbSearchPanel',
+  'deckview-lands':   '#dbSearchPanel',
   'deckview-history': '#dbHistoryPanel',
   'rss-panel':        '#rssPanel',
   faq:                '#faqModal',
@@ -268,6 +270,25 @@ const PREP = {
     /* The deck's cards arrive over the network, and a deck with none of them
        yet is a panel saying it has nothing to compare. */
     setTimeout(() => { if (!_dbManaPanelOpen) dbToggleManaPanel(); }, 1500);
+    return 'true';
+  })()`,
+  /* The drawer's third half, which the search view never reaches: it arrives
+     on Search, and the Lands tab's rows — and the padded card names inside an
+     expanded section — are only on screen once it has been switched to and one
+     cycle opened. A closed section is a row of its own and would pass this by
+     having nothing in it. */
+  'deckview-lands': `(() => {
+    const sel = document.getElementById('dbDeckSel');
+    const opt = sel && [...sel.options].find(o => o.value);
+    if (!opt) return 'false';
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof dbOpenSearchPanel !== 'function' || typeof dbToggleLandCycle !== 'function') return 'false';
+    dbOpenSearchPanel();
+    dbSetLeftTab('lands');
+    /* After the deck's cards arrive, so the cycle is asked for in the deck's
+       own colours rather than in every colour there is. */
+    setTimeout(() => dbToggleLandCycle('shockland'), 1500);
     return 'true';
   })()`,
   /* Every control this tab has that is not the picker, the add field or the

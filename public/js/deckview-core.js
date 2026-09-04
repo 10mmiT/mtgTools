@@ -294,6 +294,7 @@ async function dbSelectDeck(value) {
   if (!value) {
     dbDeck = null; dbCards = []; dbCats = []; dbCardData = new Map();
     dbSortMounted = false; dbEdhrecData = null; _dbEdhrecLoaded = false;
+    _dbLandsClose();
     dbShownBoards = new Set();  // another deck's boards are not this one's
     _dbRenderBoardToggles();
     _dbHideDeckUI();
@@ -317,6 +318,7 @@ async function dbSelectDeck(value) {
   dbDeck = { id: stableId, playerId, playerName: player.name,
              name: deck.name, commander: deck.commander || '', commanderImg: deck.commanderImg || null };
   dbEdhrecData = null; _dbEdhrecLoaded = false;
+  _dbLandsClose();               // and the last deck's open land cycles are not either
   dbShownBoards = new Set();      // the last deck's boards are not this one's
   _dbRenderBoardToggles();
 
@@ -626,6 +628,7 @@ async function dbDeleteDeck() {
   await saveToStorage();
 
   dbDeck = null; dbCards = []; dbCats = []; dbEdhrecData = null; _dbEdhrecLoaded = false;
+  _dbLandsClose();
   _dbHideDeckUI();
   dbPopulateDeckSel();
 }

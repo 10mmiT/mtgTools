@@ -1077,6 +1077,7 @@
       <div class="db-left-tabs">
         <button class="db-ltab active" id="db-ltab-search" onclick="dbSetLeftTab('search')">Search</button>
         <button class="db-ltab" id="db-ltab-edhrec" onclick="dbSetLeftTab('edhrec')">EDHREC</button>
+        <button class="db-ltab" id="db-ltab-lands" onclick="dbSetLeftTab('lands')">Lands</button>
       </div>
       <!-- Where the + on a card puts it. In the header because it is a fact
            about the drawer rather than about either way of finding a card:
@@ -1125,6 +1126,14 @@
       <div id="dbEdhrecContent" style="padding:var(--space-1) var(--space-3)">
         <div class="empty-state" style="padding:var(--space-6) 0">Load a deck with a commander to see recommendations</div>
       </div>
+    </div>
+    <!-- The land cycles, in the deck's colours. Sections arrive closed and
+         each fetches itself the first time it is opened, so the tab costs
+         nothing to look at and one request to use — twenty on open would be
+         twenty jobs in a queue the whole house shares. Written by
+         js/deckview-landbase.js. -->
+    <div id="db-left-lands" class="db-drawer-content" style="display:none">
+      <div id="dbLandsContent" style="padding:var(--space-1) var(--space-3)"></div>
     </div>
   </div>
   <!-- Backdrop -->
@@ -1392,6 +1401,7 @@
 <script src="js/deckview-totals.js"></script>
 <script src="js/deckview-legality.js"></script>
 <script src="js/deckview-mana.js"></script>
+<script src="js/deckview-landbase.js"></script>
 <script src="js/pick.js"></script>
 <script src="js/rss.js"></script>
 <script src="js/admin.js"></script>

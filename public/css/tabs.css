@@ -2389,6 +2389,50 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .db-edh-inc { font-size: var(--text-xs); color: var(--text-muted); }
 
+/* ── The Lands tab: one row per cycle, opening into a grid ────────────────
+   A closed section is a row and nothing else — no fill, no box — because
+   twenty boxed cards stacked down a drawer is a wall, and the thing being
+   scanned is a list of twenty names. The rule between them is the same
+   hairline the EDHREC headers draw, so the two tabs read as one drawer. */
+.db-land-note { padding: var(--space-1) 0 var(--space-2); }
+
+.db-land-section { border-bottom: 1px solid var(--border); }
+
+.db-land-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: var(--space-2) var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease-tint);
+}
+.db-land-hdr:hover { color: var(--primary); }
+
+/* The caret holds its own width so the names line up whichever way it
+   points, and the two glyphs are different widths. */
+.db-land-caret {
+  width: var(--space-3);
+  color: var(--text-muted);
+}
+.db-land-name { flex: 1; }
+
+/* How many came back, which is only ever known for a section that has been
+   opened — a closed one has asked Scryfall nothing. */
+.db-land-count {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.db-land-body { padding-bottom: var(--space-2); }
+
 /* The section label and the rule between sections, which the Deck Builder's ⋯
    popover named first and which outlived it: the Appearance popover and the
    shared kebab in js/sortui.js draw both. The popover itself is gone — its
