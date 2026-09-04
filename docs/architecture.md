@@ -56,7 +56,7 @@ mtgtools/
 │   ├── collectionowner.test.js # Whose shelf is whose — the column, the shelf, the open-mode name
 │   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and who has them
 │   ├── decklegality.test.js # Legal or the reason it is not, the bracket estimate, and tonight's bracket
-│   └── decklands.test.js    # The land cycles — the pinned sizes, what one open section costs, and the colours a deck filters by
+│   └── decklands.test.js    # The Lands tab — the cycles' pinned sizes and what one open section costs, and the check: the source-count table at its boundaries, the hardest cost per colour, and what is allowed to count as a source
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -113,7 +113,7 @@ mtgtools/
 │       ├── deckview-totals.js   # Deck Builder: one pass over the deck — what it costs, what finishing it costs, the curve, the types, the split
 │       ├── deckview-legality.js # Deck Builder: whether the deck is legal, and the bracket it looks like — with the reasoning
 │       ├── deckview-mana.js     # Deck Builder: the pips the deck's costs ask for against the sources its lands make, and the calculator filled from it
-│       ├── deckview-landbase.js # Deck Builder: the drawer's Lands tab — Magic's land cycles, collapsed, each fetched in the deck's colours when it is opened
+│       ├── deckview-landbase.js # Deck Builder: the drawer's Lands tab — the check (sources held against the source-count table's requirement, and the card that set it) over Magic's land cycles, collapsed, each fetched in the deck's colours when it is opened
 │       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling

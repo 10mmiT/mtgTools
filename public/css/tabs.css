@@ -1701,6 +1701,10 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-mana-close { min-width: 44px; min-height: 44px; }
   .db-mana-calc  { min-height: 44px; }
 
+  /* The same again on the Lands tab's check, whose one control — the way into
+     the per-card list — is deliberately a quiet line of text on a desktop. */
+  .db-sources-more { min-height: 44px; }
+
   /* The menu beside the mat is a stack of full-width rows here, and every one
      of them is a thumb target — the ⋯ popover they replaced was measured the
      same way. Its ✕ is alone at the end of its header again. */
@@ -2388,6 +2392,122 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   padding: 0 var(--space-1);
 }
 .db-edh-inc { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* ── The Lands tab: the check, above the cycles ───────────────────────────
+   One row per colour: what the deck's lands make, what the table wants, and
+   the card that set the bar. It sits above the cycle list, separated from it
+   by the same hairline that runs between the cycles rather than by a box,
+   because it is the reason the tab was opened and a box would read as an
+   aside. */
+.db-sources {
+  padding: var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.db-sources-hdr {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+}
+.db-sources-title {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+/* The way into the per-card list. It is a link rather than a button to look
+   at, because pressing it argues with the numbers above rather than doing
+   anything to the deck. */
+.db-sources-more {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: right;
+  transition: color var(--dur-base) var(--ease-tint);
+}
+.db-sources-more:hover { color: var(--primary); }
+
+/* The row wraps rather than squeezing — on a phone the bar drops under the
+   figures, which is the one part of it that can afford to move. */
+.db-sources-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+.db-sources-sym { flex: 0 0 auto; }
+.db-sources-fig { color: var(--text-muted); white-space: nowrap; }
+.db-sources-fig strong { color: var(--text); }
+/* The card that set the bar, which is the point of the line: it is allowed to
+   be the thing that gets cut on a narrow drawer, and nothing else is. */
+.db-sources-for {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-sources-note { color: var(--text-subtle); font-size: var(--text-xs); }
+
+/* How far along its bar the colour is. One bar rather than the mana panel's
+   two: that panel compares two shares of a deck, and this one compares a
+   count against a threshold, which is a single distance. */
+.db-sources-bar {
+  display: block;
+  height: 6px;
+  flex: 1 1 60px;
+  min-width: 40px;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.db-sources-bar > span { display: block; height: 100%; }
+
+.db-sources-gap { color: var(--danger); font-size: var(--text-xs); white-space: nowrap; }
+.db-sources-ok  { color: var(--text-subtle); font-size: var(--text-xs); white-space: nowrap; }
+
+/* The argument with the headline, spread out. Indented under the rows it is
+   the evidence for, and quieter than them. */
+.db-sources-short {
+  padding: var(--space-1) 0 var(--space-2) var(--space-4);
+  border-left: 1px solid var(--border);
+  margin-left: var(--space-2);
+}
+.db-sources-short-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+}
+.db-sources-short-name { color: var(--text); }
+.db-sources-short-fig  { color: var(--text-muted); }
+
+.db-sources-counts {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: var(--space-2) 0 var(--space-1);
+}
+/* What the numbers assume, said under them rather than hedged into every
+   line — the same footing the bracket estimate's limits and the mana panel's
+   conventions get, for the same reason: a convention nobody wrote down is a
+   claim. */
+.db-sources-limit {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
 
 /* ── The Lands tab: one row per cycle, opening into a grid ────────────────
    A closed section is a row and nothing else — no fill, no box — because

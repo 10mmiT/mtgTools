@@ -892,6 +892,16 @@ function dbRenderStats() {
   dbTotalsChanged();
   dbCheckChanged();
   dbManaChanged();
+  /* And the Lands tab's check, when that is the half of the drawer showing.
+     It is a readout of this deck the same way the line below the mat is, and
+     the drawer can be open while the deck is edited underneath it — the same
+     staleness _dbRefreshDrawer() exists to fix for the tiles.
+
+     Asked for by name rather than called outright, unlike the three above it:
+     the drawer is a later file than this one, and three test harnesses load
+     the mat without it. A readout that quietly does not redraw in those is the
+     right failure; a whole tab that throws is not. */
+  if (typeof _dbRenderLands === 'function' && dbLeftTab === 'lands') _dbRenderLands();
   const totals = dbDeckTotals();
 
   /* How big the deck is *meant* to be, asked of js/deckview-legality.js rather

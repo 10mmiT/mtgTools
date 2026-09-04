@@ -87,14 +87,16 @@ function _dbSymbolPips(symbol) {
   return out;
 }
 
-/* A card's cost. The top-level `mana_cost` when there is one — it already holds
- * both halves of a split card — and the faces' costs when there is not, which
- * is how Scryfall writes a transforming card: nothing on the card, the cost on
- * the front face and usually none at all on the back. */
-function _dbManaCostOf(sf) {
-  if (sf.mana_cost) return sf.mana_cost;
-  return (sf.card_faces || []).map(f => f.mana_cost).filter(Boolean).join('');
-}
+/* Every symbol a card costs, wherever the card keeps them: the costs of its
+ * faces where it has any, and its own where it has not. Which faces those are
+ * is _dbCostFaces() below, so that "what are this card's costs" is answered in
+ * one place and read here as a total and there one cost at a time.
+ *
+ * Both halves of a split card are counted, and both halves of an Adventure,
+ * which is the right answer for a card you may cast either way round: the pips
+ * of a deck are a proportion, and a Stomp cast off two black is black mana
+ * somebody had to have. */
+const _dbManaCostOf = sf => _dbCostFaces(sf).join('');
 
 /* What a card makes. Absent on a card that makes no mana, which is Scryfall's
  * own shape and the reason this is written as a fallback rather than indexed
@@ -107,6 +109,70 @@ const _dbProducedBy = sf => sf.produced_mana || [];
  * says so on itself, and a list of their names is a list that goes stale the
  * next time Wizards prints one. */
 const _dbIsBasic = sf => (sf.type_line || '').toLowerCase().includes('basic');
+
+/* ── Reading a cost the other way: what it *demands* ──────────────────────
+ *
+ * Everything above reads a cost as a share — a hybrid symbol is half a pip to
+ * each of the colours that pays it, so the pips of a deck add up to the
+ * symbols in its costs. The Lands tab's check asks a different question of the
+ * same string: not "how much of this deck is blue" but "what does this one
+ * card make me have before I can cast it", which is a single cost paid at one
+ * moment rather than a proportion. The two readings live next to each other so
+ * that the difference between them is visible rather than discovered.
+ */
+
+/* Every way a card can be cast, as its own cost.
+ *
+ * A card with faces has one cost per face, and each is a real cost somebody
+ * pays on its own: the two halves of a split card, the front of a transforming
+ * card (its back is usually free), and — the one that is easy to miss — an
+ * Adventure, whose creature and whose spell are two costs on one card. So the
+ * faces are read where there are any, and the whole card only where there are
+ * not.
+ *
+ * The `//` fall-back is for a split card whose faces did not come with it:
+ * Scryfall writes that cost as "{1}{R} // {W}", both halves in one string, and
+ * read whole it is a three-mana spell wanting red and white at once, which is
+ * a card that does not exist. */
+function _dbCostFaces(sf) {
+  const faces = (sf.card_faces || []).map(f => f.mana_cost).filter(Boolean);
+  if (faces.length) return faces;
+  const cost = sf.mana_cost || '';
+  if (cost.includes('//')) return cost.split('//').map(s => s.trim()).filter(Boolean);
+  return cost ? [cost] : [];
+}
+
+/* What one symbol is worth towards a cost's mana value. A number is itself;
+ * {2/W} is two, because two is what it costs when you pay it the way that is
+ * not white; {X} is nought, because the cost is what you decide it is and
+ * nought is what the rules call it on the stack. Everything else — a colour, a
+ * snow symbol, a Phyrexian pip — is one. */
+function _dbSymbolValue(symbol) {
+  const parts = symbol.split('/');
+  const nums  = parts.map(p => parseInt(p, 10)).filter(n => Number.isFinite(n));
+  if (nums.length) return Math.max(...nums);
+  if (parts.every(p => /^[XYZ]$/.test(p))) return 0;
+  return 1;
+}
+
+/** What a cost is worth, in mana, as the game counts it. */
+const _dbCostValue = symbols => symbols.reduce((n, s) => n + _dbSymbolValue(s), 0);
+
+/* How many pips of one colour a cost *demands*, which is not the same as how
+ * many it counts towards that colour's share above.
+ *
+ * Only a symbol that can be paid one way counts here. {U} demands blue. {G/U}
+ * does not demand blue — it is a card you cast off green when green is what
+ * you have — and {2/U} and {U/P} do not either, the other payments being two
+ * generic and two life. Counting them would have the check shouting for
+ * Islands at a deck that never needs one, which is exactly the failure this
+ * whole panel exists to avoid: a bar nobody believes is a bar nobody reads.
+ *
+ * What it costs us is the deck of nothing but hybrid cards, whose colours show
+ * a row with no bar on it. That is the honest answer — the table the check
+ * reads has no column for "either of these two" — and the row still says what
+ * the deck holds. */
+const _dbHardPips = (symbols, id) => symbols.filter(s => s === id).length;
 
 // ── The pass ──────────────────────────────────────────────────────────────
 /* One walk, kept until the deck changes — the same shape as
@@ -134,7 +200,14 @@ function _dbComputeMana() {
 
   const pips    = _dbManaZero();
   const sources = _dbManaZero();
-  const unknown = [];   // cards whose facts have not arrived — see below
+  /* The same count again, of lands only. Two counts of the same thing looks
+   * like a duplicate and is not: this panel's question is "what makes mana in
+   * this deck", and the Lands tab's check asks a narrower one, because the
+   * simulation its numbers come from sleeves lands and blanks and knows
+   * nothing about a Signet. Both are true; they are true about different
+   * questions. */
+  const fromLands = _dbManaZero();
+  const unknown   = [];   // cards whose facts have not arrived — see below
 
   let lands = 0, basics = 0, sourceCards = 0, landSources = 0;
 
@@ -162,7 +235,10 @@ function _dbComputeMana() {
     if (makes.length) {
       sourceCards += qty;
       if (isLand) landSources += qty;
-      for (const id of makes) sources[id] += qty;
+      for (const id of makes) {
+        sources[id] += qty;
+        if (isLand) fromLands[id] += qty;
+      }
     }
   }
 
@@ -177,6 +253,10 @@ function _dbComputeMana() {
      * side and a person to read them. */
     unmade: DB_MANA_IDS.filter(id => pips[id] > 0 && sources[id] === 0),
     lands: { total: lands, basic: basics, nonBasic: lands - basics },
+    /* Per colour, the half of `sources` that is lands — what the Lands tab's
+     * check holds against the source-count table, and the only half that
+     * table's simulation ever had in it. */
+    fromLands,
     sourceCards, landSources, otherSources: sourceCards - landSources,
     unknown: [...new Set(unknown)].sort((a, b) => a.localeCompare(b)),
   };

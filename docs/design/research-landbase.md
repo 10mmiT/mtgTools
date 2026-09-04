@@ -155,7 +155,14 @@ land counts:
 | 37 | 20 | 19 | 30 | 17 | 27 | 34 | 16 | 24 | 31 |
 | 38 | 21 | 20 | 30 | 18 | 27 | 35 | 16 | 25 | 31 |
 
-Read as: a 37-land deck wanting to cast a `{1}{U}{U}` card on turn three needs
+> **Since built:** the three rows above are a row out of step with the gist —
+> the cells shown for 37 are its 36-land row, and so on. The transcription of
+> record is `DB_SOURCE_TABLES` in
+> [public/js/deckview-landbase.js](../../public/js/deckview-landbase.js), which
+> holds every row of both tables and was copied from the gist directly; read
+> the numbers from there rather than from here.
+
+Read as: a 36-land deck wanting to cast a `{1}{U}{U}` card on turn three needs
 **27 blue sources**. The rules of thumb that fall out — single pip ≈ 17–20,
 double ≈ 24–30, triple ≈ 31–35 — are the ones the community quotes, and having
 the table means we can quote the *right cell* rather than the average of all of
