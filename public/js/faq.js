@@ -49,7 +49,7 @@ const FAQ_OWNED_LEGEND = [
   { mark: 'card-own-mine',
     what: 'On the shelf you are asking about — you can sleeve it tonight.' },
   { mark: 'card-own-their', ink: 'var(--player-3)',
-    what: 'Only somebody else has it, in that player’s own colour — the same one their chip wears on Players and Available@. Point at the strip to see who, and how many.' },
+    what: 'Only somebody else has it, in that player’s own colour — the same one on the badge under the card, and on their chip on Players and Available@. Point at the strip to see everybody who has it.' },
   { mark: null,
     what: 'Nobody in the group has it. No strip at all, so a page of cards nobody owns stays a page of cards.' },
 ];

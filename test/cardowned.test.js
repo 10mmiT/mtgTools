@@ -56,13 +56,16 @@ const PLAYERS = [
   { id: 'p-kari', name: 'Kari', colorIdx: 3 },
 ];
 
+/* The house box is first on purpose. It is the order /api/state happens to
+ * return, and it is what made the strip take the group's colour for a card
+ * two named people also have. */
 const COLLECTIONS = [
+  { key: 'c-house', name: 'The house box', owner: null,     color: '#10b981',
+    cards: { 'Cultivate': { qty: 2 }, 'Rhystic Study': { qty: 1 } } },
   { key: 'c-tim',   name: 'Tim’s binder', owner: 'p-tim',  color: '#a855f7',
     cards: { 'Sol Ring': { qty: 3 }, 'Delver of Secrets // Insectile Aberration': { qty: 1 } } },
   { key: 'c-kari',  name: 'Kari’s binder', owner: 'p-kari', color: '#3b82f6',
     cards: { 'Rhystic Study': { qty: 1 }, 'Sol Ring': { qty: 1 } } },
-  { key: 'c-house', name: 'The house box', owner: null,     color: '#10b981',
-    cards: { 'Cultivate': { qty: 2 } } },
 ];
 
 function loadShelf({ who = 'p-tim', collections = COLLECTIONS } = {}) {
@@ -96,7 +99,10 @@ function loadShelf({ who = 'p-tim', collections = COLLECTIONS } = {}) {
   };
   vm.createContext(sandbox);
   for (const file of ['state.js', 'sortui.js', 'cardquery.js', 'cardstack.js',
-                      'auth.js', 'collections.js', 'owned.js', 'cardturn.js']) {
+                      'auth.js', 'collections.js', 'owned.js', 'cardturn.js',
+                      /* The real badge, so that "the bar and the chip agree"
+                         is asserted against what the tab actually draws. */
+                      'scryfall.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox, { filename: file });
   }
   const run = expr => vm.runInContext(expr, sandbox);
@@ -194,6 +200,59 @@ test('a collection still loading is not a collection with nothing in it', () => 
   assert.doesNotMatch(app.mark('Sol Ring'), /Tim’s binder/,
     'and half a collection is not a smaller shelf, it is a wrong answer');
   assert.ok(loading.length === 3);
+});
+
+// ── One bar, one colour, and it has to be the right one ───────────────────
+
+test('the bar speaks for a person rather than for whichever shelf came first', () => {
+  /* Rhystic Study is in the house box and in Kari's binder, and the house box
+     is the first collection in the list. The bar took the first holder, so it
+     wore the house box's colour while the badge beside it said Kari — right
+     about *whether* somebody has it and wrong about who, which is what "the
+     strip is sometimes the wrong colour" looks like from the outside. */
+  const app = loadShelf();
+  const mark = app.mark('Rhystic Study');
+  assert.match(mark, /--own-ink:var\(--player-3\)/,
+    'the bar wears the colour of a collection nobody owns, over a named holder');
+  assert.match(mark, /title="[^"]*Kari[^"]*The group/,
+    'and the title names every holder, so one colour is not one holder being forgotten');
+});
+
+test('the order it picks from is stable, not the order the shelves arrived in', () => {
+  const app = loadShelf();
+  const first = () => app.run(`JSON.stringify(holdersOf('Rhystic Study').map(h => h.who))`);
+  const before = first();
+  /* The same shelves, handed over in the other order — a different page load,
+     or a collection re-imported. The answer must not move. */
+  const reversed = loadShelf({ collections: COLLECTIONS.slice().reverse() });
+  assert.equal(reversed.run(`JSON.stringify(holdersOf('Rhystic Study').map(h => h.who))`), before);
+  assert.equal(JSON.parse(before)[0], 'Kari', 'a person is a better answer than "The group"');
+});
+
+test('a badge and the bar above it are one colour for one person', () => {
+  /* The bug under the bug: ownership was said in collection colours by the
+     browsing tabs and in player colours by the mat, so a card carried two
+     different colours for one fact — and they agreed now and then by luck,
+     which is why it looked intermittent rather than wrong.
+
+     Asserted with includes() rather than a regex, because the value being
+     looked for is `var(--player-3)` and its brackets are regex syntax — the
+     first version of this test passed a colour it was not actually checking. */
+  const app = loadShelf();
+  const ink = app.run(`ownerInk(state.collections.find(c => c.key === 'c-kari'))`);
+  assert.equal(ink, 'var(--player-3)',
+    'a person’s colour is their slot, so a theme repaints it');
+  assert.ok(app.mark('Rhystic Study').includes(`--own-ink:${ink}`),
+    'the bar is not in the holder’s colour');
+  assert.ok(app.run(`sfCardOwnership('Rhystic Study')`).includes(ink),
+    'the badge under the card is a different colour from the bar on it');
+});
+
+test('a shelf nobody owns keeps its own colour, having no person to speak as', () => {
+  const app = loadShelf();
+  const ink = app.run(`ownerInk(state.collections.find(c => c.key === 'c-house'))`);
+  assert.equal(ink, '#10b981',
+    'two boxes belonging to the group would otherwise be the same colour as each other');
 });
 
 // ── The card, and what is allowed to sit on it ────────────────────────────

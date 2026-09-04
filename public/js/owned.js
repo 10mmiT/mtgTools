@@ -104,29 +104,80 @@ function ownedQty(cardName) {
   return qty;
 }
 
+/* ── What colour a shelf speaks in ─────────────────────────────────────────
+ *
+ * One rule, because the app had two and they disagreed on screen. A card's
+ * ownership was said in *collection* colours by the browsing tabs and in
+ * *player* colours by the deck mat, so the strip on a card could be pink for
+ * Kari while the chip underneath it explaining that Kari has it was blue.
+ * Sometimes the two agreed by luck, which is what made it look intermittent
+ * rather than broken.
+ *
+ * A person's colour wins where there is a person, and for two reasons beyond
+ * consistency. It is a *slot* — playerColor() returns var(--player-N), so a
+ * theme repaints it — where a collection's colour is a raw hex that nothing
+ * repaints, which is the defect the player palette was moved out of (see
+ * PLAYER_SLOTS in js/state.js). And it is not chosen by anybody: a
+ * collection's colour is assigned by how many collections existed when it was
+ * added, with no control anywhere to change it, so nothing is being taken away
+ * by not showing it.
+ *
+ * A collection nobody owns has no person to speak for it, and there its own
+ * colour is the only answer there is — and a real one, since it is what tells
+ * two of the group's boxes apart. */
+function ownerInk(col) {
+  const player = colOwner(col);
+  return player ? playerColor(player) : col.color;
+}
+
 /* Who *else* has it — every loaded collection that is not on the shelf being
- * counted, grouped by the person it belongs to. This is the half that answers
- * "who could lend me one", and it is what the broken bar on a card means.
+ * counted. This is the half that answers "who could lend me one", and it is
+ * what the broken bar on a card means.
  *
  * A collection nobody owns is the group's and is named as such: it is a real
  * answer, not a row somebody forgot to fill in. A card in no collection at all
- * comes back as an empty list, which is what "nobody has this" is. */
+ * comes back as an empty list, which is what "nobody has this" is.
+ *
+ * ── Why the order is not the order the collections happen to be in ────────
+ *
+ * The strip on a card is one bar and can only be one colour, so it takes the
+ * first of these — and with the list in whatever order /api/state returned,
+ * "first" meant a card that Kari and Ola both have wearing the colour of the
+ * house box, because the house box happened to be row one. The bar was not
+ * wrong about *whether* somebody has it, only about who, which is exactly the
+ * shape of "the strip is sometimes the wrong colour".
+ *
+ * So: people before the group's boxes, then by name. A named person is a
+ * better answer than "The group" because they are who you would ask, and the
+ * order is stable, so the same card is the same colour on every tab and on
+ * every reload. */
 function holdersOf(cardName) {
   const counted = new Set(ownShelf().map(c => c.key));
-  const holders = [];
+  const found = [];
   for (const col of (state.collections || [])) {
     if (col.status !== 'loaded' || counted.has(col.key)) continue;
     const qty = col.cards.get(cardName)?.qty || 0;
     if (!qty) continue;
     const player = colOwner(col);
-    holders.push({
-      who:        player ? player.name : 'The group',
-      ink:        player ? playerColor(player) : 'var(--text-muted)',
-      collection: col.name,
-      qty,
+    found.push({
+      person: player ? 0 : 1,
+      holder: {
+        who:        player ? player.name : 'The group',
+        ink:        ownerInk(col),
+        collection: col.name,
+        qty,
+      },
     });
   }
-  return holders;
+  /* The rank is sorted on and then dropped rather than travelling on the
+     holder: three views draw these and none of them has any business knowing
+     how the list was put in order. */
+  return found
+    .sort((a, b) =>
+      a.person - b.person ||
+      a.holder.who.localeCompare(b.holder.who) ||
+      a.holder.collection.localeCompare(b.holder.collection))
+    .map(f => f.holder);
 }
 
 // ── The name a collection is filed under ──────────────────────────────────
@@ -230,10 +281,14 @@ function cardOwnMark(cardName) {
     return `<div class="card-own card-own-mine" title="${esc(said)}"></div>`;
   }
 
-  /* The first holder and not all of them. This is a mark, not a list — who
-     else has it, in full, is the missing list's answer and the badges'. */
-  const [holder] = holdersOf(name);
-  if (!holder) return '';
-  return `<div class="card-own card-own-their" style="--own-ink:${holder.ink}"
-    title="${esc(`${holder.who} — ${holder.collection} ×${holder.qty}`)}"></div>`;
+  /* One bar, so one colour: the first holder's, which holdersOf() has ordered
+     so that it is a person rather than whichever collection came back first.
+     But the *title* names every one of them — a bar in Kari's colour on a card
+     that Kari and Ola both have is not wrong, and pointing at it should not
+     make it look as though Ola has been forgotten. */
+  const holders = holdersOf(name);
+  if (!holders.length) return '';
+  const said = holders.map(h => `${h.who} — ${h.collection} ×${h.qty}`).join(', ');
+  return `<div class="card-own card-own-their" style="--own-ink:${holders[0].ink}"
+    title="${esc(said)}"></div>`;
 }

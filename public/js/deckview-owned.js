@@ -137,12 +137,18 @@ function dbOwnChipShows(card) {
  * missing list makes, said on the card, and it is what makes the Borrowable
  * chip legible: a dimmed name is a card you would have to ask for. */
 function dbCardOwnership(cardName) {
+  /* ownerInk() and not the collection's own colour, so that a badge and the
+     strip on the card it is under cannot be two colours for one fact. See
+     js/owned.js. */
   const mine = dbOwnShelf()
     .filter(c => c.cards.has(cardName))
-    .map(c => `<span class="sf-badge" style="border-color:${c.color}">
-        <span class="sf-dot" style="background:${c.color}"></span>
+    .map(c => {
+      const ink = ownerInk(c);
+      return `<span class="sf-badge" style="border-color:${ink}">
+        <span class="sf-dot" style="background:${ink}"></span>
         ${esc(c.name)} ×${c.cards.get(cardName).qty}
-      </span>`).join('');
+      </span>`;
+    }).join('');
   if (mine) return mine;
 
   return dbHoldersOf(cardName).map(h =>
