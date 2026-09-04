@@ -93,6 +93,18 @@
  * and read the two tables under "# Adjustments Based on Casting Costs" — the
  * 60-card and 99-card ones, not the mono-colour tables earlier in the page.
  *
+ * ── And the fix, which sits between them ──────────────────────────────────
+ *
+ * The third region: for a colour the check calls short, the lands that would
+ * close it, the copies somebody in the house already has first. It asks
+ * Scryfall the way the cycles do — one query, when a section is opened — so
+ * what is asserted is that query, and then the *order*, which is the part no
+ * other tab in the app could produce: the shelves are ours and the play rate
+ * is Scryfall's, and the region is the two of them read together.
+ *
+ * The shelves it reads are the fixtures below, so this half touches the
+ * network no more than the other two do.
+ *
  * What is not asserted is what any of it looks like. That is the eye's.
  */
 
@@ -152,6 +164,12 @@ const CARDS = {
     mana_cost: '{1}{G/W}{G/W}', color_identity: ['G', 'W'] },
   'Wear // Tear': { name: 'Wear // Tear', type_line: 'Instant // Instant', cmc: 3,
     mana_cost: '{1}{R} // {W}', color_identity: ['R', 'W'] },
+  /* Two more lands that make blue, for the fix region: one nobody in the house
+     has, and one whose colours a Bant deck may play. */
+  'Command Tower': { name: 'Command Tower', type_line: 'Land', cmc: 0,
+    produced_mana: ['W', 'U', 'B', 'R', 'G'], color_identity: [] },
+  'Yavimaya Coast': { name: 'Yavimaya Coast', type_line: 'Land', cmc: 0,
+    produced_mana: ['G', 'U', 'C'], color_identity: ['G', 'U'] },
   'Birds of Paradise': { name: 'Birds of Paradise', type_line: 'Creature — Bird', cmc: 1,
     mana_cost: '{G}', produced_mana: ['W', 'U', 'B', 'R', 'G'], color_identity: ['G'] },
   /* A cost that asks for two colours at once, and a card that is two costs on
@@ -188,7 +206,7 @@ const AS_TIM  = { username: 'tim',  role: 'player', playerId: 'p-tim' };
 const AS_ANNA = { username: 'anna', role: 'player', playerId: 'p-anna' };
 
 /** A card as Scryfall hands one back, which is more than the deck cache holds. */
-const sfCard = name => ({ ...CARDS[name], image_uris: { normal: `/img/${name}.jpg` } });
+const sfCard = name => ({ name, ...CARDS[name], image_uris: { normal: `/img/${name}.jpg` } });
 
 /* What Scryfall answers, by the query it is asked. Anything not on this list
  * is answered the way Scryfall answers a query that matches nothing, which is
@@ -198,6 +216,12 @@ const ANSWERS = {
   'is:shockland id<=wug': ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
   'is:shockland id<=wu':  ['Hallowed Fountain'],
   'is:shockland':         ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
+  /* And what makes blue in this deck's colours, in the order Scryfall returns
+     it — which is play rate, because that is what the tab asks it to order by.
+     Breeding Pool is the one on Tim's shelf; Hallowed Fountain is the one the
+     deck already runs. */
+  't:land produces:u -t:basic id<=wug':
+    ['Hallowed Fountain', 'Command Tower', 'Breeding Pool', 'Yavimaya Coast'],
 };
 
 function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
@@ -297,7 +321,7 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     open() { run(`dbSetLeftTab('lands')`); return el('dbLandsContent').innerHTML; },
     html: () => el('dbLandsContent').innerHTML,
     /** A section, pressed — settled by the time this resolves. */
-    toggle(id) { return run(`dbToggleLandCycle('${id}')`); },
+    toggle(id) { return run(`dbToggleLandSection('${id}')`); },
     /** The tab drawn again, and whatever that made it go and ask for. */
     render() {
       run('_dbRenderLands()');
@@ -305,6 +329,9 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     },
     /** The check at the top of the tab, as figures rather than as markup. */
     check: () => answer('dbSourcesCheck()'),
+    /** The colours the fix region offers to close, as it labels them. */
+    fixes: () => [...el('dbLandsContent').innerHTML
+      .matchAll(/db-fix-name">([^<]+)/g)].map(m => m[1]),
     /** Every cycle the tab draws, open or shut, in the order it draws them. */
     cycles: () => [...el('dbLandsContent').innerHTML
       .matchAll(/db-land-name">([^<]+)/g)].map(m => m[1]),
@@ -1015,4 +1042,227 @@ test('the check is worked out once per deck, not once per redraw', () => {
   tab.run(`dbCards.find(c => c.card_name === 'Island').qty = 20; dbManaChanged()`);
   assert.strictEqual(tab.check().colours.find(c => c.id === 'U').held, 20,
     'the check held on to a deck that had changed underneath it');
+});
+
+// ── Fix it ────────────────────────────────────────────────────────────────
+/* The region between the check and the cycles, and the one the spec says
+ * could not exist on Archidekt: for a colour the check calls short, the lands
+ * that would close it, with the copies somebody in the house already has at
+ * the front. A suggestion you can play tonight beats a better one you would
+ * have to buy. */
+
+test('a colour the check calls short is offered a way to close it', () => {
+  /* One section per short colour, named for the gap it would close — the
+     check's own figure, said again where the fix for it is, so the two halves
+     of the panel cannot disagree about how short blue is. */
+  const tab = loadTab();
+  tab.open();
+  assert.deepStrictEqual(tab.fixes(), ['white — 10 short', 'blue — 10 short', 'green — 13 short'],
+    'the short colours are not offered, or not in the order the check reports them');
+});
+
+test('a deck that clears every bar is told so, rather than shown nothing', () => {
+  /* An empty region under a heading reads as a region that failed to load.
+     "Nothing to fix" is a finding, and it is the one the whole tab is for. */
+  const tab = loadTab({ commander: null, deck: [
+    { card_name: 'Forest',    qty: 20, category: 'Lands' },
+    { card_name: 'Cultivate', category: 'Ramp' }] });
+  const html = tab.open();
+  assert.deepStrictEqual(tab.fixes(), [], 'a colour that clears its bar was offered a fix');
+  assert.ok(/nothing to fix/i.test(html), 'the region went quiet instead of saying it is resolved');
+});
+
+test('opening the tab still asks Scryfall nothing, fix sections and all', () => {
+  const tab = loadTab();
+  tab.open();
+  assert.deepStrictEqual(tab.asked(), [],
+    'the fix region fired requests for colours nobody had opened');
+  assert.ok(!tab.open().includes('sf-grid'), 'a closed fix section drew a grid');
+});
+
+test('a short colour is asked about under Scryfall’s spelling', () => {
+  /* The sentence itself, the way the cycles' is: `produces:` is what makes a
+     land a source of a colour, `t:land` keeps a Signet out of a list the
+     check would not count it in, and `-t:basic` keeps Island off the top of
+     every list of what makes blue. */
+  const tab = loadTab();
+  assert.strictEqual(tab.answer(`dbFixQuery('U', 'WUG')`),
+    't:land produces:u -t:basic id<=wug');
+  assert.strictEqual(tab.answer(`dbFixQuery('C', 'C')`), 't:land produces:c -t:basic id<=c',
+    'a colourless deck short of colourless was asked a different question');
+  assert.strictEqual(tab.answer(`dbFixQuery('G', '')`), 't:land produces:g -t:basic',
+    'an empty filter was sent as one');
+});
+
+test('opening a short colour asks for the lands that make it, in the deck’s colours', async () => {
+  /* One request, and the same colour filter the cycles are asked under: a
+     land the deck may not play is not a fix for anything. Basics are left out
+     — every deck can add those, and sorted by play rate they would be the top
+     of every list. */
+  const tab = loadTab();
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.deepStrictEqual(tab.asked(), ['t:land produces:u -t:basic id<=wug'],
+    'the fix asked Magic the wrong question');
+  assert.ok(tab.tiles().includes('Command Tower'), 'the lands that make blue are not in the section');
+});
+
+test('a land somebody has sorts above one nobody has, and play rate does the rest', async () => {
+  /* The whole reason this region could not exist on Archidekt. Breeding Pool
+     is the only one of them on a shelf in the house and the third most played,
+     so it goes first; the rest keep the order Scryfall gave them, which is
+     play rate. (The Hallowed Fountain Scryfall also answered with is already
+     in the deck, and a singleton deck cannot hold a second — see below.) */
+  const tab = loadTab();
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.deepStrictEqual(tab.tiles(), ['Breeding Pool', 'Command Tower', 'Yavimaya Coast'],
+    'the copy in the box did not come first, or play rate stopped ordering the rest');
+});
+
+test('somebody else’s box is a copy in the house too', async () => {
+  /* "Owned" here is the group's shelves and not the scope the rest of the app
+     is on: the mark on the tile already says whose, and a land in Anna's box
+     is one this table can be sat down with tonight. */
+  const tab = loadTab({ collections: [
+    { key: 'c:tim', name: 'Tim’s box', source: 'csv-moxfield', color: '#a855f7', owner: 'p-tim',
+      cards: { 'Breeding Pool': { name: 'Breeding Pool', qty: 1 } } },
+    { key: 'c:anna', name: 'Anna’s box', source: 'csv-moxfield', color: '#22d3ee', owner: 'p-anna',
+      cards: { 'Yavimaya Coast': { name: 'Yavimaya Coast', qty: 1 } } },
+  ] });
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.deepStrictEqual(tab.tiles(), ['Breeding Pool', 'Yavimaya Coast', 'Command Tower'],
+    'a land in somebody else’s box was sorted as one nobody has');
+});
+
+test('a suggestion is the drawer’s own tile, with a + that adds', async () => {
+  /* The same tile the cycles and Search draw, so a land found because blue
+     was short and a land found by searching for it are the same card in the
+     same grid — the mark on it, the price, and a + that goes wherever the
+     drawer's "Add to" points. */
+  const tab = loadTab();
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.match(tab.html(), /dbAddFromDrawer\('Command Tower'\)/,
+    'the + does not add through the drawer’s own add');
+
+  await tab.run(`dbAddFromDrawer('Command Tower')`);
+  assert.deepStrictEqual(
+    tab.answer(`dbCards.filter(c => c.card_name === 'Command Tower').map(c => c.board)`),
+    ['main'], 'the + did not put the land in the deck');
+  assert.notStrictEqual(tab.answer(`cardOwnMark('Breeding Pool')`), '',
+    'the ownership mark has nothing to say about a card on the shelf');
+});
+
+test('a land the deck already runs is not offered as the fix for a singleton deck', async () => {
+  /* The deck holds the Hallowed Fountain, and Commander is singleton, so it
+     cannot be added again: a suggestion that cannot be taken is not one. The
+     copy limit is the legality tab's, so a land a card lets you run any
+     number of stays offered. */
+  const tab = loadTab();
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.ok(!tab.tiles().includes('Hallowed Fountain'),
+    'a land the deck cannot hold a second of was offered as the fix');
+});
+
+test('a 60-card deck is offered a second copy of a land it already runs', async () => {
+  /* Four is the limit there, so one Hallowed Fountain in the deck is three
+     more blue sources somebody can still add. */
+  const tab = loadTab({ commander: null, deck: [
+    { card_name: 'Cultivate',         category: 'Ramp' },
+    { card_name: 'Cryptic Command',   category: 'Ramp' },
+    { card_name: 'Hallowed Fountain', category: 'Lands' }] });
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.deepStrictEqual(tab.asked(), ['t:land produces:u -t:basic id<=wug'],
+    'a deck with no commander was not asked about in its own colours');
+  assert.ok(tab.tiles().includes('Hallowed Fountain'),
+    'a deck that may run four of them was told it could run no more');
+});
+
+/* Twenty lands that make green, more than a region meant to be read can show,
+ * with the two on a shelf lying well down the play-rate order. */
+const GREENS = Array.from({ length: 20 }, (_, i) => `Green ${i + 1}`);
+
+test('a long list is cut to what can be read, and everything somebody has survives the cut', async () => {
+  /* The cut is the region's whole claim, so it is made in the order the
+     region sorts in: a copy in a box is never the thing dropped to make room
+     for a land nobody has. */
+  const tab = loadTab({
+    answers: { ...ANSWERS, 't:land produces:g -t:basic id<=wug': GREENS },
+    collections: [{ key: 'c:tim', name: 'Tim’s box', source: 'csv-moxfield',
+                    color: '#a855f7', owner: 'p-tim', cards: {
+                      'Green 15': { name: 'Green 15', qty: 1 },
+                      'Green 20': { name: 'Green 20', qty: 1 } } }],
+  });
+  tab.open();
+  await tab.toggle('fix:G');
+  assert.deepStrictEqual(tab.tiles(),
+    ['Green 15', 'Green 20', ...GREENS.slice(0, 10)],
+    'the cut dropped a land somebody has, or stopped following play rate');
+  assert.match(tab.html(), /Showing 12 of the 20 lands that make green/,
+    'the region showed twelve of twenty without saying so');
+});
+
+test('a list that fits is shown whole, and says nothing about what it left out', async () => {
+  /* Three of the four Scryfall answered with, and the fourth is only missing
+     because the deck already runs it — so there is nothing this list is a
+     slice of, and a line saying what it left out would be a line about
+     nothing. */
+  const tab = loadTab();
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.ok(!/Showing/.test(tab.html()),
+    'a region showing everything it had claimed there was more');
+});
+
+test('a colour that has been fixed stops being offered', async () => {
+  /* The region is read off the check, and the check is read off the deck, so
+     a land added while the section is open is a section that closes itself.
+     Twenty Islands is more blue than the table wants. */
+  const tab = loadTab();
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.ok(tab.fixes().some(f => f.startsWith('blue')), 'blue was not short to begin with');
+
+  tab.run(`dbCards.push({ card_name: 'Island', qty: 20, board: 'main',
+                          category: 'Lands', position: 9 }); dbManaChanged()`);
+  await tab.render();
+  assert.ok(!tab.fixes().some(f => f.startsWith('blue')),
+    'a colour that clears its bar was still offered a fix for it');
+  assert.ok(!tab.tiles().includes('Command Tower'),
+    'the grid for a fixed colour was left standing under it');
+});
+
+test('a new deck arrives with the fix sections shut, and the argument with it', async () => {
+  /* Which colours you had spread out is a fact about the deck you were
+     building — as is whether you had gone looking for the cards behind the
+     headline. */
+  const tab = loadTab();
+  tab.open();
+  await tab.toggle('fix:U');
+  tab.run('dbToggleSourcesShort()');
+  assert.ok(tab.html().includes('db-sources-short-row'), 'the per-card list did not open');
+
+  tab.run('_dbLandsClose()');
+  assert.deepStrictEqual(tab.tiles(), [], 'the last deck’s fix sections were still spread out');
+  assert.ok(!tab.html().includes('db-sources-short-row'),
+    'the last deck’s argument was still spread out over the next one');
+});
+
+test('a colour whose every land is already in the deck says that, not "nothing makes it"', async () => {
+  /* The two nothings are different findings. "Nothing that makes blue is in
+     these colours" is Magic's answer; "you already run all of them" is the
+     deck's, and telling somebody the first when the second is true sends them
+     looking for a card that is on the mat in front of them. */
+  const tab = loadTab({
+    answers: { ...ANSWERS, 't:land produces:u -t:basic id<=wug': ['Hallowed Fountain'] },
+  });
+  tab.open();
+  await tab.toggle('fix:U');
+  assert.deepStrictEqual(tab.tiles(), [], 'a land the deck already runs was offered anyway');
+  assert.match(tab.html(), /already in the deck/i,
+    'the deck was told Magic has nothing, when what it has is all of it');
 });

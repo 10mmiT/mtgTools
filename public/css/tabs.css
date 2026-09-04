@@ -2509,6 +2509,28 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   font-size: var(--text-xs);
 }
 
+/* ── The Lands tab: fix it ────────────────────────────────────────────────
+   Between the check and the cycles: one section per colour the check calls
+   short, opening into the lands that would close it. It borrows the cycles'
+   section shape below it rather than inventing a second one — the two are the
+   same gesture, and a colour is a heading you open like any other — and it
+   borrows the check's heading above it, because it is the other half of that
+   panel's sentence. */
+.db-fix { padding: var(--space-2) 0 0; }
+
+/* Nothing to fix — a finding, and the one the tab is for, so it is said in
+   the region rather than left as a heading with nothing under it. */
+.db-fix-done {
+  padding: 0 var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* What the list left out, above the list rather than under it: a dozen tiles
+   is four rows deep on a phone, and a note at the bottom of them is a note
+   read after the reader has decided the list was everything. */
+.db-fix-note { padding: 0 var(--space-1) var(--space-1); }
+
 /* ── The Lands tab: one row per cycle, opening into a grid ────────────────
    A closed section is a row and nothing else — no fill, no box — because
    twenty boxed cards stacked down a drawer is a wall, and the thing being
@@ -2541,7 +2563,10 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   width: var(--space-3);
   color: var(--text-muted);
 }
-.db-land-name { flex: 1; }
+/* The name of the section, cycle or colour — the fix region's heading takes
+   the room a cycle's takes, so the two stacks line up down the drawer. */
+.db-land-name,
+.db-fix-name { flex: 1; }
 
 /* How many came back, which is only ever known for a section that has been
    opened — a closed one has asked Scryfall nothing. */

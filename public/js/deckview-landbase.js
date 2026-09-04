@@ -1,4 +1,4 @@
-// ── Deck Builder — Lands: the check, and the cycles browsed ───────────────
+// ── Deck Builder — Lands: the check, the fix, and the cycles browsed ──────
 // The drawer's third tab, beside Search and EDHREC. Search asks Magic a
 // question you have to know how to phrase, and EDHREC asks what other people
 // run. This asks the one question a deck's land slots actually pose — "what
@@ -17,7 +17,13 @@
 // One is a list of options and the other is the reason you are looking at it,
 // which is why they are one tab and in that order.
 //
-// The optimizer the spec puts between them — the button that re-splits the
+// Between the two sits the fix: for a colour the check calls short, the lands
+// that would close it, with the copies somebody in the house already has at
+// the front. That order is the one thing on this tab Archidekt could not
+// draw, because Archidekt does not know what is in our boxes — and a
+// suggestion you can play tonight beats a better one you would have to buy.
+//
+// The optimizer the spec puts beside it — the button that re-splits the
 // deck's basics — is not here yet. It drops in underneath the check.
 //
 // See docs/design/spec-landbase.md.
@@ -406,6 +412,170 @@ function _dbSourcesFootHtml(check) {
   return `${other}${notes.map(n => `<div class="db-sources-limit">${esc(n)}</div>`).join('')}`;
 }
 
+// ── Fix it: the lands that would close a short colour ─────────────────────
+/* The region between the check and the cycles, and the one the spec says
+ * could not exist on Archidekt: Archidekt does not know what is in our boxes.
+ * For a colour the check calls short, the lands that make it — and the copies
+ * somebody in the house already has at the front of them, because a
+ * suggestion you can play tonight beats a better one you would have to buy.
+ *
+ * One section per short colour, and nothing at all for a colour that clears
+ * its bar: this is a list of work to do, and a section headed "green" under a
+ * check that has just said green is fine is a fix for nothing.
+ */
+
+/* A fix section's id, so that one set of open sections, one cache and one
+ * toggle can hold both halves of the tab. A cycle is named by its Scryfall
+ * predicate and a colour by its letter, and the prefix is what keeps a colour
+ * called `dual` from ever being a cycle called `dual`. */
+const DB_FIX_PREFIX = 'fix:';
+
+/** The colours to offer a fix for, in the order the check reports them. */
+const _dbSourcesFix = () => dbSourcesCheck().colours.filter(c => c.gap > 0);
+
+/* The region, drawn. Nothing at all where the check itself has nothing to say
+ * — a deck with no costs in it yet is not a deck that has been found to be
+ * fine — and a sentence rather than an empty region where it has. An empty
+ * region under a heading reads as one that failed to load, and "nothing to
+ * fix" is a finding: it is the one the tab was opened to get. */
+function _dbFixHtml(colours, canAdd) {
+  if (!dbSourcesCheck().colours.length) return '';
+  const short = _dbSourcesFix();
+
+  return `<div class="db-fix">
+    <div class="db-sources-hdr"><span class="db-sources-title">Fix it</span></div>
+    ${short.length
+      ? short.map(c => _dbFixSectionHtml(c, colours, canAdd)).join('')
+      : '<div class="db-fix-done">Nothing to fix — every colour the deck asks for has the ' +
+        'sources the table wants.</div>'}
+  </div>`;
+}
+
+/* One short colour, as a section of the same shape the cycles below it are —
+ * the same one, drawn by the same function. The gap is in the heading because
+ * the heading is what is read while the section is shut, and "blue — 10
+ * short" is the whole finding. */
+const _dbFixSectionHtml = (c, colours, canAdd) =>
+  _dbLandSectionHtml(DB_FIX_PREFIX + c.id, colours, {
+    heading: () => `${_dbSourcesSym(c)}
+      <span class="db-fix-name">${esc(c.label)} — ${c.gap} short</span>`,
+    body: got => _dbFixBody(c, got, canAdd),
+  });
+
+/* And one short colour, as Scryfall reads it: every land that makes it, in
+ * the colours the deck may play, most-played first — which is `order=edhrec`,
+ * asked for in the same place the cycles ask for it.
+ *
+ * `t:land` and not "anything with produced_mana": the check counts land
+ * sources and nothing else, so a Signet offered here would be a suggestion
+ * that cannot move the number it was offered to move.
+ *
+ * `-t:basic` because sorting by play rate would otherwise put Island at the
+ * top of every list of what makes blue. A colour short of basics is a split
+ * rather than a search. */
+function dbFixQuery(colour, colours) {
+  return `t:land produces:${colour.toLowerCase()} -t:basic${
+    colours ? ` id<=${colours.toLowerCase()}` : ''}`;
+}
+
+/* One open colour's insides. The wait and the failure are the cycles' — this
+ * half of the tab pays for a request the same way and can fail in the same
+ * places — and what differs is the order, which is the point of the region. */
+function _dbFixBody(c, got, canAdd) {
+  const empty = `Nothing that makes ${c.label} is in the deck’s colours`;
+  if (!got?.cards) return _dbLandBody(got, canAdd, empty);
+
+  const offers = _dbFixOffers(got.cards);
+  const shown  = _dbFixShown(offers);
+  /* Two different nothings, and only one of them is Magic's. A colour every
+     land of which is already on the mat is a deck that has done what this
+     region asks; sending its owner looking for a card in front of them would
+     be the panel failing at the one thing it is for. */
+  if (!shown.length) {
+    return _dbLandBody({ cards: [] }, canAdd, got.cards.length
+      ? `Every land that makes ${c.label} in these colours is already in the deck`
+      : empty);
+  }
+
+  /* And what it is showing them out of, wherever that is not all of it —
+     both because the cut dropped some and because Scryfall's first page never
+     held them. A region showing twelve of a hundred and forty-one without
+     saying so would read as the whole answer. */
+  const cut  = offers.length > shown.length || got.total > got.cards.length;
+  const note = cut
+    ? `<div class="help-text db-fix-note">Showing ${shown.length} of the ${got.total} lands ` +
+      `that make ${esc(c.label)} in these colours — everything somebody has, then the ` +
+      `most played.</div>`
+    : '';
+  return note + _dbLandGrid(shown.map(offer => offer.card), canAdd);
+}
+
+/* What the deck could actually be offered, in the order it is offered in: one
+ * pass over what came back, and the two questions asked of each card once.
+ *
+ * ── Whose "somebody" ──────────────────────────────────────────────────────
+ *
+ * Every loaded shelf, and not the scope the rest of the app is on. The scope
+ * answers "is this mine", which is the question the ownership mark on the
+ * tile already answers in colour and in fill; this region asks "could we put
+ * it in the deck tonight", and a land in Anna's box across the table is a yes.
+ *
+ * The sort is stable, so the rest of the order is Scryfall's, which is play
+ * rate: the only thing this moves is a land somebody has, past the lands
+ * nobody has.
+ *
+ * ── What it cannot rank ───────────────────────────────────────────────────
+ *
+ * A page of Scryfall's is 175 cards, and a colour in three-colour identity
+ * has more lands than that. A copy on the shelf that Magic as a whole plays
+ * less than the 175th most-played land in these colours is therefore not in
+ * what came back, and nothing here can lift it. The alternative is asking for
+ * every page of every colour on a queue the whole house shares — and the note
+ * above says what the list is a slice of. */
+function _dbFixOffers(cards) {
+  const format = dbDeckFormat();
+  const runs   = new Map();
+  for (const row of [...dbMainCards(), ...dbCommanderCards()]) {
+    runs.set(row.card_name, (runs.get(row.card_name) || 0) + (row.qty || 1));
+  }
+  return cards
+    /* A land the deck already runs to the limit cannot close a gap, and a
+       list of fixes headed by the three you already have is a list that has
+       to be read past. The limit is js/deckview-legality.js's own, so the two
+       tabs cannot disagree about what a deck may run: four in a 60-card deck,
+       one in Commander, and however many a card that says so allows. The
+       maybeboard is not counted — a card set aside is one you have not put in
+       the deck. */
+    .filter(card => (runs.get(card.name) || 0) < _dbCopyLimit(card, format))
+    .map(card => ({ card, held: _dbFixHeld(card.name) }))
+    .sort((a, b) => (b.held ? 1 : 0) - (a.held ? 1 : 0));
+}
+
+/* How many suggestions are a suggestion. A dozen is about four rows of tiles
+ * in the drawer, which is a list somebody reads; a hundred and forty is a
+ * list somebody scrolls past.
+ *
+ * Everything on a shelf in the house survives the cut, however far down play
+ * rate it sits — that is the region's one claim over Archidekt's, and cutting
+ * it to make room for a land nobody has would be cutting the answer to keep
+ * the ranking tidy. */
+const DB_FIX_SHOWN = 12;
+
+const _dbFixShown = offers => {
+  const held = offers.filter(offer => offer.held);
+  return held.length >= DB_FIX_SHOWN ? held : offers.slice(0, DB_FIX_SHOWN);
+};
+
+/* Whether anybody in the house has one. Asked of the name the shelves file it
+ * under, because a Pathway is written both ways and a shelf holding
+ * "Barkchannel Pathway" would otherwise answer "no" to the whole card's name.
+ * ownedQty() counts the shelf in scope and holdersOf() everybody else, so the
+ * two together are every collection loaded, whatever the scope is set to. */
+const _dbFixHeld = name => {
+  const filed = ownedName(name);
+  return dbOwnedQty(filed) > 0 || dbHoldersOf(filed).length > 0;
+};
+
 /* ── The cycles ────────────────────────────────────────────────────────────
  *
  * `id` is the Scryfall predicate, spelled exactly: the query is `is:${id}`, so
@@ -520,6 +690,13 @@ function dbLandQuery(id, colours) {
   return `is:${id}${colours ? ` id<=${colours.toLowerCase()}` : ''}`;
 }
 
+/* Which question a section id stands for. One cache, one set of open sections
+ * and one toggle serve both halves of the tab, and this is the one place that
+ * knows a fix section from a cycle. */
+const _dbSectionQuery = (id, colours) => id.startsWith(DB_FIX_PREFIX)
+  ? dbFixQuery(id.slice(DB_FIX_PREFIX.length), colours)
+  : dbLandQuery(id, colours);
+
 const _dbLandKey = (id, colours) => `${id}|${colours}`;
 
 /* One section's cards, fetched once.
@@ -528,7 +705,7 @@ const _dbLandKey = (id, colours) => `${id}|${colours}`;
  * answer, including both kinds of nothing: Scryfall says 404 when a query
  * matches no cards, which for a mono-white deck asking about triomes is not a
  * failure but the correct answer, and it is read as one. */
-async function _dbLoadLandCycle(id, colours) {
+async function _dbLoadLandSection(id, colours) {
   const key = _dbLandKey(id, colours);
   if (_dbLandCache.has(key))  return _dbLandCache.get(key);
   if (_dbLandFlight.has(key)) return _dbLandFlight.get(key);
@@ -536,7 +713,7 @@ async function _dbLoadLandCycle(id, colours) {
   const job = (async () => {
     let answer;
     try {
-      const q   = dbLandQuery(id, colours);
+      const q   = _dbSectionQuery(id, colours);
       const res = await scryfallFetch(
         `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=edhrec&unique=cards`);
       const data = await res.json();
@@ -546,11 +723,12 @@ async function _dbLoadLandCycle(id, colours) {
           : { error: data.details || 'Scryfall could not answer that' };
       } else {
         const cards = data.data || [];
+        const total = Number.isFinite(data.total_cards) ? data.total_cards : cards.length;
         /* Into the tab's card cache on the way past, the way a search does:
            the + adds by name, and a name the tab has no card for is a second
            request for something we are already holding. */
         _dbCacheCards(cards);
-        answer = { cards };
+        answer = { cards, total };
       }
     } catch (e) {
       answer = { error: e.message };
@@ -574,10 +752,10 @@ async function _dbLoadLandCycle(id, colours) {
  * At most one request per cycle-and-colours in the air, and the redraw is on
  * the back of it, so the chain settles: the second render finds the answer in
  * the cache and asks for nothing. */
-function _dbAskForLandCycle(id, colours) {
+function _dbAskForLandSection(id, colours) {
   const key = _dbLandKey(id, colours);
   if (_dbLandAsking.has(key)) return _dbLandAsking.get(key);
-  const asking = _dbLoadLandCycle(id, colours).then(() => {
+  const asking = _dbLoadLandSection(id, colours).then(() => {
     _dbLandAsking.delete(key);
     /* Unless it was shut again while the request was out, in which case the
        answer is in the cache for next time and drawing it would reopen a
@@ -592,7 +770,7 @@ function _dbAskForLandCycle(id, colours) {
  * the only thing on this tab that costs a request; the render is what makes
  * it, and the request is handed back here so that pressing a section is
  * something a caller can wait for. */
-function dbToggleLandCycle(id) {
+function dbToggleLandSection(id) {
   if (_dbLandOpen.has(id)) { _dbLandOpen.delete(id); _dbRenderLands(); return; }
   _dbLandOpen.add(id);
   /* A failure is not an answer, so it is not one this section is stuck with:
@@ -630,39 +808,60 @@ function _dbRenderLands() {
   const colours = dbLandIdentity();
   const canAdd  = !!(dbDeck && isMyPlayer(dbDeck.playerId));
 
-  const sections = DB_LAND_CYCLES.map(cycle => {
-    const open = _dbLandOpen.has(cycle.id);
-    const got  = open ? _dbLandCache.get(_dbLandKey(cycle.id, colours)) : null;
-    if (open && !got) _dbAskForLandCycle(cycle.id, colours);
-    /* The caret is typed rather than drawn the way pileToggleHtml() draws one,
-       because that is a button of its own and the whole row is the control
-       here — a name you have to miss to hit is a row that reads as pressable
-       and mostly is not. A button cannot hold another button. */
-    return `<div class="db-land-section">
-      <button class="db-land-hdr" aria-expanded="${open}"
-              onclick="dbToggleLandCycle('${jsAttr(cycle.id)}')">
-        <span class="db-land-caret">${open ? '▾' : '▸'}</span>
-        <span class="db-land-name">${esc(cycle.label)}</span>
-        ${got?.cards ? `<span class="db-land-count">${got.cards.length}</span>` : ''}
-      </button>
-      ${open ? `<div class="db-land-body">${_dbLandBody(got, canAdd)}</div>` : ''}
-    </div>`;
-  }).join('');
+  const sections = DB_LAND_CYCLES.map(cycle =>
+    _dbLandSectionHtml(cycle.id, colours, {
+      heading: got => `<span class="db-land-name">${esc(cycle.label)}</span>
+        ${got?.cards ? `<span class="db-land-count">${got.cards.length}</span>` : ''}`,
+      body: got => _dbLandBody(got, canAdd),
+    })).join('');
 
-  el.innerHTML = _dbSourcesHtml() +
+  el.innerHTML = _dbSourcesHtml() + _dbFixHtml(colours, canAdd) +
     `<div class="help-text db-land-note">${esc(_dbLandFilterNote(colours))}</div>${sections}`;
 }
 
+/* One section of the tab, of either kind: shut until it is pressed, one
+ * Scryfall request when it is, and whatever it came back with underneath.
+ * Both halves draw this — a colour and a cycle are the same gesture, and what
+ * differs between them is only what the heading says and what goes in the
+ * body.
+ *
+ * The asking is here rather than at the press, for the reason
+ * _dbAskForLandSection() gives: the colours are part of the question, and a
+ * section already open can have them change underneath it.
+ *
+ * The caret is typed rather than drawn the way pileToggleHtml() draws one,
+ * because that is a button of its own and the whole row is the control here —
+ * a name you have to miss to hit is a row that reads as pressable and mostly
+ * is not. A button cannot hold another button. */
+function _dbLandSectionHtml(id, colours, { heading, body }) {
+  const open = _dbLandOpen.has(id);
+  const got  = open ? _dbLandCache.get(_dbLandKey(id, colours)) : null;
+  if (open && !got) _dbAskForLandSection(id, colours);
+  return `<div class="db-land-section">
+    <button class="db-land-hdr" aria-expanded="${open}"
+            onclick="dbToggleLandSection('${jsAttr(id)}')">
+      <span class="db-land-caret">${open ? '▾' : '▸'}</span>
+      ${heading(got)}
+    </button>
+    ${open ? `<div class="db-land-body">${body(got)}</div>` : ''}
+  </div>`;
+}
+
 /** One open section's insides: the wait, the failure, the nothing, or the grid. */
-function _dbLandBody(got, canAdd) {
+function _dbLandBody(got, canAdd, empty = 'Nothing in this cycle is in these colours') {
   if (!got) return '<div class="empty-state" style="padding:var(--space-3)">Loading…</div>';
   if (got.error) {
     return `<div class="error-msg" style="margin:var(--space-2) 0">${esc(got.error)}</div>`;
   }
   if (!got.cards.length) {
-    return '<div class="empty-state" style="padding:var(--space-3)">Nothing in this cycle is in these colours</div>';
+    return `<div class="empty-state" style="padding:var(--space-3)">${esc(empty)}</div>`;
   }
-  return `<div class="sf-grid db-find-grid">${got.cards.map(card =>
+  return _dbLandGrid(got.cards, canAdd);
+}
+
+/** The cards, as the drawer's own tiles. Both halves of the tab draw this one. */
+const _dbLandGrid = (cards, canAdd) =>
+  `<div class="sf-grid db-find-grid">${cards.map(card =>
     _dbDrawerTile(card.name, {
       img: _dbSfImg(card), canAdd,
       /* The price and the want-list button, the same two things the Search
@@ -670,7 +869,6 @@ function _dbLandBody(got, canAdd) {
          you would have to buy are not the same suggestion. */
       badges: `${renderPrice(card)}${wantBtnHtml(card.name)}`,
     })).join('')}</div>`;
-}
 
 /* A different deck is on the mat. What was fetched stays fetched — it is a
  * fact about Magic and not about the deck that asked for it — and the sections
@@ -678,6 +876,6 @@ function _dbLandBody(got, canAdd) {
  * were building. */
 function _dbLandsClose() {
   _dbLandOpen.clear();
-  _dbLandShortOpen = false;
+  _dbSourcesShortOpen = false;
   if (dbLeftTab === 'lands') _dbRenderLands();
 }
