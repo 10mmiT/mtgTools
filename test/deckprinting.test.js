@@ -205,6 +205,58 @@ test('a printing is read back the same way whoever wrote it down', () => {
   assert.strictEqual(writePrinting(shuffled), writePrinting(JSON.stringify(RAV_SOL_RING)));
 });
 
+// ── The finish it runs ────────────────────────────────────────────────────
+// A foil Sol Ring is not a printing of its own in Scryfall's model — it is a
+// finish on the same id, priced separately — so a deck that could not name a
+// finish could not say which of the two it runs. The field is the eighth, and
+// it is last because the seven before it are already written down in decks
+// nobody has touched.
+
+const FOIL_SOL_RING = { ...RAV_SOL_RING, price_eur: '11.90', finish: 'foil' };
+
+/* The bytes the column held for RAV_SOL_RING before a finish could be named,
+ * and the bytes it holds for the foil now. Written out rather than derived:
+ * the point of the first is that it is what is already on disk, and a value
+ * computed from the code under test cannot say that. */
+const LEGACY_JSON =
+  '{"id":"6e9f2eb0-8ca1-4e9d-9f2b-0a1b2c3d4e5f","set":"rav",' +
+  '"set_name":"Ravnica: City of Guilds","collector_number":"266",' +
+  '"image":"https://cards.scryfall.io/normal/rav-sol-ring.jpg",' +
+  '"price_eur":"4.50","chosen_at":"2026-08-14"}';
+const FOIL_JSON =
+  '{"id":"6e9f2eb0-8ca1-4e9d-9f2b-0a1b2c3d4e5f","set":"rav",' +
+  '"set_name":"Ravnica: City of Guilds","collector_number":"266",' +
+  '"image":"https://cards.scryfall.io/normal/rav-sol-ring.jpg",' +
+  '"price_eur":"11.90","chosen_at":"2026-08-14","finish":"foil"}';
+
+test('a printing chosen before finishes existed is written down exactly as it was', () => {
+  /* Byte-for-byte, because the deck's history decides whether a deck has
+   * changed by serialising it. One extra field on a printing nobody has
+   * touched is a History row on every deck in the app. */
+  assert.strictEqual(writePrinting(RAV_SOL_RING), LEGACY_JSON);
+  assert.strictEqual(writePrinting(LEGACY_JSON), LEGACY_JSON, 'the column rewrote its own text');
+});
+
+test('a finish comes last, after the day the price was the price on', () => {
+  assert.deepStrictEqual(readPrinting(FOIL_SOL_RING), FOIL_SOL_RING);
+  assert.strictEqual(writePrinting(FOIL_SOL_RING), FOIL_JSON,
+    'the finish is not last, so an old deck and a new one order the same keys two ways');
+});
+
+test('and an ordinary card names no finish at all', () => {
+  /* nonfoil is what a card is unless somebody says otherwise, exactly as a
+   * card is a name unless a printing says otherwise. Written down it would be
+   * a default value in the data, and the same card stored before this change
+   * would then be a different state from the same card stored after it. */
+  assert.deepStrictEqual(readPrinting({ ...RAV_SOL_RING, finish: 'nonfoil' }), RAV_SOL_RING);
+  assert.strictEqual(writePrinting({ ...RAV_SOL_RING, finish: 'nonfoil' }), LEGACY_JSON);
+});
+
+test('a foil and an ordinary copy of one printing are two states, not one', () => {
+  // Which is the whole of what the field is for: the deck runs one of them.
+  assert.notStrictEqual(writePrinting(FOIL_SOL_RING), writePrinting(RAV_SOL_RING));
+});
+
 // ── The tab ───────────────────────────────────────────────────────────────
 // The deck-builder modules over a deck, with the network and the drawing
 // surface stubbed, as test/deckboards.test.js runs them. State is seeded by

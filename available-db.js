@@ -389,6 +389,50 @@ if (!db.prepare('SELECT 1 FROM app_state WHERE key = ?').get(COMMANDER_MIGRATION
   })();
 }
 
+// ── The state revision ───────────────────────────────────────────────────────
+/* What the thirty-second poll asks with, so that the answer to "has anything
+ * changed?" is two integers rather than the whole application state built as
+ * text at both ends. See stateRev() in routes/state.js, which reads it.
+ *
+ * app_state already carries a version for optimistic concurrency, but it only
+ * moves when the players blob is written — and half of what GET /api/state
+ * answers with is not in that blob. The shelf is the collections table and the
+ * built-deck counts are deck_cards, either of which can change without the
+ * version moving an inch, and an import in flight is collection_imports. So
+ * this row is the other half of the revision: a counter every write to those
+ * three tables pushes along.
+ *
+ * By trigger and not by each route, because the writers are spread across
+ * routes/state.js, routes/decks.js and collection-import.js, and one that
+ * forgot would show up as a phone left on a table that never caught up. The
+ * INSERT … ON CONFLICT is so the counter re-seeds itself rather than going
+ * quiet if the row is ever missing — a test suite that wipes app_state between
+ * cases would otherwise leave every later poll saying nothing had changed.
+ *
+ * collection_imports is in it because an import in flight is in the payload
+ * too — a tab that opens or polls midway through one shows it, and a tab that
+ * did not know about an import started on another device is exactly who that
+ * is for. It is checkpointed every page, so an import does mean a full payload
+ * on each poll for the four minutes it runs; that is what the poll cost before
+ * this change and no more, and it only happens while something really is
+ * arriving. A tab watching an import has its own two-second /api/imports poll
+ * and does not wait on this.
+ *
+ * Written after the migrations above rather than in the CREATE block, because
+ * a trigger body naming app_state.version cannot be created before the
+ * pre-3.1 migration has added that column. */
+for (const table of ['collections', 'deck_cards', 'collection_imports']) {
+  for (const event of ['INSERT', 'UPDATE', 'DELETE']) {
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS bump_rev_${table}_${event.toLowerCase()}
+      AFTER ${event} ON ${table} BEGIN
+        INSERT INTO app_state (key, value_json, version) VALUES ('rev', '{}', 1)
+          ON CONFLICT(key) DO UPDATE SET version = version + 1;
+      END;
+    `);
+  }
+}
+
 const DEFAULT_CAL_ID = 'default';
 
 // Ensure the default calendar exists
@@ -410,26 +454,42 @@ if (!exists) {
  * visibly: chosen_at is what says so, and what a later re-pricing pass will
  * read.
  *
- * One column of JSON rather than seven columns of their own because nothing on
+ * One column of JSON rather than eight columns of their own because nothing on
  * this side ever queries these fields — the export, the mat and the readout are
  * all the browser's, and the row is carried whole — and because it is the shape
  * scryfall.db already stores a card in.
+ *
+ * The finish is last because it arrived last. A foil is not a printing of its
+ * own in Scryfall's model — it is a finish on the same id, priced separately —
+ * so until it was here a deck could not say which of the two it runs. Appended
+ * rather than filed beside the set it belongs with: decks had been carrying the
+ * seven fields for a fortnight, and a printing that serialises differently than
+ * the one already on disk is a History row for a change nobody made.
  *
  * These functions are the only way in and out, so the shape is one thing rather
  * than a convention. All of them are total: anything that is not a printing is
  * null, which is the same answer as a card nobody has chosen one for. */
 const PRINTING_FIELDS =
-  ['id', 'set', 'set_name', 'collector_number', 'image', 'price_eur', 'chosen_at'];
+  ['id', 'set', 'set_name', 'collector_number', 'image', 'price_eur', 'chosen_at', 'finish'];
+
+/* The finish a card has unless somebody says otherwise. Written down it would
+ * be a default value in the data, and the same printing chosen a fortnight ago
+ * carries nothing — so the ordinary card would have two spellings and the panel
+ * would call one of them a change. There is one way to say it, and it is
+ * silence, which is what a card is a name unless a printing says otherwise. */
+const ORDINARY_FINISH = 'nonfoil';
 
 /** A printing, from the column's text or from a client's object — trimmed to
  *  the fields above, in that order, or null if it names no printing.
  *
  *  The fixed order is not tidiness: the deck's history decides whether a state
- *  has changed by serialising it, and two orderings of the same seven keys
+ *  has changed by serialising it, and two orderings of the same eight keys
  *  would be two states — a row in the History panel for a change nobody made.
  *
  *  A field that is missing stays missing rather than becoming an empty string.
- *  A printing Cardmarket has no price for is unknown, and unknown is not free. */
+ *  A printing Cardmarket has no price for is unknown, and unknown is not free —
+ *  and an ordinary card is one that says nothing about its finish, which is the
+ *  same rule reaching the field that was added last. */
 function readPrinting(value) {
   let raw = value;
   if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return null; } }
@@ -441,6 +501,7 @@ function readPrinting(value) {
   for (const field of PRINTING_FIELDS) {
     if (typeof raw[field] === 'string' && raw[field] !== '') printing[field] = raw[field];
   }
+  if (printing.finish === ORDINARY_FINISH) delete printing.finish;
   return printing;
 }
 
@@ -463,6 +524,167 @@ const deckCardRow = ({ printing, ...card }) => {
   return chosen ? { ...card, printing: chosen } : card;
 };
 
+// ── Which printings a collection holds ───────────────────────────────────────
+/* What a collection card's breakdown holds, and why it is never absent.
+ *
+ * A collection knew you own three Sol Rings and not which three. The
+ * breakdown is the answer: one entry per physical identity, each with the
+ * number of copies behind it, and the entries always add up to the card's
+ * quantity.
+ *
+ * Identity is the Scryfall id plus the finish, the language and the
+ * condition. Finish has to be in it: a foil is not a printing of its own in
+ * Scryfall's model — it is a finish on the same id, priced separately — so a
+ * foil and an ordinary copy would collapse into one entry without it.
+ * Language and condition carry no information in the data available today,
+ * both coming back as one constant code, and nothing may be built that
+ * depends on them varying until they do.
+ *
+ * The entry that matters most is the one that names no printing at all:
+ * `{ id: null, qty }`. No collection in existence has printings until it is
+ * re-imported, so every card starts there — and an absent field would be a
+ * case each of fifteen readers has to remember, one of which would forget and
+ * tell somebody their shelf is empty. Making "we do not know" a value in the
+ * data is what stops that.
+ *
+ * These functions are the only way in and out, as readPrinting is for a deck
+ * card, so the shape is one thing rather than a convention. */
+const CARD_PRINTING_FIELDS =
+  ['id', 'set', 'set_name', 'collector_number', 'finish', 'lang', 'condition'];
+
+/** How many copies an entry claims: a whole number of physical cards, and
+ *  nothing else. Anything unreadable is none. */
+function readQty(raw) {
+  const n = Math.trunc(Number(raw));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** A field somebody actually filled in. */
+const printingSaid = v => typeof v === 'string' && v.trim() !== '';
+
+/** Whether an entry points at a real card — the question the unknown entry is
+ *  the answer to.
+ *
+ *  A Scryfall id names a printing outright. So does a set with a collector
+ *  number: it is the same identity said the other way round, the one
+ *  Scryfall's own /cards/:set/:number answers to, and the only one two of the
+ *  three exports this app reads carry at all — Moxfield's CSV names no id
+ *  anywhere in the file. Either is a printing.
+ *
+ *  Anything less is not: a set code on its own is a shelf of cards rather
+ *  than a card, and completing it from the card's name would be a guess. */
+const namesPrinting = p =>
+  !!p && (printingSaid(p.id) || (printingSaid(p.set) && printingSaid(p.collector_number)));
+
+/** One entry of a breakdown — trimmed to the fields above, in that order,
+ *  with its quantity last. Null where it claims no copies at all.
+ *
+ *  A field that is missing stays missing rather than becoming an empty
+ *  string, and an entry naming no printing at all is *the* unknown entry
+ *  rather than a half-described one. */
+function readCardPrinting(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const qty = readQty(raw.qty);
+  if (!qty) return null;
+  const printing = {};
+  for (const field of CARD_PRINTING_FIELDS) {
+    if (typeof raw[field] === 'string' && raw[field] !== '') printing[field] = raw[field];
+  }
+  if (!namesPrinting(printing)) return { id: null, qty };
+  printing.qty = qty;
+  return printing;
+}
+
+/** What two entries have to agree on to be copies of the same physical card.
+ *  The unknown entry is one bucket however many rows land in it, which is the
+ *  one key here that is not a description of a card. */
+const printingKey = p =>
+  namesPrinting(p) ? CARD_PRINTING_FIELDS.map(f => p[f] || '').join(' ') : ' unknown';
+
+/** A card's breakdown: always an array, always summing to the quantity.
+ *
+ *  The printings are authoritative and the quantity is their sum, so copies
+ *  the breakdown cannot account for are neither dropped nor guessed at — they
+ *  land in the unknown entry, which is how a card with no breakdown at all
+ *  reads as one unknown entry equal to every copy on the shelf. */
+function readCardPrintings(card) {
+  const merged = new Map();
+  const list = Array.isArray(card && card.printings) ? card.printings : [];
+  for (const raw of list) {
+    const printing = readCardPrinting(raw);
+    if (!printing) continue;
+    const key  = printingKey(printing);
+    const seen = merged.get(key);
+    if (seen) seen.qty += printing.qty;
+    else merged.set(key, printing);
+  }
+  const printings  = [...merged.values()];
+  const attributed = printings.reduce((sum, p) => sum + p.qty, 0);
+  /* Only ever upwards. A breakdown claiming more copies than the quantity did
+   * is the answer, because the breakdown is the authoritative half — and a
+   * card nobody owns a copy of has no breakdown at all rather than an entry
+   * saying zero, which would be a phantom row on every empty name. */
+  const missing = readQty(card && card.qty) - attributed;
+  if (missing > 0) {
+    const unknown = merged.get(' unknown');
+    if (unknown) unknown.qty += missing;
+    else printings.push({ id: null, qty: missing });
+  }
+  return printings;
+}
+
+/** A card's breakdown with one more row's copies counted into it.
+ *
+ *  An import gathers a shelf a page at a time and writes down what it has as
+ *  it goes, so the copies arrive one row at a time rather than as a finished
+ *  list. They are folded together here, by readCardPrintings and so by the
+ *  same rule as everywhere else — an importer with its own idea of what makes
+ *  two copies the same card is how the two quietly stop agreeing.
+ *
+ *  Anything that is not a printing — a row whose source names none — becomes
+ *  the unknown entry, which is the answer readCardPrintings gives for every
+ *  copy it cannot attribute. */
+const addCardPrinting = (printings, raw) =>
+  readCardPrintings({ printings: [...(printings || []), raw] });
+
+/** A collection card as everything outside this database sees one: the fields
+ *  it was stored with, its breakdown, and the quantity that breakdown sums
+ *  to — which for a card stored before any of this existed is exactly the
+ *  quantity it already had. */
+function collectionCardRow(card) {
+  const printings = readCardPrintings(card);
+  const qty = printings.reduce((sum, p) => sum + p.qty, 0);
+  const row = { ...card, printings };
+  // A row that never named a quantity and owns nothing does not gain one.
+  if ('qty' in row || qty) row.qty = qty;
+  return row;
+}
+
+/** Every card of a collection, from the column's text or from an object. */
+function readCollectionCards(value) {
+  let raw = value;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return {}; } }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const cards = {};
+  for (const [name, card] of Object.entries(raw))
+    if (card && typeof card === 'object' && !Array.isArray(card))
+      cards[name] = collectionCardRow(card);
+  return cards;
+}
+
+/** The same, as the column stores it.
+ *
+ *  A breakdown that knows nothing is not written down: it says precisely what
+ *  the quantity beside it already said, and a collection imported before any
+ *  of this existed must not be rewritten row by row to be told so. Absent and
+ *  "one unknown entry" mean the same thing, and readCollectionCards reads the
+ *  shorter of the two back as the longer. */
+const writeCollectionCards = cards => JSON.stringify(
+  Object.fromEntries(Object.entries(readCollectionCards(cards)).map(([name, card]) => {
+    const { printings, ...rest } = card;
+    return [name, printings.some(namesPrinting) ? { ...rest, printings } : rest];
+  })));
+
 /* Nothing is running yet, whatever the table says. A row still marked
  * 'running' is one this process's predecessor was working on when it stopped,
  * and no amount of waiting will advance it — the loop that was doing so is
@@ -472,4 +694,9 @@ const deckCardRow = ({ printing, ...card }) => {
  * The gathered cards are left alone: that is what Resume picks up from. */
 db.prepare("UPDATE collection_imports SET status = 'interrupted' WHERE status = 'running'").run();
 
-module.exports = { db, DEFAULT_CAL_ID, readPrinting, writePrinting, deckCardRow };
+module.exports = {
+  db, DEFAULT_CAL_ID,
+  readPrinting, writePrinting, deckCardRow,
+  CARD_PRINTING_FIELDS, namesPrinting, readCardPrintings, addCardPrinting, collectionCardRow,
+  readCollectionCards, writeCollectionCards,
+};

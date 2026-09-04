@@ -15,15 +15,22 @@
  * tab costs nothing and a crash costs the last few pages.
  *
  * CSV imports are deliberately not here: the file is in the browser, and the
- * server has no way to read it.
+ * server has no way to read it. Neither is Moxfield — api2.moxfield.com is
+ * behind Cloudflare and answers 403 to this server, so a Moxfield collection
+ * arrives as its CSV export like any other file — a link to one is refused
+ * where it is pasted, and the shelves that predate that are re-imported from
+ * the export in place.
  */
-const { db } = require('./available-db');
+const { db, writeCollectionCards, addCardPrinting } = require('./available-db');
 const { queuedFetch: archidektFetch } = require('./archidekt-queue');
 
 // How often the gathered cards are written down. Every page would mean
 // rewriting a growing JSON blob 250 times — at six thousand cards that is
 // megabytes of churn to save a few seconds of refetching. Every tenth page
-// costs a crash ten pages, which is ten seconds of work.
+// costs a crash ten pages, which is ten seconds of work. The blob is three
+// times the size now each card carries the printings behind its quantity,
+// which is the same trade at three times the price and still the cheap side
+// of rewriting it 25 times as often.
 const CHECKPOINT_EVERY = 10;
 
 // A page that fails for a reason retrying cannot fix (a deleted collection, a
@@ -73,40 +80,18 @@ function touch(key, fields) {
 }
 
 // ── Page shapes ───────────────────────────────────────────────────────────
-// The same two source formats collections.js parses in the browser. They are
-// spelled out again rather than shared because there is no module system
-// spanning public/js and the server, and a wrong guess here is a silently
-// empty import.
-function pageUrl(source, id, page) {
-  return source === 'moxfield'
-    ? `https://api2.moxfield.com/v2/collection/${id}/cards?pageNumber=${page}&pageSize=100`
-    : `https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=100`;
-}
+// Archidekt's, and only Archidekt's. api2.moxfield.com is behind Cloudflare
+// and answers 403 to this server, so there is no second page shape to read —
+// routes/state.js starts a job for no other source, and a Moxfield shelf
+// comes in from the CSV export the browser parses.
+const pageUrl = (id, page) =>
+  `https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=100`;
 
-function itemsOf(data, source) {
-  return source === 'moxfield' ? (data.data || data.items || []) : (data.results || []);
-}
+const itemsOf = data => data.results || [];
+const totalOf = data => data.count ?? null;
+const hasMore = data => !!data.next;
 
-function totalOf(data, source) {
-  return source === 'moxfield' ? (data.totalResults ?? null) : (data.count ?? null);
-}
-
-function hasMore(data, source) {
-  return source === 'moxfield'
-    ? data.pageNumber * data.pageSize < data.totalResults
-    : !!data.next;
-}
-
-function parseCard(item, source) {
-  if (source === 'moxfield') {
-    const c = item.card || item;
-    return {
-      name: c.name || '',
-      type: c.type || c.typeLine || '',
-      mana: c.manaCost || '',
-      qty:  item.quantity || item.count || 1,
-    };
-  }
+function parseCard(item) {
   // Field for field what parseCard in public/js/collections.js reads, down to
   // the array join and the zero default. A collection imported here and one
   // imported in the browser have to come out identical, or re-importing an
@@ -117,6 +102,78 @@ function parseCard(item, source) {
     type: (o.types || []).join(', '),
     mana: o.manaCost || '',
     qty:  item.quantity || 0,
+  };
+}
+
+/* A field of a page as a printing records one: text, or nothing at all.
+ * Archidekt sends its collector number, its condition and its language as
+ * numbers, and a printing is written down in strings — the value is kept as
+ * the source spells it rather than being interpreted, because two of the
+ * three are codes whose meaning this app has never had to know. */
+const asText = v => (typeof v === 'string' || typeof v === 'number') ? String(v).trim() : '';
+
+/* Archidekt's word for a finish, in Scryfall's spelling.
+ *
+ * Every row carries `item.modifier`, and `item.card.options` beside it
+ * enumerates the finishes that printing comes in — the set the modifier is
+ * drawn from. Over all 3,319 rows of a sampled public collection those options
+ * hold three values and no others: Normal, Foil and Etched, which are
+ * Scryfall's nonfoil, foil and etched said in Archidekt's voice. The CSV
+ * export's Finish column spells them the same way, so the two ways a
+ * collection reaches a shelf now agree on the word as well as the card.
+ *
+ * A modifier nobody has seen before is the ordinary copy rather than a fourth
+ * finish of its own. Scryfall knows three, a shelf is read by fifteen things
+ * that know those three, and a spelling invented here would be a finish none
+ * of them could say anything about — worse than the small, visible wrong of
+ * calling it plain.
+ */
+const FINISHES = { normal: 'nonfoil', foil: 'foil', etched: 'etched' };
+
+/* The finish of one row.
+ *
+ * `item.foil` is not consulted, and this is the whole of why the import used
+ * to be wrong. It is not a field that merely fails to mention etched: it is
+ * `false` on every row of a real collection, on all 16 foils of the sampled
+ * one as much as on the 3,303 ordinary copies. Reading it filed every foil
+ * somebody paid extra for as a card they did not buy — the etched complaint
+ * was one case of that, and the narrower one.
+ */
+const finishOf = item => FINISHES[String(item.modifier || '').trim().toLowerCase()]
+                      || 'nonfoil';
+
+/**
+ * Which printing a row is — the half of every page the import used to throw
+ * away, so a shelf knew you own three Sol Rings and not which three. It is all
+ * on the row already, so recording it costs no request that was not being made
+ * anyway.
+ *
+ * A row that says nothing is not downgraded quietly: readCardPrinting turns
+ * whatever this hands back into the unknown entry where it names no printing,
+ * so those copies are counted and never guessed at.
+ */
+function parsePrinting(item) {
+  const card    = item.card || {};
+  const edition = card.edition || {};
+  return {
+    // A Scryfall id, confirmed against the real API. Where a row has none,
+    // the edition code and the collector number below are the same identity
+    // said the other way round and stand in for it; a row with neither is the
+    // unknown entry, which is readCardPrinting's answer and not one made here.
+    id:               asText(card.uid),
+    set:              asText(edition.editioncode),
+    set_name:         asText(edition.editionname),
+    collector_number: asText(card.collectorNumber),
+    // Never left silent. A finish is not a printing of its own in Scryfall's
+    // model — it is a face on the same id, priced separately — so it has to be
+    // in a copy's identity or a foil and the ordinary card collapse into one
+    // entry. Which word, and why not item.foil, is finishOf above.
+    finish:           finishOf(item),
+    // Both are one constant code across every row of a real collection. They
+    // are recorded because identity asks for them, and nothing may lean on
+    // them varying until they do — recorded identically, they split nothing.
+    lang:             asText(item.language),
+    condition:        asText(item.condition),
   };
 }
 
@@ -200,7 +257,6 @@ function clearImport(key) {
 async function _run(key, handle) {
   const row    = getImport(key);
   const cards  = new Map(Object.entries(JSON.parse(row.cards_json || '{}')));
-  const source = row.source;
   let page     = row.next_page;
   let entries  = row.entries;
   let total    = row.total;
@@ -213,12 +269,12 @@ async function _run(key, handle) {
   while (true) {
     if (handle.cancelled) { checkpoint('interrupted'); _running.delete(key); return; }
 
-    const res = await archidektFetch(pageUrl(source, row.col_id, page));
+    const res = await archidektFetch(pageUrl(row.col_id, page));
 
     if (!res.ok) {
       const detail = res.status === 429
         ? 'Archidekt is rate-limiting this server. Resume in a few minutes.'
-        : `HTTP ${res.status} from ${source}`;
+        : `HTTP ${res.status} from Archidekt`;
       // A rate limit or a server-side wobble is worth resuming from; a 404 is
       // not. Both keep the pages already gathered — the difference is only
       // whether the user is offered a Resume or told what went wrong.
@@ -229,18 +285,24 @@ async function _run(key, handle) {
     }
 
     const data = await res.json();
-    if (total === null) total = totalOf(data, source);
+    if (total === null) total = totalOf(data);
 
-    for (const item of itemsOf(data, source)) {
-      const card = parseCard(item, source);
+    for (const item of itemsOf(data)) {
+      const card = parseCard(item);
       if (!card.name) continue;
       const seen = cards.get(card.name);
       if (seen) seen.qty += card.qty;
       else cards.set(card.name, card);
+      // The row's copies, filed under the printing they are of. The quantity
+      // above and the breakdown here are counted from the same number, which
+      // is what keeps the breakdown summing to the quantity for every card on
+      // every shelf, whether or not the row named a printing.
+      const of = seen || card;
+      of.printings = addCardPrinting(of.printings, { ...parsePrinting(item), qty: card.qty });
       entries++;
     }
 
-    const finished = !hasMore(data, source);
+    const finished = !hasMore(data);
     // The checkpoint records the page to ask for *next*, so the increment
     // comes first: a crash between the two must not refetch a page whose
     // cards are already counted, or every quantity on it would double.
@@ -268,7 +330,7 @@ function _finish(key, row, cards, entries, total) {
         owner_player_id = excluded.owner_player_id
     `).run({
       key, name: row.name, source: row.source, id: row.col_id, color: row.color,
-      cards: JSON.stringify(Object.fromEntries(cards)),
+      cards: writeCollectionCards(Object.fromEntries(cards)),
       entries, total, savedAt: nowIso(), owner: row.owner_player_id || null,
     });
     db.prepare('DELETE FROM collection_imports WHERE key = ?').run(key);

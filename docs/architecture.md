@@ -1,6 +1,6 @@
 # Architecture
 
-How the code is laid out, the one piece of derived data worth explaining (the set index), and the records that supersede what each large effort was planned from. For the test suite and measurement tooling see [testing.md](testing.md).
+How the code is laid out, the two pieces of derived data worth explaining (the set index and the state revision), and the records that supersede what each large effort was planned from. For the test suite and measurement tooling see [testing.md](testing.md).
 
 ## Project Structure
 
@@ -28,7 +28,7 @@ mtgtools/
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
-├── test/              # 24 files, run by `npm test`
+├── test/              # 54 files, run by `npm test`
 │   ├── server.test.js       # HTTP seam — auth, state, admin, decks, prefs
 │   ├── prefs-open-mode.test.js  # Preferences with no accounts to hang them on
 │   ├── tokens.test.js       # Token-contract lint, asserted over the delivered CSS
@@ -47,14 +47,17 @@ mtgtools/
 │   ├── carddrag.test.js     # Hit-testing piles, the fan, the drop's effect
 │   ├── cardmenu.test.js     # Where a menu asked for at a point is drawn
 │   ├── cardcache.test.js    # The cached card's shape, and the version that re-imports it
+│   ├── cardshelf.test.js    # Which printings of this card are held, and the shelf that cannot say
 │   ├── deckdrag.test.js     # Picking a deck tile up, the zone that would take it, and where it lands
 │   ├── deckhistory.test.js  # When a deck is snapshotted, the caps, and what a restore puts back
 │   ├── deckframe.test.js    # The builder's frame — what folds away, and what stays
 │   ├── deckboards.test.js   # Two Sol Rings — the maybeboard, the sideboard, and the count
 │   ├── deckcommander.test.js # The commander as a board rather than a category
 │   ├── deckfilter.test.js   # The deck's filter box — the query language run over one deck
+│   ├── collectioncsv.test.js # What a real CSV export says about its printings, and what it does not
 │   ├── collectionowner.test.js # Whose shelf is whose — the column, the shelf, the open-mode name
-│   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and who has them
+│   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and
+│   │                        # whether it is the printing the deck runs
 │   └── decklegality.test.js # Legal or the reason it is not, the bracket estimate, and tonight's bracket
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
@@ -90,7 +93,8 @@ mtgtools/
 │       ├── cardmove.js    # Cards travelling to where a re-render put them: measured before and after
 │       ├── carddrag.js    # Carrying a card, or a handful: the lag, the lean, the fan, the pile that would take it
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches
-│       ├── card.js        # Card Detail tab (oracle text, rulings, prices, alt-art printings)
+│       ├── card.js        # Card Detail tab (oracle text, rulings, prices, the printings of it
+│       │                  # on the shelf, alt-art printings)
 │       ├── cardquery.js   # Scryfall query syntax, parsed and run against the local card cache
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks
@@ -108,10 +112,11 @@ mtgtools/
 │       ├── deckview-edit.js     # Deck Builder: card/category edits, move modal, autosave
 │       ├── deckview-panels.js   # Deck Builder: search/autocomplete, drag/drop, EDHREC, import/export
 │       ├── deckview-history.js  # Deck Builder: snapshots, the History drawer, restoring
-│       ├── deckview-owned.js    # Deck Builder: what of the deck you own — the scopes, the missing list, the want-list send
+│       ├── deckview-owned.js    # Deck Builder: what of the deck you own — the scopes, the four printing states, the missing list, the want-list send
 │       ├── deckview-totals.js   # Deck Builder: one pass over the deck — what it costs, what finishing it costs, the curve, the types, the split
 │       ├── deckview-legality.js # Deck Builder: whether the deck is legal, and the bracket it looks like — with the reasoning
 │       ├── deckview-mana.js     # Deck Builder: the pips the deck's costs ask for against the sources its lands make, and the calculator filled from it
+│       ├── deckview-optimize.js # Deck Builder: picking a printing for every card at once — the three modes, the admissible pool, the preview and the bulk apply
 │       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
@@ -143,7 +148,7 @@ mtgtools/
 
 ## The set index
 
-The Set Browser's tiles say how many of a set's cards you own before you open it, and nothing in the app could answer that. A collection is card names and quantities — Archidekt and Moxfield both report an edition per row and the importer drops it, and even if it did not, you would only learn about the printings someone happens to own. The bulk cache is Scryfall's `oracle_cards` file: one entry per card *name*, so it knows which set a name came from but not which names a set contains.
+The Set Browser's tiles say how many of a set's cards you own before you open it, and nothing in the app could answer that. A collection is card names and quantities, and now the printings behind them — but even a fully re-imported shelf only tells you about the printings someone happens to own. The bulk cache is Scryfall's `oracle_cards` file: one entry per card *name*, so it knows which set a name came from but not which names a set contains.
 
 So `set-index.js` keeps that the other way round: two tables in `scryfall.db`, one row per set and one per (set, card name). It is filled by a background sweep through Scryfall's search API — roughly 1,400 paged requests for the ~315 browsable sets, a few minutes at the shared queue's pace — and then it is effectively permanent, because a released set does not change. A set that does change, a spoiler-season set growing week by week, is re-indexed when Scryfall's `card_count` for it moves.
 
@@ -152,6 +157,20 @@ The sweep is sequential on purpose: one request in the shared queue at a time, s
 `GET /api/sets` answers the whole picker in one request — the set list, filtered and sorted, with each set's card count and owned count. "Owned" means what it has always meant on that tab: a card counts if any collection holds a card of that name, whichever printing. Both sides ask Scryfall the same `unique=cards` question, so a tile reading "176 / 286 owned" opens onto 286 cards with 176 ownership badges.
 
 Deleting `scryfall.db` costs nothing but the refill.
+
+## The state revision
+
+An open tab polls `GET /api/state` every thirty seconds so that a collection imported on somebody else's laptop, a deck renamed on a phone or a card added to a want list turns up without a reload. Almost every one of those polls finds nothing. The first version of it downloaded the whole payload — every collection, every card on every shelf — and stringified it to compare against the last one, which is a full serialisation on the server and another in the tab, twice a minute, to learn nothing. On a phone it was the most expensive thing the page did while sitting still.
+
+So the poll asks with a revision, and a server that has nothing newer answers `{ unchanged: true }` without building a payload at all. The revision is `stateRev()` in `routes/state.js`: two counters and the viewer.
+
+The first counter is the `version` on the `app_state` row, which already existed for optimistic concurrency — it moves whenever the players blob is written, which covers every player, deck record, folder and want list. The second is a counter of its own, because half of what the route answers with is not in that blob: the shelf is the `collections` table, the built-deck counts are `deck_cards`, and an import in flight is `collection_imports`, any of which can change without the version moving. Nine triggers in `available-db.js` push that counter along on every insert, update and delete against those three tables — by trigger rather than by each route, because the writers are spread across `routes/state.js`, `routes/decks.js` and `collection-import.js`, and one that forgot would show as a tab that never caught up. It also means a second process against the same database is covered for free.
+
+The viewer is the third part because the payload is not one payload: private decks are filtered per requester, so two sessions holding the same two counters are not owed the same answer.
+
+An import is the one thing that moves the counter often — it checkpoints every page for four minutes — and it is in there deliberately: a tab that did not start it learns about it the same way it always did, from the `imports` list riding along in the payload. That does mean a full payload on each poll while an import runs, which is exactly what every poll cost before this change, and only while something really is arriving. A tab watching an import does not wait on it: that has its own two-second `/api/imports` poll.
+
+`version` and `rev` are not interchangeable and neither can stand in for the other: `version` is the concurrency check's, handed back on a POST and answered with a 409 on a mismatch, and it stays the players blob's alone.
 
 ## Design records
 

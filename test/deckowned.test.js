@@ -40,13 +40,23 @@ const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
  * and who you are are exactly the two questions this ticket is built on, and a
  * stubbed answer to either would be a test of this file's opinion of them. */
 
+/* Each of them carries the printing Scryfall hands back for the name, because
+ * the real cache does — one card object per oracle id, and it is a real
+ * printing with a set and a collector number on it. A deck that has chosen no
+ * printing runs this one, so a fixture without it would put the whole
+ * printing question out of reach of every test here. */
 const CARDS = {
-  'Sol Ring': { name: 'Sol Ring', type_line: 'Artifact', cmc: 1, color_identity: [] },
-  'Cultivate': { name: 'Cultivate', type_line: 'Sorcery', cmc: 3, color_identity: ['G'] },
+  'Sol Ring': { name: 'Sol Ring', type_line: 'Artifact', cmc: 1, color_identity: [],
+                id: 'sr-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '263' },
+  'Cultivate': { name: 'Cultivate', type_line: 'Sorcery', cmc: 3, color_identity: ['G'],
+                 id: 'cu-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '188' },
   'Krenko, Mob Boss': { name: 'Krenko, Mob Boss', type_line: 'Legendary Creature — Goblin',
-                        cmc: 4, color_identity: ['R'] },
-  'Forest': { name: 'Forest', type_line: 'Basic Land — Forest', cmc: 0, color_identity: ['G'] },
-  'Mox Diamond': { name: 'Mox Diamond', type_line: 'Artifact', cmc: 0, color_identity: [] },
+                        cmc: 4, color_identity: ['R'],
+                        id: 'kr-m13', set: 'm13', set_name: 'Magic 2013', collector_number: '140' },
+  'Forest': { name: 'Forest', type_line: 'Basic Land — Forest', cmc: 0, color_identity: ['G'],
+              id: 'fo-unf', set: 'unf', set_name: 'Unfinity', collector_number: '239' },
+  'Mox Diamond': { name: 'Mox Diamond', type_line: 'Artifact', cmc: 0, color_identity: [],
+                   id: 'mo-stw', set: 'stw', set_name: 'Stronghold', collector_number: '138' },
 };
 
 /* Four cards in the deck and eight Forests, so that "copies, not rows" has
@@ -514,4 +524,336 @@ test('the phone can hit everything this ticket added', () => {
   // And the bar the missing list hangs off has to be a position ancestor at
   // that width, or the list rises out of the page instead.
   assert.match(phone, /\.db-stats-bar \{ position: relative;/);
+});
+
+// ── Which printing, not just which card ───────────────────────────────────
+/* The sharper question. A deck that reads as fully owned may still be a deck
+ * you cannot sleeve, because the shelf holds a different edition of half of
+ * it — so ownership answers four things rather than two: you own the printing
+ * this deck runs, you own the card in another printing, you own it and nobody
+ * recorded which, or you do not own it.
+ *
+ * The third is the one that must not be got wrong. Every collection in
+ * existence is in it until it is re-imported, and reading it as either of the
+ * other two would tell a whole playgroup their shelves are wrong. */
+
+const SR = {
+  c21:  { id: 'sr-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '263' },
+  foil: { id: 'sr-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '263',
+          finish: 'foil' },
+  ltc:  { id: 'sr-ltc', set: 'ltc', set_name: 'Tales of Middle-earth', collector_number: '284' },
+};
+
+/** Tim's box, holding exactly these copies of Sol Ring and nothing else. */
+const timsSolRings = (...printings) => [{
+  key: 'c:tim', name: 'Tim’s box', source: 'archidekt', color: '#a855f7', owner: 'p-tim',
+  cards: { 'Sol Ring': {
+    name: 'Sol Ring',
+    qty: printings.reduce((n, p) => n + p.qty, 0),
+    printings,
+  } },
+}];
+
+/** A one-card deck running one named printing of the Sol Ring. */
+const ringDeck = printing => [{ card_name: 'Sol Ring', category: 'Ramp', printing }];
+
+// ── The query layer ───────────────────────────────────────────────────────
+
+test('the shelf can be asked which printings of a card it holds', () => {
+  const tab = loadTab({
+    collections: timsSolRings({ ...SR.c21, qty: 2 }, { ...SR.ltc, qty: 1 }),
+    deck: ringDeck(SR.c21),
+  });
+  assert.deepStrictEqual(
+    tab.answer(`dbOwnedPrintings('Sol Ring').map(p => [p.set, p.qty])`),
+    [['c21', 2], ['ltc', 1]]);
+  assert.deepStrictEqual(tab.answer(`dbOwnedPrintings('Mox Diamond')`), [],
+    'a card on no shelf holds no printings, rather than an unknown one');
+});
+
+test('and whether it holds one in particular', () => {
+  const tab = loadTab({ collections: timsSolRings({ ...SR.c21, qty: 1 }) });
+  assert.strictEqual(tab.answer(`dbOwnsPrinting('Sol Ring', ${JSON.stringify(SR.c21)})`), true);
+  assert.strictEqual(tab.answer(`dbOwnsPrinting('Sol Ring', ${JSON.stringify(SR.ltc)})`), false);
+});
+
+test('a printing is owned whatever language it is in and whatever state it is in', () => {
+  // A lightly played German copy is still the card. Language and condition are
+  // part of a copy's identity on the shelf; they are not a reason to call it a
+  // different card when somebody asks whether they own it.
+  const tab = loadTab({
+    collections: timsSolRings({ ...SR.c21, lang: 'de', condition: 'LP', qty: 1 }),
+  });
+  assert.strictEqual(
+    tab.answer(`dbOwnsPrinting('Sol Ring', ${JSON.stringify({ ...SR.c21, lang: 'en' })})`), true);
+  assert.deepStrictEqual(
+    tab.answer(`dbOwnedPrintings('Sol Ring').map(p => [p.set, p.qty])`), [['c21', 1]],
+    'two conditions of one printing came back as two printings');
+});
+
+test('but a foil and an ordinary copy are not the same printing', () => {
+  // Not a printing of its own in Scryfall's model — a finish on the same id,
+  // priced separately — which is exactly why it cannot roll up.
+  const tab = loadTab({ collections: timsSolRings({ ...SR.foil, qty: 1 }) });
+  assert.strictEqual(tab.answer(`dbOwnsPrinting('Sol Ring', ${JSON.stringify(SR.foil)})`), true);
+  assert.strictEqual(tab.answer(`dbOwnsPrinting('Sol Ring', ${JSON.stringify(SR.c21)})`), false,
+    'the foil answered for the ordinary copy somebody paid rather less for');
+});
+
+test('a shelf that recorded nothing owns no printing anybody can name', () => {
+  const tab = loadTab({ collections: timsSolRings({ id: null, qty: 3 }) });
+  assert.strictEqual(tab.answer(`dbOwnsPrinting('Sol Ring', ${JSON.stringify(SR.c21)})`), false);
+  assert.deepStrictEqual(tab.answer(`dbOwnedPrintings('Sol Ring').map(p => [p.id, p.qty])`),
+    [[null, 3]], 'the copies nobody can attribute are not an empty answer');
+});
+
+// ── The four states ───────────────────────────────────────────────────────
+
+test('a deck whose cards are owned in the printings it runs reads as owned', () => {
+  const tab = loadTab({
+    collections: timsSolRings({ ...SR.c21, qty: 1 }), deck: ringDeck(SR.c21),
+  });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'owned');
+  assert.deepStrictEqual(tab.answer('dbPrintingCounts()'),
+    { owned: 1, other: 0, unknown: 0, none: 0 });
+});
+
+test('a deck owned only in other printings reads as owned in another printing', () => {
+  const tab = loadTab({
+    collections: timsSolRings({ ...SR.ltc, qty: 1 }), deck: ringDeck(SR.c21),
+  });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'other');
+  assert.deepStrictEqual(tab.answer('dbPrintingCounts()'),
+    { owned: 0, other: 1, unknown: 0, none: 0 });
+});
+
+test('and that is distinct from both owning it and not owning it', () => {
+  const state = (collections, deck) =>
+    loadTab({ collections, deck }).answer(`dbPrintingState(dbMainCards()[0])`);
+  assert.notStrictEqual(state(timsSolRings({ ...SR.ltc, qty: 1 }), ringDeck(SR.c21)),
+                        state(timsSolRings({ ...SR.c21, qty: 1 }), ringDeck(SR.c21)));
+  assert.notStrictEqual(state(timsSolRings({ ...SR.ltc, qty: 1 }), ringDeck(SR.c21)),
+                        state([], ringDeck(SR.c21)));
+  assert.strictEqual(state([], ringDeck(SR.c21)), 'none');
+});
+
+test('a shelf with no printing data reads as unknown — never as unowned, never as a mismatch', () => {
+  // Every collection in existence is here until it is re-imported. Reading it
+  // as *not owned* would tell people their shelves are empty; reading it as
+  // *the wrong printing* would tell them to buy a card they already have.
+  const tab = loadTab({
+    collections: timsSolRings({ id: null, qty: 1 }), deck: ringDeck(SR.c21),
+  });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'unknown');
+  assert.deepStrictEqual(tab.answer('dbPrintingCounts()'),
+    { owned: 0, other: 0, unknown: 1, none: 0 });
+});
+
+test('and so does a shelf that knows some of its copies and not the rest', () => {
+  // Two Sol Rings, one of them the wrong set and one nobody wrote down. The
+  // one nobody wrote down could be the printing the deck runs, so it is not a
+  // mismatch and cannot be reported as one.
+  const tab = loadTab({
+    collections: timsSolRings({ ...SR.ltc, qty: 1 }, { id: null, qty: 1 }),
+    deck: ringDeck(SR.c21),
+  });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'unknown');
+});
+
+/* A Moxfield CSV shelf: every copy has an edition and a collector number and
+   none of them has a Scryfall id. Those copies *might* be the printing the
+   deck runs — nothing here can tell without asking Scryfall — so they are the
+   unknown answer and never the mismatch that would send somebody out to buy a
+   card they already own. */
+test('copies known only by set and number are unknown, not a mismatch', () => {
+  const tab = loadTab({
+    collections: timsSolRings({ set: 'c21', collector_number: '263', qty: 1 }),
+    deck: ringDeck(SR.c21),
+  });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'unknown');
+  assert.deepStrictEqual(tab.answer('dbPrintingCounts()'),
+    { owned: 0, other: 0, unknown: 1, none: 0 });
+});
+
+/* They are still two printings to look at, and the card page lists them —
+   folding them into one row would put one copy's set over the other's. */
+test('and two of them stay two, rather than folding into one unknown', () => {
+  const tab = loadTab({ collections: timsSolRings(
+    { set: 'c21', collector_number: '263', qty: 1 },
+    { set: 'ltc', collector_number: '284', qty: 2 },
+  ) });
+  assert.deepStrictEqual(
+    tab.answer(`dbOwnedPrintings('Sol Ring').map(p => [p.set, p.collector_number, p.qty])`),
+    [['c21', '263', 1], ['ltc', '284', 2]]);
+});
+
+test('a matching copy is the answer whatever else is on the shelf', () => {
+  const tab = loadTab({
+    collections: timsSolRings({ ...SR.c21, qty: 1 }, { ...SR.ltc, qty: 1 }, { id: null, qty: 4 }),
+    deck: ringDeck(SR.c21),
+  });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'owned');
+});
+
+test('a deck that names no printing runs the one Scryfall hands back', () => {
+  // A deck nobody has hand-picked art in is not a deck running no printing —
+  // it is a deck running the default, which is the printing the mat has been
+  // drawing all along. Almost every deck is this one, so a question it could
+  // not be asked would be a question nearly nothing could be asked.
+  const on = printings =>
+    loadTab({ collections: timsSolRings(...printings), deck: ringDeck(undefined) })
+      .answer(`dbPrintingState(dbMainCards()[0])`);
+  // CARDS['Sol Ring'] is the C21 one.
+  assert.strictEqual(on([{ ...SR.c21, qty: 1 }]), 'owned');
+  assert.strictEqual(on([{ ...SR.ltc, qty: 1 }]), 'other',
+    'the shelf’s Middle-earth copy answered for the default the deck draws');
+  assert.strictEqual(on([{ id: null, qty: 1 }]), 'unknown');
+  assert.strictEqual(on([]), 'none');
+});
+
+test('and a chosen printing beats the default', () => {
+  const tab = loadTab({
+    collections: timsSolRings({ ...SR.ltc, qty: 1 }), deck: ringDeck(SR.ltc),
+  });
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'owned',
+    'the deck was measured against the default it was told not to run');
+});
+
+test('a name the app has no card data for is asked nothing', () => {
+  // The data is merely late — or the card is one live Scryfall has never heard
+  // of. Either way there is no printing to hold the shelf against, and marking
+  // the card over that would be the app reporting its own latency.
+  const tab = loadTab({
+    collections: [{ key: 'c:tim', name: 'Tim’s box', source: 'archidekt',
+                    color: '#a855f7', owner: 'p-tim',
+                    cards: { 'Ancestral Recall': { name: 'Ancestral Recall', qty: 1,
+                                                   printings: [{ ...SR.ltc, qty: 1 }] } } }],
+    deck: [{ card_name: 'Ancestral Recall', category: 'Ramp' }],
+  });
+  assert.strictEqual(tab.answer(`dbCardPrinting(dbMainCards()[0])`), null);
+  assert.strictEqual(tab.answer(`dbPrintingState(dbMainCards()[0])`), 'owned');
+  tab.onMat();
+  assert.doesNotMatch(tab.mat.innerHTML, /db-print-mark/);
+});
+
+test('the name-level counts are exactly what they were', () => {
+  // The whole of this ticket hangs off the shelf gaining printings, and the
+  // number that has been on the readout for a fortnight must not move by a
+  // single copy because of it.
+  const plain   = loadTab().owned();
+  const printed = loadTab({
+    collections: SHELVES.map(c => ({ ...c, cards: Object.fromEntries(
+      Object.entries(c.cards).map(([name, card]) => [name, { ...card,
+        printings: [{ ...SR.ltc, id: `x-${name}`, qty: card.qty }] }]))})),
+  }).owned();
+  assert.deepStrictEqual(printed, plain, 'recording the printings moved the owned count');
+});
+
+// ── What the mat and the readout say ──────────────────────────────────────
+
+const drawnFor = (collections, printing = SR.c21) => {
+  const tab = loadTab({ collections, deck: ringDeck(printing) });
+  tab.onMat();
+  return tab.mat.innerHTML;
+};
+
+test('the mat says which of the four it is', () => {
+  assert.match(drawnFor(timsSolRings({ ...SR.c21, qty: 1 })), /Tim’s box ×1/);
+  assert.doesNotMatch(drawnFor(timsSolRings({ ...SR.c21, qty: 1 })), /db-print-mark/,
+    'the printing the deck runs was marked as a problem');
+
+  assert.match(drawnFor(timsSolRings({ ...SR.ltc, qty: 1 })), /db-print-mark-other/);
+  assert.match(drawnFor(timsSolRings({ ...SR.ltc, qty: 1 })), /not the C21 this deck runs/,
+    'the mark says nothing about what is wrong with it');
+
+  assert.match(drawnFor(timsSolRings({ id: null, qty: 1 })), /db-print-mark-unknown/);
+  assert.doesNotMatch(drawnFor(timsSolRings({ id: null, qty: 1 })), /db-print-mark-other/,
+    'a shelf that recorded nothing was called a mismatch');
+
+  assert.doesNotMatch(drawnFor([]), /sf-badge/,
+    'a card on nobody’s shelf is wearing a badge');
+});
+
+/* The mark is right for a Moxfield CSV shelf — those copies might be the one
+   the deck runs — but the sentence under it must not tell somebody nobody
+   recorded printings the app is listing by set and number two tabs away. */
+test('and the mark over a shelf with no ids does not call it a blank one', () => {
+  const html = drawnFor(timsSolRings({ set: 'c21', collector_number: '263', qty: 1 }));
+  assert.match(html, /db-print-mark-unknown/);
+  assert.doesNotMatch(html, /Nobody recorded/,
+    'a shelf that named its editions was told it had recorded nothing');
+  assert.match(html, /You have C21/);
+});
+
+test('and marks a deck that chose nothing against the default it draws', () => {
+  assert.doesNotMatch(drawnFor(timsSolRings({ ...SR.c21, qty: 1 }), null), /db-print-mark/,
+    'the default the deck draws is on the shelf, and was marked anyway');
+  assert.match(drawnFor(timsSolRings({ ...SR.ltc, qty: 1 }), null), /db-print-mark-other/);
+  assert.match(drawnFor(timsSolRings({ ...SR.ltc, qty: 1 }), null), /this deck defaults to/,
+    'a printing nobody chose was described as one the deck runs');
+  assert.match(drawnFor(timsSolRings({ ...SR.c21, qty: 1 }), SR.foil), /this deck runs/,
+    'a printing somebody chose was described as one the deck fell into');
+});
+
+/* The mark is the shelf's answer and not one box's. Two boxes, one of them
+ * holding the printing the deck runs: the deck can be sleeved out of the pair
+ * of them, the readout says so, and a ⇄ on the other box would be the mat
+ * contradicting the line above it. */
+test('one box having the printing settles it for the whole shelf', () => {
+  const shelves = [
+    ...timsSolRings({ ...SR.ltc, qty: 1 }),
+    { key: 'c:box', name: 'The cupboard', source: 'archidekt', color: '#10b981', owner: null,
+      cards: { 'Sol Ring': { name: 'Sol Ring', qty: 1, printings: [{ ...SR.c21, qty: 1 }] } } },
+  ];
+  const tab = loadTab({ collections: shelves, deck: ringDeck(SR.c21) });
+  tab.run(`dbSetOwnScope('group')`);
+  assert.deepStrictEqual(tab.shelf(), ['c:tim', 'c:box'], 'the scope is not both boxes');
+  tab.onMat();
+  assert.match(tab.mat.innerHTML, /The cupboard ×1/);
+  assert.doesNotMatch(tab.mat.innerHTML, /db-print-mark/,
+    'a box holding another printing warned about a card the shelf can sleeve');
+  assert.doesNotMatch(tab.readout(), /another printing/, 'and the line disagreed with the mat');
+});
+
+/* The two rollup rules, read off the mat rather than off the query layer —
+ * these are what somebody actually sees, and they are the two acceptance
+ * criteria most easily got wrong in the rendering rather than in the rule. */
+test('a German lightly-played copy is the printing the deck runs', () => {
+  assert.doesNotMatch(
+    drawnFor(timsSolRings({ ...SR.c21, lang: 'de', condition: 'LP', qty: 1 })),
+    /db-print-mark/, 'a language and a crease were read as another printing');
+});
+
+test('and a foil is not the ordinary copy', () => {
+  assert.match(drawnFor(timsSolRings({ ...SR.c21, qty: 1 }), SR.foil), /db-print-mark-other/,
+    'a deck running the foil was told the ordinary copy would do');
+  assert.match(drawnFor(timsSolRings({ ...SR.foil, qty: 1 })), /db-print-mark-other/,
+    'a deck running the ordinary copy was answered with the foil');
+});
+
+test('the readout says how many the deck runs in a printing you have not got', () => {
+  const tab = loadTab({ collections: timsSolRings({ ...SR.ltc, qty: 1 }), deck: ringDeck(SR.c21) });
+  assert.match(tab.readout(), /1<\/strong> of 1 you own/, 'the name-level count moved');
+  assert.match(tab.readout(), /1 card in another printing/,
+    'the line counts copies beside it, so this one has to say what it counts');
+
+  const ok = loadTab({ collections: timsSolRings({ ...SR.c21, qty: 1 }), deck: ringDeck(SR.c21) });
+  assert.doesNotMatch(ok.readout(), /another printing/,
+    'a deck you can sleeve as it stands is carrying a warning');
+  assert.doesNotMatch(loadTab().readout(), /another printing/,
+    'a shelf that knows nothing about its printings is reported as a mismatch');
+});
+
+test('the missing list has a third section for them, and names both printings', () => {
+  const tab = loadTab({ collections: timsSolRings({ ...SR.ltc, qty: 1 }), deck: ringDeck(SR.c21) });
+  const html = tab.panel();
+  assert.match(html, /You have these in another printing/);
+  assert.match(html, /C21/, 'the printing the deck runs is not named');
+  assert.match(html, /LTC/, 'the printing you actually have is not named');
+});
+
+test('a deck you own every copy of in the right printing says only that', () => {
+  const tab = loadTab({ collections: timsSolRings({ ...SR.c21, qty: 1 }), deck: ringDeck(SR.c21) });
+  assert.match(tab.panel(), /Every one of the 1 is on the shelf/);
+  assert.doesNotMatch(tab.panel(), /another printing/);
 });

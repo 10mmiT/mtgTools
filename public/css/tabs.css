@@ -36,6 +36,51 @@
   letter-spacing: .4px;
 }
 
+/* ── The offer to re-import a shelf with no printings ──────────────────
+   Between the chips and the table, because it is the answer to what the
+   table's Printings column is saying — every card on every shelf reads
+   "unknown" until somebody takes this. A quiet surface and not a warning
+   colour: nothing is wrong, there is simply something worth doing once.
+   Gone from the flow entirely the rest of the time, which after a
+   playgroup has taken it is always. */
+.print-offer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+/* The sentence takes the room that is going and wraps rather than pushing
+   the buttons off the end of a phone. */
+.print-offer-say {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.print-offer-say strong { color: var(--text); }
+
+.print-offer-acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* Named per collection, so the label is as long as somebody's collection
+   name — it truncates rather than setting the width of the strip. */
+.print-offer-btn {
+  font-size: var(--text-xs);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Players tab ────────────────────────────────────────────────────────
    The tab is its strip and its artwork (§9.9). A player used to be a
    --surface-1 box with a --surface-2 header bar inside it, which put a
@@ -1559,6 +1604,29 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .card-ruling-text:last-child { margin-bottom: 0; }
 
+/* What of this card is on the shelf. A list of short lines rather than the
+   Collections row's single summary, because this is the detailed answer and a
+   line per printing is what "which ones have I got" looks like written down.
+   It takes the reading measure (§8.3) like the rulings above it: these are
+   sentences, and a sentence across the gallery's full width is unreadable. */
+.card-shelf-list { list-style: none; margin: 0; padding: 0; }
+.card-shelf-row {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  font-size: var(--text-md); line-height: var(--leading-normal);
+  color: var(--text);
+}
+/* The count leads the line and lines up down the list — tabular figures, so
+   ten copies of one printing does not shunt the edition it names sideways. */
+.card-shelf-qty {
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  min-width: var(--space-6); text-align: right;
+}
+/* The finish is a fact about the printing beside it, not a second printing. */
+.card-shelf-finish { color: var(--text-muted); }
+/* The badges naming whoever does have it, when the shelf in scope does not —
+   the same row of badges the mat draws, with the same spacing. */
+.card-shelf-elsewhere { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
+
 /* A printing is a card too, so the tile around it goes the way the grids'
    did, and so does its nudge: what is left is the layout and the label. */
 .card-print-tile {
@@ -2287,6 +2355,130 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    fight that and reintroduce the jump it's meant to prevent. */
 .db-bulk-bar, #dbDeckContent { overflow-anchor: none; }
 
+/* ── Optimize printings ──────────────────────────────────────────────────────
+   One window with four states — pick a mode, watch it fetch, read the
+   proposal, see what happened — so the run is a single thing on screen rather
+   than a spinner that turns into a table. Nothing here is a new colour or a
+   new size: the surfaces, the money and the muted text are the tab's own.
+
+   The table scrolls inside the box rather than growing it: a ninety-nine card
+   run proposes as many rows, and a modal taller than the viewport is a modal
+   whose Apply button cannot be reached. */
+.db-opt-box {
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.db-opt-title {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+.db-opt-lede { margin: 0; }
+
+/* The three modes, as a column of buttons rather than a select: each carries a
+   sentence saying what it does, and "most expensive" needs its sentence read
+   before it is pressed rather than after it lands on a four-figure Sol Ring. */
+.db-opt-modes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.db-opt-mode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  text-align: left;
+  padding: var(--space-3);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--dur-tint) var(--ease-tint),
+              background var(--dur-tint) var(--ease-tint);
+}
+.db-opt-mode:hover { border-color: var(--border-strong); background: var(--surface-3); }
+.db-opt-mode.current { border-color: var(--primary); }
+.db-opt-mode-name { font-weight: 700; font-size: var(--text-base); }
+.db-opt-mode-hint { font-size: var(--text-xs); color: var(--text-muted); }
+
+/* What the pool is, in words. Said on the picker and again while it fetches,
+   because it is the answer to the question the result will provoke. */
+.db-opt-pool,
+.db-opt-note {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.db-opt-progress-line { font-size: var(--text-sm); }
+.db-opt-progress {
+  height: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.db-opt-progress-bar {
+  height: 100%;
+  background: var(--primary);
+  transition: width var(--dur-base) var(--ease-tint);
+}
+
+.db-opt-total {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.db-opt-scroll {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.db-opt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.db-opt-table th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  background: var(--surface-1);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.db-opt-table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.db-opt-name { font-weight: 600; }
+.db-opt-qty,
+.db-opt-from { color: var(--text-muted); }
+/* The money column reads down, so it is tabular and right-aligned like every
+   other column of figures in the app. */
+.db-opt-money {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* A cheapest run swapping a card to foil is the result most likely to be
+   reported as a bug, so it is marked rather than left to be noticed. */
+.db-opt-foil {
+  font-size: var(--text-xs);
+  color: var(--warning);
+}
+/* The part of the total line that qualifies the figure rather than states it. */
+.db-opt-aside {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.db-opt-empty { padding: var(--space-5) var(--space-4); }
+.db-opt-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
 /* Manage Categories modal */
 .db-catmodal-list {
   display: flex;
@@ -2852,6 +3044,33 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
    collections draw, in that person's own colour and set back a step: what you
    have is a fact, and what somebody else has is a phone call. */
 .db-badge-elsewhere { opacity: .75; }
+
+/* And the one mark that says whether the shelf has the printing the deck
+   runs — after the badges rather than on them, because the badges are boxes
+   and the question is the shelf's. Nothing is drawn where the answer is yes,
+   so the mark is only ever news.
+
+   --warning for the mismatch, because it is a thing to act on: change the
+   deck's printing, or buy the one it names. The unknown is set back in the
+   muted ink instead — every collection in existence is unknown until somebody
+   re-imports it, and a mat lit up amber on every card of every deck would be
+   the app shouting about the state of its own data rather than saying
+   anything about this deck. */
+.db-print-mark { font-size: var(--text-xs); font-weight: 700; }
+.db-print-mark-other   { color: var(--warning); }
+.db-print-mark-unknown { color: var(--text-muted); }
+
+/* The same note on the readout, in the running text of the line. It is not a
+   button: what to do about it is in the missing list the number beside it
+   opens, and a second thing to press in one sentence is a sentence nobody
+   reads. */
+.db-stat-otherprint { color: var(--warning); }
+
+/* What the deck runs against what the shelf has, on a row of the missing
+   list. Set in the muted ink of the note it is — the card's name is the thing
+   being looked up, and the two set codes are the answer to it. */
+.db-owned-print { font-size: var(--text-xs); color: var(--text-muted); margin-left: auto; }
+.db-owned-print strong { color: var(--text); font-weight: 600; }
 
 /* "87 of 99 you own", which is a button in a line of text. It keeps the line's
    type and ink — a readout that suddenly grew a button-shaped box would be

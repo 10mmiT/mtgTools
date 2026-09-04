@@ -112,8 +112,8 @@ const DB_CURVE_TOP = 7;
  *
  * The mat reads this too, so the tile and the readout cannot come to disagree
  * about what a card costs. */
-function dbCardPrice(card) {
-  return card.printing ? card.printing.price_eur : dbCardData.get(card.card_name)?.prices?.eur;
+function dbCardPrice(card, cardData = dbCardData) {
+  return card.printing ? card.printing.price_eur : cardData.get(card.card_name)?.prices?.eur;
 }
 
 /* Cardmarket in euros, which is what every price in this app is quoted in —
@@ -123,8 +123,13 @@ function dbCardPrice(card) {
  * no Cardmarket price silently costed at zero is how a deck total becomes a
  * number nobody can act on: it looks like an answer and it is short by however
  * many of those the deck holds. */
-function _dbCardEur(card) {
-  const raw = dbCardPrice(card);
+/* The card data is a parameter with the live cache as its default, so the one
+ * answer to "what does this card cost" can be asked by a caller that is a
+ * function of its arguments — js/deckview-optimize.js's plan reads no globals,
+ * and a second copy of this over there is how the readout and the optimiser's
+ * promised total would start to disagree. */
+function _dbCardEur(card, cardData = dbCardData) {
+  const raw = dbCardPrice(card, cardData);
   const eur = raw == null ? NaN : parseFloat(raw);
   return Number.isFinite(eur) ? eur : null;
 }

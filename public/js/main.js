@@ -303,36 +303,26 @@ document.addEventListener('click', e => {
 
 // ── State refresh ─────────────────────────────────────────────────────
 let _lastRefresh = 0;
-let _lastStateSig = null;
 
 /* Three reasons to say no, and they are the whole of why this is not just a
- * fetch: a poll that lands while a collection or a deck is still arriving
- * would hydrate over the half of it that is in memory, and one that lands
- * every time a tab is switched would do it several times a second.
+ * fetch. Nobody is reading a hidden tab; a poll that lands while a collection
+ * or a deck is still arriving would hydrate over the half of it that is in
+ * memory (stateIsMidFlight, which is where that reasoning lives); and one that
+ * lands every time a tab is switched would do it several times a second.
  *
- * A server-side import is not one of those reasons. Its cards are nowhere in
- * memory to be hydrated over — they are in collection_imports until the whole
- * thing lands — so a refresh during one is safe, and refusing to refresh for
- * the four minutes an import takes would freeze every other tab's data. What
- * still holds the fetch off is a CSV import, which is genuinely half in
- * memory while the file is being read. */
+ * Then the fourth: nothing usually changed. That used to be answered by
+ * downloading everything and stringifying it to compare — a full serialisation
+ * on the server and another here, twice a minute, to learn nothing. The
+ * revision fetchStateIfChanged carries answers it for a few bytes, and a poll
+ * that finds nothing new never gets as far as this function's body. */
 async function refreshState() {
   if (document.visibilityState === 'hidden') return;
-  if (state.collections.some(c => c.status === 'loading' || c.status === 'updating' || c.updating)) return;
-  if (state.players.some(p => p.decks.some(d => d.nameStatus === 'loading'))) return;
+  if (stateIsMidFlight()) return;
   if (Date.now() - _lastRefresh < 15_000) return;
   _lastRefresh = Date.now();
   try {
-    const res = await fetch('/api/state');
-    if (!res.ok) return;
-    const json = await res.json();
-
-    // Skip the re-render entirely when nothing actually changed on the server.
-    // Re-rendering rebuilds every card/image element, which flashes the grid and
-    // jumps the scroll position — pointless when the data is identical.
-    const sig = JSON.stringify(json);
-    if (sig === _lastStateSig) return;
-    _lastStateSig = sig;
+    const json = await fetchStateIfChanged();
+    if (!json) return;
 
     const deckSummary = (json.players||[]).map(p=>`${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
     console.log(`[refresh] hydrateState — players: ${deckSummary || '(none)'}`);

@@ -589,8 +589,13 @@ function dbToggleAnalysis() {
 
 function _dbShowDeckUI() {
   _dbSetMode('deck');
-  document.getElementById('dbDeleteDeckBtn').style.display =
-    isMyPlayer(dbDeck?.playerId) ? '' : 'none';
+  /* The two items in the Deck group that edit the deck rather than read it.
+     Hidden on somebody else's deck, so a control nobody may press is not on
+     screen to be pressed — the same gate the gallery's printing chooser uses. */
+  const mine = isMyPlayer(dbDeck?.playerId) ? '' : 'none';
+  document.getElementById('dbDeleteDeckBtn').style.display = mine;
+  const optimize = document.getElementById('dbOptimizeBtn');
+  if (optimize) optimize.style.display = mine;
 }
 
 function _dbHideDeckUI() {

@@ -54,6 +54,7 @@ const EXTRA_VIEWS = {
   'deckview-legality': 'deckview',
   'deckview-mana':    'deckview',
   'deckview-menu':    'deckview',
+  'deckview-optimize': 'deckview',
   'rss-panel':        'available',
   'collections-list': 'collections',
   'collections-pile': 'collections',
@@ -103,6 +104,7 @@ const OPEN_FAQ = `(() => {
 const SCOPES = {
   'deckview-search':  '#dbSearchPanel',
   'deckview-history': '#dbHistoryPanel',
+  'deckview-optimize': '#dbOptimizeOverlay',
   'rss-panel':        '#rssPanel',
   faq:                '#faqModal',
 };
@@ -284,6 +286,22 @@ const PREP = {
     /* After the deck's cards arrive: the size control hides its own mount in
        list view, and the board toggles are drawn from what the deck holds. */
     setTimeout(() => { if (!dbMenuOpen) dbToggleMenu(); }, 1500);
+    return 'true';
+  })()`,
+  /* The printing optimiser, on its mode picker — three buttons a thumb has to
+     land on and a Cancel, which is the state worth measuring. The states after
+     it are a progress bar and a table, and reaching either means a run over the
+     live Scryfall queue: seconds of requests for a measurement about touch
+     targets. The picker is where the targets are. */
+  'deckview-optimize': `(() => {
+    const sel = document.getElementById('dbDeckSel');
+    const opt = sel && [...sel.options].find(o => o.value);
+    if (!opt) return 'false';
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof dbShowOptimize !== 'function') return 'false';
+    // After the deck's cards arrive: the run is refused until a deck is open.
+    setTimeout(dbShowOptimize, 1500);
     return 'true';
   })()`,
   faq: OPEN_FAQ,
