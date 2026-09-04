@@ -55,7 +55,8 @@ mtgtools/
 │   ├── deckfilter.test.js   # The deck's filter box — the query language run over one deck
 │   ├── collectionowner.test.js # Whose shelf is whose — the column, the shelf, the open-mode name
 │   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and who has them
-│   └── decklegality.test.js # Legal or the reason it is not, the bracket estimate, and tonight's bracket
+│   ├── decklegality.test.js # Legal or the reason it is not, the bracket estimate, and tonight's bracket
+│   └── decklands.test.js    # The land cycles — the pinned sizes, what one open section costs, and the colours a deck filters by
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure

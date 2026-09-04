@@ -105,6 +105,7 @@ const CARDS = {
     cmc: 0, color_identity: ['G', 'W'] },
   'Cultivate': { name: 'Cultivate', type_line: 'Sorcery', cmc: 3, color_identity: ['G'] },
   'Sol Ring': { name: 'Sol Ring', type_line: 'Artifact', cmc: 1, color_identity: [] },
+  'Lightning Bolt': { name: 'Lightning Bolt', type_line: 'Instant', cmc: 1, color_identity: ['R'] },
 };
 
 /* The deck already holds one of the three shocklands, which is the case the
@@ -246,6 +247,9 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
       run('_dbRenderLands()');
       return run('Promise.all([..._dbLandAsking.values()])');
     },
+    /** Every cycle the tab draws, open or shut, in the order it draws them. */
+    cycles: () => [...el('dbLandsContent').innerHTML
+      .matchAll(/db-land-name">([^<]+)/g)].map(m => m[1]),
     /** Which cycles are drawn open. */
     openCycles: () => [...el('dbLandsContent').innerHTML
       .matchAll(/aria-expanded="true"[\s\S]*?db-land-name">([^<]+)/g)].map(m => m[1]),
@@ -407,12 +411,89 @@ test('a colourless commander is colourless, not unfiltered', async () => {
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=c']);
 });
 
-test('a deck with nothing in it yet is every cycle, unfiltered', async () => {
-  const tab = loadTab({ deck: [], commander: null });
-  assert.strictEqual(tab.answer('dbLandIdentity()'), '');
+test('a deck with no commander is given the same tab, section for section', () => {
+  /* The 60-card format is not a lesser citizen of this tab. It loses the
+     commander that would have said what it may play, and nothing else: the
+     same cycles, in the same order, all closed, asking Scryfall nothing. */
+  const drawn = tab => { tab.open(); return tab.cycles(); };
+  const withOne = loadTab();
+  const without = loadTab({ commander: null });
+  assert.deepStrictEqual(drawn(without), drawn(withOne),
+    'the deck with no commander was drawn a different list of cycles');
+  assert.deepStrictEqual(without.openCycles(), [], 'a section arrived open');
+  assert.deepStrictEqual(without.asked(), [], 'opening the tab cost a request');
+});
+
+test('the commander says what the deck may play; without one, the deck’s own cards do', () => {
+  /* The same deck, twice, with one card in it that is outside the commander's
+     colours — a red card under a Bant commander, which is a deck mid-edit or
+     mid-import rather than a deck that is wrong. With a commander the answer
+     is the commander's, because that is the rule the format actually has;
+     without one there is no rule, and the cards themselves are all there is
+     to read. */
+  const deck = [...DECK, { card_name: 'Lightning Bolt', category: 'Ramp' }];
+  assert.strictEqual(loadTab({ deck }).answer('dbLandIdentity()'), 'WUG',
+    'a card outside the commander’s identity widened what the deck may play');
+  assert.strictEqual(loadTab({ deck, commander: null }).answer('dbLandIdentity()'), 'WURG',
+    'with no commander to ask, the deck’s own cards were not read');
+});
+
+test('a deck with no colours in it is colourless, not unfiltered', async () => {
+  /* The same distinction the commander branch makes, on the side that has no
+     commander to make it: a deck holding nothing but Sol Ring has been read,
+     and what it says is "colourless". Answering that with every land in the
+     cycle would be the tab saying it could not tell, about a deck it can. */
+  const tab = loadTab({ deck: [{ card_name: 'Sol Ring', category: 'Ramp' }], commander: null });
+  assert.strictEqual(tab.answer('dbLandIdentity()'), 'C');
   tab.open();
   await tab.toggle('shockland');
+  assert.deepStrictEqual(tab.asked(), ['is:shockland id<=c'],
+    'a deck that reads as colourless was shown the whole cycle');
+});
+
+test('a deck the app has only half read is not called colourless on the strength of the half', async () => {
+  /* The commander branch refuses to answer out of an identity it could only
+     half read — "half an identity is a wrong answer, not a smaller one" — and
+     this side owes the same refusal in the one place it would change the
+     answer. A deck whose Sol Ring has arrived and whose Cultivate has not is
+     not a colourless deck; it is a deck we cannot say about yet. Narrowing it
+     to colourless would answer every coloured section with "nothing in this
+     cycle is in these colours", which is a lie told confidently.
+
+     Only that fallback is refused. A part-read deck that does show a colour is
+     still filtered on the colours it showed — a narrower answer than the whole
+     truth, and the render asks again the moment the rest arrives. */
+  const tab = loadTab({ commander: null, deck: [
+    { card_name: 'Sol Ring',  category: 'Ramp' },
+    { card_name: 'Cultivate', category: 'Ramp' }] });
+  tab.run(`dbCardData.delete('Cultivate')`);
+  assert.strictEqual(tab.answer('dbLandIdentity()'), '',
+    'a deck read down to its colourless half was filtered as colourless');
+  assert.ok(tab.open().includes('every cycle, unfiltered'),
+    'the tab claimed to know colours it had not read');
+
+  /* And when the rest of it lands, the deck is green. */
+  tab.run(`dbCardData.set('Cultivate', ${JSON.stringify(CARDS.Cultivate)})`);
+  assert.strictEqual(tab.answer('dbLandIdentity()'), 'G');
+});
+
+test('a deck with nothing in it yet is every cycle, unfiltered', async () => {
+  /* A deck opened before a single card is in it is the only deck nothing can
+     be said about, and the tab says that rather than guessing. It is still the
+     whole tab — the sections are there to be opened, and one opened shows its
+     cycle whole, which is a shorter list than it sounds and never every land
+     in Magic. */
+  const tab = loadTab({ deck: [], commander: null });
+  assert.strictEqual(tab.answer('dbLandIdentity()'), '');
+  const html = tab.open();
+  assert.ok(html.includes('Shocklands'), 'an empty deck was drawn no cycles');
+  assert.ok(!html.includes('error-msg'), 'an empty deck was drawn an error');
+  assert.ok(html.includes('every cycle, unfiltered'),
+    'the tab did not say it had nothing to filter on');
+  await tab.toggle('shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland'], 'an empty filter was sent as one');
+  assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
+    'the cycle came back with nothing to show for it');
 });
 
 // ── The cards are the drawer’s own tiles ──────────────────────────────────

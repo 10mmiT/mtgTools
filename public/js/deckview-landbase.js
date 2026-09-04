@@ -73,6 +73,9 @@ const _dbLandCache  = new Map();   // `${id}|${colours}` → {cards} | {error}
 const _dbLandFlight = new Map();   // the same key, while its request is out
 const _dbLandAsking = new Map();   // and the redraw waiting on the back of it
 
+/** Some colours, spelled the one way every colour in this app is spelled. */
+const _dbLandColours = have => [...'WUBRG'].filter(c => have.has(c)).join('');
+
 /* The colours to filter on, as the letters `id<=` wants, or '' for no filter.
  *
  * The commander is the answer when there is one — the same identity the search
@@ -80,21 +83,38 @@ const _dbLandAsking = new Map();   // and the redraw waiting on the back of it
  * itself about what the deck may play. With no commander it is the union of
  * the colours the deck's own cards carry, which is a worse filter and not
  * nothing: "show me the shocklands I could run" is a fair question to ask of a
- * 60-card deck, which never has a commander at all.
+ * 60-card deck, which never has a commander at all. The deck's own cards are
+ * the deck's, not the sideboard's or the maybeboard's — the same cards the
+ * legality check judges a 60-card deck on.
  *
- * 'C' rather than '' for a commander with no colours: a colourless deck may
+ * 'C' rather than '' for a deck with no colours in it: a colourless deck may
  * play colourless lands, and an empty filter would answer it with every land
- * in Magic. The empty string is kept for the case where nothing can say — no
- * commander and no cards yet — where the whole cycle is the honest answer. */
+ * in Magic. That holds on both sides of the question — a Kozilek deck and a
+ * 60-card artifact pile have both been read, and what they say is
+ * "colourless".
+ *
+ * The empty string is what is left when nothing can say, and a deck only half
+ * read counts as nothing where it would change the answer. dbCommanderIdentity()
+ * refuses a commander whose card has not arrived because half an identity is a
+ * wrong answer rather than a smaller one, and the same refusal belongs here:
+ * a deck whose Sol Ring has arrived and whose Lightning Bolt has not is not a
+ * colourless deck, and calling it one answers every coloured section with
+ * "nothing in this cycle is in these colours". A part-read deck that does show
+ * a colour is still filtered on the colours it showed — narrower than the
+ * truth, never wrong about what it did read — and the render asks again the
+ * moment the rest of it lands. */
 function dbLandIdentity() {
   const ci = dbCommanderIdentity();
-  if (ci) return [...'WUBRG'].filter(c => ci.has(c)).join('') || 'C';
+  if (ci) return _dbLandColours(ci) || 'C';
   const seen = new Set();
+  let read = 0, missing = false;
   for (const row of dbMainCards()) {
     const sf = dbCardData.get(row.card_name);
-    if (sf) for (const c of _dbIdentityOf(sf)) seen.add(c);
+    if (!sf) { missing = true; continue; }
+    read++;
+    for (const c of _dbIdentityOf(sf)) seen.add(c);
   }
-  return [...'WUBRG'].filter(c => seen.has(c)).join('');
+  return _dbLandColours(seen) || (read && !missing ? 'C' : '');
 }
 
 /* Whether the deck has a commander whose colours we could not read.
