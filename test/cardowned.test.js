@@ -310,6 +310,31 @@ test('every grid that draws a card asks whose it is', () => {
   }
 });
 
+test('nothing colours ownership by the collection’s own hex any more', () => {
+  /* The bug this guards is the one that made the strip look intermittently
+     wrong: two palettes for one fact. A shelf is coloured by ownerInk() now —
+     the holder's slot, or the collection's own colour where nobody owns it —
+     and any view that reaches past it for `.color` is a fourth answer waiting
+     to disagree with the other three.
+
+     Scoped to the places that say *who has this card*. A collection's colour
+     is still its own elsewhere: an import chip has no owner to speak for it
+     yet, and the record keeps the field. */
+  for (const [file, what] of [
+    ['public/js/scryfall.js',        'the badges under a card'],
+    ['public/js/collections.js',     'the Collections tab'],
+    ['public/js/deckview-owned.js',  'the deck mat’s badges'],
+  ]) {
+    const src = read(file);
+    for (const [i, line] of src.split(/\r?\n/).entries()) {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue;          // a comment may name it
+      if (!/(background|border-color|border-bottom)[^;]*\$\{[^}]*\.color/.test(line)) continue;
+      assert.fail(`${what} (${file}:${i + 1}) paints a shelf with its own colour ` +
+                  `instead of ownerInk(): ${line.trim()}`);
+    }
+  }
+});
+
 test('the module is loaded before the tabs that draw the mark', () => {
   const html  = read('public/index.html');
   /* The tag and not the name: index.html names js/deckview-owned.js in two
