@@ -1262,7 +1262,7 @@ async function renderGridView(rows, MAX) {
 
       const link = `<a class="grid-img-link card-open" href="${href}" target="_blank" rel="noopener" data-name="${esc(r.name)}">${imgHtml}</a>`;
       return `<div class="grid-card">
-        ${cardTurnableHtml(link, scryfallFacesCache.get(r.name)?.[1])}
+        ${cardArtHtml(link, { back: scryfallFacesCache.get(r.name)?.[1], own: cardOwnMark(r.name) })}
         <div class="grid-footer">
           <div class="grid-name card-open" title="${esc(r.name)}" data-name="${esc(r.name)}" style="cursor:pointer">${esc(r.name)}</div>
           <div class="grid-qtys">${qtyBadges}</div>

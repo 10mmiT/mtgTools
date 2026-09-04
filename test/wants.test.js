@@ -81,7 +81,7 @@ function loadWants(wanted) {
     scryfallMetaCache: new Map(),
   };
   vm.createContext(sandbox);
-  for (const file of ['scryfall.js', 'cardturn.js', 'sortui.js', 'wants.js']) {
+  for (const file of ['auth.js', 'owned.js', 'scryfall.js', 'cardturn.js', 'sortui.js', 'wants.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox, { filename: file });
   }
   const run = expr => vm.runInContext(expr, sandbox);

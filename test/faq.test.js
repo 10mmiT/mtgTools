@@ -290,6 +290,63 @@ describe('the registry', () => {
     }
   });
 
+  test('the tabs that draw cards say what the strip on one means', () => {
+    /* The mark on a card is the one thing this app says in colour and nowhere
+     * in words, and the colour of the "somebody else has it" strip is a
+     * different colour for each player — so it cannot be worked out by looking
+     * at it. The legend is where it is said.
+     *
+     * Which tabs draw cards is derived the same way the `f` row above derives
+     * it, and both directions are asserted for the same reason: a legend on a
+     * tab with no cards is noise, and a card tab without one is the colour left
+     * unexplained. */
+    const app = loadFaq();
+    const draws = new Set();
+    for (const file of fs.readdirSync(path.join(ROOT, 'public/js'))) {
+      for (const m of read(path.join('public/js', file)).matchAll(/mountSizeControl\('([\w-]+)'/g)) {
+        for (const [tab, pane] of PANES) if (pane.includes(`id="${m[1]}"`)) draws.add(tab);
+      }
+    }
+    for (const [tab, note] of Object.entries(app.registry())) {
+      const explains = Array.isArray(note.legend) && note.legend.length > 0;
+      assert.equal(explains, draws.has(tab), explains
+        ? `${tab} explains the strip on a card and draws no cards`
+        : `${tab} draws cards and never says what the strip on one means`);
+    }
+  });
+
+  test('the legend is drawn by the rule it explains, and covers all three states', () => {
+    const app = loadFaq();
+    const css = read('public/css/components.css');
+
+    const legends = Object.values(app.registry())
+      .map(note => note.legend).filter(Boolean);
+    assert.ok(legends.length, 'no note explains the strip');
+    /* One legend, shown on several notes — four copies would be four legends
+       that disagree the first time one of them is edited. */
+    for (const legend of legends) assert.deepEqual(legend, legends[0]);
+
+    const marks = legends[0].map(row => row.mark);
+    assert.ok(marks.includes(null),
+      'the legend never says that an unmarked card is one nobody has');
+    for (const row of legends[0]) {
+      assert.ok(String(row.what || '').trim(), 'a swatch with nothing said about it');
+      if (!row.mark) continue;
+      assert.match(css, new RegExp(`\\.${row.mark}\\b`),
+        `the legend shows .${row.mark}, which the stylesheet does not draw`);
+    }
+
+    /* And it is the shipped class on the swatch, not a picture of one: a
+       legend drawn from its own copy of the mark is a legend that can go on
+       being right about a mark the app has stopped drawing. */
+    const drawn = app.evaluate('faqHtml(FAQ.scryfall)');
+    assert.match(drawn, /class="card-own card-own-mine"/);
+    assert.match(drawn, /class="card-own card-own-their"/);
+    assert.match(drawn, /faq-legend-card/);
+    assert.match(drawn, /Deck Builder’s strip/,
+      'the legend never says which collections "yours" means');
+  });
+
   test('every key a note lists is a key the app answers to', () => {
     /* The one claim in the note that can be wrong without anybody noticing:
      * a row promising a key that does nothing. Read off every keydown in the

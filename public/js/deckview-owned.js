@@ -26,109 +26,28 @@
 // same identity the Collections tab's shelf control uses and works in open
 // mode, where it is the browser-remembered name matched to a player.
 
-/* ── The three questions ───────────────────────────────────────────────────
+/* ── The three questions, which are the app's now ─────────────────────────
  *
- * A widening ladder rather than three unrelated shelves, because the number it
- * produces is read as one sentence getting looser: what I can sleeve tonight,
- * what the group can put on the table, and what exists among us at all. The
- * group's includes yours for that reason — a shared box belongs to everybody,
- * so it is not a *different* set of cards from yours, it is more of them.
+ * Mine, the group's, everyone's — the widening ladder this tab was built on,
+ * lifted into js/owned.js when the ownership mark went onto every card in the
+ * app. It had to move: the Deck Builder's shelf and the Scryfall search's were
+ * two different answers to one question, so the same card could be marked as
+ * somebody's on one tab and as yours on the next.
  *
- * Mine is the default: "can I sleeve this tonight" is the question somebody
- * building a deck is actually asking. */
-const DB_OWN_SCOPES = [
-  { id: 'mine',  label: 'Mine',        hint: 'Only the collections you own' },
-  { id: 'group', label: 'The group’s', hint: 'Yours, and the collections nobody owns' },
-  { id: 'all',   label: 'Everyone’s',  hint: 'Every collection loaded' },
-];
+ * What is left in this file is everything that needs a *deck* to be asked. The
+ * names below are kept because this tab reads as a tab about a deck — dbCards,
+ * dbMainCards, dbOwnShelf — and because they are what the tests for this
+ * ticket are written against. They are one line each and they do not decide
+ * anything; js/owned.js does.
+ */
+const DB_OWN_SCOPES  = OWN_SCOPES;
+const DB_OWN_SCOPE_KEY = OWN_SCOPE_KEY;
+const dbOwnScope     = ownScope;
+const dbSetOwnScope  = setOwnScope;
+const dbOwnShelf     = ownShelf;
+const dbOwnedQty     = ownedQty;
+const dbHoldersOf    = holdersOf;
 
-/* Remembered per person rather than per browser. Two people share a browser in
- * open mode — the identity there is a name typed into Available@'s "Who are
- * you?" bar — and "mine" means something different to each of them, so a scope
- * stored under one of them must not follow the other. */
-const DB_OWN_SCOPE_KEY = 'mtgtools_db_own_scope';
-
-function _dbOwnScopeKey() { return `${DB_OWN_SCOPE_KEY}:${myPlayerId() || ''}`; }
-
-/* Which of the three is being asked, and the one place that decides it.
- *
- * "Mine" needs somebody to be. An app that cannot say who you are reads as the
- * group's whatever is stored — the control is not offered at all in that case,
- * and a stored preference from a browser that once knew must not quietly count
- * nobody's collections as yours. */
-function dbOwnScope() {
-  if (!myPlayerId()) return 'group';
-  try {
-    const stored = localStorage.getItem(_dbOwnScopeKey());
-    return DB_OWN_SCOPES.some(s => s.id === stored) ? stored : 'mine';
-  } catch { return 'mine'; }
-}
-
-function dbSetOwnScope(scope) {
-  if (!DB_OWN_SCOPES.some(s => s.id === scope)) return;
-  try { localStorage.setItem(_dbOwnScopeKey(), scope); } catch {}
-  dbOwnershipChanged();
-}
-
-/* The collections a scope counts, defaulting to the one the strip is set to.
- * The parameter is there for the search drawer, which asks the same question of
- * a different scope than the readout is on — so there is one rule about whose
- * shelf is whose and not two that can drift apart.
- *
- * Loaded ones only, which is the
- * rule sfCardOwnership() has always followed: half a collection is not a
- * smaller shelf, it is a wrong answer, and a badge that appears card by card
- * while pages come in is worse than one that appears once.
- *
- * With nobody to be, every shelf is the group's — which is both what an app
- * with no identity can honestly say and what makes the readout read as the
- * group's rather than break. */
-function dbOwnShelf(scope = dbOwnScope()) {
-  const loaded = (state.collections || []).filter(c => c.status === 'loaded');
-  const me = myPlayerId();
-  if (!me) return loaded;
-  switch (scope) {
-    case 'mine':  return loaded.filter(c => c.owner === me);
-    /* colOwner() and not `!c.owner`: an id naming a player who has been removed
-       is the group's, which is what the database makes of it the moment that
-       removal is saved. */
-    case 'group': return loaded.filter(c => c.owner === me || !colOwner(c));
-    default:      return loaded;
-  }
-}
-
-/** How many copies of a card the shelf in scope holds. Nought is an answer. */
-function dbOwnedQty(cardName) {
-  let qty = 0;
-  for (const col of dbOwnShelf()) qty += col.cards.get(cardName)?.qty || 0;
-  return qty;
-}
-
-/* Who *else* has it — every loaded collection that is not on the shelf being
- * counted, grouped by the person it belongs to. This is the half that answers
- * "who could lend me the rest", and it is why the missing list is worth opening
- * rather than being a number on a line.
- *
- * A collection nobody owns is the group's and is named as such: it is a real
- * answer, not a row somebody forgot to fill in. A card in no collection at all
- * comes back as an empty list, which is what "nobody has this" is. */
-function dbHoldersOf(cardName) {
-  const counted = new Set(dbOwnShelf().map(c => c.key));
-  const holders = [];
-  for (const col of (state.collections || [])) {
-    if (col.status !== 'loaded' || counted.has(col.key)) continue;
-    const qty = col.cards.get(cardName)?.qty || 0;
-    if (!qty) continue;
-    const player = colOwner(col);
-    holders.push({
-      who:        player ? player.name : 'The group',
-      ink:        player ? playerColor(player) : 'var(--text-muted)',
-      collection: col.name,
-      qty,
-    });
-  }
-  return holders;
-}
 
 /* ── The number, and the twelve behind it ──────────────────────────────────
  *

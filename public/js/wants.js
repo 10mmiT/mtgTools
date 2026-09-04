@@ -378,11 +378,11 @@ async function renderWantList() {
        scryfallBackFace()'s answer, so a split card and a Room correctly get
        nothing, and neither does an ordinary card. */
     return `<div class="sf-card-lg">
-      ${cardTurnableHtml(`<a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(cardName)}">
+      ${cardArtHtml(`<a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(cardName)}">
         ${imgUrl
           ? `<img class="sf-card-lg-img card-img" src="${imgUrl}" loading="lazy" alt="${esc(cardName)}">`
           : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-      </a>`, scryfallBackFace(card || {}))}
+      </a>`, { back: scryfallBackFace(card || {}), own: cardOwnMark(cardName) })}
       <div class="sf-card-lg-footer">
         <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
           <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener"
