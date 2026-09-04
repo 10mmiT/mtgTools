@@ -101,7 +101,7 @@ function loadTab() {
   };
   vm.createContext(sandbox);
   for (const file of ['state.js', 'sortui.js', 'cardquery.js', 'cardstack.js',
-                      'auth.js', 'collections.js']) {
+                      'auth.js', 'owned.js', 'collections.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
 

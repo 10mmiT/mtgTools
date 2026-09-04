@@ -25,6 +25,73 @@
  * differently. */
 const FAQ_TURN_KEY = ['f', 'turn the card under the pointer over'];
 
+/* ── What the strip on a card means ────────────────────────────────────────
+ *
+ * The one thing in this app that is said in colour and nowhere in words. Every
+ * card grid draws a strip along the top edge of the artwork saying whose shelf
+ * the card is on (js/owned.js), and a green bar is not self-explanatory the
+ * first time you meet it — least of all the dashed one, which is drawn in a
+ * player's own colour and is therefore a different colour for each of them.
+ *
+ * Written once here and shown on each of the four notes whose tab draws cards,
+ * for FAQ_TURN_KEY's reason: four copies of a legend become four legends that
+ * disagree the first time one of them is edited.
+ *
+ * The swatches are *the shipped rule*, not a picture of it — each is a small
+ * card-shaped box with a real .card-own inside, so the legend cannot come to
+ * show a mark the app no longer draws. `mark` is the class after .card-own, or
+ * null for the state that is drawn by drawing nothing.
+ *
+ * `ink` is the one thing the legend cannot take from the app: the second state
+ * is drawn in *a* player's colour and there is no such thing as the generic
+ * one, so the swatch borrows a slot to have something to show. */
+const FAQ_OWNED_LEGEND = [
+  { mark: 'card-own-mine',
+    what: 'On the shelf you are asking about — you can sleeve it tonight.' },
+  { mark: 'card-own-their', ink: 'var(--player-3)',
+    what: 'Only somebody else has it, in that player’s own colour — the same one on the badge under the card, and on their chip on Players and Available@. Point at the strip to see everybody who has it.' },
+  { mark: null,
+    what: 'Nobody in the group has it. No strip at all, so a page of cards nobody owns stays a page of cards.' },
+];
+
+/* Which collections "the shelf you are asking about" means — and it is one
+ * answer for the whole app, so the sentence is the same wherever the legend is
+ * shown. */
+const FAQ_OWNED_SCOPE =
+  'Which collections count — yours, the group’s, or everyone’s — is set on the Deck Builder’s strip and applies everywhere.';
+
+/* ── The same legend where the app cannot say who you are ──────────────────
+ *
+ * A deployment with no players, or an account not linked to one, has no
+ * "yours": every collection is the group's, which is the honest reading for a
+ * count and the wrong one for a green bar. There the strip keeps saying
+ * whether somebody has the card and says whose box it is in instead, so the
+ * legend has to say that rather than promising a distinction the app cannot
+ * make — and the second state cannot happen at all, since there is nobody to
+ * be somebody else.
+ *
+ * The note is the way out rather than an apology: this is a thing you can go
+ * and fix, and nowhere else in the app tells you so. */
+const FAQ_OWNED_LEGEND_ANON = [
+  { mark: 'card-own-mine', ink: 'var(--player-1)',
+    what: 'Somebody in the group has it, in the colour of the shelf it is on — the same colour as the badge under the card. Point at the strip to see whose, and how many.' },
+  { mark: null,
+    what: 'Nobody in the group has it. No strip at all, so a page of cards nobody owns stays a page of cards.' },
+];
+
+const FAQ_OWNED_SCOPE_ANON =
+  'The strip cannot say which of these are *yours* yet, because no collection here belongs to anybody in particular. Give each one an owner from the ⋯ menu on the Collections tab, and the ones on your own shelf turn green.';
+
+/* Which of the two, and the note that goes under it. Asked at the moment the
+ * note is opened rather than at load: who you are can change while the app is
+ * open — in open mode it is a name typed into Available@'s bar. */
+function faqOwnedLegend() {
+  const known = typeof myPlayerId === 'function' && myPlayerId();
+  return known
+    ? { rows: FAQ_OWNED_LEGEND,      note: FAQ_OWNED_SCOPE }
+    : { rows: FAQ_OWNED_LEGEND_ANON, note: FAQ_OWNED_SCOPE_ANON };
+}
+
 /* The notes. `points` are the things you would otherwise have to discover by
  * poking, not a description of what is already on the screen, and `keys` are
  * the ones particular to this tab — the ones every note shares are appended by
@@ -46,6 +113,7 @@ const FAQ = {
       'Right-click a card for its menu: inspect, move, change printing, remove.',
       'The filter field reads the same query language as the Collections search.',
     ],
+    legend: FAQ_OWNED_LEGEND,
     keys: [
       FAQ_TURN_KEY,
       ['c', 'fold the controls away, a tier at a time'],
@@ -64,6 +132,7 @@ const FAQ = {
       'Click a column heading to sort by it, and shift-click to add it as the next word of the sort.',
       'Pile view cuts the cards by the sort’s first word — by rarity for four stacks, by mana value for the curve standing up off the table.',
     ],
+    legend: FAQ_OWNED_LEGEND,
     keys: [FAQ_TURN_KEY],
   },
 
@@ -75,6 +144,7 @@ const FAQ = {
       'The + on a card puts it on a want list without leaving the search.',
       'It searches when you ask it to and never as you type, which is what keeps the group inside Scryfall’s rate limit.',
     ],
+    legend: FAQ_OWNED_LEGEND,
     keys: [FAQ_TURN_KEY],
   },
 
@@ -86,6 +156,7 @@ const FAQ = {
       'Inside a set, Owned narrows it to what the group has — or to what it has not, which is that set’s want list.',
       'The set becomes a chip on the strip above; its ✕ goes back to the tiles.',
     ],
+    legend: FAQ_OWNED_LEGEND,
     keys: [FAQ_TURN_KEY],
   },
 
@@ -171,10 +242,32 @@ function faqHtml(note) {
     <ul class="faq-points">${
       note.points.map(p => `<li>${esc(p)}</li>`).join('')
     }</ul>
+    ${faqLegendHtml(note.legend)}
     <h3 class="faq-keys-title">Keys</h3>
     <dl class="faq-keys">${
       keys.map(([key, what]) => `<dt><kbd>${esc(key)}</kbd></dt><dd>${esc(what)}</dd>`).join('')
     }</dl>`;
+}
+
+/* The legend, or nothing for a tab that draws no cards.
+ *
+ * aria-hidden on the swatches: each is a coloured box with no text in it, and
+ * the sentence beside it is the whole of what it says. A screen reader reading
+ * "image, image, image" down the side of three explanations is being told
+ * about the legend rather than being given it. */
+function faqLegendHtml(legend) {
+  if (!legend?.length) return '';
+  const { rows, note } = faqOwnedLegend();
+  return `
+    <h3 class="faq-keys-title">The strip on a card</h3>
+    <dl class="faq-legend">${rows.map(row => `
+      <dt><span class="faq-legend-card" aria-hidden="true">${
+        row.mark ? `<span class="card-own ${row.mark}"${
+          row.ink ? ` style="--own-ink:${row.ink}"` : ''}></span>` : ''
+      }</span></dt>
+      <dd>${esc(row.what)}</dd>`).join('')}
+    </dl>
+    <p class="faq-legend-note">${esc(note)}</p>`;
 }
 
 function openFaq(tab) {

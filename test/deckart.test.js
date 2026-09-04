@@ -106,7 +106,7 @@ function loadTab(cards, cats = ['Ramp']) {
      and "what does a card wearing its turn control look like" are answered
      once for the whole app, and a mat that agreed with a stub here while
      disagreeing with them is exactly the failure worth catching. */
-  for (const file of ['scryfall.js', 'cardturn.js', 'sortui.js', 'cardstack.js', 'deckview-boards.js',
+  for (const file of ['scryfall.js', 'cardturn.js', 'sortui.js', 'cardstack.js', 'owned.js', 'deckview-boards.js',
                       'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',

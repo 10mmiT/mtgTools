@@ -155,7 +155,7 @@ function loadPlanner() {
   };
   vm.createContext(sandbox);
   for (const file of ['state.js', 'card.js', 'deckview-boards.js', 'deckview-totals.js',
-                      'deckview-owned.js', 'deckview-optimize.js']) {
+                      'owned.js', 'deckview-owned.js', 'deckview-optimize.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
   return sandbox;
@@ -540,7 +540,7 @@ function loadTab({ deck = DECK, cards = CARDS, shelves = [], user = AS_TIM, deck
                       'auth.js', 'collections.js', 'card.js',
                       'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
-                      'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',
+                      'owned.js', 'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',
                       'deckview-mana.js', 'deckview-optimize.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }

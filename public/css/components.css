@@ -654,9 +654,73 @@ td { padding: var(--space-2) var(--space-3); }
    other face whether or not it is allowed to move it, because seeing the back
    of a card is information and the switch is about animation. */
 
-/* The card and its control, sharing a box. Only ever drawn around a card that
-   has a back — a one-sided card's tile is not wrapped at all. */
+/* The card and whatever sits on it, sharing a box — the control that turns it
+   over, the mark saying whose shelf it is on. Drawn only around a card that
+   has one of those: a one-sided card nobody owns is not wrapped at all. */
 .card-turnable { position: relative; }
+
+/* ── Whose shelf this card is on ──────────────────────────────────────────
+   A strip along the top edge of the picture, and nothing at all for a card
+   nobody has. js/owned.js decides which; this decides what it looks like.
+
+   Three shapes were drawn on real cards before this one — a filled corner
+   wedge, a scrimmed pip, and this — and the bar won on a fact none of them
+   was designed around: a Magic card has a black border, and the bar fits
+   inside it. It covers no artwork, no title and no mana cost, at any tile
+   size, on any card. The wedge and the pip both sat on the printed name.
+
+   Solid is the shelf in scope; broken is somebody else's, in their colour.
+   The same object with its fill interrupted rather than a second colour to be
+   learnt — colour says whose, fill says whether you have to ask.
+
+   The clip box is the whole picture rather than just the corner, because
+   --radius-card is a *percentage* pair (4.75% / 3.5%) and is therefore a
+   different number of pixels on the mat than in the drawer. Inheriting the
+   card's own curve is the only way a bar can meet the corner correctly at
+   every size without anybody computing it.
+
+   It states something; it is not a control. pointer-events: none so the card
+   underneath keeps the whole of its own area — the click that opens it, and
+   the lift reading where in the card the pointer is. */
+.card-own {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  pointer-events: none;
+}
+/* Whose it is, as one custom property, so a state is a *shape* decision below
+   and never a colour one. Somebody else's is set per card by js/owned.js, to
+   that player's slot — playerColor() hands back a var() reference rather than
+   a hex, so a theme change repaints it. */
+.card-own-mine  { --own-ink: var(--success); }
+/* And a default for the other state, which is otherwise coloured per card from
+   the markup. Without one, a .card-own-their standing on its own — the legend's
+   swatch in the tab notes — resolves var(--own-ink) to nothing and the whole
+   gradient becomes invalid, which draws no bar at all rather than a grey one.
+   The value is the one js/owned.js already uses for a collection nobody owns. */
+.card-own-their { --own-ink: var(--text-muted); }
+
+.card-own::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 42%;
+  height: 6px;
+  /* The fallback is for a mark with no state on it at all, which nothing
+     draws — but a bar in the wrong colour is a bar that lies, and an
+     invisible one is a bar that is simply missing. */
+  background: var(--own-ink, var(--success));
+  /* The card's own shade, so the bar has an edge against a pale border as
+     well as a dark one. The same drop-shadow the card casts, one pixel of it. */
+  filter: drop-shadow(0 1px 1px var(--card-shade));
+}
+.card-own-their::before {
+  background: repeating-linear-gradient(
+    to right, var(--own-ink) 0 7px, transparent 7px 12px);
+}
 
 /* A fanned pile's cards are positioned, angled and stacked by rules written
    against .card-fan's direct children, so when a card is wrapped the wrapper
@@ -2112,6 +2176,44 @@ button.col-menu-item { width: 100%; background: none; border: none; font: inheri
 }
 .faq-keys dt, .faq-keys dd { margin: 0; }
 .faq-keys dd { color: var(--text-muted); }
+
+/* ── The legend for the strip on a card ───────────────────────────────────
+   The same two-column grid as the keys, because it is the same shape of
+   thing: a small fixed-width sign on the left and what it means on the
+   right. Aligned to the top rather than the baseline — a swatch has no
+   baseline, and its sentence runs to three lines.
+
+   The swatch is a card-shaped box with a real .card-own inside it, so the
+   legend is drawn by the rule it explains and cannot come to show a mark the
+   app no longer draws. */
+.faq-legend {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+.faq-legend dt, .faq-legend dd { margin: 0; }
+.faq-legend dd { color: var(--text-muted); }
+.faq-legend-card {
+  position: relative;
+  display: block;
+  /* Wide enough that the broken bar reads as broken. The strip is a
+     proportion of the card rather than a fixed length, so at swatch size the
+     only way to give the dashes room is to give the card some. */
+  width: 44px;
+  aspect-ratio: 5/7;
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+/* Said in words as well as in colour, since the colour is the thing being
+   explained: the sentence about the scope is one the whole legend rests on. */
+.faq-legend-note {
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
 /* A key cap is a flat surface, so it takes the hairline the box above does
    not: the two are the same rule read from its two sides. */
 .faq-keys kbd {

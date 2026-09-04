@@ -106,7 +106,7 @@ function loadCard({ collections = [], user = AS_TIM, scope = null } = {}) {
   };
   vm.createContext(sandbox);
   for (const file of ['state.js', 'auth.js', 'sortui.js', 'cardstack.js', 'cardturn.js',
-                      'collections.js', 'card.js', 'deckview-owned.js']) {
+                      'collections.js', 'card.js', 'owned.js', 'deckview-owned.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
   const run = expr => vm.runInContext(expr, sandbox);

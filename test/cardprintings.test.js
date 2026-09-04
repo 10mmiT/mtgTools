@@ -539,7 +539,7 @@ function loadTab({ playerId = 'p1' } = {}) {
      test are Sol Ring's, which has one side, and the real file would replace
      this sandbox's scryfallFetch with the queue it stands in for. */
   for (const file of ['cardturn.js',
-                      'sortui.js', 'cardstack.js', 'card.js', 'deckview-boards.js',
+                      'sortui.js', 'cardstack.js', 'card.js', 'owned.js', 'deckview-boards.js',
                       'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',

@@ -199,13 +199,25 @@ async function ensureScryfallImages(names) {
   }
 }
 
+/* The badges under a card on the browsing tabs: which collections hold it, and
+ * how many.
+ *
+ * The colour is ownerInk()'s (js/owned.js) rather than the collection's own,
+ * so that a chip and the strip on the card above it are the same colour for
+ * the same person. They were not: this said a collection's auto-assigned hex
+ * while the strip said the holder's player slot, and a card could carry two
+ * different colours for one fact — the two agreeing now and then by luck,
+ * which is what made it read as an intermittent bug rather than a wrong rule.
+ * A collection nobody owns still speaks in its own colour, because there is no
+ * person for it to speak as. */
 function sfCardOwnership(cardName) {
   return state.collections
     .filter(c => c.status === 'loaded' && c.cards.has(cardName))
     .map(c => {
-      const q = c.cards.get(cardName).qty;
-      return `<span class="sf-badge" style="border-color:${c.color}">
-        <span class="sf-dot" style="background:${c.color}"></span>
+      const q   = c.cards.get(cardName).qty;
+      const ink = ownerInk(c);
+      return `<span class="sf-badge" style="border-color:${ink}">
+        <span class="sf-dot" style="background:${ink}"></span>
         ${esc(c.name)} ×${q}
       </span>`;
     }).join('');

@@ -951,7 +951,10 @@ function chipHtml(col, imp, onShelf) {
   const stopped = imp && imp.status !== 'running';
   const name    = col ? col.name   : imp.name;
   const key     = col ? col.key    : imp.key;
-  const color   = col ? col.color  : imp.color;
+  /* One rule for what colour a shelf is, so the chip, the column, the dot on
+     a card and the strip on it cannot be four answers. An import has no owner
+     to speak for it yet and keeps the colour it arrived with. */
+  const color   = col ? ownerInk(col) : imp.color;
   const source  = col ? col.source : imp.source;
   const by      = colReimportBy(source);
   const owner   = colOwner(col || imp);
@@ -1386,7 +1389,7 @@ function renderListView(rows, MAX) {
   if (cols.pt)     h += '<th data-sort="power">P/T</th>';
   if (cols.price)  h += '<th data-sort="price">Price</th>';
   colShelf().forEach(col => {
-    h += `<th data-sort="${esc(colQtyField(col.key))}" style="border-bottom:3px solid ${col.color}">${esc(col.name)}</th>`;
+    h += `<th data-sort="${esc(colQtyField(col.key))}" style="border-bottom:3px solid ${ownerInk(col)}">${esc(col.name)}</th>`;
   });
   /* Total and the sort control's "Quantity" are one field: how many of this
      card are owned altogether. The header writes the field the control can
@@ -1698,18 +1701,22 @@ async function renderGridView(rows, MAX) {
         : `<div class="grid-img-placeholder">
              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
            </div>`;
+      /* ownerInk() and not the collection's own colour — this dot sits
+         directly under the strip on the same card, so two colours for one
+         shelf is the mismatch at its most visible. js/owned.js has the rule. */
       const qtyBadges = colShelf().map((col, i) => {
         const q = r.qtys[i] || 0;
         if (!q) return '';
+        const ink = ownerInk(col);
         return `<span class="grid-qty">
-          <span class="grid-dot" style="background:${col.color}"></span>
+          <span class="grid-dot" style="background:${ink}"></span>
           ${esc(col.name)} ×${q}
         </span>`;
       }).join('');
 
       const link = `<a class="grid-img-link card-open" href="${href}" target="_blank" rel="noopener" data-name="${esc(r.name)}">${imgHtml}</a>`;
       return `<div class="grid-card">
-        ${cardTurnableHtml(link, scryfallFacesCache.get(r.name)?.[1])}
+        ${cardArtHtml(link, { back: scryfallFacesCache.get(r.name)?.[1], own: cardOwnMark(r.name) })}
         <div class="grid-footer">
           <div class="grid-name card-open" title="${esc(r.name)}" data-name="${esc(r.name)}" style="cursor:pointer">${esc(r.name)}</div>
           <div class="grid-qtys">${qtyBadges}</div>

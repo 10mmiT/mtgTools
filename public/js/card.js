@@ -189,10 +189,15 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
      turn. */
   const front = card.image_uris?.normal
     || (faces || []).map(f => f.image_uris?.normal).find(Boolean) || '';
+  /* And whose shelf it is on, which this view — the one place in the app big
+     enough to read a card properly — could not say at all. The mark is the
+     card's own name's, not the printing's: a collection is names and
+     quantities, so the honest answer is "we have a copy of this card" and the
+     alt-art printings below deliberately wear nothing. */
   const imgHtml = front
-    ? cardTurnableHtml(
+    ? cardArtHtml(
         `<img class="card-detail-img card-img" src="${front}" alt="${esc(card.name)}">`,
-        scryfallBackFace(card))
+        { back: scryfallBackFace(card), own: cardOwnMark(card.name) })
     : `<div class="card-detail-img card-detail-img-ph">No image</div>`;
 
   /* Both faces' text stays, and stays unturned. The picture shows one side at

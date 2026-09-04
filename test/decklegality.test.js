@@ -243,7 +243,7 @@ function loadTab({ deck = [...DECK, COMMANDER], cards = CARDS,
   vm.createContext(sandbox);
   for (const file of ['state.js', 'sortui.js', 'cardstack.js', 'cardquery.js',
                       'auth.js', 'collections.js',
-                      'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
+                      'owned.js', 'cardturn.js', 'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',
                       'deckview-mana.js', 'pick.js']) {

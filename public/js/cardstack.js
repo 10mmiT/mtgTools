@@ -265,18 +265,24 @@ function cardFanHtml({ name, img, badge, href, back }) {
     ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(name)}">`
     : `<div class="card-stack-blank"></div>`;
   const spin = `--stack-turn:${stackJitter(name)}deg`;
-  const turnable = !!back;
-  const card = `<a class="card-fan-card card-open"${turnable ? '' : ` style="${spin}"`}
+  /* Whatever this card has to carry: the control that turns it over, and the
+     mark saying whose shelf it is on. Either one puts it in a slot. */
+  const own     = typeof cardOwnMark === 'function' ? cardOwnMark(name) : '';
+  const slotted = !!back || !!own;
+  const card = `<a class="card-fan-card card-open"${slotted ? '' : ` style="${spin}"`}
     data-name="${esc(name)}" href="${href || '#'}" target="_blank" rel="noopener" title="${esc(name)}">
     ${picture}
     ${badge ? `<span class="card-fan-badge">${esc(badge)}</span>` : ''}
   </a>`;
-  /* A card with a back is the same card in a slot. The angle it lies at moves
-     out to the slot with it, because the overlap and the angle are the fan's
-     rules about its own direct children — and the control has to be outside
-     the link, which is not allowed to contain a button. A card with one side
-     is not wrapped, so a fan of ordinary cards is the fan it always was. */
-  return turnable ? cardTurnableHtml(card, back, { cls: 'card-fan-slot', style: spin }) : card;
+  /* A card carrying something is the same card in a slot. The angle it lies at
+     moves out to the slot with it, because the overlap and the angle are the
+     fan's rules about its own direct children — and the control has to be
+     outside the link, which is not allowed to contain a button. A card
+     carrying nothing is not wrapped, so a fan of ordinary cards nobody owns is
+     the fan it always was. */
+  return slotted
+    ? cardArtHtml(card, { back, own, cls: 'card-fan-slot', style: spin })
+    : card;
 }
 
 /* The markup for a row of piles.
