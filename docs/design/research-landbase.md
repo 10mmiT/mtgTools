@@ -1,5 +1,27 @@
 # Research — picking lands for a deck
 
+**Specified.** The design settled out of this is
+[spec-landbase.md](spec-landbase.md); where the two disagree, the spec is what
+was decided. Three things below were found to be wrong on the way there, and
+are left standing rather than quietly patched:
+
+- **Sources are not sources.** Finding 3 says `dbDeckMana()` hands us sources
+  per colour for the lookup. It does — but it counts anything with
+  `produced_mana`, so Sol Ring and Birds of Paradise are in that number, while
+  the simulation the table came from sleeved *lands* and nothing else. Feeding
+  the one into the other says you are fine when you are not. The spec counts
+  lands only and names the rest on their own line.
+- **"The most demanding shape per colour" is too literal.** Taken as written, a
+  single `{U}{U}{U}` card in a 37-land deck demands 34 blue sources and the
+  check screams at a deck that plays fine. The spec keeps the hardest cost as
+  the bar but *names the card that set it*, so an outlier reads as an outlier.
+- **The section on what it would look like is superseded.** It predates the
+  "optimize basics" action, which is now the tab's second reason to exist.
+
+The research below is unchanged.
+
+---
+
 An assessment of what it would take to answer "which lands should this deck
 run" inside the Deck Builder, prompted by Archidekt's **Landbase** tab — the
 third tab of its drawer, beside Search and EDH Recs.
