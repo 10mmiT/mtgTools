@@ -237,8 +237,17 @@ a mismatch and not as unowned.
   candidate with its own price
 - Basic lands are excluded from every mode, decided from the local card data before any
   request goes out — the printing of a basic is chosen for how it looks and never for money
-- Prints per card over `/api/scryfall`, paced by the shared queue. A hundred-card deck
-  is ~100 requests at ~9/s ≈ **11 seconds** — a progress bar, not a spinner
+- ~~Prints per card over `/api/scryfall`, paced by the shared queue. A hundred-card deck
+  is ~100 requests at ~9/s ≈ **11 seconds**~~ **Wrong, and it is what broke the first
+  version.** Measured against the live API, Scryfall refuses at around the *twenty-third*
+  consecutive `/cards/search` — far below the 10/s its own guidance documents — and the
+  server queue's answer to a 429 is to pause every Scryfall request on the box for a
+  minute. So a run died a fifth of the way in and took the rest of the app with it.
+  The fix is to stop asking a hundred questions rather than to ask them more slowly:
+  Scryfall's search takes several oracle ids in one query (`oracleid:A or oracleid:B`,
+  `unique=prints`) and answers with every printing of all of them. **An 85-card deck is
+  8 requests and finishes** — a progress bar, not a spinner. What it costs is the
+  per-card proxy cache: a run no longer warms the exact URL the card gallery asks for
 - Writes through `dbChoosePrintings` (`deckview-edit.js`) — a bulk sibling of
   `dbChoosePrinting`, sharing its guards, that renders the mat once and schedules one save
   however many cards moved — but the run lands in History as **one entry**, restorable as a
@@ -248,6 +257,12 @@ a mismatch and not as unowned.
 - The shared printings loader follows Scryfall's paging to the end. It stopped after the
   first page, which cut the pool off at 175 candidates — and cut the card gallery off at the
   same place, which was a bug nobody had reported
+- The shared loader takes the failure policy as an argument. A page that fails ends the
+  gallery's walk and draws what arrived; the optimiser's throws, because a page nobody
+  fetched is not a shorter answer there but a wrong one — the card comes out as having no
+  printing worth buying and the preview says so. A refused run stops and says it was
+  refused, and a card whose printings were never looked up is counted as exactly that
+  rather than as one with nothing in the pool
 
 **Test:** cheapest and dearest pick the right pair from a known price set; a foil wins
 when the foil is cheaper; unpriced and inadmissible printings are never chosen and

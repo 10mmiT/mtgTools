@@ -197,7 +197,7 @@ const _dbOptInPurse = card => DB_OPT_PURSE.includes(card.board || DB_MAIN_BOARD)
 function dbOptimizePlan({ cards = [], cardData = new Map(), prints = new Map(),
                           owned = new Map(), mode = 'cheapest',
                           today = new Date().toISOString().slice(0, 10) } = {}) {
-  const untouched = { optimal: 0, unpriced: 0, inadmissible: 0, basic: 0, nodata: 0 };
+  const untouched = { optimal: 0, unpriced: 0, inadmissible: 0, basic: 0, nodata: 0, unlooked: 0 };
   const picks = [];
   let unattributed = 0;
   let delta = 0;
@@ -210,6 +210,12 @@ function dbOptimizePlan({ cards = [], cardData = new Map(), prints = new Map(),
        not fail the whole run. */
     if (!sf) { untouched.nodata++; continue; }
     if (_dbOptIsBasic(sf)) { untouched.basic++; continue; }
+    /* A card whose printings were never fetched, which is not the same thing
+       as a card with no printing worth buying — and used to be reported as
+       one. The map carries an entry for every name the fetch was asked for,
+       so a name missing from it is a gap rather than an empty answer, and the
+       difference is the whole of what a rate-limited run used to get wrong. */
+    if (!prints.has(name)) { untouched.unlooked++; continue; }
 
     const candidates = _dbOptCandidates(prints.get(name));
     const pool       = candidates.filter(c => _dbOptBuyable(c.print));
@@ -313,24 +319,120 @@ function dbHideOptimize() {
   if (overlay) overlay.style.display = 'none';
 }
 
+// ── Asking Scryfall ───────────────────────────────────────────────────────
+/* One search per card was the first way this was written, and it does not
+ * work. A Commander deck is about a hundred distinct non-basic cards, so it
+ * was a hundred search requests fired back to back through the server's shared
+ * Scryfall queue; measured against the live API, Scryfall starts refusing at
+ * around the twenty-third, and the queue's answer to a 429 is to pause *all*
+ * Scryfall traffic on the server for a minute. A run stopped a fifth of the
+ * way through and every other tab stopped with it.
+ *
+ * The queue was not the culprit and slowing it down is not the fix. Scryfall's
+ * search takes several oracle ids in one query — `oracleid:A or oracleid:B` —
+ * and answers with every printing of all of them, so the right change is to
+ * stop asking a hundred questions. A deck comes back in a handful of requests
+ * rather than a hundred, which is both under the limit and quick.
+ *
+ * What it costs is the per-card response cache the proxy keeps: a run no
+ * longer warms the exact URL the card gallery will ask for, so opening a card
+ * after a run fetches its printings again. That was worth having and it is
+ * worth less than a run that finishes. */
+
+/* How many cards go in one query. Ten oracle ids is a URL of about six hundred
+   characters, which is comfortably inside what Scryfall and every proxy
+   between here and it will take, and it is the difference between a hundred
+   requests and ten. */
+const DB_OPT_BATCH = 10;
+
+const DB_OPT_SEARCH = 'https://api.scryfall.com/cards/search';
+
+/** Whether the run that started this work is still the one on screen. Cancel
+ *  bumps the token, so an answer that arrives afterwards writes nothing. */
+const _dbOptLive = run => _dbOptRun === run && run.token === _dbOptToken;
+
+/** Every printing of every card named, in as few searches as it takes.
+ *
+ *  The answer comes back as one list of printings from several cards mixed
+ *  together, so each is filed under the card it is a printing of by its oracle
+ *  id — which is what the query asked by, and so cannot disagree with it.
+ *
+ *  Every name handed in has an entry when this returns, empty or not. That is
+ *  the postcondition dbOptimizePlan() reads to tell a card with no printings
+ *  from a card nobody asked about.
+ *
+ *  Throws if Scryfall refuses. A run built on pages nobody fetched is a run
+ *  that reports cards as unbuyable when the truth is that the app never
+ *  looked. */
+async function _dbOptFetchPrints(names, run) {
+  const prints   = new Map(names.map(name => [name, []]));
+  const byOracle = new Map();
+  const alone    = [];
+
+  for (const name of names) {
+    const oracle = dbCardData.get(name)?.oracle_id;
+    /* A card the app knows no oracle id for — data from before the field, or
+       from a path that does not carry it. It still has a printings URL of its
+       own, so it is asked for singly rather than dropped. */
+    if (!oracle) { alone.push(name); continue; }
+    /* Two names can share one oracle id: dbFetchCardData files a two-faced
+       card under its full name and its front-face name both. */
+    if (!byOracle.has(oracle)) byOracle.set(oracle, []);
+    byOracle.get(oracle).push(name);
+  }
+
+  const ids     = [...byOracle.keys()];
+  const batches = [];
+  for (let i = 0; i < ids.length; i += DB_OPT_BATCH) batches.push(ids.slice(i, i + DB_OPT_BATCH));
+
+  Object.assign(run, { done: 0, total: batches.length + alone.length });
+  _dbOptPaint();
+
+  for (const batch of batches) {
+    if (!_dbOptLive(run)) return null;
+    const q   = batch.map(id => `oracleid:${id}`).join(' or ');
+    const url = `${DB_OPT_SEARCH}?order=released&unique=prints&q=${encodeURIComponent(q)}`;
+    for (const print of await cardAllPrints(url, { strict: true })) {
+      for (const name of byOracle.get(print.oracle_id) || []) prints.get(name).push(print);
+    }
+    run.done++;
+    _dbOptPaint();
+  }
+
+  for (const name of alone) {
+    if (!_dbOptLive(run)) return null;
+    const uri = dbCardData.get(name)?.prints_search_uri;
+    if (uri) prints.set(name, await cardAllPrints(uri, { strict: true }));
+    run.done++;
+    _dbOptPaint();
+  }
+  return prints;
+}
+
 /** Run a mode: fetch every card's printings, then decide. */
 async function dbOptimizeRun(mode) {
   const run = _dbOptRun;
   if (!run || !dbDeck || !isMyPlayer(dbDeck.playerId)) return null;
 
   const names = dbOptimizeNames();
-  Object.assign(run, { phase: 'fetch', mode, done: 0, total: names.length });
+  Object.assign(run, { phase: 'fetch', mode, done: 0, total: 0, error: '' });
   _dbOptPaint();
 
-  const prints = new Map();
-  for (const name of names) {
-    if (_dbOptRun !== run || run.token !== _dbOptToken) return null;
-    const uri = dbCardData.get(name)?.prints_search_uri;
-    prints.set(name, uri ? await cardAllPrints(uri) : []);
-    run.done++;
+  let prints;
+  try {
+    prints = await _dbOptFetchPrints(names, run);
+  } catch (e) {
+    if (!_dbOptLive(run)) return null;
+    /* Stopped rather than half-answered. The alternative is a preview that
+       looks complete and is not, with no way for anybody reading it to tell
+       which cards the app failed to look up. */
+    run.phase = 'error';
+    run.error = `Scryfall stopped answering (${e.message}). Nothing has been changed. `
+              + 'It asks for a pause when a lot is asked of it at once — wait a minute and try again.';
     _dbOptPaint();
+    return null;
   }
-  if (_dbOptRun !== run || run.token !== _dbOptToken) return null;
+  if (!prints || !_dbOptLive(run)) return null;
 
   run.plan = dbOptimizePlan({
     cards: dbCards, cardData: dbCardData, prints, mode,
@@ -402,6 +504,7 @@ function _dbOptFooterHtml(plan) {
   if (u.inadmissible) bits.push(`${u.inadmissible} with no printing in the pool`);
   if (u.basic)        bits.push(`${u.basic} basic land${u.basic === 1 ? '' : 's'}`);
   if (u.nodata)       bits.push(`${u.nodata} the app has no card data for`);
+  if (u.unlooked)     bits.push(`${u.unlooked} whose printings could not be looked up`);
 
   const left = bits.length
     ? `<div class="db-opt-note">Left alone: ${esc(bits.join(', '))}.</div>` : '';
@@ -463,10 +566,20 @@ function _dbOptBodyHtml(run) {
   }
   if (run.phase === 'fetch') {
     const pct = run.total ? Math.round((run.done / run.total) * 100) : 0;
-    return `<div class="db-opt-progress-line">Looking up printings — ${run.done} of ${run.total}</div>
+    /* Requests rather than cards: the whole point of the batching is that
+       those are no longer the same number, and a bar that counted cards would
+       jump ten at a time. */
+    return `<div class="db-opt-progress-line">Looking up printings — ${run.done} of ${run.total || '…'}</div>
       <div class="db-opt-progress"><div class="db-opt-progress-bar" style="width:${pct}%"></div></div>
       <div class="db-opt-pool">${esc(DB_OPT_POOL_SAID)}</div>
       <div class="db-opt-actions"><button class="btn-secondary" onclick="dbHideOptimize()">Cancel</button></div>`;
+  }
+  if (run.phase === 'error') {
+    return `<div class="db-opt-note">${esc(run.error)}</div>
+      <div class="db-opt-actions">
+        <button class="btn-primary" onclick="dbOptimizeRun('${esc(run.mode)}')">Try again</button>
+        <button class="btn-secondary" onclick="dbHideOptimize()">Cancel</button>
+      </div>`;
   }
   if (run.phase === 'done') {
     const asked = run.plan.picks.length;

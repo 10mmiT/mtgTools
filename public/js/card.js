@@ -603,18 +603,35 @@ function cardChoosePrinting(id, finish = '') {
  *  same list, a pool cut off at 175 candidates too. One loader, so the two
  *  cannot come to disagree about what printings a card has.
  *
- *  A page that fails ends the walk rather than failing the lot: the printings
- *  that did arrive are a shorter answer, and no answer at all is a worse one. */
-async function cardAllPrints(url) {
+ *  Two callers, and two things a failed page should mean to them — so the
+ *  paging is here once and the policy is the argument.
+ *
+ *  Lenient, which is the gallery's: a page that fails ends the walk and the
+ *  printings that did arrive are drawn. A shorter gallery is a worse answer
+ *  than a complete one and a much better answer than none.
+ *
+ *  `strict` is the printing optimiser's, and it is the opposite for a reason
+ *  that is not taste. A run decides what a card should be by comparing the
+ *  printings it was handed, so a page nobody fetched is not a shorter answer,
+ *  it is a wrong one: the card comes out as having no printing worth buying,
+ *  and the preview says so with nothing on it to admit that the app never
+ *  looked. Better to throw and let the run stop and say what happened. */
+async function cardAllPrints(url, { strict = false } = {}) {
   const out = [];
   let next = url;
   while (next) {
     let page;
     try {
       const res = await scryfallFetch(next);
-      if (!res.ok) break;
+      if (!res.ok) {
+        if (strict) throw new Error(`Scryfall answered ${res.status}`);
+        break;
+      }
       page = await res.json();
-    } catch { break; }
+    } catch (e) {
+      if (strict) throw e;
+      break;
+    }
     out.push(...(page.data || []));
     next = page.has_more ? page.next_page : null;
   }

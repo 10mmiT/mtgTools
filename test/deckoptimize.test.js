@@ -41,7 +41,7 @@ const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
  * flags and the date the pool is decided by. */
 
 const printing = (over = {}) => ({
-  id: 'x', set: 'xxx', set_name: 'A Set', collector_number: '1',
+  id: 'x', set: 'xxx', set_name: 'A Set', collector_number: '1', oracle_id: 'o-x',
   released_at: '2021-04-23', games: ['paper', 'mtgo'],
   finishes: ['nonfoil'], prices: {},
   image_uris: { normal: `https://cards.example/${over.id || 'x'}.jpg` },
@@ -55,39 +55,39 @@ const PRINTS = {
      ignored the finish would get one of the two wrong. Revised is the pool's
      own test — half a euro, and older than the bound. */
   'Sol Ring': [
-    printing({ id: 'sr-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '263',
+    printing({ oracle_id: 'o-sol', id: 'sr-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '263',
                released_at: '2021-04-23', finishes: ['nonfoil', 'foil'],
                prices: { eur: '6.00', eur_foil: '5.00' } }),
-    printing({ id: 'sr-3ed', set: '3ed', set_name: 'Revised Edition', collector_number: '270',
+    printing({ oracle_id: 'o-sol', id: 'sr-3ed', set: '3ed', set_name: 'Revised Edition', collector_number: '270',
                released_at: '1994-04-01', prices: { eur: '0.50' } }),
-    printing({ id: 'sr-ltr', set: 'ltr', set_name: 'Tales of Middle-earth', collector_number: '284',
+    printing({ oracle_id: 'o-sol', id: 'sr-ltr', set: 'ltr', set_name: 'Tales of Middle-earth', collector_number: '284',
                released_at: '2023-06-23', finishes: ['nonfoil', 'foil'],
                prices: { eur: '3.00', eur_foil: '1.50' } }),
   ],
   'Cultivate': [
-    printing({ id: 'cu-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '188',
+    printing({ oracle_id: 'o-cul', id: 'cu-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '188',
                prices: { eur: '1.00' } }),
-    printing({ id: 'cu-m21', set: 'm21', set_name: 'Core Set 2021', collector_number: '177',
+    printing({ oracle_id: 'o-cul', id: 'cu-m21', set: 'm21', set_name: 'Core Set 2021', collector_number: '177',
                released_at: '2020-07-03', prices: { eur: '0.30' } }),
   ],
   /* Admissible in every other way and quoted by nobody. Unknown is not free,
      so neither of these can win anything. */
   'Krenko, Mob Boss': [
-    printing({ id: 'kr-m13', set: 'm13', set_name: 'Magic 2013', collector_number: '140',
+    printing({ oracle_id: 'o-kre', id: 'kr-m13', set: 'm13', set_name: 'Magic 2013', collector_number: '140',
                released_at: '2012-07-13', prices: { eur: null } }),
-    printing({ id: 'kr-cmm', set: 'cmm', set_name: 'Commander Masters', collector_number: '175',
+    printing({ oracle_id: 'o-kre', id: 'kr-cmm', set: 'cmm', set_name: 'Commander Masters', collector_number: '175',
                released_at: '2023-08-04', prices: { eur: null } }),
   ],
   /* One printing, priced, and out of the pool twice over — Reserved List and
      five years older than the bound. */
   'Mox Diamond': [
-    printing({ id: 'mo-sth', set: 'sth', set_name: 'Stronghold', collector_number: '138',
+    printing({ oracle_id: 'o-mox', id: 'mo-sth', set: 'sth', set_name: 'Stronghold', collector_number: '138',
                released_at: '1998-03-02', reserved: true, prices: { eur: '400.00' } }),
   ],
   'Forest': [
-    printing({ id: 'fo-unf', set: 'unf', set_name: 'Unfinity', collector_number: '239',
+    printing({ oracle_id: 'o-for', id: 'fo-unf', set: 'unf', set_name: 'Unfinity', collector_number: '239',
                prices: { eur: '0.10' } }),
-    printing({ id: 'fo-jmp', set: 'jmp', set_name: 'Jumpstart', collector_number: '61',
+    printing({ oracle_id: 'o-for', id: 'fo-jmp', set: 'jmp', set_name: 'Jumpstart', collector_number: '61',
                prices: { eur: '0.05' } }),
   ],
 };
@@ -100,19 +100,24 @@ const PRINTS = {
 
 const CARDS = {
   'Sol Ring': { name: 'Sol Ring', type_line: 'Artifact', cmc: 1, color_identity: [],
+                oracle_id: 'o-sol',
                 id: 'sr-ltr', set: 'ltr', set_name: 'Tales of Middle-earth', collector_number: '284',
                 prices: { eur: '3.00' }, prints_search_uri: 'https://api.scryfall.com/cards/search?q=sol' },
   'Cultivate': { name: 'Cultivate', type_line: 'Sorcery', cmc: 3, color_identity: ['G'],
+                 oracle_id: 'o-cul',
                  id: 'cu-c21', set: 'c21', set_name: 'Commander 2021', collector_number: '188',
                  prices: { eur: '1.00' }, prints_search_uri: 'https://api.scryfall.com/cards/search?q=cultivate' },
   'Krenko, Mob Boss': { name: 'Krenko, Mob Boss', type_line: 'Legendary Creature — Goblin',
+                        oracle_id: 'o-kre',
                         cmc: 4, color_identity: ['R'],
                         id: 'kr-cmm', set: 'cmm', set_name: 'Commander Masters', collector_number: '175',
                         prices: { eur: null }, prints_search_uri: 'https://api.scryfall.com/cards/search?q=krenko' },
   'Mox Diamond': { name: 'Mox Diamond', type_line: 'Artifact', cmc: 0, color_identity: [],
+                   oracle_id: 'o-mox',
                    id: 'mo-sth', set: 'sth', set_name: 'Stronghold', collector_number: '138',
                    prices: { eur: '400.00' }, prints_search_uri: 'https://api.scryfall.com/cards/search?q=mox' },
   'Forest': { name: 'Forest', type_line: 'Basic Land — Forest', cmc: 0, color_identity: ['G'],
+              oracle_id: 'o-for',
               id: 'fo-unf', set: 'unf', set_name: 'Unfinity', collector_number: '239',
               prices: { eur: '0.10' }, prints_search_uri: 'https://api.scryfall.com/cards/search?q=forest' },
 };
@@ -389,9 +394,9 @@ test('but the delta is what the deck’s price counts, which is not every board'
  * The shelf, the mat, the totals and the History POST are the shipped modules;
  * only the network is stubbed. */
 
-/* Two pages of Sol Rings, so that a loader stopping after the first would
- * silently cut the pool off — and would take the LTR foil, the cheapest tile
- * here, out of reach. */
+/* The one card asked for by its own printings URL rather than in a batch —
+ * the fallback for a card the app knows no oracle id for — answered over two
+ * pages, so that path is held to the same paging rule the batched one is. */
 const PAGE_TWO = 'https://api.scryfall.com/cards/search?q=sol&page=2';
 const PAGED = {
   'https://api.scryfall.com/cards/search?q=sol': {
@@ -402,7 +407,7 @@ const PAGED = {
 
 const AS_TIM = { username: 'tim', role: 'player', playerId: 'p-tim' };
 
-function loadTab({ deck = DECK, shelves = [], user = AS_TIM, deckOwner = 'p-tim' } = {}) {
+function loadTab({ deck = DECK, cards = CARDS, shelves = [], user = AS_TIM, deckOwner = 'p-tim' } = {}) {
   const els = {};
   const el = id => (els[id] ||= {
     innerHTML: '', textContent: '', title: '', value: '', disabled: false,
@@ -434,12 +439,34 @@ function loadTab({ deck = DECK, shelves = [], user = AS_TIM, deckOwner = 'p-tim'
     /* Every request the run makes for a card's printings, in order — which is
        how "a basic costs nothing" is asserted as an absence rather than
        assumed. */
+    /* Scryfall's search, as the run really asks it: one query naming several
+       oracle ids, answering with every printing of all of them mixed together
+       and paged. The stub answers whatever ids the query names, so a run that
+       asked for the wrong ones gets the wrong printings rather than a pass. */
     scryfallFetch: async url => {
       sandbox.prints.push(url);
-      const page = PAGED[url] || { data: PRINTS[Object.keys(PRINTS).find(
-        n => CARDS[n]?.prints_search_uri === url)] || [], has_more: false };
-      return { ok: true, status: 200, json: async () => page };
+      if (PAGED[url]) return { ok: true, status: 200, json: async () => PAGED[url] };
+      if (sandbox.failFrom !== null && sandbox.prints.length > sandbox.failFrom) {
+        return { ok: false, status: 429, json: async () => ({}) };
+      }
+      const ids  = [...decodeURIComponent(url).matchAll(/oracleid:([\w-]+)/g)].map(m => m[1]);
+      const data = Object.values(PRINTS).flat().filter(p => ids.includes(p.oracle_id));
+      /* Scryfall pages a search at 175 cards, and a deck's worth of printings
+         is well past that — so the harness can answer in two pages, which is
+         the case a loader that stopped at the first would get wrong. */
+      if (sandbox.splitPages) {
+        const half = Math.ceil(data.length / 2);
+        return /[?&]page=2/.test(url)
+          ? { ok: true, status: 200, json: async () => ({ data: data.slice(half), has_more: false }) }
+          : { ok: true, status: 200, json: async () =>
+              ({ data: data.slice(0, half), has_more: true, next_page: `${url}&page=2` }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ data, has_more: false }) };
     },
+    /* After how many requests Scryfall starts saying "slow down". Null is a
+       Scryfall that never does. */
+    failFrom: null,
+    splitPages: false,
     /* Every request the app made, and — for the snapshots route — a store that
        hands back what it was given. A run's undo is the whole reason it is one
        History row, so the round trip has to be drivable rather than assumed. */
@@ -494,12 +521,15 @@ function loadTab({ deck = DECK, shelves = [], user = AS_TIM, deckOwner = 'p-tim'
   run(`dbDeck = { id: 'd1', playerId: ${JSON.stringify(deckOwner)}, name: 'A deck', commander: '' }`);
   run(`dbCards = ${JSON.stringify(deck.map((c, i) => ({ qty: 1, board: 'main', position: i, ...c })))}`);
   run(`dbCats = ${JSON.stringify(['Ramp', 'Creatures', 'Lands'].map((name, i) => ({ name, position: i })))}`);
-  run(`dbCardData = new Map(${JSON.stringify(Object.entries(CARDS))})`);
+  run(`dbCardData = new Map(${JSON.stringify(Object.entries(cards))})`);
 
   return {
     run, answer, el,
     calls:  () => sandbox.calls,
     prints: () => sandbox.prints,
+    rateLimitAfter: n => { sandbox.failFrom = n; },
+    pageInTwo: () => { sandbox.splitPages = true; },
+    phase: () => sandbox.run ? null : vm.runInContext('_dbOptRun && _dbOptRun.phase', sandbox),
     /** Open the modal and run a mode to a preview. */
     async optimize(mode) {
       run('dbShowOptimize()');
@@ -516,23 +546,27 @@ function loadTab({ deck = DECK, shelves = [], user = AS_TIM, deckOwner = 'p-tim'
   };
 }
 
-test('the gallery loader follows every page, so the pool is not cut off', async () => {
+test('the loader follows every page, so the pool is not cut off', async () => {
+  /* A deck's printings run to thousands and Scryfall pages a search at 175, so
+     a run that read the first page and stopped would be choosing from a
+     fraction of the pool — and would say the answer with a straight face. */
   const tab = loadTab();
+  tab.pageInTwo();
   const plan = await tab.optimize('cheapest');
-  assert.strictEqual(plan.picks.find(p => p.name === 'Sol Ring').to.id, 'sr-ltr',
-    'the cheapest printing was on the second page and never arrived');
-  assert.deepStrictEqual(tab.prints().filter(u => u.includes('q=sol')),
-    ['https://api.scryfall.com/cards/search?q=sol', PAGE_TWO]);
+  assert.strictEqual(tab.prints().length, 2, 'the second page was never asked for');
+  assert.deepStrictEqual(proposed(plan),
+    { 'Sol Ring': 'sr-ltr foil', 'Cultivate': 'cu-m21' },
+    'a printing that arrived on the second page did not reach the pool');
 });
 
 test('a basic land costs no request at all', async () => {
   const tab = loadTab();
   await tab.optimize('cheapest');
-  assert.ok(!tab.prints().some(u => u.includes('q=forest')),
-    'eight Forests were looked up to be left alone');
+  const asked = decodeURIComponent(tab.prints().join(' '));
+  assert.ok(!asked.includes('o-for'), 'eight Forests were looked up to be left alone');
   // And neither is a name the app has no card data for: there is nothing to
-  // ask with.
-  assert.strictEqual(tab.prints().filter(u => !u.includes('page=')).length, 4);
+  // ask with. Four cards, one request.
+  assert.strictEqual(tab.prints().length, 1);
 });
 
 test('applying moves the deck’s price by the sum of the picks', async () => {
@@ -776,3 +810,110 @@ test('and a run applied over a chosen printing restores that one, not nothing', 
   await tab.restore();
   assert.deepStrictEqual(tab.printingOf('Sol Ring'), chosen);
 });
+
+// ── What the run costs ────────────────────────────────────────────────────
+/* One search per card is one request per card, and a Commander deck is a
+ * hundred of them. Measured against the real API, that is enough to make
+ * Scryfall start refusing: a 429 lands around the twenty-third, and the
+ * server's queue then pauses *all* Scryfall traffic for a minute. So the run
+ * asks for many cards at once — Scryfall's search takes several oracle ids in
+ * one query and answers with every printing of all of them.
+ */
+
+test('the run asks for many cards in one search, not one search per card', async () => {
+  const tab = loadTab();
+  await tab.optimize('cheapest');
+  const asked = tab.prints();
+  assert.strictEqual(asked.length, 1,
+    `four cards wanted printings and the run made ${asked.length} requests`);
+  const ids = [...decodeURIComponent(asked[0]).matchAll(/oracleid:([\w-]+)/g)].map(m => m[1]);
+  assert.deepStrictEqual(ids.sort(), ['o-cul', 'o-kre', 'o-mox', 'o-sol'],
+    'the query did not name every card the run needs, or named one it does not');
+  assert.ok(!ids.includes('o-for'), 'a basic land was looked up');
+});
+
+test('and still gets every card its own printings back', async () => {
+  // One answer holding every printing of every card, regrouped by which card
+  // each printing is of — a run that mixed them up would price a Cultivate
+  // off a Sol Ring.
+  const tab = loadTab();
+  const plan = await tab.optimize('cheapest');
+  assert.deepStrictEqual(proposed(plan),
+    { 'Sol Ring': 'sr-ltr foil', 'Cultivate': 'cu-m21' });
+  assert.deepStrictEqual(plan.untouched,
+    { optimal: 0, unpriced: 1, inadmissible: 1, basic: 1, nodata: 1, unlooked: 0 });
+});
+
+test('a deck bigger than one query is asked for in several', async () => {
+  const many = Object.fromEntries(Array.from({ length: 25 }, (_, i) =>
+    [`Card ${i}`, { name: `Card ${i}`, type_line: 'Artifact', oracle_id: `o-${i}`,
+                    prices: { eur: '1.00' }, id: `x-${i}` }]));
+  const tab = loadTab({
+    deck: Object.keys(many).map((card_name, i) => ({ card_name, board: 'main', qty: 1, position: i })),
+    cards: many,
+  });
+  await tab.optimize('cheapest');
+  assert.ok(tab.prints().length > 1 && tab.prints().length <= 4,
+    `twenty-five cards took ${tab.prints().length} requests`);
+  const asked = tab.prints().flatMap(u =>
+    [...decodeURIComponent(u).matchAll(/oracleid:([\w-]+)/g)].map(m => m[1]));
+  assert.strictEqual(new Set(asked).size, 25, 'a card was dropped between the batches');
+});
+
+test('a card the app knows no oracle id for is asked for on its own', async () => {
+  // The batched query is keyed by oracle id; a card whose data predates that
+  // field, or came from somewhere without it, still has its own printings URL.
+  const cards = { ...CARDS };
+  delete cards['Sol Ring'].oracle_id;
+  const tab = loadTab({ cards: { ...cards,
+    'Sol Ring': { ...CARDS['Sol Ring'], oracle_id: undefined } } });
+  await tab.optimize('cheapest');
+  assert.ok(tab.prints().some(u => u === CARDS['Sol Ring'].prints_search_uri),
+    'the card with no oracle id was never asked for');
+});
+
+// ── When Scryfall says slow down ──────────────────────────────────────────
+
+test('a rate-limited run stops and says so, rather than proposing a plan', async () => {
+  /* The failure this replaces: a refused request came back as no printings,
+     and a card the app could not look up was reported as one with no printing
+     worth buying. A plan built on cards nobody fetched is worse than no plan,
+     because nothing on screen says which cards are missing from it. */
+  const tab = loadTab({
+    deck: Array.from({ length: 25 }, (_, i) =>
+      ({ card_name: `Card ${i}`, board: 'main', qty: 1, position: i })),
+    cards: Object.fromEntries(Array.from({ length: 25 }, (_, i) =>
+      [`Card ${i}`, { name: `Card ${i}`, type_line: 'Artifact', oracle_id: `o-${i}`,
+                      prices: { eur: '1.00' }, id: `x-${i}` }])),
+  });
+  tab.rateLimitAfter(1);
+  const plan = await tab.optimize('cheapest');
+  assert.strictEqual(plan, null, 'a plan was built out of printings nobody fetched');
+  assert.match(tab.body(), /could not|rate|slow|try again/i,
+    'the run failed silently');
+});
+
+test('and the card gallery still draws whatever pages did arrive', async () => {
+  /* The other half of the same loader, and deliberately the other policy: a
+     gallery showing the printings it got is useful, where a plan built on the
+     printings it got is a lie. */
+  const app = loadGalleryLike();
+  const prints = await app(`cardAllPrints('https://x/one')`);
+  assert.strictEqual(prints.length, 1, 'a failed second page threw away the first');
+});
+
+/* js/card.js alone, with a first page that works and a second that does not. */
+function loadGalleryLike() {
+  const sandbox = {
+    console, window: { innerWidth: 1200, addEventListener() {} },
+    document: { addEventListener() {}, getElementById: () => null },
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    esc: String, jsAttr: String,
+    scryfallFetch: async url => (url === 'https://x/one'
+      ? { ok: true, status: 200, json: async () => ({ data: [{ id: 'a' }], has_more: true, next_page: 'https://x/two' }) }
+      : { ok: false, status: 429, json: async () => ({}) }),
+  };
+  vm.createContext(sandbox);
+  for (const f of ['state.js', 'card.js']) vm.runInContext(read(`public/js/${f}`), sandbox);
+  return expr => vm.runInContext(expr, sandbox);
+}
