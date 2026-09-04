@@ -130,6 +130,18 @@ function ownerInk(col) {
   return player ? playerColor(player) : col.color;
 }
 
+/* The order a bar picks its one colour from, wherever several shelves hold the
+ * card: people before the group's boxes, then by name. Stable, so the same
+ * card is the same colour on every tab and after every reload — the order the
+ * collections happen to arrive in is not. */
+function _byHolder(a, b) {
+  const person = c => (colOwner(c) ? 0 : 1);
+  const who    = c => (colOwner(c)?.name || 'The group');
+  return person(a) - person(b) ||
+         who(a).localeCompare(who(b)) ||
+         String(a.name).localeCompare(String(b.name));
+}
+
 /* Who *else* has it — every loaded collection that is not on the shelf being
  * counted. This is the half that answers "who could lend me one", and it is
  * what the broken bar on a card means.
@@ -153,31 +165,19 @@ function ownerInk(col) {
  * every reload. */
 function holdersOf(cardName) {
   const counted = new Set(ownShelf().map(c => c.key));
-  const found = [];
-  for (const col of (state.collections || [])) {
-    if (col.status !== 'loaded' || counted.has(col.key)) continue;
-    const qty = col.cards.get(cardName)?.qty || 0;
-    if (!qty) continue;
-    const player = colOwner(col);
-    found.push({
-      person: player ? 0 : 1,
-      holder: {
+  return (state.collections || [])
+    .filter(col => col.status === 'loaded' && !counted.has(col.key) &&
+                   (col.cards.get(cardName)?.qty || 0) > 0)
+    .sort(_byHolder)
+    .map(col => {
+      const player = colOwner(col);
+      return {
         who:        player ? player.name : 'The group',
         ink:        ownerInk(col),
         collection: col.name,
-        qty,
-      },
+        qty:        col.cards.get(cardName).qty,
+      };
     });
-  }
-  /* The rank is sorted on and then dropped rather than travelling on the
-     holder: three views draw these and none of them has any business knowing
-     how the list was put in order. */
-  return found
-    .sort((a, b) =>
-      a.person - b.person ||
-      a.holder.who.localeCompare(b.holder.who) ||
-      a.holder.collection.localeCompare(b.holder.collection))
-    .map(f => f.holder);
 }
 
 // ── The name a collection is filed under ──────────────────────────────────
@@ -275,9 +275,32 @@ function cardOwnMark(cardName) {
   const name = ownedName(cardName);
   if (!name) return '';
 
-  const mine = ownShelf().filter(c => c.cards.has(name));
+  /* qty and not has(): a row that has fallen to nought is a row, and "×0" in
+     the title is not an answer to "who has this". */
+  const mine = ownShelf().filter(c => (c.cards.get(name)?.qty || 0) > 0);
   if (mine.length) {
     const said = mine.map(c => `${c.name} ×${c.cards.get(name).qty}`).join(', ');
+
+    /* ── Green means *you*, so it needs there to be a you ──────────────────
+     *
+     * With nobody to be, ownShelf() widens to every collection loaded — the
+     * honest reading for a *count*, since the group's shelf is the only one
+     * such a deployment has. But green on a card does not read as "the group
+     * has this", it reads as "you have this", and on a tab showing three
+     * people's binders it put the same green bar on all of them.
+     *
+     * So where the app cannot say who you are it keeps the solid bar — a card
+     * somebody has is not the same as a card nobody has — and drops the claim
+     * that it is yours, taking the colour of whose box it is in instead. That
+     * is the colour of the badge underneath it, and it is the question a
+     * deployment with no players is actually asking: not "is it mine" but
+     * "whose is it". Set up players and link an account and the green comes
+     * back, meaning what it says. */
+    if (!myPlayerId()) {
+      const [first] = mine.slice().sort(_byHolder);
+      return `<div class="card-own card-own-mine" style="--own-ink:${ownerInk(first)}"
+        title="${esc(said)}"></div>`;
+    }
     return `<div class="card-own card-own-mine" title="${esc(said)}"></div>`;
   }
 

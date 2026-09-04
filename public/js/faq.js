@@ -60,6 +60,38 @@ const FAQ_OWNED_LEGEND = [
 const FAQ_OWNED_SCOPE =
   'Which collections count — yours, the group’s, or everyone’s — is set on the Deck Builder’s strip and applies everywhere.';
 
+/* ── The same legend where the app cannot say who you are ──────────────────
+ *
+ * A deployment with no players, or an account not linked to one, has no
+ * "yours": every collection is the group's, which is the honest reading for a
+ * count and the wrong one for a green bar. There the strip keeps saying
+ * whether somebody has the card and says whose box it is in instead, so the
+ * legend has to say that rather than promising a distinction the app cannot
+ * make — and the second state cannot happen at all, since there is nobody to
+ * be somebody else.
+ *
+ * The note is the way out rather than an apology: this is a thing you can go
+ * and fix, and nowhere else in the app tells you so. */
+const FAQ_OWNED_LEGEND_ANON = [
+  { mark: 'card-own-mine', ink: 'var(--player-1)',
+    what: 'Somebody in the group has it, in the colour of the shelf it is on — the same colour as the badge under the card. Point at the strip to see whose, and how many.' },
+  { mark: null,
+    what: 'Nobody in the group has it. No strip at all, so a page of cards nobody owns stays a page of cards.' },
+];
+
+const FAQ_OWNED_SCOPE_ANON =
+  'The strip cannot say which of these are *yours* yet, because no collection here belongs to anybody in particular. Give each one an owner from the ⋯ menu on the Collections tab, and the ones on your own shelf turn green.';
+
+/* Which of the two, and the note that goes under it. Asked at the moment the
+ * note is opened rather than at load: who you are can change while the app is
+ * open — in open mode it is a name typed into Available@'s bar. */
+function faqOwnedLegend() {
+  const known = typeof myPlayerId === 'function' && myPlayerId();
+  return known
+    ? { rows: FAQ_OWNED_LEGEND,      note: FAQ_OWNED_SCOPE }
+    : { rows: FAQ_OWNED_LEGEND_ANON, note: FAQ_OWNED_SCOPE_ANON };
+}
+
 /* The notes. `points` are the things you would otherwise have to discover by
  * poking, not a description of what is already on the screen, and `keys` are
  * the ones particular to this tab — the ones every note shares are appended by
@@ -225,16 +257,17 @@ function faqHtml(note) {
  * about the legend rather than being given it. */
 function faqLegendHtml(legend) {
   if (!legend?.length) return '';
+  const { rows, note } = faqOwnedLegend();
   return `
     <h3 class="faq-keys-title">The strip on a card</h3>
-    <dl class="faq-legend">${legend.map(row => `
+    <dl class="faq-legend">${rows.map(row => `
       <dt><span class="faq-legend-card" aria-hidden="true">${
         row.mark ? `<span class="card-own ${row.mark}"${
           row.ink ? ` style="--own-ink:${row.ink}"` : ''}></span>` : ''
       }</span></dt>
       <dd>${esc(row.what)}</dd>`).join('')}
     </dl>
-    <p class="faq-legend-note">${esc(FAQ_OWNED_SCOPE)}</p>`;
+    <p class="faq-legend-note">${esc(note)}</p>`;
 }
 
 function openFaq(tab) {

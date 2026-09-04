@@ -168,12 +168,31 @@ test('the scope is remembered under the person, not the browser', () => {
   assert.equal(app.store.get('mtgtools_db_own_scope:p-kari'), undefined);
 });
 
-test('an app that cannot say who you are reads the group’s, and marks accordingly', () => {
+test('an app that cannot say who you are stops claiming a card is yours', () => {
+  /* This is the deployment with no players in it, and the bug it produced:
+     ownShelf() widens to every collection, which is honest for a count and
+     wrong for a green bar — three people's binders on one tab, every card
+     wearing the same "yours" green.
+
+     The bar stays solid, because a card somebody has is still not a card
+     nobody has. What it drops is the claim about *whose*, taking the colour of
+     the shelf it is actually on — which is the colour of the badge under it. */
   const app = loadShelf({ who: null });
   assert.equal(app.run('ownScope()'), 'group',
     'with nobody to be, every shelf is the group’s — the honest answer, not a broken one');
-  assert.match(app.mark('Rhystic Study'), /card-own-mine/,
-    'and every loaded collection is counted, rather than none of them');
+
+  const kari  = app.mark('Rhystic Study');
+  const house = app.mark('Cultivate');
+  assert.match(kari,  /card-own-mine/, 'a card somebody has is not a card nobody has');
+  assert.ok(kari.includes('--own-ink:var(--player-3)'),
+    'every shelf’s cards are painted the same green as if they were yours');
+  assert.ok(house.includes('--own-ink:#10b981'),
+    'a shelf nobody owns is painted in its own colour, as its badge is');
+
+  /* And with somebody to be, green means what it says. */
+  const known = loadShelf();
+  assert.ok(!known.mark('Sol Ring').includes('--own-ink'),
+    'your own shelf is the success colour, not your player colour');
 });
 
 // ── The two ways the lookup goes quietly wrong ────────────────────────────

@@ -79,7 +79,8 @@ function fakeEl(id) {
  *  this browser already had in storage. Nothing has resolved until a test
  *  calls `resolve()`, which is the whole point of the harness — the window
  *  between the first paint and the answer is where the race lives. */
-function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false } = {}) {
+function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false,
+                   identity = 'p-tim' } = {}) {
   const store = new Map();
   if (local !== null) store.set('mtgtools_faq_seen', local);
 
@@ -116,6 +117,10 @@ function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false
       removeItem: k => store.delete(k),
     },
     window: { innerWidth: 1280 },
+    /* Who you are, which the legend asks before it decides which of the two
+       it is. js/owned.js's answer needs the whole app behind it; what this
+       file is testing is that the note reads it, not what it says. */
+    myPlayerId: () => identity,
     document: {
       readyState: 'complete',
       body: { style: {} },
@@ -345,6 +350,22 @@ describe('the registry', () => {
     assert.match(drawn, /faq-legend-card/);
     assert.match(drawn, /Deck Builder’s strip/,
       'the legend never says which collections "yours" means');
+  });
+
+  test('where the app cannot say who you are, the legend stops promising "yours"', () => {
+    /* With no player to be, every collection is the group's and the strip
+       drops the claim that a card is yours — so a legend still saying "you can
+       sleeve it tonight" beside a green bar would be explaining a mark the app
+       is not drawing. The second state cannot happen at all there: there is
+       nobody to be somebody else. */
+    const app   = loadFaq({ identity: null });
+    const drawn = app.evaluate('faqHtml(FAQ.scryfall)');
+    assert.doesNotMatch(drawn, /card-own-their/,
+      'a state that cannot occur is drawn in the key for it');
+    assert.doesNotMatch(drawn, /sleeve it tonight/);
+    assert.match(drawn, /Somebody in the group has it/);
+    assert.match(drawn, /Give each one an owner/,
+      'the legend says the distinction is missing and not how to get it');
   });
 
   test('every key a note lists is a key the app answers to', () => {
