@@ -248,6 +248,16 @@ a mismatch and not as unowned.
   `unique=prints`) and answers with every printing of all of them. **An 85-card deck is
   8 requests and finishes** — a progress bar, not a spinner. What it costs is the
   per-card proxy cache: a run no longer warms the exact URL the card gallery asks for
+- The preview says where the deck's price lands, not only how far it moves — the run's
+  whole question is "what would this deck cost in its cheapest printings", and a signed
+  difference does not answer it. The figure is `_dbCardEur()`'s, the readout's own, asked
+  with the plan's card data rather than the live cache so the decision stays a function of
+  its arguments and the two totals cannot come to disagree
+- The History row is the **condition** of the write, not bookkeeping beside it: the
+  snapshot POST is awaited and a refused one leaves the deck untouched and says so.
+  Everywhere else a snapshot is deliberately not awaited — a failed one must not stop an
+  edit somebody asked for — but here the single-press undo is the whole reason a bulk
+  overwrite of every printing in a deck is safe to press
 - Writes through `dbChoosePrintings` (`deckview-edit.js`) — a bulk sibling of
   `dbChoosePrinting`, sharing its guards, that renders the mat once and schedules one save
   however many cards moved — but the run lands in History as **one entry**, restorable as a

@@ -148,27 +148,6 @@ const _dbOptCheapestOwned = list => {
                        : _dbOptBest(list, () => false);
 };
 
-/** The printing this card of the deck runs today — the chosen one, or the one
- *  Scryfall hands back for the name, which is what the mat has been drawing all
- *  along. js/deckview-owned.js's dbCardPrinting() says the same thing off the
- *  live cache; this is it against a card-data map handed in, so the plan can
- *  stay a function of its arguments. */
-function _dbOptCurrent(card, sf) {
-  if (card.printing?.id) return card.printing;
-  return sf?.id
-    ? { id: sf.id, set: sf.set, set_name: sf.set_name, collector_number: sf.collector_number }
-    : null;
-}
-
-/* What one copy of this card costs as the deck stands — js/deckview-totals.js's
-   dbCardPrice() and _dbCardEur() together, against the map handed in. Null is
-   unknown and is never nought, which matters here because the delta a pick
-   promises has to be the move the readout will actually make. */
-function _dbOptWas(card, sf) {
-  const raw = card.printing ? card.printing.price_eur : sf?.prices?.eur;
-  const eur = raw == null ? NaN : parseFloat(raw);
-  return Number.isFinite(eur) ? eur : null;
-}
 
 /* Which boards the deck's price counts, which is main and the commander — the
    purse in js/deckview-totals.js. The run covers every board; the total it
@@ -201,6 +180,17 @@ function dbOptimizePlan({ cards = [], cardData = new Map(), prints = new Map(),
   const picks = [];
   let unattributed = 0;
   let delta = 0;
+  /* What the deck costs as it stands, over the boards the price readout counts
+     — because "what would this deck cost in its cheapest printings" is the
+     question the run exists to answer, and a signed difference says how far the
+     figure moves without saying where it lands. _dbCardEur() is the readout's
+     own, so the two cannot come to disagree. */
+  let before = 0;
+  for (const card of cards) {
+    if (!_dbOptInPurse(card)) continue;
+    const each = _dbCardEur(card, cardData);
+    if (each !== null) before += each * Math.max(1, card.qty || 1);
+  }
 
   for (const card of cards) {
     const name = card.card_name;
@@ -227,16 +217,20 @@ function dbOptimizePlan({ cards = [], cardData = new Map(), prints = new Map(),
          against. A shelf that knows a copy only as a set and a number — every
          row of a Moxfield export — names none, and neither does one nobody has
          attributed at all. */
-      const mine = new Set((owned.get(name) || []).map(printingIdentity).filter(id => id !== null));
-      const held = candidates.filter(c => mine.has(_dbOptId(c)));
+      const copies = owned.get(name) || [];
+      const mine   = new Set(copies.map(printingIdentity).filter(id => id !== null));
+      const held   = candidates.filter(c => mine.has(_dbOptId(c)));
       if (held.length) winner = _dbOptCheapestOwned(held);
       else {
         winner = _dbOptCheapest(priced);
         /* Fell back, and the shelf is the reason: the copies are there and
            nobody recorded which printings they are. Counted so that a
            disappointing run explains itself and names re-importing as the way
-           out. Owning none of a card is a different thing and is not this. */
-        if ((owned.get(name) || []).length) unattributed++;
+           out — which is why it counts copies nobody attributed rather than
+           every fallback. Owning none of a card is a different thing and is not
+           this, and so is owning one recorded down to its id that happens to
+           match nothing: re-importing that shelf would change neither. */
+        if (copies.some(copy => printingIdentity(copy) === null)) unattributed++;
       }
     } else {
       winner = mode === 'dearest' ? _dbOptDearest(priced) : _dbOptCheapest(priced);
@@ -250,13 +244,18 @@ function dbOptimizePlan({ cards = [], cardData = new Map(), prints = new Map(),
       continue;
     }
 
-    const from = _dbOptCurrent(card, sf);
+    /* What the card runs today, asked of js/deckview-owned.js — the same
+       function the four ownership badges are decided by, handed this plan's
+       card data instead of the live cache. Two answers to "which printing does
+       this card run" is how a run calls a card already optimal that the mat is
+       drawing as something else. */
+    const from = dbCardPrinting(card, cardData);
     if (printingIdentity(from) === _dbOptId(winner)) { untouched.optimal++; continue; }
 
     const to  = cardPrintingSnapshot({ ...winner.print, finish: winner.finish }, today);
     if (!to) { untouched.inadmissible++; continue; }
     const qty = Math.max(1, card.qty || 1);
-    const was = _dbOptWas(card, sf);
+    const was = _dbCardEur(card, cardData);
     const now = winner.price;
     /* Unknown counts as nought here and only here: the readout's total moves by
        exactly this, because a card leaving the unpriced bucket adds its whole
@@ -266,11 +265,14 @@ function dbOptimizePlan({ cards = [], cardData = new Map(), prints = new Map(),
 
     picks.push({
       ref: dbCardRef(card), name, board: card.board || DB_MAIN_BOARD, qty,
-      from, to, was, now, delta: rowDelta, foil: !!to.finish,
+      /* The finish itself and not a foil flag: etched is a finish of its own,
+         priced in a field of its own, and a preview calling it foil would name
+         a card nobody can go and buy. */
+      from, to, was, now, delta: rowDelta, finish: to.finish || '',
     });
   }
 
-  return { mode, picks, untouched, unattributed, delta };
+  return { mode, picks, untouched, unattributed, delta, before, after: before + delta };
 }
 
 /** The names a run has to fetch printings for: the deck's, minus the basics
@@ -357,15 +359,18 @@ const _dbOptLive = run => _dbOptRun === run && run.token === _dbOptToken;
  *  together, so each is filed under the card it is a printing of by its oracle
  *  id — which is what the query asked by, and so cannot disagree with it.
  *
- *  Every name handed in has an entry when this returns, empty or not. That is
- *  the postcondition dbOptimizePlan() reads to tell a card with no printings
- *  from a card nobody asked about.
+ *  A name has an entry when this returns if, and only if, something was asked
+ *  about it and answered — an empty answer is still an answer, and is filed as
+ *  one. A name with no entry is a card nobody looked up, which is what
+ *  dbOptimizePlan() reads to keep the two apart: seeding every name with an
+ *  empty list up front would report a card the run never managed to ask about
+ *  as one with no printing worth buying.
  *
  *  Throws if Scryfall refuses. A run built on pages nobody fetched is a run
  *  that reports cards as unbuyable when the truth is that the app never
  *  looked. */
 async function _dbOptFetchPrints(names, run) {
-  const prints   = new Map(names.map(name => [name, []]));
+  const prints   = new Map();
   const byOracle = new Map();
   const alone    = [];
 
@@ -392,7 +397,12 @@ async function _dbOptFetchPrints(names, run) {
     if (!_dbOptLive(run)) return null;
     const q   = batch.map(id => `oracleid:${id}`).join(' or ');
     const url = `${DB_OPT_SEARCH}?order=released&unique=prints&q=${encodeURIComponent(q)}`;
-    for (const print of await cardAllPrints(url, { strict: true })) {
+    const answered = await cardAllPrints(url, { strict: true });
+    /* Asked about and answered, before anything is filed: a card whose oracle
+       id the search matched nothing for has an entry that is empty, which is a
+       different fact from having no entry at all. */
+    for (const id of batch) for (const name of byOracle.get(id)) prints.set(name, []);
+    for (const print of answered) {
       for (const name of byOracle.get(print.oracle_id) || []) prints.get(name).push(print);
     }
     run.done++;
@@ -401,6 +411,9 @@ async function _dbOptFetchPrints(names, run) {
 
   for (const name of alone) {
     if (!_dbOptLive(run)) return null;
+    /* No oracle id to batch it with and no printings URL to ask on its own:
+       there is no question to put, so the name is left out of the map and the
+       plan counts it as one nobody looked up. */
     const uri = dbCardData.get(name)?.prints_search_uri;
     if (uri) prints.set(name, await cardAllPrints(uri, { strict: true }));
     run.done++;
@@ -455,9 +468,18 @@ async function dbOptimizeApply() {
   const run = _dbOptRun;
   if (!run?.plan?.picks.length || !dbDeck || !isMyPlayer(dbDeck.playerId)) return 0;
 
-  /* Ahead of the write, so a run that went the wrong way is one press in the
-     History panel — which is the safety the whole preview is built around. */
-  _dbForceSnapshot(`optimize-${run.mode}`);
+  /* Ahead of the write and awaited, and the write is conditional on it —
+     js/deckview-core.js's deck deletion awaits the same call for the same
+     reason. Elsewhere a snapshot is not awaited on purpose, because a failed
+     one must not stop an edit somebody asked for; here it is the edit's whole
+     safety. Overwriting the printing of every card in a deck is worth pressing
+     because one press puts it all back, and a run that wrote after a refused
+     POST would be the `commander` bug again: a screen saying History has a row
+     that History has never heard of. */
+  const snapshot = await _dbForceSnapshot(`optimize-${run.mode}`);
+  /* Cancelled while the snapshot was in flight. */
+  if (!_dbOptLive(run)) return 0;
+  if (!snapshot) { run.phase = 'nohistory'; _dbOptPaint(); return 0; }
 
   const applied = dbChoosePrintings(run.plan.picks.map(p =>
     ({ ctx: dbPrintingContext(p.ref), printing: p.to })));
@@ -532,7 +554,8 @@ function _dbOptPreviewHtml(plan) {
     <tr>
       <td class="db-opt-name">${esc(p.name)}${p.qty > 1 ? ` <span class="db-opt-qty">×${p.qty}</span>` : ''}</td>
       <td class="db-opt-from">${esc(_dbOptSaid(p.from))}</td>
-      <td class="db-opt-to">${esc(_dbOptSaid(p.to))}${p.foil ? ' <span class="db-opt-foil">foil</span>' : ''}</td>
+      <td class="db-opt-to">${esc(_dbOptSaid(p.to))}${p.finish
+        ? ` <span class="db-opt-foil">${esc(p.finish)}</span>` : ''}</td>
       <td class="db-opt-money">${esc(_dbOptDelta(p.delta))}</td>
     </tr>`).join('');
 
@@ -540,11 +563,12 @@ function _dbOptPreviewHtml(plan) {
      mainboard and the commander and no other board. So a run that also proposes
      something for a sideboard says so, rather than leaving a table whose rows
      visibly do not add up to the figure above them. */
-  const outside = plan.picks.filter(p => !DB_OPT_PURSE.includes(p.board)).length;
+  const outside = plan.picks.filter(p => !_dbOptInPurse(p)).length;
   return `
     <div class="db-opt-total">${plan.picks.length} card${plan.picks.length === 1 ? '' : 's'} would change
-      · deck price ${esc(_dbOptDelta(plan.delta))}${outside
-        ? ` <span class="db-opt-aside">(${outside} of them off the boards the price counts)</span>` : ''}</div>
+      · deck price ${esc(_dbOptEur(plan.before))} → ${esc(_dbOptEur(plan.after))}
+      <span class="db-opt-aside">${esc(_dbOptDelta(plan.delta))}${outside
+        ? `, ${outside} of them off the boards the price counts` : ''}</span></div>
     <div class="db-opt-scroll">
       <table class="db-opt-table">
         <thead><tr><th>Card</th><th>Runs now</th><th>Would run</th><th>Change</th></tr></thead>
@@ -578,6 +602,15 @@ function _dbOptBodyHtml(run) {
     return `<div class="db-opt-note">${esc(run.error)}</div>
       <div class="db-opt-actions">
         <button class="btn-primary" onclick="dbOptimizeRun('${esc(run.mode)}')">Try again</button>
+        <button class="btn-secondary" onclick="dbHideOptimize()">Cancel</button>
+      </div>`;
+  }
+  if (run.phase === 'nohistory') {
+    return `<div class="db-opt-note">The deck has been left exactly as it was: the History
+      row this run would be undone from could not be saved, and without it there would be no
+      way back from ${run.plan.picks.length} changed printing${run.plan.picks.length === 1 ? '' : 's'}.</div>
+      <div class="db-opt-actions">
+        <button class="btn-primary" onclick="dbOptimizeApply()">Try again</button>
         <button class="btn-secondary" onclick="dbHideOptimize()">Cancel</button>
       </div>`;
   }

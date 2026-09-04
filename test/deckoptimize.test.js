@@ -141,7 +141,7 @@ const held = (over = {}) => ({ qty: 1, ...over });
 // ── The decision ──────────────────────────────────────────────────────────
 /* One function, handed everything it reads. Loaded beside the modules whose
  * vocabulary it is written in — what a printing's identity is, what a snapshot
- * of one looks like — and beside nothing else. */
+ * of one looks like, what a card costs — and beside nothing else. */
 
 function loadPlanner() {
   const sandbox = {
@@ -154,7 +154,8 @@ function loadPlanner() {
     esc: s => String(s), jsAttr: s => String(s),
   };
   vm.createContext(sandbox);
-  for (const file of ['state.js', 'card.js', 'deckview-boards.js', 'deckview-optimize.js']) {
+  for (const file of ['state.js', 'card.js', 'deckview-boards.js', 'deckview-totals.js',
+                      'deckview-owned.js', 'deckview-optimize.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
   return sandbox;
@@ -198,10 +199,28 @@ test('and dearest the most expensive one', () => {
 test('a foil wins when the foil is cheaper, and never when it is dearer', () => {
   const cheap = plan({ mode: 'cheapest' }).picks.find(p => p.name === 'Sol Ring');
   assert.strictEqual(cheap.to.finish, 'foil', 'the cheaper pair was the foil and it lost');
-  assert.strictEqual(cheap.foil, true, 'a run that swaps a card to foil must say so');
+  assert.strictEqual(cheap.finish, 'foil', 'a run that swaps a card to foil must say so');
   const dear = plan({ mode: 'dearest' }).picks.find(p => p.name === 'Sol Ring');
   assert.strictEqual(dear.to.finish, undefined, 'the dearer pair was not the foil');
-  assert.strictEqual(dear.foil, false);
+  assert.strictEqual(dear.finish, '');
+});
+
+test('an etched pick is said to be etched, and not called a foil', () => {
+  /* Etched is a finish of its own with a price field of its own, and a preview
+     that called it foil would be naming a card nobody can go and buy. */
+  const cardData = { 'Wheel of Fortune': { name: 'Wheel of Fortune', type_line: 'Sorcery',
+    oracle_id: 'o-whe', id: 'wh-2xm', set: '2xm', set_name: 'Double Masters',
+    collector_number: '132', prices: { eur: '5.00' } } };
+  const prints = { 'Wheel of Fortune': [
+    printing({ oracle_id: 'o-whe', id: 'wh-2xm', set: '2xm', collector_number: '132',
+               released_at: '2020-08-07', prices: { eur: '5.00' } }),
+    printing({ oracle_id: 'o-whe', id: 'wh-cmm', set: 'cmm', collector_number: '406',
+               released_at: '2023-08-04', finishes: ['nonfoil', 'etched'],
+               prices: { eur: '9.00', eur_etched: '2.00' } })] };
+  const p = plan({ cards: [{ card_name: 'Wheel of Fortune', board: 'main', qty: 1 }],
+                   cardData, prints });
+  assert.strictEqual(p.picks[0].to.finish, 'etched', 'the etched pair did not win at €2.00');
+  assert.strictEqual(p.picks[0].finish, 'etched', 'an etched pick did not say what finish it is');
 });
 
 test('two printings at the same price settle the same way every time', () => {
@@ -345,6 +364,18 @@ test('a shelf that predates printings falls back for every card, and says how ma
   assert.deepStrictEqual(proposed(p), { 'Sol Ring': 'sr-ltr foil', 'Cultivate': 'cu-m21' });
 });
 
+test('a card owned only in a printing the run cannot match is not blamed on the shelf', () => {
+  /* The footer's number sends somebody to re-import a collection, so it has to
+     be copies nobody attributed and nothing else. A copy recorded down to its
+     Scryfall id that still matches no candidate is a shelf that did its job —
+     re-importing it would change nothing, and saying otherwise sends somebody
+     off to do four minutes of work for no reason. */
+  const p = plan({ mode: 'owned',
+                   owned: { 'Sol Ring': [held({ id: 'sr-nowhere', finish: '' })] } });
+  assert.strictEqual(proposed(p)['Sol Ring'], 'sr-ltr foil', 'the fallback did not happen');
+  assert.strictEqual(p.unattributed, 0, 'a recorded printing was counted as a missing one');
+});
+
 test('and a run that had a shelf to read reports no fallbacks', () => {
   const p = plan({ mode: 'owned', owned: {
     'Sol Ring':         [held({ id: 'sr-c21', set: 'c21', collector_number: '263' })],
@@ -471,11 +502,15 @@ function loadTab({ deck = DECK, cards = CARDS, shelves = [], user = AS_TIM, deck
        hands back what it was given. A run's undo is the whole reason it is one
        History row, so the round trip has to be drivable rather than assumed. */
     snaps: [],
+    /* A History row the server will not take. Whether the run still writes is
+       the whole question: the undo is the safety the preview is built around. */
+    snapshotsFail: false,
     fetch: async (url, opts = {}) => {
       const method = opts.method || 'GET';
       const body   = opts.body ? JSON.parse(opts.body) : null;
       sandbox.calls.push({ url, method, body });
       if (/\/snapshots$/.test(url) && method === 'POST') {
+        if (sandbox.snapshotsFail) return { ok: false, status: 400, json: async () => ({}) };
         const id = sandbox.snaps.push({ ...body, id: sandbox.snaps.length + 1 });
         return { ok: true, status: 200, json: async () => ({ ok: true, snapshot: { id } }) };
       }
@@ -528,6 +563,7 @@ function loadTab({ deck = DECK, cards = CARDS, shelves = [], user = AS_TIM, deck
     calls:  () => sandbox.calls,
     prints: () => sandbox.prints,
     rateLimitAfter: n => { sandbox.failFrom = n; },
+    failSnapshots: () => { sandbox.snapshotsFail = true; },
     pageInTwo: () => { sandbox.splitPages = true; },
     phase: () => sandbox.run ? null : vm.runInContext('_dbOptRun && _dbOptRun.phase', sandbox),
     /** Open the modal and run a mode to a preview. */
@@ -580,6 +616,21 @@ test('applying moves the deck’s price by the sum of the picks', async () => {
   assert.strictEqual(Number(plan.delta.toFixed(2)), -2.2);
 });
 
+test('the preview says what the deck would cost, not only how far it moves', async () => {
+  /* "What would this deck cost in its cheapest printings" is the question the
+     run exists to answer, and a signed difference on its own does not answer
+     it — it says how far the readout moves, not where it lands. */
+  const tab    = loadTab();
+  const before = tab.price().eur;
+  const plan   = await tab.optimize('cheapest');
+  const body   = tab.body();
+  assert.ok(body.includes(`€${(before + plan.delta).toFixed(2)}`),
+    'the deck\u2019s price in the printings it proposes is nowhere on the preview');
+  await tab.apply();
+  assert.strictEqual(tab.price().eur.toFixed(2), (before + plan.delta).toFixed(2),
+    'the figure the preview promised is not the one the readout landed on');
+});
+
 test('and writes the printing onto every card it named', async () => {
   const tab = loadTab();
   await tab.optimize('cheapest');
@@ -616,6 +667,21 @@ test('and the snapshot goes out before the deck is touched', async () => {
   const snap = tab.calls().find(c => /\/snapshots$/.test(c.url));
   const sol  = snap.body.cards.find(c => c.card_name === 'Sol Ring');
   assert.ok(!sol.printing, 'the snapshot already had the change it exists to undo');
+});
+
+test('a run whose History row will not save changes nothing', async () => {
+  /* The snapshot is not bookkeeping alongside the write, it is the condition
+     of it: a bulk overwrite of every printing in a deck is worth pressing only
+     because one press puts it all back. The failure this guards is the one the
+     `commander` reason had for months — a POST refused, swallowed, and a screen
+     saying History has a row that History has never heard of. */
+  const tab = loadTab();
+  tab.failSnapshots();
+  await tab.optimize('cheapest');
+  const applied = await tab.apply();
+  assert.strictEqual(applied, 0, 'the deck was rewritten with nothing to undo it');
+  assert.strictEqual(tab.printingOf('Sol Ring'), null, 'a printing was written anyway');
+  assert.match(tab.body(), /histor/i, 'the screen did not say why nothing happened');
 });
 
 test('the mat is redrawn and the deck saved once, however many cards moved', async () => {
@@ -870,6 +936,24 @@ test('a card the app knows no oracle id for is asked for on its own', async () =
   await tab.optimize('cheapest');
   assert.ok(tab.prints().some(u => u === CARDS['Sol Ring'].prints_search_uri),
     'the card with no oracle id was never asked for');
+});
+
+test('a card whose printings were never asked for is counted as exactly that', async () => {
+  /* No oracle id to batch it with and no printings URL to ask on its own, so
+     nothing was ever fetched for it. Reporting it as a card with no printing
+     worth buying is a confident answer built on a gap — the same lie the
+     strict fetch exists to stop, arriving by a quieter door. */
+  const tab = loadTab({
+    deck: [{ card_name: 'Sol Ring', board: 'main', qty: 1, position: 0 },
+           { card_name: 'Nothing Known', board: 'main', qty: 1, position: 1 }],
+    cards: { 'Sol Ring': CARDS['Sol Ring'],
+             'Nothing Known': { name: 'Nothing Known', type_line: 'Artifact',
+                                prices: { eur: '1.00' } } },
+  });
+  const plan = await tab.optimize('cheapest');
+  assert.strictEqual(plan.untouched.unlooked, 1, 'a card nobody looked up was not counted as one');
+  assert.strictEqual(plan.untouched.inadmissible, 0,
+    'a card nobody looked up was reported as one with nothing worth buying');
 });
 
 // ── When Scryfall says slow down ──────────────────────────────────────────

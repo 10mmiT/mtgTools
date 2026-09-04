@@ -4,7 +4,7 @@ The test suite, the token-contract linter, and the screenshot/measurement script
 
 ## Testing
 
-The project ships a test suite using Node's built-in `node:test` runner and `supertest` — over 1,300 tests across 55 files, needing no browser and no network.
+The project ships a test suite using Node's built-in `node:test` runner and `supertest` — over 1,400 tests across 56 files, needing no browser and no network.
 
 ```bash
 npm test
@@ -16,7 +16,7 @@ Tests are written at three seams, all of which assert externally observable beha
 - **The static seam** is the token linter below, because a visual contract cannot be asserted over HTTP and its most valuable guarantee is a property of the delivered stylesheet.
 - **The vm seam** loads a shipped browser file into a `vm` context and calls its decisions directly. Everything the card behaviour decides about *where something goes* is written as a pure function of its inputs and exported from the file that ships — how thick a stack of *n* cards is, what angle a card's name gives it, which pile a card belongs in for the sort's first criterion, how far a card leans, which pile a released card would land in, where each card lies in a carried fan, where a menu asked for at a point is drawn. Sorting is the same seam pointed at the same file: what a chain orders, what a field seeds, what makes a chain somebody's own, what a stored preference from an older version means now, and that no gesture on a table header can reach a chain the control's label cannot say. So those are asserted at their boundaries rather than eyeballed through a browser.
 
-Nothing asserts markup: this work churned markup deliberately.
+Nothing asserts appearance: markup and stylesheets churn deliberately, and a test that pinned how something looks would be rewritten every time it was restyled. What tests do assert about the delivered page is that it is **wired up** — that a control the app calls exists, that a handler pressed in markup is a function somebody defined, that a module is served after the ones it speaks to — because those are facts about whether the app works at all, and nothing else catches them in a suite that runs without a browser.
 
 ## Token-contract linter
 

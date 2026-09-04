@@ -227,9 +227,9 @@ function dbPrintingVerdict(held, wanted) {
  *  whose data has not arrived yet, or one live Scryfall has never heard of.
  *  There is genuinely no printing to ask about there, and guessing at one
  *  would mark a card over data that is merely late. */
-function dbCardPrinting(card) {
+function dbCardPrinting(card, cardData = dbCardData) {
   if (card.printing?.id) return card.printing;
-  const sf = dbCardData.get(card.card_name);
+  const sf = cardData.get(card.card_name);
   /* No finish, deliberately: the default is the ordinary card. A foil is
      something somebody chooses, never something a deck falls into. */
   return sf?.id
