@@ -210,12 +210,19 @@ function _dbDrawerTile(name, { img, badges = '', canAdd }) {
                        : `Add to ${_dbBoardLabel(into)}`}"
         >${here ? `✓${here.qty > 1 ? here.qty : ''}` : '+'}</button>` : '';
 
-  return `<div class="db-find-tile">
-    <div class="db-find-art">
-      <a href="#" class="card-open" data-name="${esc(name)}">
+  /* Whose shelf it is on, which until now was the one thing this tile could
+     not say: it knew the price, the synergy, how many decks run it and which
+     board of *this* deck already holds it, and not whether there is a copy in
+     a box in the room. That is the question being asked of a page of
+     recommendations more than any of the others. */
+  const picture = `<a href="#" class="card-open" data-name="${esc(name)}">
         ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(name)}">`
               : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-      </a>
+      </a>`;
+
+  return `<div class="db-find-tile">
+    <div class="db-find-art">
+      ${cardArtHtml(picture, { own: cardOwnMark(name) })}
       ${add}
     </div>
     <div class="sf-card-lg-footer db-find-foot">

@@ -253,7 +253,7 @@ function loadTab({ collections, players, user, remembered } = {}) {
   };
   vm.createContext(sandbox);
   for (const file of ['state.js', 'sortui.js', 'cardquery.js', 'cardstack.js',
-                      'auth.js', 'collections.js']) {
+                      'auth.js', 'collections.js', 'owned.js', 'cardturn.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
   const run    = expr => vm.runInContext(expr, sandbox);

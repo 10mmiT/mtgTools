@@ -71,20 +71,39 @@ function cardTurnHtml(back) {
     title="Turn over" data-turn="${esc(back)}"></button>`;
 }
 
-/* A picture and the control that turns it, or the picture exactly as the tile
- * drew it. A one-sided card is not wrapped at all — the overwhelming majority
- * of cards are one-sided, and a tile that cannot be turned over should be the
- * tile it has always been.
+/* A card picture and whatever is drawn on it: the control that turns it over,
+ * and the mark saying whose shelf it is on.
  *
  * The control is a sibling of the link rather than a child of it, which is not
  * a style preference: every one of these pictures is wrapped in an <a>, and a
- * link may not contain a button. The wrapper is what gives the two of them a
- * box to share and the control something to be positioned against. */
-function cardTurnableHtml(picture, back, { cls = '', style = '' } = {}) {
+ * link may not contain a button. The wrapper is what gives them a box to share
+ * and something to be positioned against.
+ *
+ * ── What the wrapper is for, now that it is for two things ────────────────
+ *
+ * It was the turn control's box, and the rule was that a card with nothing to
+ * turn is not wrapped at all: the overwhelming majority of cards are one-sided
+ * and a tile that cannot be turned over should be the tile it has always been.
+ *
+ * The ownership mark is the second thing to want a card face, and the rule
+ * generalises rather than breaking — **a card is wrapped when something sits
+ * on it**. A card that is one-sided and on nobody's shelf is still handed back
+ * exactly as the tile drew it. What this buys is that the mark did not need
+ * `position: relative` on five unrelated tile wrappers across three
+ * stylesheets, each of which would then own a corner of a card without knowing
+ * it: there is one box on a card picture, and nine render sites already asked
+ * for it, so the mark reached the whole app as an argument rather than as a
+ * rewrite. */
+function cardArtHtml(picture, { back = '', own = '', cls = '', style = '' } = {}) {
   const turn = cardTurnHtml(back);
-  if (!turn) return picture;
+  if (!turn && !own) return picture;
   return `<div class="card-turnable${cls ? ' ' + cls : ''}"` +
-    `${style ? ` style="${style}"` : ''}>${picture}${turn}</div>`;
+    `${style ? ` style="${style}"` : ''}>${picture}${turn}${own}</div>`;
+}
+
+/* The old shape, kept for the callers that only ever had a back to pass. */
+function cardTurnableHtml(picture, back, { cls = '', style = '' } = {}) {
+  return cardArtHtml(picture, { back, cls, style });
 }
 
 // ── The turn ──────────────────────────────────────────────────────────────

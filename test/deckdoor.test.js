@@ -217,7 +217,7 @@ function loadTab({ players = PLAYERS, deckCardCounts = COUNTS, me = 'p-tim' } = 
   };
   sandbox.dbFetchCardData = async () => {};
   vm.createContext(sandbox);
-  for (const file of ['sortui.js', 'cardstack.js', 'deckview-boards.js',
+  for (const file of ['sortui.js', 'cardstack.js', 'owned.js', 'cardturn.js', 'deckview-boards.js',
                       'deckview-core.js', 'deckview-render.js', 'deckview-edit.js',
                       'deckview-panels.js', 'deckview-history.js', 'deckview-owned.js',
                       'deckview-totals.js', 'deckview-legality.js', 'deckview-mana.js']) {

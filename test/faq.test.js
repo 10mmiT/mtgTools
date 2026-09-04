@@ -79,7 +79,8 @@ function fakeEl(id) {
  *  this browser already had in storage. Nothing has resolved until a test
  *  calls `resolve()`, which is the whole point of the harness — the window
  *  between the first paint and the answer is where the race lives. */
-function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false } = {}) {
+function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false,
+                   identity = 'p-tim' } = {}) {
   const store = new Map();
   if (local !== null) store.set('mtgtools_faq_seen', local);
 
@@ -116,6 +117,10 @@ function loadFaq({ faqSeen = [], stored = true, local = null, failWrites = false
       removeItem: k => store.delete(k),
     },
     window: { innerWidth: 1280 },
+    /* Who you are, which the legend asks before it decides which of the two
+       it is. js/owned.js's answer needs the whole app behind it; what this
+       file is testing is that the note reads it, not what it says. */
+    myPlayerId: () => identity,
     document: {
       readyState: 'complete',
       body: { style: {} },
@@ -288,6 +293,79 @@ describe('the registry', () => {
         ? `${tab} promises f and draws no card to turn over`
         : `${tab} draws cards and its note does not say f turns one over`);
     }
+  });
+
+  test('the tabs that draw cards say what the strip on one means', () => {
+    /* The mark on a card is the one thing this app says in colour and nowhere
+     * in words, and the colour of the "somebody else has it" strip is a
+     * different colour for each player — so it cannot be worked out by looking
+     * at it. The legend is where it is said.
+     *
+     * Which tabs draw cards is derived the same way the `f` row above derives
+     * it, and both directions are asserted for the same reason: a legend on a
+     * tab with no cards is noise, and a card tab without one is the colour left
+     * unexplained. */
+    const app = loadFaq();
+    const draws = new Set();
+    for (const file of fs.readdirSync(path.join(ROOT, 'public/js'))) {
+      for (const m of read(path.join('public/js', file)).matchAll(/mountSizeControl\('([\w-]+)'/g)) {
+        for (const [tab, pane] of PANES) if (pane.includes(`id="${m[1]}"`)) draws.add(tab);
+      }
+    }
+    for (const [tab, note] of Object.entries(app.registry())) {
+      const explains = Array.isArray(note.legend) && note.legend.length > 0;
+      assert.equal(explains, draws.has(tab), explains
+        ? `${tab} explains the strip on a card and draws no cards`
+        : `${tab} draws cards and never says what the strip on one means`);
+    }
+  });
+
+  test('the legend is drawn by the rule it explains, and covers all three states', () => {
+    const app = loadFaq();
+    const css = read('public/css/components.css');
+
+    const legends = Object.values(app.registry())
+      .map(note => note.legend).filter(Boolean);
+    assert.ok(legends.length, 'no note explains the strip');
+    /* One legend, shown on several notes — four copies would be four legends
+       that disagree the first time one of them is edited. */
+    for (const legend of legends) assert.deepEqual(legend, legends[0]);
+
+    const marks = legends[0].map(row => row.mark);
+    assert.ok(marks.includes(null),
+      'the legend never says that an unmarked card is one nobody has');
+    for (const row of legends[0]) {
+      assert.ok(String(row.what || '').trim(), 'a swatch with nothing said about it');
+      if (!row.mark) continue;
+      assert.match(css, new RegExp(`\\.${row.mark}\\b`),
+        `the legend shows .${row.mark}, which the stylesheet does not draw`);
+    }
+
+    /* And it is the shipped class on the swatch, not a picture of one: a
+       legend drawn from its own copy of the mark is a legend that can go on
+       being right about a mark the app has stopped drawing. */
+    const drawn = app.evaluate('faqHtml(FAQ.scryfall)');
+    assert.match(drawn, /class="card-own card-own-mine"/);
+    assert.match(drawn, /class="card-own card-own-their"/);
+    assert.match(drawn, /faq-legend-card/);
+    assert.match(drawn, /Deck Builder’s strip/,
+      'the legend never says which collections "yours" means');
+  });
+
+  test('where the app cannot say who you are, the legend stops promising "yours"', () => {
+    /* With no player to be, every collection is the group's and the strip
+       drops the claim that a card is yours — so a legend still saying "you can
+       sleeve it tonight" beside a green bar would be explaining a mark the app
+       is not drawing. The second state cannot happen at all there: there is
+       nobody to be somebody else. */
+    const app   = loadFaq({ identity: null });
+    const drawn = app.evaluate('faqHtml(FAQ.scryfall)');
+    assert.doesNotMatch(drawn, /card-own-their/,
+      'a state that cannot occur is drawn in the key for it');
+    assert.doesNotMatch(drawn, /sleeve it tonight/);
+    assert.match(drawn, /Somebody in the group has it/);
+    assert.match(drawn, /Give each one an owner/,
+      'the legend says the distinction is missing and not how to get it');
   });
 
   test('every key a note lists is a key the app answers to', () => {

@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototype — the owned mark on a card</title>
+
+<!-- The app's own stylesheets, in the app's own order. Nothing here restates a
+     colour, a size or a radius: if this looks right, it looks right in the app,
+     and if a theme breaks it, the theme breaks it here too. -->
+<link rel="stylesheet" href="../../public/css/tokens.css">
+<link rel="stylesheet" href="../../public/css/base.css">
+<link rel="stylesheet" href="../../public/css/layout.css">
+<link rel="stylesheet" href="../../public/css/components.css">
+<link rel="stylesheet" href="../../public/css/tabs.css">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   THE COMPARISON that picked the mark. C (the edge bar) won and shipped; its
+   rules live in public/css/components.css now, and this page keeps all three
+   so the choice can be seen rather than taken on trust.
+
+   A and B are here as the roads not taken. Both sit on the card's printed
+   title, which is what the bar avoids by fitting inside the black border.
+   Switch with the control at the top.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* components.css ships the bar now, and this page loads it. Its rule is turned
+   off here so that each treatment below is seen on its own rather than with
+   the shipped one drawn underneath it; every treatment re-declares the
+   `content` it needs. */
+.card-own::before,
+.card-own::after { content: none; }
+
+/* The corner the answer goes in.
+ *
+ * One clip box per card, inside the .card-turnable that already wraps every
+ * card picture in the app. It exists so a mark can hug the card's corner
+ * without knowing that --radius-card is a *percentage* pair (4.75% / 3.5%) and
+ * therefore a different number of pixels on the mat than in the drawer. The
+ * clip inherits it; the marks inside just aim at 0,0.
+ *
+ * pointer-events: none, because this is a statement and not a control — the
+ * card underneath stays entirely clickable, and the lift still reads the
+ * pointer through it. */
+.card-own {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Whose it is, as one custom property, so the three treatments below and any
+ * fourth one somebody tries are a *shape* decision and never a colour one.
+ * js/owned.js sets --own-ink to var(--success) for the shelf in scope, or to
+ * playerColor(holder) — already a var() reference, so a theme change repaints
+ * it — for a card only somebody else has. */
+.card-own-mine  { --own-ink: var(--success); }
+.card-own-their { --own-ink: var(--player-1); }   /* set per card in the app */
+
+/* ── A · The wedge ────────────────────────────────────────────────────────
+   Nearest to what Archidekt does, and the only one of the three that is
+   legible from across the room. Yours is filled; somebody else's is the same
+   corner drawn as a bracket — an outline of the same shape, so the two states
+   are one glance apart without needing a second colour to be learnt. */
+[data-mark="wedge"] .card-own-mine::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  border-style: solid;
+  border-width: 30px 30px 0 0;
+  border-color: var(--own-ink) transparent transparent transparent;
+  filter: drop-shadow(1px 1px 1px var(--card-shade));
+}
+[data-mark="wedge"] .card-own-their::before,
+[data-mark="wedge"] .card-own-their::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  background: var(--own-ink);
+  filter: drop-shadow(1px 1px 1px var(--card-shade));
+}
+[data-mark="wedge"] .card-own-their::before { width: 34px; height: 5px; }
+[data-mark="wedge"] .card-own-their::after  { width: 5px;  height: 34px; }
+
+/* ── B · The pip ──────────────────────────────────────────────────────────
+   The app's own vocabulary: .card-turn is a 22px scrimmed circle at
+   bottom-left, so this is the same object at top-left and the card ends up
+   with a control in one corner and a fact in the other. Quietest of the
+   three, and the only one that can carry a glyph — a ✓ for yours, the
+   holder's initial for theirs. */
+[data-mark="pip"] .card-own::before {
+  content: '';
+  position: absolute;
+  top: 4px; left: 4px;
+  width: 20px; height: 20px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--own-ink) 88%, transparent);
+  box-shadow: 0 0 0 1.5px var(--card-shade);
+}
+[data-mark="pip"] .card-own::after {
+  position: absolute;
+  top: 4px; left: 4px;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--text-2xs); font-weight: 700;
+  color: var(--success-fg);
+}
+[data-mark="pip"] .card-own-mine::after  { content: '✓'; }
+[data-mark="pip"] .card-own-their::after { content: attr(data-who); }
+
+/* ── C · The edge bar ─────────────────────────────────────────────────────
+   A strip along the top edge rather than a shape in the corner: it covers
+   almost no artwork, and in a grid it reads as a row of marks rather than as
+   a row of badges. Yours is solid; somebody else's is the same bar broken
+   into dashes, which is the same fill/hollow distinction as the wedge. */
+[data-mark="bar"] .card-own::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  height: 6px; width: 42%;
+  background: var(--own-ink);
+  filter: drop-shadow(0 1px 1px var(--card-shade));
+}
+[data-mark="bar"] .card-own-their::before {
+  background: repeating-linear-gradient(
+    to right, var(--own-ink) 0 7px, transparent 7px 12px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Prototype scaffolding below — not part of the proposal.
+   ══════════════════════════════════════════════════════════════════════════ */
+body { padding: var(--space-5); max-width: 1100px; margin: 0 auto; }
+h1 { margin-bottom: var(--space-2); }
+h2 { margin: var(--space-6) 0 var(--space-2); }
+.proto-bar {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  align-items: center; margin-bottom: var(--space-4);
+  padding: var(--space-3); border: 1px solid var(--border);
+  border-radius: var(--radius-md); background: var(--surface-1);
+}
+.proto-bar strong { font-size: var(--text-xs); color: var(--text-muted); }
+.proto-row { display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: flex-start; }
+.proto-one { width: 190px; }
+.proto-cap { font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-1); }
+.proto-note { color: var(--text-muted); max-width: 62ch; }
+</style>
+</head>
+<body data-mark="bar">
+
+<h1>Do we own this — the mark on a card</h1>
+<p class="proto-note">
+  Three ways of saying it, drawn on the app's real stylesheets. <strong>C is the
+  one that shipped</strong>; A and B are kept so the choice can be seen rather
+  than taken on trust. Nothing here is wired to a collection — the states are
+  written into the markup so all three can be seen at once. See
+  <code>docs/design/research-owned-anywhere.md</code>.
+</p>
+
+<div class="proto-bar">
+  <strong>Mark</strong>
+  <button class="btn-secondary" onclick="setMark('wedge')">A · Wedge</button>
+  <button class="btn-secondary" onclick="setMark('pip')">B · Pip</button>
+  <button class="btn-secondary" onclick="setMark('bar')">C · Edge bar</button>
+  <span style="flex:1"></span>
+  <strong>Theme</strong>
+  <button class="btn-secondary" onclick="setTheme('dark')">Dark</button>
+  <button class="btn-secondary" onclick="setTheme('light')">Light</button>
+  <button class="btn-secondary" onclick="setTheme('dusk')">Dusk</button>
+  <button class="btn-secondary" onclick="setTheme('sepia')">Sepia</button>
+  <button class="btn-secondary" onclick="setTheme('contrast')">Contrast</button>
+</div>
+
+<h2>The three states, at mat size</h2>
+<div class="proto-row" id="states"></div>
+
+<h2>The same thing in the Search / EDHREC drawer, at 118px</h2>
+<p class="proto-note">
+  The real <code>.sf-grid.db-find-grid</code>, with the <code>+</code> where it
+  actually sits and EDHREC's synergy badges underneath — this is the grid that
+  says nothing about ownership today.
+</p>
+<div class="sf-grid db-find-grid" id="drawer" style="max-width:760px"></div>
+
+<script>
+const img = name =>
+  `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}&format=image&version=normal`;
+
+/* The mark, as js/owned.js would hand it back: nothing at all for a card
+   nobody has, which is the whole point — a grid of Scryfall results is mostly
+   cards nobody owns, and a marker on every one of them is a grid of markers. */
+function ownMark(own) {
+  if (!own) return '';
+  if (own.mine)
+    return `<div class="card-own card-own-mine" title="${own.title}"></div>`;
+  return `<div class="card-own card-own-their" data-who="${own.who[0]}"
+            title="${own.title}" style="--own-ink:var(--player-${own.slot})"></div>`;
+}
+
+const STATES = [
+  { name: 'Sol Ring', own: { mine: true, title: "Tim's binder ×3" },
+    cap: 'On your shelf — sleeve it tonight' },
+  { name: 'Rhystic Study', own: { mine: false, who: 'Kari', slot: 3, title: 'Kari — Kari’s binder ×1' },
+    cap: 'Only somebody else has it — go and ask' },
+  { name: 'Mana Crypt', own: null,
+    cap: 'Nobody has it — and so, no mark' },
+];
+
+document.getElementById('states').innerHTML = STATES.map(s => `
+  <div class="proto-one">
+    <div class="card-turnable">
+      <img class="sf-card-lg-img card-img" src="${img(s.name)}" alt="${s.name}">
+      ${ownMark(s.own)}
+    </div>
+    <div class="proto-cap">${s.cap}</div>
+  </div>`).join('');
+
+const DRAWER = [
+  { name: 'Dockside Extortionist', syn: '41%', decks: '18,204', own: { mine: true, title: "Tim's binder ×1" } },
+  { name: 'Smothering Tithe',      syn: '33%', decks: '52,110', own: null },
+  { name: 'Cultivate',             syn: '12%', decks: '96,332', own: { mine: false, who: 'Kari', slot: 3, title: 'Kari — Kari’s binder ×2' } },
+  { name: 'Swords to Plowshares',  syn: '28%', decks: '71,908', own: { mine: true, title: "Tim's binder ×2" } },
+  { name: 'Rhystic Study',         syn: '39%', decks: '61,447', own: { mine: false, who: 'Ola', slot: 5, title: 'Ola — the group’s box ×1' } },
+  { name: 'Arcane Signet',         syn: '9%',  decks: '88,015', own: { mine: true, title: "Tim's binder ×4" } },
+  { name: 'Mana Crypt',            syn: '30%', decks: '24,660', own: null },
+  { name: 'Fellwar Stone',         syn: '11%', decks: '30,891', own: null },
+];
+
+document.getElementById('drawer').innerHTML = DRAWER.map(c => `
+  <div class="db-find-tile">
+    <div class="db-find-art">
+      <div class="card-turnable">
+        <img class="sf-card-lg-img card-img" src="${img(c.name)}" alt="${c.name}">
+        ${ownMark(c.own)}
+      </div>
+      <button class="db-add-btn db-find-add" title="Add to Deck">+</button>
+    </div>
+    <div class="sf-card-lg-footer db-find-foot">
+      <a class="sf-card-lg-name" href="#">${c.name}</a>
+      <div class="db-find-badges">
+        <span class="db-edh-syn">${c.syn}</span>
+        <span class="db-edh-inc">${c.decks} decks</span>
+      </div>
+    </div>
+  </div>`).join('');
+
+function setMark(m)  { document.body.dataset.mark = m; }
+function setTheme(t) { document.documentElement.dataset.theme = t; }
+</script>
+</body>
+</html>

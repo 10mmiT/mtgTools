@@ -163,7 +163,7 @@ function renderSfCardLarge(card) {
         : `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </a>`;
   return `<div class="sf-card-lg">
-    ${cardTurnableHtml(link, scryfallBackFace(card))}
+    ${cardArtHtml(link, { back: scryfallBackFace(card), own: cardOwnMark(card.name) })}
     <div class="sf-card-lg-footer">
       <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(card.name)}" title="${esc(card.name)}" style="margin-bottom:0;flex:1">${esc(card.name)}</a>

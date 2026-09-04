@@ -773,16 +773,22 @@ function _dbGridTile(card, canEdit) {
      menu's answer, and it is asked for by right-clicking the card.
      The turn is the exception, and it is one because it does nothing to the
      deck — turning a card over is looking at the card, the same thing the
-     hover preview does by drawing both of its faces at once. A card with one
-     side is not wrapped at all, which is cardTurnableHtml()'s rule, so a tile
-     that has nothing to turn is the tile it has always been. */
+     hover preview does by drawing both of its faces at once.
+
+     The ownership mark sits on the picture beside it — the same fact the
+     badges under the tile say in words, said small enough to read at a glance
+     down a mat. It is scoped exactly as they are: js/owned.js asks the shelf
+     the strip is set to, so the bar and the badge cannot disagree. A card with
+     one side that is on nobody's shelf is not wrapped at all, which is
+     cardArtHtml()'s rule, so a tile with nothing on it is the tile it has
+     always been. */
   const clickAttrs = canEdit ? _dbCardClickAttrs(ref) : '';
   return `<div class="sf-card-lg db-tile${selected ? ' db-tile-selected' : ''}${_dbLanded(ref)}"
     ${_dbMoves('card', ref)} ${_dbCarry(ref, canEdit)} ${clickAttrs}>
-    ${cardTurnableHtml(`<div data-name="${esc(card.card_name)}">
+    ${cardArtHtml(`<div data-name="${esc(card.card_name)}">
       ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
-    </div>`, _dbCardBack(card))}
+    </div>`, { back: _dbCardBack(card), own: cardOwnMark(card.card_name) })}
     <div class="sf-card-lg-footer">
       <div style="display:flex;align-items:center;gap:var(--space-1);margin-bottom:var(--space-1)">
         <a class="sf-card-lg-name card-link" href="#" data-name="${esc(card.card_name)}"
@@ -856,7 +862,7 @@ function _dbPileTile(card, canEdit) {
     style="--stack-turn:${stackJitter(card.card_name)}deg"
     ${_dbMoves('card', ref)} ${_dbCarry(ref, canEdit)} ${clickAttrs}>
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
-    ${cardTurnableHtml(`<div data-name="${esc(card.card_name)}">
+    ${cardArtHtml(`<div data-name="${esc(card.card_name)}">
       ${img ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
               /* Artwork that is missing is a surface and not a card, which is
                  one rule said in one place — components.css's, the same shape
@@ -865,7 +871,7 @@ function _dbPileTile(card, canEdit) {
                  so a card with no picture is ringed when it is chosen like any
                  other. */
               `<div class="card-stack-blank"></div>`}
-    </div>`, _dbCardBack(card))}
+    </div>`, { back: _dbCardBack(card), own: cardOwnMark(card.card_name) })}
   </div>`;
 }
 
