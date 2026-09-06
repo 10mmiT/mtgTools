@@ -558,12 +558,13 @@ td { padding: var(--space-2) var(--space-3); }
    The lift is written against .card-img, so it belongs to every card in the
    app and to any card image added to it later, rather than to six tabs'
    markup. js/cardlift.js marks it in two stages, which is where the switch
-   divides: .card-held is the card the pointer is on, and .card-lifted and
-   .card-lift-host are the two elements the movement needs — the image, which
-   is what moves, and its wrapper, which is what holds the sheen and the
-   stacking context. The wrapper is whatever element the image was already in
-   — a link, a tile, a button — and it is never given a position it did not
-   have.
+   divides: .card-held is the card the pointer is on, and .card-lifted,
+   .card-lift-host and .card-lift-face are the three elements the movement
+   needs — the image, which is what moves; its wrapper, which is what holds
+   the sheen and the stacking context; and the card's face, which is what
+   holds the marks drawn on the picture. The wrapper is whatever element the
+   image was already in — a link, a tile, a button — and it is never given a
+   position it did not have.
 
    Where the numbers live: the rise and the growth are here, because they are
    the same for every card. The lean is not — it is a function of where in the
@@ -591,7 +592,27 @@ td { padding: var(--space-2) var(--space-3); }
 
 .card-lift-host { z-index: 3; }
 
+/* One transform, three things, so that the card and what is printed on it can
+   never be in two places at once. The bar saying whose shelf a card is on is
+   not inside the picture — it is .card-turnable's child, beside it, for the
+   reason js/cardturn.js gives — so the image's transform does not reach it,
+   and it would stay flat on the table while the card came up off it. It is
+   handed the movement here rather than in a rule of its own because a second
+   copy of these five lines is a second answer to where the card is, and they
+   would drift apart the first time either was tuned.
+
+   The bar takes the same movement without any arithmetic because it takes the
+   same box: it is inset: 0 on the wrapper the picture fills, so its centre —
+   which is what a transform turns and scales about, and where perspective
+   puts the vanishing point — is the card's own centre.
+
+   The control that turns a card over is deliberately not in this list. It is
+   a 22px circle in a corner rather than a box the size of the card, so the
+   same transform about *its* centre would grow it and lift it without
+   carrying it out to where the corner of the card had gone: the arithmetic
+   that would place it is not the arithmetic that places these. */
 .card-lifted,
+.card-lift-face > .card-own,
 .card-lift-host::after {
   transform: perspective(40rem)
              translateY(calc(-1 * var(--card-lift-rise)))
