@@ -106,21 +106,10 @@ router.get('/archidekt/collection/:id', requireAuth, (req, res) => {
   proxyArchidekt(`https://archidekt.com/api/collection/${id}/?page=${page}&pageSize=${pageSize}`, res);
 });
 
-router.get('/moxfield/collection/:slug/cards', requireAuth, (req, res) => {
-  const { slug } = req.params;
-  const { pageNumber = 1, pageSize = 100 } = req.query;
-  if (!/^[\w-]+$/.test(slug)) return res.status(400).json({ error: 'Invalid collection slug' });
-  proxyGet(
-    `https://api2.moxfield.com/v2/collection/${slug}/cards?pageNumber=${pageNumber}&pageSize=${pageSize}`,
-    {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Accept': 'application/json, text/plain, */*',
-      'Referer': 'https://moxfield.com/',
-      'Origin': 'https://moxfield.com',
-    },
-    res
-  );
-});
+/* There is no Moxfield collection route. It was the browser's, from before
+ * the import loop moved to the server, and api2.moxfield.com answers 403
+ * (Cloudflare) to this machine as it does to any: a collection comes in from
+ * Moxfield's CSV export instead, parsed in the tab, printings and all. */
 
 router.get('/archidekt/deck/:id', requireAuth, (req, res) => {
   const { id } = req.params;

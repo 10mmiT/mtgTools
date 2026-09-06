@@ -70,8 +70,26 @@ const MAX_AGE_MS    = 90 * 24 * 60 * 60 * 1000;
 const AGE_FLOOR     = 5;
 
 /** The reasons a snapshot can carry. A forced snapshot names the operation it
- *  was taken in front of; 'edit' is rule 1's. */
-const REASONS = new Set(['edit', 'import', 'category', 'move', 'basics', 'restore', 'deck-delete']);
+ *  was taken in front of; 'edit' is rule 1's.
+ *
+ *  A reason that is not in here is refused by record() and by the route above
+ *  it, and the browser does not read the answer to a forced snapshot — so a
+ *  missing reason is an operation that has quietly been taking no snapshot at
+ *  all. 'commander' is here late for exactly that reason: switching a commander
+ *  has been forcing one since the day it could be done from the mat, and the
+ *  server has been answering 400 to every one of them.
+ *
+ *  'basics' is the Lands tab's one write: re-splitting a deck's basics across
+ *  its colours moves half a dozen rows at once, which is exactly the kind of
+ *  change somebody wants a way back from.
+ *
+ *  The optimiser's three are three rather than one because cheapest and dearest
+ *  are opposites: telling the run that made the deck cheap from the one that
+ *  made it expensive is what the row in the panel is for. */
+const REASONS = new Set([
+  'edit', 'import', 'category', 'move', 'commander', 'basics', 'restore', 'deck-delete',
+  'optimize-cheapest', 'optimize-dearest', 'optimize-owned',
+]);
 
 // ── The deck as it is stored ──────────────────────────────────────────────
 

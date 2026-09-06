@@ -70,6 +70,16 @@ const state = {
    * an arrow on, and the header is a shortcut into that chain now. */
   renderTimer: null,
   version: 0,  // optimistic-concurrency version from server
+  /* The revision the last whole payload arrived stamped with, and what the
+   * next poll asks "anything newer than this?" with — not `version`, which is
+   * narrower and is the concurrency check's; see stateRev in routes/state.js
+   * for what each covers. Server→client only, and opaque: never ours to read
+   * a part of.
+   *
+   * Set only where a whole payload is taken in, never from a save's answer —
+   * a POST tells us our own write landed, not what else has happened
+   * elsewhere since we last looked. */
+  rev: null,
   /* SUM(qty) per deck_id, server→client only (no whitelist). The built-deck
    * signal the Decks grid keys off — `deckCardCounts[id] > 0` is "imported" —
    * and already ownership-filtered by the server, so a deck missing here is
@@ -102,9 +112,99 @@ function stateToJSON() {
   };
 }
 
+/** A field somebody actually filled in. */
+const printingSaid = v => typeof v === 'string' && v.trim() !== '';
+
+/* Whether an entry points at a real card, which is what tells a printing from
+ * the unknown entry. namesPrinting in available-db.js is the same rule, said
+ * again because there is no module system spanning public/js and the server:
+ * a Scryfall id, or a set with a collector number — and Moxfield's CSV export
+ * carries only the second, no id anywhere in the file. A set code with no
+ * number is not half a printing; it is the unknown entry, and the card's name
+ * may not be used to finish it. */
+const namesPrinting = p =>
+  !!p && (printingSaid(p.id) || (printingSaid(p.set) && printingSaid(p.collector_number)));
+
+/* The fields that make a printing, in the order they are written down, and
+ * what two copies have to agree on to be the same physical card — the browser
+ * side of CARD_PRINTING_FIELDS and printingKey in available-db.js, said again
+ * for the same reason namesPrinting is. A collection parsed in this tab folds
+ * its copies with this long before the server has seen a byte of it, and an
+ * importer with its own idea of what makes two copies the same card is how
+ * the two quietly stop agreeing. */
+const CARD_PRINTING_FIELDS =
+  ['id', 'set', 'set_name', 'collector_number', 'finish', 'lang', 'condition'];
+
+const cardPrintingKey = p =>
+  namesPrinting(p) ? CARD_PRINTING_FIELDS.map(f => p[f] || '').join(' ') : ' unknown';
+
+/* Which printings of a card are on a shelf — the browser's one answer to it.
+ *
+ * The server sends the breakdown on every card, unknown entries and all (see
+ * readCardPrintings in available-db.js), so most of the time this is just the
+ * field. It exists anyway, and everything reads printings through it, because
+ * a collection the browser built itself — a CSV parsed in this tab, which has
+ * never been near the server's shape helpers — has no such field, and the
+ * honest answer for it is *unknown* and never *owns none*.
+ *
+ * Derived where it is read rather than stamped onto every card at hydration:
+ * a twelve-thousand-card shelf is re-hydrated on every poll, and the few
+ * hundred rows actually on screen are the only ones anybody asks about. */
+function cardPrintings(card) {
+  const qty  = Math.max(0, Math.trunc(Number(card?.qty)) || 0);
+  const list = Array.isArray(card?.printings) ? card.printings : [];
+  const out  = [];
+  let attributed = 0;
+  for (const p of list) {
+    const n = Math.max(0, Math.trunc(Number(p?.qty)) || 0);
+    if (!n) continue;
+    out.push({ ...p, id: typeof p.id === 'string' && p.id ? p.id : null, qty: n });
+    attributed += n;
+  }
+  if (attributed < qty) {
+    const unknown = out.find(p => !namesPrinting(p));
+    if (unknown) unknown.qty += qty - attributed;
+    else out.push({ id: null, qty: qty - attributed });
+  }
+  return out;
+}
+
+/* Whether two copies are the same card to somebody asking whether they own
+ * one. Narrower than the shelf's own idea of a copy's identity, and
+ * deliberately: the shelf files a copy under its Scryfall id, its finish, its
+ * language *and* its condition, because those are what tell two physical
+ * cards apart in a box. None of that makes a lightly played German Sol Ring a
+ * different card from the one a deck runs — you own it, and you can sleeve
+ * it — so language and condition roll up here and finish does not. A foil is
+ * priced separately and is a different thing to run, which is the whole
+ * reason a deck can name one.
+ *
+ * Null for the copies nobody has attributed to a printing — and null too for
+ * the ones a shelf knows only as a set and a number, which is everything a
+ * Moxfield CSV holds. Those are a printing to look at and to count; they are
+ * not one to hold against a deck's chosen id, because the deck names a
+ * Scryfall id and nothing here can say whether it is this one without asking
+ * Scryfall. Both must never answer for a printing, which is what keeps "we do
+ * not know which" from reading as "the wrong one".
+ *
+ * The ordinary finish is the absence of one — the same spelling readPrinting()
+ * enforces on the way in — so a printing that says `nonfoil` out loud and one
+ * that says nothing are one printing here rather than two. */
+const printingIdentity = printing =>
+  printing && typeof printing.id === 'string' && printing.id
+    ? `${printing.id} ${printing.finish && printing.finish !== 'nonfoil' ? printing.finish : ''}`
+    : null;
+
 function hydrateState(raw) {
   // Migrate old bare-array format
   const data = Array.isArray(raw) ? { collections: raw, players: [] } : raw;
+
+  /* The revision this payload was cut at, adopted here because here is where
+   * every whole payload lands — the first load, a reload after an import, the
+   * poll. A blob restored from localStorage has none, and leaving the old one
+   * standing is right: it says what the server last told us, and the next poll
+   * is what corrects it. */
+  if (typeof data.rev === 'string') state.rev = data.rev;
 
   state.collections = (data.collections || []).map(d => ({
     key: d.key, name: d.name, source: d.source, id: d.id || null,
@@ -219,6 +319,43 @@ async function loadFromStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) hydrateState(JSON.parse(raw));
   } catch {}
+}
+
+/* Is anything half-arrived that a poll would land on top of?
+ *
+ * Two things in this app exist in the tab before they exist on the server: a
+ * CSV being read out of a file the browser was handed, and a deck whose name
+ * is still being fetched from Archidekt. Hydrating a payload over either
+ * throws away the half that is only in memory, so the poll asks this first and
+ * waits for the next one.
+ *
+ * A server-side import is not one of them. Its cards are nowhere in memory to
+ * be hydrated over — they sit in collection_imports until the whole thing
+ * lands — so refreshing during one is safe, and refusing to for the four
+ * minutes an import takes would freeze every other tab's data. */
+function stateIsMidFlight() {
+  return state.collections.some(c => c.status === 'loading' || c.status === 'updating' || c.updating)
+      || state.players.some(p => (p.decks || []).some(d => d.nameStatus === 'loading'));
+}
+
+/* The poll's fetch: the whole state, but only when there is a new one.
+ *
+ * The revision goes up with the ask and the server answers `unchanged` without
+ * building a payload at all, which is the point — this used to be a full
+ * download every thirty seconds, stringified at both ends to discover that
+ * nobody had touched anything. Nothing here serialises the payload, and
+ * nothing may: the answer to "did it change?" is the server's.
+ *
+ * Answers with the payload to render from, or null for nothing to do —
+ * unchanged, unreachable, or refused all read the same to a caller whose only
+ * other option is to try again in thirty seconds. */
+async function fetchStateIfChanged() {
+  try {
+    const res = await fetch('/api/state' + (state.rev ? `?since=${encodeURIComponent(state.rev)}` : ''));
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json && json.unchanged ? null : json;
+  } catch { return null; }
 }
 
 // ── Appearance preferences (server DB with localStorage fallback) ─────────

@@ -2,7 +2,7 @@
 const express = require('express');
 const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { db }  = require('../available-db');
+const { db, readCollectionCards, writeCollectionCards } = require('../available-db');
 const { getSession, requireAuth, requirePlayerAccess } = require('../middleware/auth');
 const imports = require('../collection-import');
 
@@ -52,6 +52,32 @@ function writeState(data, checkVersion) {
     ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, version = version + 1
   `).run(JSON.stringify({ players }));
   return (db.prepare('SELECT version FROM app_state WHERE key = ?').get('state')?.version || 1);
+}
+
+/* The revision a poll asks with — "is there anything newer than this?".
+ *
+ * Two counters and the viewer. The first is the version app_state already
+ * keeps for optimistic concurrency, which covers the players blob: every
+ * player, deck record, folder and want list. The second is the counter the
+ * triggers in available-db.js push along, which covers the three tables the
+ * blob knows nothing about: the shelf, the cards decks are built from, and the
+ * imports still arriving.
+ *
+ * The viewer is part of it because the payload is not one payload. Private
+ * decks are filtered per requester (canSeeDeck), so two sessions holding the
+ * same two counters are not owed the same answer — and a player promoted to
+ * admin mid-session would otherwise be told "unchanged" and never see the
+ * decks they had just earned. It is the requester's own role and player id,
+ * which is nothing they do not already know about themselves.
+ *
+ * Opaque to the browser, which only ever hands it back. */
+function stateRev(sess) {
+  const row = db.prepare(`
+    SELECT (SELECT version FROM app_state WHERE key = 'state') AS playersVersion,
+           (SELECT version FROM app_state WHERE key = 'rev')   AS tablesRev
+  `).get() || {};
+  const viewer = sess?.role === 'admin' ? 'admin' : (sess?.playerId || 'none');
+  return `${row.playersVersion || 0}.${row.tablesRev || 0}.${viewer}`;
 }
 
 function deepEqual(a, b) {
@@ -189,12 +215,40 @@ function disownGonePlayers(players) {
 router.get('/state', requireAuth, (req, res) => {
   try {
     const sess = getSession(req);
+    /* Read the revision before anything else, and answer a poll that already
+     * holds it without building the payload at all — which is the whole point:
+     * a shelf of six thousand cards is not parsed, shaped and serialised every
+     * thirty seconds to say that nobody has touched it.
+     *
+     * Before, and not after: a write landing between the payload and the
+     * revision would stamp stale data with the current number and the change
+     * would never arrive. Landing between the revision and the payload costs
+     * one extra full answer on the next poll, which is the harmless direction
+     * for the race to fall. */
+    const rev = stateRev(sess);
+    if (req.query.since && req.query.since === rev) return res.json({ unchanged: true, rev });
+
     const { players = [], version = 0 } = readState();
     const collections = db.prepare('SELECT * FROM collections ORDER BY rowid').all().map(r => {
       try {
         return {
           key: r.key, name: r.name, source: r.source, id: r.col_id,
-          color: r.color, cards: JSON.parse(r.cards_json || '{}'),
+          /* Read through the shape helpers, so every card arrives with the
+             breakdown of its printings — and a card stored before any of that
+             existed arrives with one unknown entry equal to its quantity
+             rather than with nothing.
+
+             Parsed here rather than by handing over the column's text, which
+             the helper would also take: a row of unreadable JSON has to reach
+             the catch below and cost the collection its place in the answer.
+             Swallowed, it would come back as a shelf with no cards on it,
+             which is this feature's own worst failure wearing a new hat.
+
+             The unknown entries are sent rather than left to the browser to
+             infer, though it could: the whole design is that "we do not know"
+             is a value and not an absence, and the fields repeat so hard that
+             compression() takes them back off the wire almost entirely. */
+          color: r.color, cards: readCollectionCards(JSON.parse(r.cards_json || '{}')),
           entries: r.entries, total: r.total, savedAt: r.saved_at,
           owner: r.owner_player_id || null,
         };
@@ -224,9 +278,15 @@ router.get('/state', requireAuth, (req, res) => {
      * load, so a tab that opens midway through one shows it immediately
      * instead of after the first poll. The poll itself uses GET /api/imports,
      * which is this list and nothing else. */
-    res.json({ collections, players: visiblePlayers, version, deckCardCounts, imports: imports.listImports() });
+    /* `version` is the concurrency check's and stays the players blob's alone
+     * — a POST hands it back and a mismatch is a 409. `rev` is the poll's, and
+     * covers the shelf and the built decks as well; the two are not
+     * interchangeable and neither can stand in for the other. */
+    res.json({ collections, players: visiblePlayers, version, rev, deckCardCounts, imports: imports.listImports() });
   } catch (e) {
     console.error('GET /api/state error:', e.message);
+    // No `rev` on the way out of the catch: an empty state that claimed the
+    // current revision would leave the tab believing it had seen everything.
     res.json({ collections: [], players: [], version: 0, deckCardCounts: {}, imports: [] });
   }
 });
@@ -345,7 +405,7 @@ router.post('/collections', requireAuth, express.json({ limit: '10mb' }), (req, 
         owner_player_id = CASE WHEN @given THEN @owner ELSE collections.owner_player_id END
     `).run({
       key, name, source, id: id || null, color: color || '#a855f7',
-      cards: JSON.stringify(cards || {}), entries: entries || 0,
+      cards: writeCollectionCards(cards || {}), entries: entries || 0,
       total: total || null, savedAt: savedAt || null,
       owner, given: given ? 1 : 0,
     });
@@ -375,19 +435,28 @@ router.delete('/collections/:key', requireAuth, (req, res) => {
 });
 
 /* ── Imports ───────────────────────────────────────────────────────────────
- * Adding or refreshing an Archidekt or Moxfield collection is a job the
- * server runs, not the tab — see collection-import.js for why. These three
- * routes are the whole of the browser's part in it: start one, watch them,
- * stop one. CSV imports never come through here; the file only exists in the
- * browser, so those still POST the finished cards to /api/collections.
+ * Adding or refreshing an Archidekt collection is a job the server runs, not
+ * the tab — see collection-import.js for why. These three routes are the
+ * whole of the browser's part in it: start one, watch them, stop one. CSV
+ * imports never come through here; the file only exists in the browser, so
+ * those still POST the finished cards to /api/collections.
+ *
+ * Archidekt is the only site there is to fetch from. Every other shelf comes
+ * in from an export the browser parses — the CSV ones, and the Moxfield ones
+ * from before api2.moxfield.com began answering 403 to this server, which the
+ * tab now re-imports from the export in place rather than refreshing. So this
+ * route refuses every source it cannot fetch, and needs to know the name of
+ * none of them.
  */
-const IMPORT_SOURCES = new Set(['archidekt', 'moxfield']);
+const IMPORT_SOURCES = new Set(['archidekt']);
 
 router.post('/collections/:key/import', requireAuth, express.json(), (req, res) => {
   const key = decodeURIComponent(req.params.key);
   const { name, source, id, color, restart } = req.body || {};
   if (!name || !source) return res.status(400).json({ error: 'name and source required' });
-  if (!IMPORT_SOURCES.has(source)) return res.status(400).json({ error: `Cannot import a ${source} collection on the server` });
+  if (!IMPORT_SOURCES.has(source)) {
+    return res.status(400).json({ error: `Cannot import a ${source} collection on the server` });
+  }
   if (!id) return res.status(400).json({ error: 'id required' });
 
   // Same rule as the whole-collection POST above: an owner that is not

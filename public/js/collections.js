@@ -21,54 +21,150 @@ function parseCSVRows(text) {
   return rows;
 }
 
+/* Which columns of an export say what.
+ *
+ * Read by the header rather than by where a column sits, because the header
+ * line is the only promise an export makes — and the two formats are told
+ * apart by the column holding the quantity, which is the one column each has
+ * and the other does not.
+ *
+ * The printing columns are the half of both files that was never read. Both
+ * were checked against a real export before any of this was promised:
+ *
+ *   Archidekt  names the Scryfall ID outright, beside the edition code, the
+ *              edition name and the collector number. Every row of a 6,004-row
+ *              export carried all four
+ *   Moxfield   names the edition and the collector number and no Scryfall id
+ *              anywhere in the file — which is a printing all the same, being
+ *              the same identity said the other way round
+ *
+ * A row that says nothing lands in the unknown entry with its copies intact.
+ * Nothing here is completed from a card's name.
+ *
+ * What a printing is made of is not restated here: CARD_PRINTING_FIELDS in
+ * js/state.js is the shape, and every column below is named for the field it
+ * fills.
+ */
+const CSV_FORMATS = [
+  { source: 'csv-archidekt',
+    cols: { qty: 'quantity', name: 'name', id: 'scryfall id',
+            set: 'edition code', set_name: 'edition name',
+            collector_number: 'collector number', finish: 'finish',
+            lang: 'language', condition: 'condition' } },
+  { source: 'csv-moxfield',
+    cols: { qty: 'count', name: 'name', set: 'edition',
+            collector_number: 'collector number', finish: 'foil',
+            lang: 'language', condition: 'condition' } },
+];
+
+/* The finish, spelled the way Scryfall spells it and the way the Archidekt
+ * import already writes it down — so a shelf imported from a file and one
+ * imported from the API say the same word about the same card. Archidekt's
+ * Finish column writes "Normal", "Foil" or "Etched", which is the same
+ * vocabulary its API's `modifier` carries; Moxfield's Foil column writes
+ * "foil", "etched" or nothing at all. Both spell the ordinary copy in their
+ * own way and both mean the card nobody paid extra for.
+ *
+ * A word neither has ever written is that ordinary copy rather than a fourth
+ * finish of its own. finishOf in collection-import.js is this same rule on the
+ * API side, said again because there is no module system spanning public/js
+ * and the server — and the two have to agree, or one collection would answer
+ * differently depending on which way it came in, which is the whole complaint
+ * this pair was written to end. */
+const CSV_FINISHES = { '': 'nonfoil', normal: 'nonfoil', foil: 'foil', etched: 'etched' };
+
+const csvFinish = cell => CSV_FINISHES[(cell || '').trim().toLowerCase()] || 'nonfoil';
+
+/* A row is an acquisition, not a card: a card held in four editions is four
+ * rows, and both exports write the quantity per row. This used to keep the
+ * first row of a name and drop the rest, on the belief that Archidekt
+ * repeated an oracle-level total on every one — it does not, and a real
+ * 7,943-copy export imported as 5,057. */
 function importCSV(text, filename) {
   const rows = parseCSVRows(text);
   if (rows.length < 2) throw new Error('CSV appears to be empty.');
   const header = rows[0].map(h => h.trim().toLowerCase());
-  const cards  = new Map();
-
-  if (header[0] === 'quantity') {
-    // Archidekt: Quantity is the oracle-card total repeated per row — take first occurrence.
-    const qi = 0, ni = 1;
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      const qty  = parseInt(r[qi], 10) || 0;
-      const name = (r[ni] || '').trim();
-      if (!name || qty <= 0 || cards.has(name)) continue;
-      cards.set(name, { name, type: '', mana: '', qty });
-    }
-    return { cards, source: 'csv-archidekt' };
-
-  } else if (header[0] === 'count') {
-    // Moxfield: Count, Tradelist Count, Name, ...
-    const qi = 0, ni = 2;
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      const qty  = parseInt(r[qi], 10) || 0;
-      const name = (r[ni] || '').trim();
-      if (!name || qty <= 0) continue;
-      const existing = cards.get(name);
-      if (existing) existing.qty += qty;
-      else cards.set(name, { name, type: '', mana: '', qty });
-    }
-    return { cards, source: 'csv-moxfield' };
-
-  } else {
-    throw new Error(`Unrecognised CSV format (first column: "${header[0]}"). Expected Archidekt or Moxfield export.`);
+  const format = CSV_FORMATS.find(f => header.includes(f.cols.qty));
+  if (!format) {
+    // Named by what was looked for and not found, because the file somebody
+    // chose is nearly always a decklist or somebody else's site's export, and
+    // "no Quantity column" is the sentence that says which.
+    throw new Error('Unrecognised CSV format: no "Quantity" or "Count" column. '
+      + 'Expected an Archidekt or Moxfield collection export.');
   }
+  const at = Object.fromEntries(
+    Object.entries(format.cols).map(([field, col]) => [field, header.indexOf(col)]));
+
+  /* Gathered by name, and under each name by printing, because that is the
+   * shape the shelf is stored in — and this tab draws what it has just parsed
+   * long before the server has seen a byte of it. The fold is the one
+   * addCardPrinting does on the server, said again here: an importer with its
+   * own idea of what makes two copies the same card is how the two quietly
+   * stop agreeing. */
+  const held = new Map();
+
+  for (let i = 1; i < rows.length; i++) {
+    const row  = rows[i];
+    const cell = field => (at[field] >= 0 ? String(row[at[field]] ?? '').trim() : '');
+    const name = cell('name');
+    const qty  = parseInt(cell('qty'), 10) || 0;
+    if (!name || qty <= 0) continue;
+
+    let entry = held.get(name);
+    if (!entry) held.set(name, entry = {
+      card: { name, type: '', mana: '', qty: 0 }, printings: new Map(),
+    });
+    entry.card.qty += qty;
+
+    const printing = {};
+    for (const field of CARD_PRINTING_FIELDS) {
+      const value = field === 'finish' ? csvFinish(cell('finish')) : cell(field);
+      if (value) printing[field] = value;
+    }
+    const seen = entry.printings.get(cardPrintingKey(printing));
+    if (seen) seen.qty += qty;
+    else entry.printings.set(cardPrintingKey(printing),
+      namesPrinting(printing) ? { ...printing, qty } : { id: null, qty });
+  }
+
+  const cards = new Map();
+  for (const [name, entry] of held)
+    cards.set(name, { ...entry.card, printings: [...entry.printings.values()] });
+  return { cards, source: format.source };
 }
 
 // ── URL Parsing ───────────────────────────────────────────────────────────
+/* What was pasted — a collection to fetch, a refusal with a reason, or
+ * nothing recognisable.
+ *
+ * A Moxfield collection URL is refused by name rather than left to fall
+ * through to "that is not a valid URL", because it is a perfectly valid one:
+ * api2.moxfield.com is behind Cloudflare and answers 403 to this server, as
+ * it does to any. Accepting it starts a four-minute job that cannot finish,
+ * and refusing it silently teaches nobody where the way in is — so the
+ * refusal names the export, which is a Moxfield collection's route onto a
+ * shelf and carries the printings besides. */
+/* The only place this is said. The server has no sentence about Moxfield at
+ * all any more: nothing asks it for one, because a link is turned down here
+ * and a shelf imported from Moxfield back when the tab did the fetching is
+ * re-imported from the export in place — see COL_FETCH_SOURCES. */
+const MOXFIELD_REFUSAL =
+  'Moxfield’s API refuses this server (Cloudflare), so a collection link cannot be fetched. '
+  + 'On Moxfield use Collection → Download (CSV), then Import CSV here — the export names '
+  + 'the printings too.';
+
 function parseInput(raw) {
   raw = (raw || '').trim();
-  const mox = raw.match(/moxfield\.com\/collection\/([\w-]+)/);
-  if (mox) return { source: 'moxfield', id: mox[1] };
+  if (/moxfield\.com\/collection\//.test(raw)) return { refused: MOXFIELD_REFUSAL };
   const ark = raw.match(/archidekt\.com.*\/(\d+)\/?/);
   if (ark) return { source: 'archidekt', id: ark[1] };
   if (/^\d+$/.test(raw)) return { source: 'archidekt', id: raw };
   return null;
 }
 
+/* 'moxfield' is here to name the shelves that predate the CSV import and for
+ * nothing else: nothing creates one and nothing fetches one, so this is the
+ * last of that source and only until none of those shelves is left. */
 function sourceLabel(source) {
   return { archidekt: 'Archidekt', moxfield: 'Moxfield',
            'csv-archidekt': 'CSV (Archidekt)', 'csv-moxfield': 'CSV (Moxfield)' }[source] || source;
@@ -226,6 +322,7 @@ function addFromUrl() {
   const errEl  = document.getElementById('addError');
 
   const parsed = parseInput(urlEl.value);
+  if (parsed?.refused) { showError(errEl, parsed.refused); return; }
   if (!parsed) { showError(errEl, 'Enter a valid Archidekt collection URL or numeric ID.'); return; }
 
   const key = `${parsed.source}:${parsed.id}`;
@@ -441,6 +538,13 @@ async function reloadCollections() {
 
 // ── CSV Import ────────────────────────────────────────────────────────────
 function openCsvPicker(updateKey) {
+  /* A picker still waiting on an answer is let go of first. pendingCsvKey is
+   * one slot and there is one file input behind it, so a second shelf asking
+   * for a file used to overwrite the first shelf's claim on it and leave that
+   * shelf `updating` with its offer spent — until a reload, and with the whole
+   * tab's state poll held off meanwhile. Released here rather than refused,
+   * because the shelf somebody just pressed is the one they mean. */
+  if (pendingCsvKey && pendingCsvKey !== updateKey) cancelCsvPicker();
   pendingCsvKey   = updateKey;
   pendingCsvName  = updateKey ? null : document.getElementById('nameInput').value.trim();
   // Read now, not in the reader's callback: the drawer that carries the field
@@ -449,71 +553,108 @@ function openCsvPicker(updateKey) {
   document.getElementById('csvInput').click();
 }
 
+/* The picker closed with nothing chosen, which is a thing people do — they
+ * meant a different shelf, or the export is not downloaded yet.
+ *
+ * Opening it marks the shelf `updating` and spends the offer above the table,
+ * and neither is given back by the file arriving, because no file arrives: a
+ * cancelled picker fires `cancel` and never `change`. Left to itself that is a
+ * chip reading "updating…" until the page is reloaded and an offer that cannot
+ * be taken a second time — one bug seen from two sides. So the press is undone
+ * in full, and the shelf is exactly what it was before it. */
+function cancelCsvPicker() {
+  const key = pendingCsvKey;
+  pendingCsvKey = pendingCsvName = pendingCsvOwner = null;
+  if (key) {
+    const col = state.collections.find(c => c.key === key);
+    if (col) col.updating = false;
+    _colOffersTaken.delete(key);
+  }
+  renderCollections();
+}
+
+document.getElementById('csvInput').addEventListener('cancel', () => cancelCsvPicker());
+
 document.getElementById('csvInput').addEventListener('change', e => {
   const file = e.target.files[0];
   e.target.value = '';
-  if (!file) return;
+  // A browser that answers a cancelled picker with a fileless `change` rather
+  // than a `cancel` says the same thing, and is answered the same way.
+  if (!file) { cancelCsvPicker(); return; }
 
   const reader = new FileReader();
-  reader.onload = async ev => {
-    try {
-      const { cards, source } = importCSV(ev.target.result, file.name);
-      const total = [...cards.values()].reduce((s, c) => s + c.qty, 0);
-
-      if (pendingCsvKey) {
-        const col = state.collections.find(c => c.key === pendingCsvKey);
-        if (col) {
-          col.cards    = cards;
-          col.entries  = total;
-          col.total    = cards.size;
-          col.source   = source;
-          col.status   = 'loaded';
-          col.error    = null;
-          col.savedAt  = new Date().toISOString();
-          col.updating = false;
-          await saveCollection(col);
-        }
-        pendingCsvKey = null;
-      } else {
-        const name = pendingCsvName || file.name.replace(/\.csv$/i, '');
-        document.getElementById('addError').style.display = 'none';
-
-        const col = {
-          key:      `csv:${Date.now()}`,
-          name,
-          source,
-          id:       null,
-          color:    COLORS[state.collections.length % COLORS.length],
-          owner:    pendingCsvOwner,
-          cards,
-          status:   'loaded',
-          entries:  total,
-          total:    cards.size,
-          error:    null,
-          savedAt:  new Date().toISOString(),
-          updating: false,
-        };
-        state.collections.push(col);
-        await saveCollection(col);
-        document.getElementById('nameInput').value = '';
-        pendingCsvOwner = null;
-        closeDrawers();
-      }
-
-      renderCollections();
-      renderResults();
-    } catch (err) {
-      alert('Could not parse CSV: ' + err.message);
-      if (pendingCsvKey) {
-        const col = state.collections.find(c => c.key === pendingCsvKey);
-        if (col) col.updating = false;
-        pendingCsvKey = null;
-      }
-      renderCollections();
-    }
-  };
+  reader.onload = ev => importCsvText(ev.target.result, file.name);
   reader.readAsText(file);
 });
+
+/* A chosen file, read and put where it goes: onto the shelf that asked for it,
+ * or onto a new one. Apart from the input's change event because *where* is
+ * the whole of it — openCsvPicker names a shelf when the file is a re-import
+ * — and nothing past the read has anything to do with a file input. */
+async function importCsvText(text, fileName) {
+  try {
+    const { cards, source } = importCSV(text, fileName);
+    const total = [...cards.values()].reduce((s, c) => s + c.qty, 0);
+
+    if (pendingCsvKey) {
+      /* The same shelf, re-imported. Its key, its name, its colour and its
+       * owner are untouched — everything anybody has hung off it stays hung
+       * off it, and a second collection beside the first would mean deleting
+       * your own shelf to fix it. What the export replaces is the cards, the
+       * printings, and what kind of shelf this is: a Moxfield collection
+       * imported back when the tab did the fetching becomes the CSV shelf its
+       * export makes it, and the id it was fetched by goes with it, there
+       * being nothing left to fetch. */
+      const col = state.collections.find(c => c.key === pendingCsvKey);
+      if (col) {
+        col.cards    = cards;
+        col.entries  = total;
+        col.total    = cards.size;
+        col.source   = source;
+        col.id       = null;
+        col.status   = 'loaded';
+        col.error    = null;
+        col.savedAt  = new Date().toISOString();
+        col.updating = false;
+        await saveCollection(col);
+      }
+      pendingCsvKey = null;
+    } else {
+      const name = pendingCsvName || fileName.replace(/\.csv$/i, '');
+      document.getElementById('addError').style.display = 'none';
+
+      const col = {
+        key:      `csv:${Date.now()}`,
+        name,
+        source,
+        id:       null,
+        color:    COLORS[state.collections.length % COLORS.length],
+        owner:    pendingCsvOwner,
+        cards,
+        status:   'loaded',
+        entries:  total,
+        total:    cards.size,
+        error:    null,
+        savedAt:  new Date().toISOString(),
+        updating: false,
+      };
+      state.collections.push(col);
+      await saveCollection(col);
+      document.getElementById('nameInput').value = '';
+      pendingCsvOwner = null;
+      closeDrawers();
+    }
+
+    renderCollections();
+    renderResults();
+  } catch (err) {
+    alert('Could not parse CSV: ' + err.message);
+    // A file that turned out to be a decklist leaves the shelf untouched, so
+    // it leaves the offer standing too: the next file might be the export.
+    if (pendingCsvKey) cancelCsvPicker();
+    renderCollections();
+  }
+}
 
 // ── Collection persistence (SQLite-backed via server) ─────────────────────
 async function saveCollection(col) {
@@ -534,10 +675,41 @@ async function saveCollection(col) {
 }
 
 // ── Update / Remove collection ────────────────────────────────────────────
+/* How a shelf comes back onto the shelf, in two lists and one question.
+ *
+ * The sources there is somewhere to fetch from, which is Archidekt and nothing
+ * else. The rest come back from an export somebody chooses: the CSV ones,
+ * whose file only ever existed in the browser, and the Moxfield ones from
+ * before api2.moxfield.com began answering 403 to this server, which are
+ * fetched by nothing now and created by nothing either. Both exports name
+ * their printings, so both are a real way back and not a consolation.
+ *
+ * Asked as "how does this come back" rather than "is this a Moxfield shelf",
+ * so that a shelf whose site this app cannot reach needs no rule of its own,
+ * and asked in one place because the ⋯ menu and the offer strip above the
+ * table must not disagree about it. A source in neither list is a shelf
+ * nothing can re-import: no Refresh in its menu, no offer above the table,
+ * both of which would be buttons that do nothing. Nothing writes such a shelf
+ * today — the list is what keeps that true if something ever does. */
+const COL_FETCH_SOURCES = new Set(['archidekt']);
+const COL_FILE_SOURCES  = new Set(['moxfield', 'csv-archidekt', 'csv-moxfield']);
+
+/** How this shelf comes back: 'fetch' — the server has somewhere to fetch it
+ *  from, so a press is the whole of it — 'file', from an export somebody
+ *  chooses, or null, meaning nothing can. */
+function colReimportBy(source) {
+  return COL_FETCH_SOURCES.has(source) ? 'fetch'
+       : COL_FILE_SOURCES.has(source)  ? 'file'
+       : null;
+}
+const colFromFile = source => colReimportBy(source) === 'file';
+
 function updateCollection(key) {
   const col = state.collections.find(c => c.key === key);
   if (!col || col.updating || state.imports.some(i => i.key === key && i.status === 'running')) return;
-  if (col.source.startsWith('csv-')) {
+  const by = colReimportBy(col.source);
+  if (!by) return;
+  if (by === 'file') {
     col.updating = true;
     renderCollections();
     openCsvPicker(key);
@@ -547,7 +719,169 @@ function updateCollection(key) {
    * what is on the shelf with what is on Archidekt now, and a resume would
    * merge the two and keep every card since removed. The collection stays
    * readable throughout — it is only overwritten when the import lands. */
-  startImport(col, { restart: true });
+  return startImport(col, { restart: true });
+}
+
+// ── Shelves that do not know their printings ──────────────────────────────
+/* The offer to re-import a collection that has no printings, and the four
+ * rules that decide who is shown one.
+ *
+ * No collection in existence has printings until it is re-imported: the data
+ * was never stored, so there is nothing on disk to recover it from. That
+ * leaves the Printings column reading "unknown" the whole way down, which is
+ * the honest answer and looks exactly like a broken one. This strip is what
+ * makes it an answer somebody can do something about, rather than something
+ * they have to work out for themselves.
+ *
+ * It is an offer and not a nag, so it goes away and stays away:
+ *
+ *   acted on   the moment it is pressed, rather than when the server answers
+ *              — the start returns `{ ok: true }` long before the import is
+ *              in any list to draw from, and an offer still on screen invites
+ *              a second press that starts a second four-minute job
+ *   under way   a collection with an import against it already has a readout
+ *              and a Stop in the import panel; a stopped one has a Resume.
+ *              Two buttons for one job is worse than one
+ *   pointless   a shelf nothing can re-import cannot be fixed by any press,
+ *              and an empty one has nothing to know. Both exports do carry
+ *              their printings, so a shelf that came in as a file is offered
+ *              one like any other — what it takes is a file, so its press
+ *              opens the picker rather than starting a job
+ *   not yours   somebody else's collection is their time to spend and their
+ *              data to change. Yours, the group's, or anything at all if you
+ *              are an admin or the app cannot say who you are — in which case
+ *              it makes no ownership distinction anywhere else either
+ */
+
+/* What this strip can re-import is what colReimportBy answers for: a fetched
+ * shelf, whose press starts the job, and a shelf that comes back from an
+ * export, whose press opens the file picker. One press either way, which is
+ * all a strip has. An offer to fix something no press will fix is a loop,
+ * which is the one thing that rule exists to prevent. */
+
+/* Offers taken in this page's lifetime, and given back only by a picker closed
+ * with nothing chosen — see cancelCsvPicker, where a press that did nothing is
+ * undone in full. A re-import that lands with printings takes the offer away on
+ * its own; one that lands without them — a source that turns out to say nothing
+ * after all — must not put the same offer back up, which is the nag this set
+ * exists to prevent. A reload is what re-asks the question, and by then
+ * something has changed. */
+const _colOffersTaken = new Set();
+
+/** Does this shelf know what any of its cards are? One printing naming a real
+ *  card is enough: a shelf half accounted for has been re-imported already,
+ *  and doing it again would produce the same unknowns. */
+function colKnowsPrintings(col) {
+  const cards = col && col.cards;
+  // Not a shelf this tab can read is not a shelf to make offers about.
+  if (!cards || typeof cards.values !== 'function') return true;
+  for (const card of cards.values())
+    if ((card.printings || []).some(namesPrinting)) return true;
+  return false;
+}
+
+/** Is starting a four-minute job against this shelf ours to do?
+ *
+ *  Asked of myPlayerId() and not of isMyPlayer(), which is the other question
+ *  and would be wrong here: it reads the logged-in account's linked player,
+ *  and open mode has no logged-in player at all — everybody is `guest`, and
+ *  who you are is the name remembered behind Available@'s "Who are you?" bar.
+ *  Through isMyPlayer, somebody in open mode would not be offered their own
+ *  shelf. Every ownership question on this tab is asked the same way. */
+function colMayReimport(col) {
+  const me = myPlayerId();
+  return !me || currentUser?.role === 'admin' || !col.owner || col.owner === me;
+}
+
+/* The shelves being offered a re-import, in the order the tab lists them.
+ * Read from the shelf being looked at rather than from every loaded
+ * collection: the strip sits above the table and explains what that table is
+ * saying, so it must not name a collection whose rows are not in it. */
+function colPrintingOffers() {
+  return colShelf().filter(col =>
+    colReimportBy(col.source)
+    && col.cards.size > 0
+    && !colKnowsPrintings(col)
+    && colMayReimport(col)
+    && !_colOffersTaken.has(col.key)
+    && !state.imports.some(i => i.key === col.key));
+}
+
+/* The strip itself, between the chips and the table. Absent from the flow
+ * entirely when every shelf knows what it holds, which is what it becomes for
+ * good once these have been re-imported. */
+function renderPrintingOffers() {
+  const box = document.getElementById('colPrintingOffer');
+  if (!box) return;                       // tabs rendered on their own in tests
+
+  const offers = colPrintingOffers();
+  if (!offers.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+
+  /* The shelves one press can sweep, which is the fetched ones and no others:
+   * there is one file picker and one shelf pendingCsvKey can name, so a button
+   * that opened four of them is not a thing anybody can answer. The rest keep
+   * the press of their own, and the label says which shelves it takes rather
+   * than saying "all" over the ones it leaves. */
+  const sweep = offers.filter(col => colReimportBy(col.source) === 'fetch');
+  const from  = esc([...new Set(sweep.map(col => sourceLabel(col.source)))].join(' and '));
+  const filed = offers.length - sweep.length;
+
+  const one  = offers.length === 1;
+  const what = one
+    ? `<strong>${esc(offers[0].name)}</strong> does not record which printings it holds`
+    : `<strong>${offers.length} collections</strong> do not record which printings they hold`;
+
+  /* Said in the terms of the shelves actually being offered: a page with
+   * nothing fetchable on it must not promise a job that runs on the server,
+   * and one with nothing filed must not mention a file picker nobody will see. */
+  const how = [
+    sweep.length
+      ? `Re-importing from ${from} records them, and runs on the server — so you
+         can close this page while it works.`
+      : '',
+    filed
+      ? `${sweep.length ? 'The rest come back from' : 'Re-importing records them from'}
+         the export the shelf came from, so pressing one opens the file picker.`
+      : '',
+  ].filter(Boolean).join(' ');
+
+  box.innerHTML = `
+    <div class="print-offer-say">
+      ${what} — that is what the Printings column is saying. ${how}
+    </div>
+    <div class="print-offer-acts">
+      ${sweep.length < 2 ? '' : `
+        <button class="btn-primary print-offer-btn"
+                onclick="reimportAllPrintings()">Re-import all ${sweep.length} from ${from}</button>`}
+      ${offers.map(col => `
+        <button class="btn-secondary print-offer-btn"
+                onclick="reimportPrintings('${jsAttr(col.key)}')">
+          Re-import${one ? '' : ` ${esc(col.name)}`}${colFromFile(col.source) ? '…' : ''}
+        </button>`).join('')}
+    </div>`;
+}
+
+/** Take one shelf's offer. */
+function reimportPrintings(key) {
+  if (!state.collections.some(c => c.key === key)) return;
+  _colOffersTaken.add(key);
+  renderPrintingOffers();
+  return updateCollection(key);
+}
+
+/** Take the offers a single press can take, for somebody who owns the lot and
+ *  does not want to press a button per shelf. Only the ones actually being
+ *  offered — a collection that knows its printings, or that belongs to
+ *  somebody else, is not swept up by a button whose label says "all" — and
+ *  only the fetched ones: a shelf that comes back from a file needs a file
+ *  each, and there is one picker. Those keep their own press, and the label
+ *  names the source rather than claiming the lot. */
+function reimportAllPrintings() {
+  const offers = colPrintingOffers().filter(col => colReimportBy(col.source) === 'fetch');
+  for (const col of offers) _colOffersTaken.add(col.key);
+  renderPrintingOffers();
+  return Promise.all(offers.map(col => updateCollection(col.key)));
 }
 
 function removeCollection(key) {
@@ -575,6 +909,10 @@ function renderCollections() {
      loaded on its own in the tests that assert this tab. */
   if (typeof dbShelvesChanged === 'function') dbShelvesChanged();
   renderImports();
+  /* Which shelves still do not know their printings, which is a question of
+     the same three things this function already redraws for: what is loaded,
+     whose it is, and what is being imported. */
+  renderPrintingOffers();
   const row = document.getElementById('collectionsChips');
 
   /* An import for a collection that is not on the shelf yet still gets a chip.
@@ -618,7 +956,7 @@ function chipHtml(col, imp, onShelf) {
      to speak for it yet and keeps the colour it arrived with. */
   const color   = col ? ownerInk(col) : imp.color;
   const source  = col ? col.source : imp.source;
-  const isCSV   = source.startsWith('csv-');
+  const by      = colReimportBy(source);
   const owner   = colOwner(col || imp);
   const off     = !onShelf;
 
@@ -655,7 +993,13 @@ function chipHtml(col, imp, onShelf) {
         { label: 'Discard', onclick: `stopImport('${key}', true)`, danger: true },
       ], { title: 'Import actions' })
     : kebabMenuHtml([
-        { label: isCSV ? 'Re-import CSV' : 'Refresh', onclick: `updateCollection('${key}')` },
+        /* A shelf nothing can fetch is offered its export instead of a Refresh
+         * that would only be turned down — the CSV shelves, and the Moxfield
+         * ones from before their API began refusing this server. One that
+         * neither can be fetched nor read back from a file is offered neither:
+         * the menu keeps the owner and the Remove, which still work. */
+        ...(by ? [{ label: by === 'file' ? 'Re-import CSV' : 'Refresh',
+                    onclick: `updateCollection('${key}')` }] : []),
         ...colOwnerMenuItems(col),
         { divider: true },
         { label: 'Remove', onclick: `removeCollection('${key}')`, danger: true },
@@ -675,6 +1019,12 @@ function chipHtml(col, imp, onShelf) {
 const COL_META_FIELDS = new Set(['cmc', 'color', 'power', 'toughness', 'rarity', 'type', 'price']);
 
 const COL_COLUMNS = [
+  /* Which printings the shelf holds. On by default, unlike every column
+     below it: those are card facts that have to be fetched before they can be
+     shown, and this is a fact about the collection itself, already in hand.
+     It is the one place the tab answers "which one have I got", so it is on
+     until somebody turns it off. */
+  { key: 'printings', label: 'Printings',      default: true },
   { key: 'mana',   label: 'Mana Value',        default: false },
   { key: 'color',  label: 'Color',             default: false },
   { key: 'type',   label: 'Type',              default: false },
@@ -1027,6 +1377,11 @@ function renderListView(rows, MAX) {
 
   // ── Header ──
   let h = '<th data-sort="name">Card Name</th>';
+  /* No `data-sort`, and deliberately: "which printings" is not an order, and
+     a header handing the sort control a field its list has never heard of is
+     a table sorted on nothing. The gesture is skipped below rather than
+     wired to a field that does not exist. */
+  if (cols.printings) h += '<th class="th-print">Printings</th>';
   if (cols.mana)   h += '<th data-sort="cmc">MV</th>';
   if (cols.color)  h += '<th data-sort="color">Color</th>';
   if (cols.type)   h += '<th data-sort="type">Type</th>';
@@ -1060,6 +1415,9 @@ function renderListView(rows, MAX) {
   const sort = colSortNow();
   header.querySelectorAll('th').forEach(th => {
     const field = th.dataset.sort;
+    // A column that is not a sort says nothing about sorting and does nothing
+    // when clicked. See the Printings header above.
+    if (!field) return;
     th.title = 'Sort by this column — shift-click to add it to the sort';
     th.onclick = e => _colSort?.set(
       (e.shiftKey ? appendSortColumn : chooseSortColumn)(colSortNow(), field, colSortFields()));
@@ -1088,6 +1446,7 @@ function renderListView(rows, MAX) {
     const total = r.qtys.reduce((s, q) => s + q, 0);
     const m = scryfallMetaCache.get(r.name) || {};
     let metaCells = '';
+    if (cols.printings) metaCells += colPrintingsCell(r.name);
     if (cols.mana)   metaCells += `<td class="td-meta">${colMV(m)}</td>`;
     if (cols.color)  metaCells += `<td class="td-meta">${colColor(m)}</td>`;
     if (cols.type)   metaCells += `<td class="td-meta">${esc(colType(m))}</td>`;
@@ -1105,6 +1464,94 @@ function renderListView(rows, MAX) {
       <td class="td-total">${total}</td>
     </tr>`;
   }).join('');
+}
+
+// ── Which printings the shelf holds ───────────────────────────────────────
+/* How a finish is said on this row: the foil's mark, and the word itself for
+ * the rarer ones nobody has a symbol for. cardFinishMark in js/card.js is the
+ * same rule for a card tile, said again here because there is no module system
+ * spanning public/js and this tab is read without that file beside it.
+ *
+ * The ordinary copy says nothing, which is what lets an unmarked cell read as
+ * the plain card rather than as a cell somebody forgot to fill in. */
+const colFinishMark = finish =>
+  (!finish || finish === 'nonfoil') ? '' : (finish === 'foil' ? ' ✦' : ` ${finish}`);
+
+/* The Printings column, and the one thing it must never say.
+ *
+ * No collection has printings until it is re-imported, so today every card on
+ * every shelf reads *unknown* — and unknown is the whole point of the column
+ * arriving before the data does. A blank cell, or a dash, would read as a
+ * shelf holding none of the card, which is the app telling somebody their
+ * collection has been wiped. So the copies nobody can attribute are named as
+ * such, and they are counted.
+ *
+ * A row is a card across the whole shelf, exactly as the Total column beside
+ * it is, so the copies are added up across every collection being shown.
+ * Grouped by what the cell actually shows — the set and the finish — because
+ * two entries that read the same are one line, and the collector number, the
+ * set's full name and the finish go in the tooltip where the detail belongs.
+ * Language and condition are in a printing's identity but not on this row:
+ * both are one constant code in the data available today, so a column showing
+ * them would be a column of the same word. */
+function colPrintingLabel(printing) {
+  const set = (printing.set || '').toUpperCase();
+  return (set || '?') + colFinishMark(printing.finish);
+}
+
+/* A set code and a finish are not a printing: one set can hold the ordinary
+   Sol Ring and its extended-art twin, and both read `C21` here. So the
+   tooltip names every collector number in the group rather than the first
+   one's — a line claiming #263 over a copy that is #514 is worse than a line
+   that names neither. */
+function colPrintingTitle(group) {
+  const bits = [group.setName || 'Unknown set'];
+  if (group.numbers.size) bits.push([...group.numbers].map(n => `#${n}`).join(', '));
+  if (group.finish) bits.push(group.finish);
+  return bits.join(' ');
+}
+
+/** The shelf's copies of one card, grouped as the cell shows them: the
+ *  unknown entry last, and the rest heaviest first. */
+function colPrintingsOf(name) {
+  const groups = new Map();
+  for (const col of colShelf()) {
+    const card = col.cards.get(name);
+    if (!card) continue;
+    for (const printing of cardPrintings(card)) {
+      const label = namesPrinting(printing) ? colPrintingLabel(printing) : null;
+      let group = groups.get(label);
+      if (!group) {
+        group = { label, qty: 0, numbers: new Set(),
+                  setName: printing.set_name || printing.set || '',
+                  // The word, not a flag: there are three finishes and the two
+                  // that are not ordinary both have to name themselves.
+                  finish: printing.finish === 'nonfoil' ? '' : (printing.finish || '') };
+        groups.set(label, group);
+      }
+      group.qty += printing.qty;
+      if (printing.collector_number) group.numbers.add(printing.collector_number);
+    }
+  }
+  return [...groups.values()].sort((a, b) =>
+    (a.label === null) - (b.label === null) ||
+    b.qty - a.qty ||
+    String(a.label).localeCompare(String(b.label)));
+}
+
+function colPrintingsCell(name) {
+  const groups = colPrintingsOf(name);
+  if (!groups.length) return '<td class="td-print">—</td>';
+  /* A shelf that knows nothing about a card says one word rather than "3×
+     unknown": the count is the Total column's job, and this cell is answering
+     which ones, not how many. Where only *some* of the copies are accounted
+     for the count comes back, because there the number is the news. */
+  if (groups.length === 1 && groups[0].label === null)
+    return '<td class="td-print"><span class="print-unknown" title="Nobody recorded which printings these copies are">unknown</span></td>';
+  const parts = groups.map(g => g.label === null
+    ? `<span class="print-unknown">${g.qty}× unknown</span>`
+    : `<span title="${esc(colPrintingTitle(g))}">${g.qty}× ${esc(g.label)}</span>`);
+  return `<td class="td-print">${parts.join(', ')}</td>`;
 }
 
 // ── Metadata cell renderers ───────────────────────────────────────────────

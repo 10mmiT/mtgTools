@@ -727,7 +727,7 @@ function _dbListRow(card, canEdit) {
   /* Not sfCardOwnership(), which walks every collection that happens to be
      loaded: on this tab the badge answers whichever of the three questions the
      strip is asking — see js/deckview-owned.js. */
-  const owned = dbCardOwnership(card.card_name);
+  const owned = dbCardOwnership(card);
   const price = _dbCardPriceHtml(card);
   /* Which row on the mat this is, board and all: the buttons on it act on this
      copy of the card and not on the one lying in another board. */
@@ -765,7 +765,7 @@ function _dbListRow(card, canEdit) {
 
 function _dbGridTile(card, canEdit) {
   const img   = _dbCardImg(card);
-  const owned = dbCardOwnership(card.card_name);
+  const owned = dbCardOwnership(card);
   const price = _dbCardPriceHtml(card);
   const ref = dbCardRef(card);
   const selected = dbSelectedCards.has(ref);

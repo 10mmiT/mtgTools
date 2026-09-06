@@ -133,8 +133,15 @@ function cardMetaOf(obj) {
 
 /* How many of a card are owned, across every loaded collection. A collection
  * is `{ key, cards: Map<name, { qty }> }`, the shape the Collections tab
- * already holds them in and the same numbers its Total column prints. */
-function ownedQty(cols, name) {
+ * already holds them in and the same numbers its Total column prints.
+ *
+ * Named for this file, because js/owned.js's ownedQty() is a different
+ * question wearing the same short name — that one counts the shelf *in
+ * scope*, this one counts every loaded collection, and a sort over "how many
+ * of these are in the group" must not quietly become one over "how many are
+ * mine". Both are top-level in one global scope, so the later file simply won
+ * and every sort by Quantity read nought. */
+function _sortOwnedQty(cols, name) {
   let total = 0;
   for (const col of cols || []) total += col.cards?.get(name)?.qty || 0;
   return total;
@@ -199,7 +206,7 @@ function sortKey(field, obj, ctx = {}) {
      * into the stored sort, and a preference someone chose still orders their
      * table the way they left it. */
     case 'qty':
-    case 'total':     return ownedQty(ctx.collections, obj.name);
+    case 'total':     return _sortOwnedQty(ctx.collections, obj.name);
     case 'wanted':    return ctx.wants?.get(obj.name)?.size ?? 0;
     case 'player':    return wanterNames(ctx, obj.name);
     default: {
@@ -565,7 +572,7 @@ function groupLabel(field, obj, ctx = {}) {
       return '€20+';
     }
     case 'qty':
-    case 'total': return `×${ownedQty(ctx.collections, obj.name)}`;
+    case 'total': return `×${_sortOwnedQty(ctx.collections, obj.name)}`;
     case 'number': {
       /* Same reason as price: a collector number is unique, so the set's own
        * numbering is only a grouping in hundreds. */

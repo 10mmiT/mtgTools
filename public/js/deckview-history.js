@@ -90,6 +90,13 @@ const DB_HISTORY_REASON = {
   basics:        'Before the basics were re-split',
   restore:       'Before a restore',
   'deck-delete': 'Before the deck was deleted',
+  /* One row per run, and the mode said out loud. Cheapest and dearest are
+     opposites, so two rows both reading "before the printings were optimized"
+     would leave the panel unable to say which of them made the deck what it is
+     — which is the one thing a reader of these rows wants to know. */
+  'optimize-cheapest': 'Before the printings were made cheapest',
+  'optimize-dearest':  'Before the printings were made most expensive',
+  'optimize-owned':    'Before the printings were matched to the shelf',
 };
 
 /* Names, up to a few, then how many more. The full list goes in the row's

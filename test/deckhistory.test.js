@@ -319,6 +319,120 @@ describe('a chosen printing', () => {
   });
 });
 
+// ── And the finish it runs in ─────────────────────────────────────────────
+// The field arrived after decks had been carrying printings for a fortnight,
+// so the risk is not the new state, it is the old one: a panel that compares
+// two states as strings will call every deck in the app changed if a printing
+// serialises by so much as a key differently than it did.
+
+describe('a printing chosen before a finish could be named', () => {
+  /* The bytes such a printing was stored as. Written out rather than built
+   * from the code under test, because what is being asserted is that the code
+   * still agrees with what is already on disk. */
+  const LEGACY_PRINTING =
+    '{"id":"6e9f2eb0-8ca1-4e9d-9f2b-0a1b2c3d4e5f","set":"rav",' +
+    '"set_name":"Ravnica: City of Guilds","collector_number":"266",' +
+    '"image":"https://cards.scryfall.io/normal/rav-sol-ring.jpg",' +
+    '"price_eur":"4.50","chosen_at":"2026-08-14"}';
+
+  /** The deck that carries it — one card, in the shape both paths read. */
+  const ravnica  = () => ({ ...SOL_RING, board: 'main', position: 0,
+                            printing: JSON.parse(LEGACY_PRINTING) });
+  /** And the snapshot it was taken as, before any of this. */
+  const legacyState = () => JSON.stringify({
+    cards: [{ card_name: 'Sol Ring', qty: 1, category: 'Ramp', board: 'main', position: 0,
+              printing: JSON.parse(LEGACY_PRINTING) }],
+    categories: CATS.map((c, i) => ({ name: c.name, position: i })),
+  });
+
+  test('is snapshotted byte-for-byte as it was', () => {
+    store(DECK, [ravnica()], CATS);
+    history.noteSave(DECK);
+    assert.equal(
+      db.prepare('SELECT state_json FROM deck_snapshots WHERE deck_id = ?').get(DECK).state_json,
+      legacyState(), 'the deck serialises differently than the snapshot already on disk');
+  });
+
+  test('so opening the deck and saving it writes no row at all', () => {
+    /* The whole of the risk, in one test. Nobody has touched this deck: the
+     * cards endpoint hands it to the browser, the browser hands it back on the
+     * first autosave, and the History panel must have nothing to say about it.
+     * Both rules are exercised, because a forced snapshot carries the
+     * browser's copy and rule 1 reads the database's. */
+    db.prepare('INSERT INTO deck_snapshots (deck_id, taken_at, reason, state_json) VALUES (?,?,?,?)')
+      .run(DECK, Date.now() - DAY, 'edit', legacyState());
+    store(DECK, [ravnica()], CATS);
+    history.noteSave(DECK);
+    history.force(DECK, 'import', { cards: [ravnica()], categories: CATS });
+    assert.equal(rowsOf(DECK).length, 1, 'a deck nobody touched was recorded as having changed');
+  });
+
+  test('while the foil beside it is a state of its own, both ways round', () => {
+    // The field earns its place by making these two different, and the two
+    // paths into a snapshot have to agree about that as they do about the rest.
+    const foil = { ...ravnica(), printing: { ...JSON.parse(LEGACY_PRINTING),
+                                             price_eur: '11.90', finish: 'foil' } };
+    store(DECK, [foil], CATS);
+    const t0 = Date.now();
+    history.noteSave(DECK, t0);
+    assert.notEqual(
+      db.prepare('SELECT state_json FROM deck_snapshots WHERE deck_id = ?').get(DECK).state_json,
+      legacyState(), 'the foil snapshotted as the ordinary card');
+    history.force(DECK, 'import', { cards: [foil], categories: CATS }, t0 + SECOND);
+    assert.equal(rowsOf(DECK).length, 1, 'the two paths wrote the foil down differently');
+    assert.equal(history.get(DECK, rowsOf(DECK)[0].id).cards[0].printing.finish, 'foil');
+  });
+});
+
+// ── Operations that name themselves ───────────────────────────────────────
+/* A forced snapshot is refused a reason the server has not heard of, and the
+ * browser swallows the refusal — so a reason missing from the set is an
+ * operation that has quietly been taking no snapshot at all, with nothing on
+ * screen to say so. Which is exactly what had happened to switching a
+ * commander, and is the risk the optimiser's three reasons carry.
+ */
+
+describe('the operations that can take a snapshot', () => {
+  const LIVE = { cards: [SOL_RING, DOOM_BLADE, FOREST], categories: CATS };
+
+  test('include a run of the printing optimiser, in each of its three modes', () => {
+    /* Three reasons and not one, because cheapest and dearest are opposites:
+       "before the printings were optimized" over two rows is a panel that
+       cannot tell the run that made the deck cheap from the one that made it
+       expensive, which is the whole point of the row. */
+    for (const mode of ['cheapest', 'dearest', 'owned']) {
+      history.force(DECK, `optimize-${mode}`,
+        { ...LIVE, cards: [...LIVE.cards, card(`Filler ${mode}`)] });
+    }
+    assert.deepEqual(rowsOf(DECK).map(r => r.reason),
+      ['optimize-owned', 'optimize-dearest', 'optimize-cheapest']);
+  });
+
+  test('and switching the commander, which has been taking none', () => {
+    // The browser has forced this one since the day commanders could be
+    // switched from the mat; the server has been answering 400 to it, and the
+    // browser does not read the answer.
+    history.force(DECK, 'commander', LIVE);
+    assert.deepEqual(rowsOf(DECK).map(r => r.reason), ['commander']);
+  });
+
+  test('and a run puts every printing it changed back', () => {
+    /* The undo the whole preview is built around. One row for a ninety-nine
+       card run is only worth having if restoring it is the deck as it was,
+       printing by printing — a restore that put half of them back would be a
+       worse loss than the run it was undoing. */
+    const runs = [
+      { ...SOL_RING,   printing: { id: 'p-sol', set: 'c21', chosen_at: '2026-08-30' } },
+      { ...DOOM_BLADE, printing: { id: 'p-doom', set: 'm13', chosen_at: '2026-08-30' } },
+      { ...FOREST,     printing: { id: 'p-forest', set: 'unf', chosen_at: '2026-08-30' } },
+    ];
+    history.force(DECK, 'optimize-cheapest', { cards: runs, categories: CATS });
+    const back = history.get(DECK, rowsOf(DECK)[0].id);
+    assert.deepEqual(back.cards.map(c => c.printing?.id),
+      ['p-sol', 'p-doom', 'p-forest']);
+  });
+});
+
 // ── The caps ──────────────────────────────────────────────────────────────
 
 describe('the caps', () => {
