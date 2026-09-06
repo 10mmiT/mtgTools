@@ -17,6 +17,16 @@
 // are the decisions in this file, and they are written as functions of their
 // inputs so that they can be asserted rather than eyeballed.
 //
+// What comes up with the card is everything drawn on its face. The bar saying
+// whose shelf a card is on and the control that turns it over hang beside the
+// picture rather than inside it — js/cardturn.js says why: a link may not
+// contain a button — so the image's transform cannot reach them, and a card
+// lifted on its own would rise off the table leaving its own ownership bar
+// lying where it was. The wrapper those hang in is marked while the card is
+// up, and it is where the lift's numbers are written; components.css carries
+// the same transform to the bar from the same rule that moves the image, so
+// the two have no way to come to disagree about where the card is.
+//
 // Nothing here changes a layout box. The transform is drawn from the card's
 // laid-out box and applied to the card's own pixels, so the grid never reflows
 // and the pointer cannot fall off a card that grew under it.
@@ -95,6 +105,7 @@ const LIFT_VARS = [
 
 let heldImg     = null;   // the card image under the pointer, or null
 let liftedHost  = null;   // the element it hangs in, marked while it may move
+let liftedFace  = null;   // the box of what is drawn on the card, where there is any
 let liftedPosed = false;  // whether that element was positioned by us
 let pendingLift = null;   // the newest pointer reading, waiting for a frame
 let liftFrame   = 0;
@@ -146,7 +157,23 @@ function raiseCard(img) {
   host.classList.add('card-lift-host');
   img.classList.add('card-lifted');
   liftedHost = host;
+  /* And the card's face: the wrapper holding what is drawn on the picture.
+   * Marking it is what lets the ownership bar travel with the card, and it is
+   * where the lift's numbers go — it is an ancestor of the image, so the
+   * image and the sheen read exactly the values they read before, and the
+   * marks on the card can read them too. A card with nothing drawn on it is
+   * not wrapped at all, which is the ordinary case and has no face. */
+  liftedFace = img.closest('.card-turnable');
+  if (liftedFace) liftedFace.classList.add('card-lift-face');
   return true;
+}
+
+/* Where the lift's numbers are written: the face when the card has one, and
+ * otherwise the wrapper the image hangs in. Either way an ancestor-or-self of
+ * the image, which is what makes the choice invisible to everything reading
+ * them. */
+function liftNumbers() {
+  return liftedFace || liftedHost;
 }
 
 /* Back onto the table, still under the pointer: what happens when the answer
@@ -155,9 +182,12 @@ function lowerCard() {
   if (!liftedHost) return;
   if (heldImg) heldImg.classList.remove('card-lifted');
   liftedHost.classList.remove('card-lift-host');
-  for (const name of LIFT_VARS) liftedHost.style.removeProperty(name);
+  const numbers = liftNumbers();
+  for (const name of LIFT_VARS) numbers.style.removeProperty(name);
+  if (liftedFace) liftedFace.classList.remove('card-lift-face');
   if (liftedPosed) liftedHost.style.removeProperty('position');
   liftedHost = null;
+  liftedFace = null;
 }
 
 /* Let go of it altogether, leaving the markup as it was found. */
@@ -192,7 +222,8 @@ function paintCardLift() {
   const tilt  = cardTilt(x, y, box.width, box.height);
   const sheen = cardSheen(x, y, box.width, box.height);
 
-  const set = (name, value) => liftedHost.style.setProperty(name, value);
+  const numbers = liftNumbers();
+  const set = (name, value) => numbers.style.setProperty(name, value);
   set('--lift-tilt-x', `${tilt.x.toFixed(2)}deg`);
   set('--lift-tilt-y', `${tilt.y.toFixed(2)}deg`);
   set('--lift-left',   `${move.img.offsetLeft}px`);
