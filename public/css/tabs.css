@@ -2500,10 +2500,21 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 /* What the numbers assume, said under them rather than hedged into every
    line — the same footing the bracket estimate's limits get, for the same
-   reason: a convention nobody wrote down is a claim. */
+   reason: a convention nobody wrote down is a claim. Folded away behind the
+   line below, because the same claim standing over every deck is a wall in
+   front of the bars. */
 .db-sources-limit {
   color: var(--text-subtle);
   font-size: var(--text-xs);
+}
+
+/* The way into them. The same link as the header's, unpinned from the right
+   edge: this one sits under the rows it qualifies, where a footnote goes. */
+.db-sources-how {
+  display: block;
+  margin-left: 0;
+  text-align: left;
+  padding-top: var(--space-1);
 }
 
 /* ── The Lands tab: optimize basics ───────────────────────────────────────

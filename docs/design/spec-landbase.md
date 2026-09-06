@@ -97,6 +97,12 @@ panel rather than hidden: the table assumes every source is untapped, so a deck
 full of taplands overstates itself; Commander is multiplayer, where the
 turn-three deadline is softer than the model's.
 
+They sit behind **how this is read**, one press, the same way the per-card list
+sits behind the headline — small print is disclosed, not published: four lines
+of prose standing over three bars is a wall in front of the finding. Two things
+stay in the open regardless, because both change what the bars *mean*: the
+sources the table does not count, and the cards it could not read.
+
 ## Optimize basics
 
 A button in the tab. It asks **how many basics**, splits that number across the
@@ -185,7 +191,7 @@ Plains    8 → 11
 Island    9 →  7
 Forest    6 →  5
 deck 99 → 102 · lands 37 → 40
-blue still 4 short — that's a land, not a basic
+still short: blue 4 — a land, not a basic
 ```
 
 The rows, the resulting deck size and land total, and the resulting check

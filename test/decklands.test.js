@@ -438,6 +438,8 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     asked: () => sandbox.asked.map(u => new URL(u, 'http://x').searchParams.get('q')),
     /** The tab, switched to. */
     open() { run(`dbSetLeftTab('lands')`); return el('dbLandsContent').innerHTML; },
+    /** The check's small print, spread out — "how this is read", pressed. */
+    how() { run('dbToggleSourcesFoot()'); return el('dbLandsContent').innerHTML; },
     html: () => el('dbLandsContent').innerHTML,
     /** A section, pressed — settled by the time this resolves. */
     toggle(id) { return run(`dbToggleLandSection('${id}')`); },
@@ -1074,7 +1076,8 @@ test('a deck with fewer lands than the table has rows says which row it read', (
   const check = tab.check();
   assert.strictEqual(check.lands, 4);
   assert.strictEqual(check.row, 15, 'the 60-card table starts at 15 lands');
-  assert.match(tab.open(), /15 lands/, 'the panel did not say which row it read');
+  tab.open();
+  assert.match(tab.how(), /15 lands/, 'the panel did not say which row it read');
 });
 
 // ── The check: what it says ───────────────────────────────────────────────
@@ -1116,9 +1119,14 @@ test('the cards the sources can’t support are behind the headline', () => {
 });
 
 test('the panel says what the table assumes rather than leaving it to be found out', () => {
-  const html = loadTab({ commander: null, deck: [
+  /* Small print, so it is folded — but folded is not missing: one press on
+     "how this is read" and the assumptions are there, the same way the
+     per-card list is one press behind the headline. */
+  const tab = loadTab({ commander: null, deck: [
     { card_name: 'Island',          qty: 14, category: 'Lands' },
-    { card_name: 'Cryptic Command', category: 'Ramp' }] }).open();
+    { card_name: 'Cryptic Command', category: 'Ramp' }] });
+  assert.doesNotMatch(tab.open(), /untapped/i, 'the small print arrived spread out');
+  const html = tab.how();
   assert.match(html, /untapped/i, 'the untapped-sources assumption is not on the panel');
   assert.match(html, /multiplayer/i, 'the multiplayer caveat is not on the panel');
 });
@@ -1165,8 +1173,10 @@ test('a cost that asks for two colours at once wants one more source of each', (
   assert.strictEqual(red.want, tab.answer(`dbSourcesWanted('sixty', 26, 3, 1)`) + 1);
 
   /* And the panel says where the extra source came from, rather than showing a
-     number the table does not hold and letting somebody go looking for it. */
-  const html = tab.open();
+     number the table does not hold and letting somebody go looking for it. It
+     is small print, so it is behind "how this is read" — but it is there. */
+  tab.open();
+  const html = tab.how();
   assert.match(html, /two colours at once/, 'the gold-cost rule is not disclosed');
   assert.match(html, /either colour/, 'the half of the rule we cannot show is not admitted');
 });
@@ -1178,7 +1188,8 @@ test('a mono-coloured cost is not given the gold rule’s extra source', () => {
   assert.strictEqual(tab.check().colours.find(c => c.id === 'U').want,
                      tab.answer(`dbSourcesWanted('sixty', 24, 4, 3)`),
     'a single-colour cost was charged the gold-cost approximation');
-  assert.ok(!tab.open().includes('two colours at once'),
+  tab.open();
+  assert.ok(!tab.how().includes('two colours at once'),
     'a deck with no gold card was told about the gold rule');
 });
 
@@ -1818,7 +1829,7 @@ test('the preview says what the check would still call short', () => {
   const plan = tab.plan(23);
   assert.ok(plan.still.some(c => c.id === 'U' && c.gap > 0),
     'the deck was told a split it cannot make would clear blue');
-  assert.match(tab.html(), /blue still \d+ short — that’s a land, not a basic/,
+  assert.match(tab.html(), /still short: [^<]*\bblue \d+[^<]*— lands, not basics/,
     'the preview did not say which colour the split could not reach');
 });
 

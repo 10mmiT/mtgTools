@@ -446,10 +446,13 @@ test('a deck with nothing in it draws no rows rather than six empty ones', () =>
 test('the tab says what it assumes, every time it is read', () => {
   /* A convention that is not written down is a claim. What the table assumes
      about a source is the convention that matters most here, and the check
-     carries it — see test/decklands.test.js for the rest of what it says. */
+     carries it — folded under "how this is read", one press away, rather than
+     standing over the bars on every deck. See test/decklands.test.js for the
+     rest of what it says. */
   const tab = loadTab();
   tab.render();
   tab.press();
+  tab.run('dbToggleSourcesFoot()');
   assert.match(tab.tab(), /untapped/i);
   assert.match(tab.tab(), /multiplayer/i);
 });

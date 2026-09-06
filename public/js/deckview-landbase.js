@@ -378,10 +378,48 @@ function _dbSourcesShortHtml(check) {
   return `<div class="db-sources-short">${rows}</div>`;
 }
 
-/* What the numbers were read from and what they assume, underneath them rather
- * than hedged into every line. The limits are the panel's own: a floor to
- * argue with, and the things most likely to make the floor wrong. */
+/* Whether the assumptions under the numbers are spread out. Shut to begin
+ * with, for the same reason the per-card list is: they are the small print of
+ * a floor, and four lines of prose standing over three bars is a wall in front
+ * of the finding somebody opened the tab for. */
+let _dbSourcesFootOpen = false;
+
+function dbToggleSourcesFoot() {
+  _dbSourcesFootOpen = !_dbSourcesFootOpen;
+  _dbRenderLands();
+}
+
+/* What sits under the numbers. Two things stay in the open because both change
+ * what the bars above mean — the sources the table does not count, and the
+ * cards it could not read — and the rest is behind a line you press. */
 function _dbSourcesFootHtml(check) {
+  /* The rocks, where there are any. A deck with none saying "and 0 other
+     sources" would be answering a question nobody in front of it has. */
+  const other = check.other
+    ? `<span class="db-sources-counts">and <strong>${check.other}</strong> other ` +
+      `source${check.other === 1 ? '' : 's'} — rocks and dorks, which the table does not count</span>`
+    : '';
+  /* Named, not just counted, and never folded away. A deck reported as wanting
+     no white because eleven of its cards are still in flight is the one kind of
+     wrong a mana base cannot survive, and the names are how somebody tells that
+     apart from a deck that really has no white in it. */
+  const n = check.unknown.length;
+  const blind = n
+    ? `<div class="db-sources-limit">${esc(
+        `${n} card${n === 1 ? ' has' : 's have'} no facts yet, and ` +
+        `${n === 1 ? 'is' : 'are'} counted in neither half of this: ` +
+        `${check.unknown.join(', ')}.`)}</div>`
+    : '';
+  return `${other}${blind}
+    <button class="db-sources-more db-sources-how" aria-expanded="${_dbSourcesFootOpen}"
+            onclick="dbToggleSourcesFoot()">
+      ${_dbSourcesFootOpen ? '▾' : '▸'} how this is read
+    </button>
+    ${_dbSourcesFootOpen ? _dbSourcesLimitsHtml(check) : ''}`;
+}
+
+/** The small print itself: where the row was read, and what it assumes. */
+function _dbSourcesLimitsHtml(check) {
   const size  = check.format === 'commander' ? 99 : 60;
   const notes = [
     check.row === check.lands
@@ -389,36 +427,20 @@ function _dbSourcesFootHtml(check) {
       : check.row > check.lands
         ? `The table starts at ${check.row} lands and the deck has ${check.lands}, so it is read at ${check.row}.`
         : `The table stops at ${check.row} lands and the deck has ${check.lands}, so it is read at ${check.row}.`,
-    'The table assumes every source is untapped and available, so a deck full of taplands overstates itself here.',
+    'It assumes every source is untapped, so a deck full of taplands overstates itself.',
     check.format === 'commander'
-      ? 'It also asks for the spell on curve, and Commander is multiplayer, where being a turn late is a softer failure than the model counts it as.'
-      : 'It also asks for the spell on curve — a deck that can afford to cast a turn late, or a multiplayer game, is a softer deadline than that.',
+      ? 'It asks for the spell on curve, and in multiplayer a turn late is a softer failure than that.'
+      : 'It asks for the spell on curve — a deck that can cast a turn late, or a multiplayer game, is a softer deadline.',
   ];
   /* Only where a gold card actually set one of the bars above, because it is
      the sort of note that is noise until it is the answer to "why does it want
      one more than the table says". */
   if (check.colours.some(c => c.gold)) {
-    notes.push('A cost that asks for two colours at once wants one source more of each than its shape alone — ' +
-               'the table’s own rule for gold costs, and an admitted approximation. It also wants sources ' +
-               'that make either colour, which these rows have no way to say.');
+    notes.push('A cost that asks for two colours at once wants one source more of each — the ' +
+               'table’s own rule, and an approximation: these rows cannot count the sources ' +
+               'that make either colour.');
   }
-  /* Named, not just counted. A deck reported as wanting no white because
-     eleven of its cards are still in flight is the one kind of wrong a mana
-     base cannot survive, and the names are how somebody tells that apart from
-     a deck that really has no white in it. */
-  if (check.unknown.length) {
-    const n = check.unknown.length;
-    notes.push(`${n} card${n === 1 ? ' has' : 's have'} no facts yet, and ` +
-               `${n === 1 ? 'is' : 'are'} counted in neither half of this: ` +
-               `${check.unknown.join(', ')}.`);
-  }
-  /* The rocks, where there are any. A deck with none saying "and 0 other
-     sources" would be answering a question nobody in front of it has. */
-  const other = check.other
-    ? `<span class="db-sources-counts">and <strong>${check.other}</strong> other ` +
-      `source${check.other === 1 ? '' : 's'} — rocks and dorks, which the table does not count</span>`
-    : '';
-  return `${other}${notes.map(n => `<div class="db-sources-limit">${esc(n)}</div>`).join('')}`;
+  return notes.map(n => `<div class="db-sources-limit">${esc(n)}</div>`).join('');
 }
 
 // ── Optimize basics: a budget, split by pips, previewed then applied ──────
@@ -705,8 +727,7 @@ function _dbBasicsHtml() {
     ${_dbBasicsOneEachHtml()}
     <div id="dbBasicsPreview" class="db-basics-preview">${plan ? _dbBasicsPreviewHtml(plan) : ''}</div>
     <div class="db-sources-limit">${esc(
-      'The number is the deck’s total basics after this, so the deck never grows behind you. ' +
-      'It is split across the colours in proportion to the deck’s pips.')}</div>
+      'A total, not an addition — split across the colours by pips.')}</div>
   </div>`;
 }
 
@@ -822,8 +843,10 @@ function _dbBasicsStillHtml(plan) {
   if (!plan.still.length) {
     return `<div class="db-basics-verdict db-basics-clear">${esc('every colour clears its bar')}</div>`;
   }
-  return plan.still.map(c => `<div class="db-basics-verdict">${esc(
-    `${c.label} still ${c.gap} short — that’s a land, not a basic`)}</div>`).join('');
+  const short = plan.still.map(c => `${c.label} ${c.gap}`).join(', ');
+  return `<div class="db-basics-verdict">${esc(
+    `still short: ${short} — ` +
+    `${plan.still.length === 1 ? 'a land, not a basic' : 'lands, not basics'}`)}</div>`;
 }
 
 // ── The two presses ───────────────────────────────────────────────────────
@@ -1438,6 +1461,7 @@ const _dbLandsCalcHtml = () => `<div class="db-lands-calc">
 function _dbLandsClose() {
   _dbLandOpen.clear();
   _dbSourcesShortOpen = false;
+  _dbSourcesFootOpen  = false;
   /* And the plan, which is a plan for a deck that is no longer on the mat. */
   _dbBasicsBudget = null;
   if (dbLeftTab === 'lands') _dbRenderLands();
