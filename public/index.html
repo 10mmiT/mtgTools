@@ -839,10 +839,22 @@
          the state of its data is whether the last edit is saved. -->
     <span id="dbSaveStatus" class="db-save-status result-info"></span>
 
+    <!-- The way to a card this deck does not have yet. It was a row in the menu
+         while the drawer was one search box; it holds three ways of finding a
+         card now — Scryfall, EDHREC and the land cycles — which is more tab
+         than a line under "Look at" can stand for. On the strip it is where
+         the key already is, and the menu keeps only what the strip has no room
+         for. -->
+    <button class="btn-secondary db-find-btn db-when-deck" id="dbFindBtn"
+            onclick="dbOpenSearchPanel()" aria-expanded="false" aria-controls="dbSearchPanel"
+            title="Find cards — Search, EDHREC, Lands (/)" aria-label="Find cards">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+    </button>
+
     <!-- Everything else this tab can do, which is now a column beside the mat
-         rather than eleven more things on this line. It is the last control
-         before the way out, so the two that are always here sit together at
-         the end of the strip. -->
+         rather than eleven more things on this line. It sits between the way to
+         a card and the way out, so the controls that are always here are one
+         cluster at the end of the strip rather than three strays along it. -->
     <button class="btn-secondary db-menu-btn" id="dbMenuBtn" onclick="dbToggleMenu()"
             aria-expanded="false" aria-controls="dbMenu" title="Deck controls (m)">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -982,7 +994,6 @@
       <button class="db-menu-item" id="dbCurveBtn" onclick="dbToggleAnalysis()"
               aria-expanded="false" aria-controls="dbAnalysis"
               title="The curve, the types and the split">Analysis</button>
-      <button class="db-menu-item" onclick="dbOpenSearchPanel()" title="Search Scryfall / EDHREC">Search / EDHREC</button>
       <button class="db-menu-item" id="dbHistoryBtn" onclick="dbOpenHistoryPanel()">History</button>
       <button class="db-menu-item" onclick="dbLoadForComparison()">Compare</button>
       <button class="db-menu-item" id="dbCategoriesBtn" onclick="dbShowCategoriesModal()">Categories</button>
@@ -1051,14 +1062,13 @@
          as the number beside it does. -->
     <span id="dbStatPrice" class="db-stat-item"></span>
     <span class="db-stat-sep">·</span>
-    <!-- How many lands, and what they are for: the comparison between what the
-         deck's spells want and what its lands make. This item opens it rather
-         than the row of colour symbols further along, because those leave the
-         line below 900px and a panel whose only door is hidden on a phone is a
-         panel a phone does not have. -->
+    <!-- How many lands, and the door to what they are for: the drawer's Lands
+         tab, where the comparison between what the deck's spells want and what
+         its lands make now lives. This item is the door rather than the row of
+         colour symbols further along, because those leave the line below 900px
+         and a door hidden on a phone is a door a phone does not have. -->
     <button id="dbStatLands" class="db-stat-item db-stat-open"
-            onclick="dbToggleManaPanel()" aria-expanded="false"
-            aria-controls="dbManaPanel"></button>
+            onclick="dbOpenLandsTab()"></button>
     <span class="db-stat-sep">·</span>
     <span id="dbStatCmc" class="db-stat-item"></span>
     <span class="db-stat-sep db-stat-sep-colors">·</span>
@@ -1074,13 +1084,6 @@
          Rises out of the same line as the missing list, which is why opening
          either puts the other away. Written by js/deckview-legality.js. -->
     <div id="dbCheckPanel" class="db-check-panel" style="display:none"></div>
-
-    <!-- What the deck's spells want against what its lands make, per colour,
-         and the way through to the Mana Base Calculator with every one of its
-         fields already filled. The third panel out of this line, and the third
-         to put the other two away when it opens. Written by
-         js/deckview-mana.js. -->
-    <div id="dbManaPanel" class="db-mana-panel" style="display:none"></div>
   </div>
 
   <!-- Search / EDHREC drawer panel -->
@@ -1089,6 +1092,7 @@
       <div class="db-left-tabs">
         <button class="db-ltab active" id="db-ltab-search" onclick="dbSetLeftTab('search')">Search</button>
         <button class="db-ltab" id="db-ltab-edhrec" onclick="dbSetLeftTab('edhrec')">EDHREC</button>
+        <button class="db-ltab" id="db-ltab-lands" onclick="dbSetLeftTab('lands')">Lands</button>
       </div>
       <!-- Where the + on a card puts it. In the header because it is a fact
            about the drawer rather than about either way of finding a card:
@@ -1137,6 +1141,14 @@
       <div id="dbEdhrecContent" style="padding:var(--space-1) var(--space-3)">
         <div class="empty-state" style="padding:var(--space-6) 0">Load a deck with a commander to see recommendations</div>
       </div>
+    </div>
+    <!-- The land cycles, in the deck's colours. Sections arrive closed and
+         each fetches itself the first time it is opened, so the tab costs
+         nothing to look at and one request to use — twenty on open would be
+         twenty jobs in a queue the whole house shares. Written by
+         js/deckview-landbase.js. -->
+    <div id="db-left-lands" class="db-drawer-content" style="display:none">
+      <div id="dbLandsContent" style="padding:var(--space-1) var(--space-3)"></div>
     </div>
   </div>
   <!-- Backdrop -->
@@ -1419,6 +1431,7 @@
 <script src="js/deckview-totals.js"></script>
 <script src="js/deckview-legality.js"></script>
 <script src="js/deckview-mana.js"></script>
+<script src="js/deckview-landbase.js"></script>
 <script src="js/deckview-optimize.js"></script>
 <script src="js/pick.js"></script>
 <script src="js/rss.js"></script>

@@ -315,7 +315,7 @@ test('what the ⋯ popover held is in the menu, and the popover is gone', () => 
   const menu = MARKUP.match(/<aside id="dbMenu"[\s\S]*?<\/aside>/)[0];
   for (const item of ['dbShowNewDeck', 'dbShowImportText', 'dbExportCsv', 'dbDeleteDeck',
                       'dbOpenHistoryPanel', 'dbShowCategoriesModal', 'dbLoadForComparison',
-                      'dbOpenSearchPanel', 'dbToggleAnalysis']) {
+                      'dbToggleAnalysis']) {
     assert.ok(menu.includes(item), `${item} is not reachable from the menu`);
   }
   assert.ok(!MARKUP.includes('dbMoreMenu'), 'the ⋯ popover is still in the markup');
@@ -338,7 +338,8 @@ test('a tab with no deck still offers the one action that gets you one', () => {
 
 test('the strip keeps what is used while building, and nothing else', () => {
   const strip = MARKUP.match(/<div class="toolbar">[\s\S]*?<!-- The mat and the menu/)[0];
-  for (const id of ['dbDeckSel', 'dbAddCardInput', 'dbFilterInput', 'dbMenuBtn', 'dbFoldBtn']) {
+  for (const id of ['dbDeckSel', 'dbAddCardInput', 'dbFilterInput', 'dbFindBtn',
+                    'dbMenuBtn', 'dbFoldBtn']) {
     assert.ok(strip.includes(`id="${id}"`), `${id} left the strip`);
   }
   for (const id of ['dbViewMount', 'dbSizeMount', 'dbSortMount', 'dbBoardMount',
@@ -358,6 +359,65 @@ test('the curve is not a permanent strip on the mat', () => {
     'and it is not in a panel that expands either');
   assert.match(MARKUP, /id="dbCurveBtn"[^>]*aria-controls="dbAnalysis"/,
     'the control that expands it does not say what it expands');
+});
+
+// ── The drawer's own button ───────────────────────────────────────────
+// Search, EDHREC and the land cycles are three halves of one drawer now, which
+// is more than a menu row's worth of tab. It stands on the strip beside the
+// menu and the way back, and it is no longer a row in the menu: one drawer,
+// one place to press for it.
+
+test('the drawer is opened from the strip, beside the menu and the way back', () => {
+  /* This tab's strip rather than whichever one comes first in the file: seven
+     panes carry a .toolbar, and the deck's is the last one before the mat. */
+  const end   = MARKUP.indexOf('<!-- The mat and the menu');
+  const strip = MARKUP.slice(MARKUP.lastIndexOf('<div class="toolbar">', end), end);
+  const btn   = strip.match(/<button[^>]*id="dbFindBtn"[^>]*>/)?.[0];
+  assert.ok(btn, 'the strip has no way into the drawer');
+  assert.match(btn, /onclick="dbOpenSearchPanel\(\)"/);
+  /* After the spacer and before the menu, so the four controls that are always
+     at that end of the strip read as one cluster rather than as one stray. */
+  assert.match(strip, /id="dbSaveStatus"[\s\S]*id="dbFindBtn"[\s\S]*id="dbMenuBtn"[\s\S]*id="dbFoldBtn"/,
+    'the button is not in the cluster at the end of the strip');
+  assert.match(btn, /db-when-deck/,
+    'two of the drawer\u2019s three halves are about a deck, and it offers them without one');
+});
+
+test('and it is not also a row in the menu', () => {
+  // Two controls for one drawer is what the menu exists to avoid: it holds
+  // what the strip has no room for, and the strip has room for this.
+  const menu = MARKUP.match(/<aside id="dbMenu"[\s\S]*?<\/aside>/)[0];
+  assert.ok(!menu.includes('dbOpenSearchPanel'), 'the menu still opens the drawer too');
+});
+
+test('the button says whether the drawer is open', () => {
+  const btn = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; },
+                classList: { add() {}, remove() {} } };
+  const drawer = { classList: { add() {}, remove() {} } };
+  const sandbox = {
+    document: {
+      addEventListener() {},
+      querySelectorAll: () => [],
+      body: { style: {} },
+      getElementById: id => ({ dbFindBtn: btn }[id] || drawer),
+    },
+    window: { addEventListener() {} },
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(read('public/js/deckview-panels.js'), sandbox);
+  /* What the drawer redraws on the way in is deckview-core.js's state, and not
+     this test's question: only whether the button was told. */
+  sandbox._dbRefreshDrawer = () => {};
+  vm.runInContext('dbOpenSearchPanel()', sandbox);
+  assert.strictEqual(btn.attrs['aria-expanded'], 'true');
+  vm.runInContext('dbCloseSearchPanel()', sandbox);
+  assert.strictEqual(btn.attrs['aria-expanded'], 'false');
+  assert.match(MARKUP, /id="dbFindBtn"[^>]*aria-controls="dbSearchPanel"/,
+    'the button does not say what it opens');
+});
+
+test('and it is a thumb target on a phone, like the two beside it', () => {
+  assert.match(CSS, /\.db-find-btn\s+\{ min-height: 44px; \}/);
 });
 
 // ── The ghost pile ────────────────────────────────────────────────────

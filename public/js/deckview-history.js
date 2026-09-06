@@ -87,6 +87,7 @@ const DB_HISTORY_REASON = {
   category:      'Before a category was deleted',
   move:          'Before a bulk move',
   commander:     'Before the commander was switched',
+  basics:        'Before the basics were re-split',
   restore:       'Before a restore',
   'deck-delete': 'Before the deck was deleted',
   /* One row per run, and the mode said out loud. Cheapest and dearest are

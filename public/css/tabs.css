@@ -1762,12 +1762,12 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-check-row  { align-items: center; }
   .db-check-cards { gap: var(--space-2); }
 
-  /* And again on the mana panel, whose header carries two: the ✕ and the way
-     through to the calculator. The second is a small button by design on a
-     desktop — it stands beside a title and not beside other buttons — which is
-     exactly the kind that arrives here too short. */
-  .db-mana-close { min-width: 44px; min-height: 44px; }
-  .db-mana-calc  { min-height: 44px; }
+  /* And on the Lands tab, whose two quiet controls are lines of text by design
+     on a desktop — the way into the per-card list, and the way out to the
+     calculator. That is exactly the kind that arrives here too short. */
+  .db-sources-more    { min-height: 44px; }
+  .db-lands-calc-link { min-height: 44px; }
+
 
   /* The menu beside the mat is a stack of full-width rows here, and every one
      of them is a thumb target — the ⋯ popover they replaced was measured the
@@ -1775,6 +1775,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-menu-item  { min-height: 44px; }
   .db-menu-close { min-width: 44px; min-height: 44px; }
   .db-menu-btn   { min-height: 44px; }
+  /* And the drawer's button beside it, which is the same size of press. */
+  .db-find-btn { min-height: 44px; }
 
   /* Grown. A whole row of the week list is the tap target for a day. */
   .avail-week-row { min-height: 44px; }
@@ -1857,8 +1859,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   /* The checkbox is 14px and cannot grow without looking like a button, so its
      label carries the target: an overlay across the whole toggle, which a
      linked label may do because clicking anywhere on it is clicking the box. */
-  .db-ci-toggle { position: relative; min-height: 44px; }
-  .db-ci-toggle label::before {
+  .db-ci-toggle, .db-basics-one-each { position: relative; min-height: 44px; }
+  .db-ci-toggle label::before, .db-basics-one-each label::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -2581,6 +2583,338 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .db-edh-inc { font-size: var(--text-xs); color: var(--text-muted); }
 
+/* ── The Lands tab: the check, above the cycles ───────────────────────────
+   One row per colour: what the deck's lands make, what the table wants, and
+   the card that set the bar. It sits above the cycle list, separated from it
+   by the same hairline that runs between the cycles rather than by a box,
+   because it is the reason the tab was opened and a box would read as an
+   aside. */
+.db-sources {
+  padding: var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.db-sources-hdr {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+}
+.db-sources-title {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+/* The way into the per-card list. It is a link rather than a button to look
+   at, because pressing it argues with the numbers above rather than doing
+   anything to the deck. */
+.db-sources-more {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: right;
+  transition: color var(--dur-base) var(--ease-tint);
+}
+.db-sources-more:hover { color: var(--primary); }
+
+/* The row wraps rather than squeezing — on a phone the bar drops under the
+   figures, which is the one part of it that can afford to move. */
+.db-sources-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+.db-sources-sym { flex: 0 0 auto; }
+.db-sources-fig { color: var(--text-muted); white-space: nowrap; }
+.db-sources-fig strong { color: var(--text); }
+/* The card that set the bar, which is the point of the line: it is allowed to
+   be the thing that gets cut on a narrow drawer, and nothing else is. */
+.db-sources-for {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-sources-note { color: var(--text-subtle); font-size: var(--text-xs); }
+
+/* How far along its bar the colour is. One bar rather than the two the mana
+   panel this tab absorbed drew: that one compared two shares of a deck, and
+   this one compares a count against a threshold, which is a single distance. */
+.db-sources-bar {
+  display: block;
+  height: 6px;
+  flex: 1 1 60px;
+  min-width: 40px;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.db-sources-bar > span { display: block; height: 100%; }
+
+.db-sources-gap { color: var(--danger); font-size: var(--text-xs); white-space: nowrap; }
+.db-sources-ok  { color: var(--text-subtle); font-size: var(--text-xs); white-space: nowrap; }
+
+/* The argument with the headline, spread out. Indented under the rows it is
+   the evidence for, and quieter than them. */
+.db-sources-short {
+  padding: var(--space-1) 0 var(--space-2) var(--space-4);
+  border-left: 1px solid var(--border);
+  margin-left: var(--space-2);
+}
+.db-sources-short-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+}
+.db-sources-short-name { color: var(--text); }
+.db-sources-short-fig  { color: var(--text-muted); }
+
+.db-sources-counts {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: var(--space-2) 0 var(--space-1);
+}
+/* What the numbers assume, said under them rather than hedged into every
+   line — the same footing the bracket estimate's limits get, for the same
+   reason: a convention nobody wrote down is a claim. Folded away behind the
+   line below, because the same claim standing over every deck is a wall in
+   front of the bars. */
+.db-sources-limit {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* The way into them. The same link as the header's, unpinned from the right
+   edge: this one sits under the rows it qualifies, where a footnote goes. */
+.db-sources-how {
+  display: block;
+  margin-left: 0;
+  text-align: left;
+  padding-top: var(--space-1);
+}
+
+/* ── The Lands tab: optimize basics ───────────────────────────────────────
+   Between the check and the fix, and the one thing on this tab that writes to
+   the deck. It borrows the check's heading above it and its footnote type
+   below, because it is the same panel's next sentence — but the row of
+   controls is its own, because nothing else in the drawer asks for a number.
+
+   The preview is a block that appears under the controls rather than a box
+   beside them: it grows by a row per colour, and a panel that changed width
+   between the two presses would move the button being pressed. */
+.db-basics {
+  padding: var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.db-basics-ask {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+.db-basics-lbl { font-size: var(--text-sm); color: var(--text-muted); }
+
+.db-basics-n {
+  width: 4.5rem;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.db-basics-n:focus { outline: none; border-color: var(--primary); }
+
+.db-basics-go {
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-base) var(--ease-tint),
+              color var(--dur-base) var(--ease-tint);
+}
+.db-basics-go:hover { border-color: var(--primary); color: var(--primary); }
+
+/* The override, under the row it modifies rather than in it: the field and the
+   button are one gesture with two steps, and a third control wedged between
+   them would read as part of the sentence they make.
+
+   The same shape as .db-ci-toggle — the drawer's other checkbox — and
+   deliberately not the same rule. That one sits inline beside a select and is
+   `flex-shrink: 0; white-space: nowrap` so it never wraps out of that row;
+   this one owns its line and carries a sentence, so wrapping is exactly what
+   it must be allowed to do on a narrow drawer. The two are paired in the phone
+   block above, where what they share — a label stretched to a finger's worth
+   of tap target — really is one rule. */
+.db-basics-one-each {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-bottom: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.db-basics-one-each input[type="checkbox"] { accent-color: var(--primary); cursor: pointer; }
+.db-basics-one-each label { cursor: pointer; }
+
+.db-basics-preview:empty { display: none; }
+.db-basics-preview { padding-top: var(--space-1); }
+
+/* The basics that came off the budget, above the split rather than under it:
+   it is the reason the numbers below are the numbers below. */
+.db-basics-spare {
+  padding-bottom: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.db-basics-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+.db-basics-card { flex: 1; color: var(--text); }
+.db-basics-fig  { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.db-basics-fig strong { color: var(--text); }
+/* A row that is not moving is still worth drawing — a basic that vanished
+   from the preview would read as one about to vanish from the deck. */
+.db-basics-same { opacity: .55; }
+
+.db-basics-size {
+  padding-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.db-basics-size strong { color: var(--text); }
+
+/* What the check would still say. Marked as a shortfall, because that is what
+   it is, and the whole reason to read the preview before pressing again. */
+.db-basics-verdict {
+  padding-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--danger);
+}
+.db-basics-clear { color: var(--text-subtle); }
+
+/* ── The Lands tab: fix it ────────────────────────────────────────────────
+   Between the check and the cycles: one section per colour the check calls
+   short, opening into the lands that would close it. It borrows the cycles'
+   section shape below it rather than inventing a second one — the two are the
+   same gesture, and a colour is a heading you open like any other — and it
+   borrows the check's heading above it, because it is the other half of that
+   panel's sentence. */
+.db-fix { padding: var(--space-2) 0 0; }
+
+/* Nothing to fix — a finding, and the one the tab is for, so it is said in
+   the region rather than left as a heading with nothing under it. */
+.db-fix-done {
+  padding: 0 var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* What the list left out, above the list rather than under it: a dozen tiles
+   is four rows deep on a phone, and a note at the bottom of them is a note
+   read after the reader has decided the list was everything. */
+.db-fix-note { padding: 0 var(--space-1) var(--space-1); }
+
+/* ── The Lands tab: one row per cycle, opening into a grid ────────────────
+   A closed section is a row and nothing else — no fill, no box — because
+   twenty boxed cards stacked down a drawer is a wall, and the thing being
+   scanned is a list of twenty names. The rule between them is the same
+   hairline the EDHREC headers draw, so the two tabs read as one drawer. */
+.db-land-note { padding: var(--space-1) 0 var(--space-2); }
+
+.db-land-section { border-bottom: 1px solid var(--border); }
+
+.db-land-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: var(--space-2) var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-base) var(--ease-tint);
+}
+.db-land-hdr:hover { color: var(--primary); }
+
+/* The caret holds its own width so the names line up whichever way it
+   points, and the two glyphs are different widths. */
+.db-land-caret {
+  width: var(--space-3);
+  color: var(--text-muted);
+}
+/* The name of the section, cycle or colour — the fix region's heading takes
+   the room a cycle's takes, so the two stacks line up down the drawer. */
+.db-land-name,
+.db-fix-name { flex: 1; }
+
+/* How many came back, which is only ever known for a section that has been
+   opened — a closed one has asked Scryfall nothing. */
+.db-land-count {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.db-land-body { padding-bottom: var(--space-2); }
+
+/* ── The Lands tab: the one way out ───────────────────────────────────────
+   The line through to the Mana Base Calculator, at the foot of the tab. Quiet
+   on purpose: the calculator is not a second opinion on the check above, it is
+   the thing to reach for when there is no deck to check — so it reads as a
+   footnote rather than as a control competing with the fix. */
+.db-lands-calc {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-3) var(--space-1) var(--space-2);
+}
+.db-lands-calc-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-decoration: underline;
+  transition: color var(--dur-base) var(--ease-tint);
+}
+.db-lands-calc-link:hover { color: var(--primary); }
+.db-lands-calc-note { color: var(--text-subtle); font-size: var(--text-xs); }
+
 /* The section label and the rule between sections, which the Deck Builder's ⋯
    popover named first and which outlived it: the Appearance popover and the
    shared kebab in js/sortui.js draw both. The popover itself is gone — its
@@ -3254,115 +3588,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-check-unknown, .db-check-est { color: var(--text-muted); font-size: var(--text-xs); }
 .db-check-undeclared { color: var(--text-muted); }
 
-/* ── What the spells want, against what the lands make ───────────────────────
-   The third panel to rise out of the readout, positioned exactly as the other
-   two are: it belongs to the line it was opened from, so it goes where that
-   line goes and folds away with it. Only one of the three is ever open — each
-   closes the other two — because they are anchored to the same edge of the
-   same bar. */
-.db-mana-panel {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  max-height: 50vh;
-  overflow-y: auto;
-  background: var(--surface-1);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: var(--space-2) var(--space-4) var(--space-3);
-  font-size: var(--text-sm);
-}
-.db-mana-hdr {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-bottom: var(--space-2);
-}
-.db-mana-title { font-weight: 700; }
-/* The way through to the calculator, with every one of its fields already
-   filled. It sits in the header rather than at the foot of the panel because
-   it is what this panel is *for* on the days you are not just reading it, and
-   because the foot of a panel that scrolls is not a place a control can live. */
-.db-mana-calc { margin-left: auto; font-size: var(--text-xs); padding: var(--space-1) var(--space-2); }
-.db-mana-close {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-}
-.db-mana-close:hover { color: var(--text); }
-
-.db-mana-group { padding-bottom: var(--space-2); }
-.db-mana-group-hdr {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  padding: var(--space-1) 0;
-}
-.db-mana-note { font-weight: 400; text-transform: none; letter-spacing: 0; }
-
-/* One colour: what it costs the deck, the two shares as a shape, and what the
-   deck makes of it. The row wraps rather than squeezing — on a phone the bars
-   drop under the figures, which is the one thing here that can afford to. */
-.db-mana-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
-  padding: var(--space-1) 0;
-}
-.db-mana-sym { flex: 0 0 auto; }
-.db-mana-fig { color: var(--text-muted); white-space: nowrap; }
-.db-mana-fig strong { color: var(--text); }
-.db-mana-pct { color: var(--text-subtle); font-size: var(--text-xs); }
-/* The deck asks for a colour and nothing in it makes that colour. The only
-   finding this panel is willing to call a fault, so it is the only thing on it
-   drawn in the colour a fault is drawn in. */
-.db-mana-warn { color: var(--danger); font-size: var(--text-xs); }
-
-/* Two bars, one over the other, in the colour's own ink: the share of the
-   deck's pips this colour is, and the share of its sources. Reading one
-   against the other is the whole of what this panel is for, and a shape does
-   that faster than two numbers ever will. */
-.db-mana-bars {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  flex: 1 1 120px;
-  min-width: 80px;
-}
-.db-mana-bar {
-  display: block;
-  height: 6px;
-  background: var(--surface-3);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.db-mana-bar > span { display: block; height: 100%; }
-
-.db-mana-counts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
-  padding: var(--space-1) 0;
-}
-/* How the numbers above were arrived at, said once underneath them rather than
-   hedged into every line — the same footing the bracket estimate's limits get,
-   and for the same reason: a convention that is not written down is a claim. */
-.db-mana-limit {
-  color: var(--text-subtle);
-  font-size: var(--text-xs);
-  padding: var(--space-1) 0 0;
-}
-.db-mana-none { color: var(--text-subtle); padding: var(--space-2) 0; }
+/* ── The lands figure's caption ──────────────────────────────────────────── */
 /* On the readout itself: the colours the deck asks for and nothing in it
    makes. A caption on a line of figures, in the colour of the thing it is. */
 .db-mana-gap { color: var(--danger); font-size: var(--text-xs); }

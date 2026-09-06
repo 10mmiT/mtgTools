@@ -892,6 +892,16 @@ function dbRenderStats() {
   dbTotalsChanged();
   dbCheckChanged();
   dbManaChanged();
+  /* And the Lands tab's check, when that is the half of the drawer showing.
+     It is a readout of this deck the same way the line below the mat is, and
+     the drawer can be open while the deck is edited underneath it — the same
+     staleness _dbRefreshDrawer() exists to fix for the tiles.
+
+     Asked for by name rather than called outright, unlike the three above it:
+     the drawer is a later file than this one, and three test harnesses load
+     the mat without it. A readout that quietly does not redraw in those is the
+     right failure; a whole tab that throws is not. */
+  if (typeof _dbRenderLands === 'function' && dbLeftTab === 'lands') _dbRenderLands();
   const totals = dbDeckTotals();
 
   /* How big the deck is *meant* to be, asked of js/deckview-legality.js rather
@@ -907,8 +917,8 @@ function dbRenderStats() {
      identity, which is the right answer to "what colours is this deck" and the
      wrong one to "how many Plains". The tooltip says which of the two it is,
      because a number beside a mana symbol reads as a pip count otherwise, and
-     what the deck's costs actually ask for is a walk over `mana_cost` in the
-     panel the lands figure opens. */
+     what the deck's costs actually ask for is a walk over `mana_cost` behind
+     the lands figure, on the Lands tab. */
   const pipHtml = ['W','U','B','R','G']
     .filter(c => totals.colorCards[c] > 0)
     .map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost" title="${c}"></i><span style="font-size:var(--text-xs)">${totals.colorCards[c]}</span>`)
@@ -923,7 +933,7 @@ function dbRenderStats() {
   if (cmcEl)    cmcEl.innerHTML    = `avg CMC <strong>${avgCmc}</strong>`;
   if (colorsEl) {
     colorsEl.innerHTML = pipHtml || '<span style="color:var(--text-muted)">colorless</span>';
-    colorsEl.title = 'Cards by colour identity — what the deck’s costs ask for is in the mana panel';
+    colorsEl.title = 'Cards by colour identity — what the deck’s costs ask for is on the Lands tab';
   }
 
   /* "87 of 99 owned" — the one figure on this line that is not a fact about
@@ -940,12 +950,12 @@ function dbRenderStats() {
      them is redrawn if it is standing open while cards move. */
   dbRenderCheckStats();
   _dbSyncCheckPanel();
-  /* And the lands figure, which is now the door to what the lands are for:
-     what the deck's spells want against what its lands make. Written by
-     js/deckview-mana.js off its own pass, for the same reason the two above
-     are — it is a fact about the cards, so it moves when they do. */
+  /* And the lands figure, which is the door to what the lands are for: the
+     drawer's Lands tab. Written by js/deckview-mana.js off its own pass, for
+     the same reason the two above are — it is a fact about the cards, so it
+     moves when they do. The tab behind the door is redrawn by dbRender()
+     above, where every other half of the drawer is. */
   dbRenderManaStat();
-  _dbSyncManaPanel();
 }
 
 // ── View toggle ───────────────────────────────────────────────────────────────

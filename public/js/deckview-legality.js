@@ -633,9 +633,9 @@ let _dbCheckPanelOpen = false;
 
 function dbToggleCheckPanel() {
   _dbCheckPanelOpen = !_dbCheckPanelOpen;
-  /* Three panels rise out of the same line and would lie on top of each other,
-     so opening this one puts the other two away. */
-  if (_dbCheckPanelOpen) { dbCloseOwnedPanel(); dbCloseManaPanel(); }
+  /* Both panels rise out of the same line and would lie on top of each other,
+     so opening this one puts the other away. */
+  if (_dbCheckPanelOpen) dbCloseOwnedPanel();
   _dbSyncCheckPanel();
 }
 

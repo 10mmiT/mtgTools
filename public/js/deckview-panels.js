@@ -157,6 +157,7 @@ function _dbRenderAddTo() {
  * it one. */
 function _dbRefreshDrawer() {
   if (dbLeftTab === 'edhrec') { if (dbEdhrecData) _dbRenderEdhrec(); }
+  else if (dbLeftTab === 'lands') _dbRenderLands();
   else if (dbSrResults.length) _dbRenderSearch();
   _dbRenderAddTo();
 }
@@ -186,6 +187,27 @@ function _dbHeldOn(name) {
 
 const _dbBoardLabel = id => id === DB_MAIN_BOARD
   ? 'Deck' : (DB_BOARDS.find(b => b.id === id)?.label || id);
+
+/* The picture on a card Scryfall handed back, which is where a two-sided one
+ * keeps it: no `image_uris` on the card itself, one on the front face. Every
+ * half of the drawer wanted the same two lines for it.
+ *
+ * Not js/deckview-render.js's _dbCardImg(), which asks the same question of a
+ * *row of a deck* — a name, and the printing that row was pinned to. The mat
+ * draws cards it holds and the drawer draws cards it has just been told about,
+ * and only one of the two has a printing to honour. */
+const _dbSfImg = sf =>
+  sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
+
+/* Cards Scryfall has just handed us, kept where the rest of the tab looks for
+ * them. Both names of a two-sided card point at the one object, because the
+ * deck may hold it under either. */
+function _dbCacheCards(cards) {
+  for (const card of cards) {
+    dbCardData.set(card.name, card);
+    if (card.card_faces?.[0]?.name) dbCardData.set(card.card_faces[0].name, card);
+  }
+}
 
 /* One card in the drawer: the picture, its name, whatever this half of the
  * drawer knows about it, and the + that takes it.
@@ -275,11 +297,7 @@ async function dbSearch() {
       return;
     }
     dbSrResults = data.data || [];
-    // Cache Scryfall data for all returned cards
-    for (const card of dbSrResults) {
-      dbCardData.set(card.name, card);
-      if (card.card_faces?.[0]?.name) dbCardData.set(card.card_faces[0].name, card);
-    }
+    _dbCacheCards(dbSrResults);
     _dbRenderSearch();
   } catch (e) {
     resultsEl.innerHTML = `<div class="error-msg" style="margin:var(--space-2) 0">${esc(e.message)}</div>`;
@@ -374,8 +392,7 @@ function _dbRenderSearch(note = _dbSearchNote) {
     ? `<div class="help-text db-sr-note">${esc(note)}</div>` : '';
   const canAdd = !!(dbDeck && isMyPlayer(dbDeck.playerId));
   el.innerHTML = noteHtml + `<div class="sf-grid db-find-grid">` + dbSrResults.map(card => {
-    const face  = card.card_faces?.[0];
-    const img   = card.image_uris?.normal || face?.image_uris?.normal || '';
+    const img = _dbSfImg(card);
     /* The price and the want-list button, which are what this half of the
        drawer knows about a card beyond its picture. The mana cost and the type
        line are gone from the tile and not lost: they are on the card, which is
@@ -392,6 +409,10 @@ function dbOpenSearchPanel() {
   document.getElementById('dbSearchPanel')?.classList.add('open');
   document.getElementById('dbSearchBackdrop')?.classList.add('open');
   document.body.style.overflow = 'hidden';
+  /* The button on the strip says whether what it opens is open, the same as
+     the menu's does — the drawer can also be opened by `/` and by the mana
+     figure, so the state is written here rather than by whoever pressed. */
+  document.getElementById('dbFindBtn')?.setAttribute('aria-expanded', 'true');
   /* Drawn on the way in rather than at boot: the boards it lists are a fact
      about this deck's tab, and the drawer is where somebody is about to use
      it. Redrawing what the deck holds with it, because the deck may have moved
@@ -403,6 +424,7 @@ function dbCloseSearchPanel() {
   document.getElementById('dbSearchPanel')?.classList.remove('open');
   document.getElementById('dbSearchBackdrop')?.classList.remove('open');
   document.body.style.overflow = '';
+  document.getElementById('dbFindBtn')?.setAttribute('aria-expanded', 'false');
 }
 
 // ── Cards carried to another pile ────────────────────────────────────────────
@@ -512,12 +534,18 @@ function cardCarryDrop(refs, place) {
 }
 
 // ── Left panel tabs ───────────────────────────────────────────────────────────
+/* The halves of the drawer, by name. Written as a list rather than as a line
+   per tab: the third one — the land cycles — was where two lines each became
+   six, and a fourth would be six more. */
+const DB_LEFT_TABS = ['search', 'edhrec', 'lands'];
+
 function dbSetLeftTab(tab) {
   dbLeftTab = tab;
-  document.getElementById('db-ltab-search')?.classList.toggle('active', tab === 'search');
-  document.getElementById('db-ltab-edhrec')?.classList.toggle('active', tab === 'edhrec');
-  document.getElementById('db-left-search').style.display  = tab === 'search'  ? '' : 'none';
-  document.getElementById('db-left-edhrec').style.display  = tab === 'edhrec'  ? '' : 'none';
+  for (const name of DB_LEFT_TABS) {
+    document.getElementById(`db-ltab-${name}`)?.classList.toggle('active', tab === name);
+    const pane = document.getElementById(`db-left-${name}`);
+    if (pane) pane.style.display = tab === name ? '' : 'none';
+  }
 
   if (tab === 'edhrec' && !_dbEdhrecLoaded) {
     dbLoadEdhrec();
@@ -603,9 +631,7 @@ function _dbRenderEdhrec() {
       const cards = views
           .filter(c => !dbMainCards().some(d => d.card_name === c.name))
           .slice(0, DB_EDHREC_PER_SECTION).map(c => {
-        const sf     = dbCardData.get(c.name);
-        const face   = sf?.card_faces?.[0];
-        const img    = sf?.image_uris?.normal || face?.image_uris?.normal || '';
+        const img    = _dbSfImg(dbCardData.get(c.name));
         const synPct   = c.synergy != null ? `${Math.round(c.synergy * 100)}%` : '';
         const incCount = c.num_decks != null ? `${c.num_decks.toLocaleString()} decks` : '';
         return _dbDrawerTile(c.name, { img, canAdd, badges:
@@ -658,8 +684,7 @@ async function dbCreateDeck() {
         const d = await r.json();
         commanderImg = d.image_uris?.art_crop || d.card_faces?.[0]?.image_uris?.art_crop || null;
         // Store card data
-        dbCardData.set(d.name, d);
-        if (d.card_faces?.[0]?.name) dbCardData.set(d.card_faces[0].name, d);
+        _dbCacheCards([d]);
       }
     } catch {}
   }

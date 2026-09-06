@@ -151,7 +151,7 @@ function loadTab({ deck = DECK, cards = CARDS, collections = SHELVES,
                       'owned.js', 'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',
-                      'deckview-mana.js']) {
+                      'deckview-mana.js', 'deckview-landbase.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
   const run    = expr => vm.runInContext(expr, sandbox);

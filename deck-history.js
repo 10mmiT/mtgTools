@@ -79,11 +79,15 @@ const AGE_FLOOR     = 5;
  *  has been forcing one since the day it could be done from the mat, and the
  *  server has been answering 400 to every one of them.
  *
+ *  'basics' is the Lands tab's one write: re-splitting a deck's basics across
+ *  its colours moves half a dozen rows at once, which is exactly the kind of
+ *  change somebody wants a way back from.
+ *
  *  The optimiser's three are three rather than one because cheapest and dearest
  *  are opposites: telling the run that made the deck cheap from the one that
  *  made it expensive is what the row in the panel is for. */
 const REASONS = new Set([
-  'edit', 'import', 'category', 'move', 'commander', 'restore', 'deck-delete',
+  'edit', 'import', 'category', 'move', 'commander', 'basics', 'restore', 'deck-delete',
   'optimize-cheapest', 'optimize-dearest', 'optimize-owned',
 ]);
 
