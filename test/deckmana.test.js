@@ -21,8 +21,14 @@
  * Three layers, all against the shipped files:
  *
  *   the pass    js/deckview-mana.js over a deck, in a vm sandbox
- *   the panel   the readout's lands figure and the panel it opens, drawn
+ *   the door    the readout's lands figure, and the Lands tab it opens
  *   the fill    js/lands.js's fields, written from the deck
+ *
+ * The panel that used to rise out of that figure is gone: it drew pips against
+ * sources per colour, and the Lands tab's check draws the same comparison with
+ * the requirement beside it and the fix underneath. What it said is asserted
+ * where it now lives — test/decklands.test.js — and what is left here is the
+ * pass those numbers are read off, the figure that opens the tab, and the fill.
  *
  * What is not asserted is what any of it looks like. That is the eye's.
  */
@@ -202,9 +208,13 @@ function loadTab({ deck = [...DECK, COMMANDER], cards = CARDS, commander = 'Atra
     render() { run('dbRenderStats()'); },
     passes: () => run('_dbManaPasses'),
     lands:  () => el('dbStatLands').innerHTML,
-    /** The panel, opened. */
-    open()  { run('dbToggleManaPanel()'); return el('dbManaPanel').innerHTML; },
-    panel:  () => el('dbManaPanel').innerHTML,
+    /** The lands figure, pressed. */
+    press() { run('dbOpenLandsTab()'); },
+    /** Where that put you: the drawer's half, and whether the drawer is open. */
+    leftTab:    () => run('dbLeftTab'),
+    drawerOpen: () => el('dbSearchPanel').classList.contains('open'),
+    /** The Lands tab, drawn — which is where the panel's readings went. */
+    tab:    () => el('dbLandsContent').innerHTML,
     /** What the calculator holds. */
     field:  id => el(id).value,
     note:   () => el('landsDeckNote').textContent,
@@ -331,8 +341,8 @@ test('the lands are counted, and split into basics and the rest', () => {
 test('and what counts as a land is the readout’s answer, not a second one', () => {
   /* An artifact land is bucketed under artifacts by the app's one type ladder,
      which is what the breakdown and the piles on the mat read. Two ways of
-     deciding what a land is would put a different number in the panel from the
-     one on the line that opens it. */
+     deciding what a land is would put a different number on the Lands tab from
+     the one on the figure that opens it. */
   const tab = loadTab();
   tab.run(`
     dbCardData.set('Darksteel Citadel', { name: 'Darksteel Citadel',
@@ -343,7 +353,7 @@ test('and what counts as a land is the readout’s answer, not a second one', ()
   `);
   tab.render();
   assert.strictEqual(tab.mana().lands.total, tab.answer('dbDeckTotals().lands'),
-    'the panel and the readout disagree about how many lands the deck has');
+    'the pass and the readout disagree about how many lands the deck has');
   assert.strictEqual(tab.mana().sources.C, 2,
     'and it is still a source of colourless, which is what produced_mana says');
 });
@@ -358,24 +368,34 @@ test('a card whose facts have not arrived is counted in neither, and named', () 
   tab.run('dbManaChanged()');
   const { unknown } = tab.mana();
   assert.deepStrictEqual(unknown, ['Wrath of God']);
-  assert.match(tab.open(), /no facts yet/, 'the panel claimed a comparison it could not make');
-  assert.match(tab.panel(), /Wrath of God/, 'and did not say which card it could not read');
+  /* And said where the comparison is now read, rather than only counted there:
+     the check's foot names them, which is how somebody tells a deck that wants
+     no white apart from a deck whose white is still in flight. */
+  tab.press();
+  assert.match(tab.tab(), /no facts yet/, 'the check claimed a comparison it could not make');
+  assert.match(tab.tab(), /Wrath of God/, 'and did not say which card it could not read');
 });
 
 // ── The comparison ────────────────────────────────────────────────────────
+/* One pass, two halves: what a colour costs the deck and what the deck makes
+ * of it. Reading one against the other is the Lands tab's job now — the shape
+ * of that reading is asserted in test/decklands.test.js — and what is asserted
+ * here is that the pass hands it two halves that are actually different
+ * questions. */
 
-test('the panel puts the pips of a colour against the sources of it', () => {
+test('the pass puts the pips of a colour against the sources of it', () => {
   const tab = loadTab();
-  tab.render();
-  const html = tab.open();
-  assert.match(html, /<strong>2\.5<\/strong> pips/, 'the white pips are not on the panel');
-  assert.match(html, /<strong>6<\/strong> sources/, 'nor the white sources');
-  assert.match(html, /% of pips · \d+% of sources/, 'the two shares are not compared');
+  const mana = tab.mana();
+  about(mana.pips.W, 2.5, 'the white pips');
+  assert.strictEqual(mana.sources.W, 6, 'the white sources');
+  assert.strictEqual(mana.fromLands.W, 5,
+    'and the lands among them, which is the half the check is allowed to count');
 });
 
-test('a colour the deck asks for and nothing makes is said, on the panel and on the line', () => {
-  /* The one finding this panel is willing to call a fault, because it is the
-     only one that is not a matter of taste. */
+test('a colour the deck asks for and nothing makes is said, on the line and on the tab', () => {
+  /* The one finding this pass is willing to call a fault, because it is the
+     only one that is not a matter of taste. The line carries it as a caption
+     and the tab behind it as a colour with no sources at all. */
   const tab = loadTab({ deck: [
     { card_name: 'Lightning Bolt', category: 'Removal' },
     { card_name: 'Plains',         category: 'Lands', qty: 4 },
@@ -383,51 +403,64 @@ test('a colour the deck asks for and nothing makes is said, on the panel and on 
   assert.deepStrictEqual(tab.mana().unmade, ['R']);
   tab.render();
   assert.match(tab.lands(), /1 colour unmade/, 'the readout said nothing about it');
-  assert.match(tab.open(), /nothing makes it/);
+  tab.press();
+  assert.match(tab.tab(), /<strong>0<\/strong> sources/, 'the check found red somewhere');
 });
 
-test('a colour the deck makes and never asks for is not a fault, and gets its row', () => {
+test('a colour the deck makes and never asks for is not a fault', () => {
+  /* The panel gave it a row; the check does not, and deliberately — its rule
+     is one row per colour the deck's *costs* ask for, so a Tower in a mono-red
+     deck is not five findings. What survives the move is the pass's answer:
+     white is made, and not being asked for is not a gap. */
   const tab = loadTab({ deck: [
     { card_name: 'Lightning Bolt',  category: 'Removal' },
     { card_name: 'Command Tower',   category: 'Lands' },
   ], commander: '' });
   assert.deepStrictEqual(tab.mana().unmade, [], 'a source with no demand was called a gap');
-  assert.match(tab.open(), /ms-w/, 'the white the Tower makes is not on the panel');
+  assert.strictEqual(tab.mana().sources.W, 1, 'the white the Tower makes went uncounted');
+  tab.press();
+  assert.ok(!/ms-w/.test(tab.tab()), 'a colour nothing in the deck costs was given a line');
 });
 
 test('a colourless deck is a sensible answer rather than a division by nought', () => {
   const tab = loadTab({ deck: [{ card_name: 'Sol Ring', category: 'Ramp' }], commander: '' });
   const mana = tab.mana();
   assert.strictEqual(mana.totalPips, 0);
+  assert.strictEqual(mana.sources.C, 1, 'the Sol Ring makes nothing');
   tab.render();
-  const html = tab.open();
-  assert.ok(!/NaN|Infinity/.test(html), 'the panel divided by nought');
-  assert.match(html, /<strong>1<\/strong> sources/, 'the Sol Ring is not on it');
+  tab.press();
+  assert.ok(!/NaN|Infinity/.test(tab.tab()), 'the tab divided by nought');
+  /* And no verdict either. Nothing in the deck costs coloured mana, so the
+     check has no colour to have a finding about — a row of nought against
+     nought is not one. */
+  assert.ok(!/db-sources-row/.test(tab.tab()), 'a deck that asks for nothing was given rows');
 });
 
-test('a deck with nothing in it says so rather than drawing six empty rows', () => {
+test('a deck with nothing in it draws no rows rather than six empty ones', () => {
   const tab = loadTab({ deck: [], commander: '' });
   tab.render();
-  assert.match(tab.open(), /Nothing in this deck costs or makes coloured mana/);
+  tab.press();
+  assert.ok(!/db-sources-row/.test(tab.tab()), 'an empty deck was drawn colour rows');
 });
 
-test('the panel says how it counted, every time it is read', () => {
-  /* A convention that is not written down is a claim. The halves and the
-     double-counted dual are both conventions. */
+test('the tab says what it assumes, every time it is read', () => {
+  /* A convention that is not written down is a claim. What the table assumes
+     about a source is the convention that matters most here, and the check
+     carries it — see test/decklands.test.js for the rest of what it says. */
   const tab = loadTab();
-  const html = tab.open();
-  assert.match(html, /hybrid symbol is half a pip/);
-  assert.match(html, /shares are of source slots/);
-  assert.match(html, /commander included/);
+  tab.render();
+  tab.press();
+  assert.match(tab.tab(), /untapped/i);
+  assert.match(tab.tab(), /multiplayer/i);
 });
 
 // ── One pass, and none of it on render ────────────────────────────────────
 
-test('the readout and the panel cost one pass between them', () => {
+test('the readout and the tab cost one pass between them', () => {
   const tab = loadTab();
   tab.render();
-  tab.open();
-  assert.strictEqual(tab.passes(), 1, 'the panel counted the deck a second time to draw itself');
+  tab.press();
+  assert.strictEqual(tab.passes(), 1, 'the tab counted the deck a second time to draw itself');
 });
 
 test('drawing the mat costs none at all', () => {
@@ -438,13 +471,13 @@ test('drawing the mat costs none at all', () => {
   assert.strictEqual(tab.passes(), after, 'the mat recounted the deck’s mana to draw itself');
 });
 
-test('opening and closing the panel costs none either', () => {
+test('going to the tab and back costs none either', () => {
   const tab = loadTab();
   tab.render();
   const after = tab.passes();
-  tab.run('dbToggleManaPanel()');
-  tab.run('dbToggleManaPanel()');
-  tab.run('dbToggleManaPanel()');
+  tab.press();
+  tab.run(`dbSetLeftTab('search')`);
+  tab.press();
   assert.strictEqual(tab.passes(), after);
 });
 
@@ -454,30 +487,51 @@ test('a deck that changes is counted again', () => {
   const before = tab.mana().sources.W;
   tab.run(`dbCards.find(c => c.card_name === 'Plains').qty = 12`);
   tab.render();
-  assert.strictEqual(tab.mana().sources.W, before + 8, 'the panel went stale');
+  assert.strictEqual(tab.mana().sources.W, before + 8, 'the pass went stale');
   assert.strictEqual(tab.passes(), 2, 'once per change, and once only');
 });
 
-test('and a panel standing open while cards move is redrawn', () => {
+test('and the tab standing open while cards move is redrawn', () => {
   const tab = loadTab();
   tab.render();
-  tab.open();
+  tab.press();
   tab.run(`dbCards.find(c => c.card_name === 'Plains').qty = 12`);
   tab.render();
-  assert.match(tab.panel(), /<strong>14<\/strong> sources/,
-    'the open panel went on showing the mana base the deck used to have');
+  assert.match(tab.tab(), /<strong>13<\/strong> sources/,
+    'the open tab went on showing the mana base the deck used to have');
 });
 
-// ── One of the three panels, and only one ─────────────────────────────────
+// ── The door, and what it does not disturb ────────────────────────────────
+/* The lands figure used to raise a third panel out of the readout, which is
+ * why the other two put each other away. It opens the drawer now, and the two
+ * that are left are still a pair. */
 
-test('opening this panel puts the other two away', () => {
+test('the lands figure opens the Lands tab, drawer and all', () => {
+  const tab = loadTab();
+  tab.render();
+  assert.ok(!tab.drawerOpen(), 'the drawer arrived open');
+  tab.press();
+  assert.strictEqual(tab.leftTab(), 'lands', 'the drawer was left on whichever half it was on');
+  assert.ok(tab.drawerOpen(), 'the tab was switched to inside a drawer nobody opened');
+});
+
+test('the door raises nothing out of the readout, so the two panels are untouched', () => {
   const tab = loadTab();
   tab.render();
   tab.run('dbToggleOwnedPanel()');
-  tab.run('dbToggleManaPanel()');
-  assert.strictEqual(tab.el('dbOwnedPanel').style.display, 'none');
+  tab.press();
+  assert.notStrictEqual(tab.el('dbOwnedPanel').style.display, 'none',
+    'a panel was put away by something that no longer lies over it');
+});
+
+test('and the two that are left still put each other away', () => {
+  const tab = loadTab();
+  tab.render();
+  tab.run('dbToggleOwnedPanel()');
   tab.run('dbToggleCheckPanel()');
-  assert.strictEqual(tab.el('dbManaPanel').style.display, 'none',
+  assert.strictEqual(tab.el('dbOwnedPanel').style.display, 'none');
+  tab.run('dbToggleOwnedPanel()');
+  assert.strictEqual(tab.el('dbCheckPanel').style.display, 'none',
     'two panels anchored to the same edge were open at once');
 });
 
@@ -567,12 +621,19 @@ test('resetting the calculator drops what the deck put in it, and says so', () =
     'the line went on describing numbers that had been cleared');
 });
 
-test('the panel’s one action fills the calculator from inside the builder', () => {
+test('the Lands tab’s one way out fills the calculator from inside the builder', () => {
+  /* The calculator was not absorbed and will not be: it is the only thing in
+     the app that works with no deck loaded, which is the case the Lands tab
+     cannot serve. So the tab keeps one line through to it, and the line
+     carries the deck. */
   const tab = loadTab();
   tab.run('initLands()');
+  tab.press();
   tab.run('dbOpenInCalculator()');
   assert.strictEqual(tab.field('landsCount'), 7,
     'the way through from the deck did not carry the deck with it');
+  assert.ok(!tab.drawerOpen(),
+    'the drawer was left open, holding the body’s scroll lock over the tab it sent you to');
 });
 
 // ── The frame ─────────────────────────────────────────────────────────────
@@ -581,18 +642,25 @@ const MARKUP = read('public/index.html');
 const CSS    = read('public/css/tabs.css');
 const MODULE = read('public/js/deckview-mana.js');
 
-test('the panel rises out of the readout, off the lands figure', () => {
-  const bar = MARKUP.match(/<div class="db-stats-bar[\s\S]*?<\/div>\s*<\/div>/);
-  assert.ok(bar, 'the readout is gone');
-  assert.match(bar[0], /id="dbManaPanel"/, 'the panel is not a child of the line it opens from');
-  assert.match(bar[0], /id="dbStatLands"[^>]*aria-controls="dbManaPanel"/,
-    'the lands figure does not say what it opens');
+test('the lands figure is a door to the tab, and the panel it used to raise is gone', () => {
+  assert.match(MARKUP, /id="dbStatLands"[^>]*onclick="dbOpenLandsTab\(\)"/,
+    'the lands figure does not open the Lands tab');
+  /* Nothing anywhere still opens it, which is the other half of "the panel
+     goes": a div left in the markup with no door is dead weight, and a
+     function left in the module is a second reading of the same numbers
+     waiting for somebody to call it. */
+  assert.ok(!/dbManaPanel/.test(MARKUP), 'the panel is still in the markup');
+  assert.ok(!/ManaPanel/.test(MODULE), 'the panel is still in the module');
+  for (const file of ['deckview-owned.js', 'deckview-legality.js', 'deckview-render.js']) {
+    assert.ok(!/ManaPanel/.test(read(`public/js/${file}`)),
+      `js/${file} still reaches for a panel that is gone`);
+  }
 });
 
 test('the lands figure is the door, because the colour row is not there on a phone', () => {
   assert.match(CSS, /#dbStatColors \{ display: none; \}/,
     'the colour row is on the readout at every width now, which changes this argument');
-  assert.ok(!/#dbStatLands \{ display: none/.test(CSS), 'the way into the panel is hidden on a phone');
+  assert.ok(!/#dbStatLands \{ display: none/.test(CSS), 'the way to the tab is hidden on a phone');
 });
 
 test('the calculator carries the control, and the module is served', () => {
@@ -605,11 +673,18 @@ test('the calculator carries the control, and the module is served', () => {
     'the mana module is loaded before the totals it asks what a land is');
 });
 
-test('the panel has a stylesheet, and the phone has its targets', () => {
-  assert.match(CSS, /\.db-mana-panel \{/);
-  assert.match(CSS, /\.db-mana-bar \{/, 'the comparison bars have no rule');
-  assert.match(CSS, /\.db-mana-close \{ min-width: 44px; min-height: 44px; \}/);
-  assert.match(CSS, /\.db-mana-calc\s+\{ min-height: 44px; \}/);
+test('the readout’s caption keeps its rule, and the panel’s rules went with it', () => {
+  assert.match(CSS, /\.db-mana-gap \{/, 'the unmade-colours caption on the readout has no rule');
+  assert.ok(!/\.db-mana-panel|\.db-mana-row|\.db-mana-bar/.test(CSS),
+    'the stylesheet still dresses a panel nothing draws');
+});
+
+test('the tab’s two quiet controls are thumb targets on a phone', () => {
+  /* Both are lines of text by design on a desktop — the way into the per-card
+     list, and the way out to the calculator — which is exactly the kind that
+     arrives on a phone too short to hit. */
+  assert.match(CSS, /\.db-sources-more\s+\{ min-height: 44px; \}/);
+  assert.match(CSS, /\.db-lands-calc-link \{ min-height: 44px; \}/);
 });
 
 test('a colour is drawn in the theme’s mana palette, never in hex', () => {
@@ -617,8 +692,14 @@ test('a colour is drawn in the theme’s mana palette, never in hex', () => {
   assert.ok(!/#[0-9a-f]{3,8}\b/i.test(MODULE), 'a colour was written into the module as hex');
 });
 
-test('the phone measurement knows about the panel', () => {
-  // The panel is closed when the tab arrives, so without its own view its ✕ and
-  // its way through to the calculator would pass by not being on screen.
-  assert.match(read('scripts/measure-mobile.js'), /'deckview-mana':\s*'deckview'/);
+test('the phone measurement follows the controls to the tab they moved to', () => {
+  /* The panel had a view of its own because it was closed when the deck tab
+     arrived, so its ✕ and its way through to the calculator would otherwise
+     pass by not being on screen. Both went to the Lands tab, which has a view
+     of its own for the same reason — and there is nothing left to measure
+     where the panel was. */
+  const measure = read('scripts/measure-mobile.js');
+  assert.ok(!/'deckview-mana'/.test(measure), 'a view still opens a panel that is gone');
+  assert.match(measure, /'deckview-lands':\s*'deckview'/, 'the tab it moved to has no view');
 });
+

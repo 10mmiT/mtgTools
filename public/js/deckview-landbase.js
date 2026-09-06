@@ -398,10 +398,15 @@ function _dbSourcesFootHtml(check) {
                'the table’s own rule for gold costs, and an admitted approximation. It also wants sources ' +
                'that make either colour, which these rows have no way to say.');
   }
+  /* Named, not just counted. A deck reported as wanting no white because
+     eleven of its cards are still in flight is the one kind of wrong a mana
+     base cannot survive, and the names are how somebody tells that apart from
+     a deck that really has no white in it. */
   if (check.unknown.length) {
     const n = check.unknown.length;
     notes.push(`${n} card${n === 1 ? ' has' : 's have'} no facts yet, and ` +
-               `${n === 1 ? 'is' : 'are'} counted in neither half of this.`);
+               `${n === 1 ? 'is' : 'are'} counted in neither half of this: ` +
+               `${check.unknown.join(', ')}.`);
   }
   /* The rocks, where there are any. A deck with none saying "and 0 other
      sources" would be answering a question nobody in front of it has. */
@@ -816,7 +821,8 @@ function _dbRenderLands() {
     })).join('');
 
   el.innerHTML = _dbSourcesHtml() + _dbFixHtml(colours, canAdd) +
-    `<div class="help-text db-land-note">${esc(_dbLandFilterNote(colours))}</div>${sections}`;
+    `<div class="help-text db-land-note">${esc(_dbLandFilterNote(colours))}</div>${sections}` +
+    _dbLandsCalcHtml();
 }
 
 /* One section of the tab, of either kind: shut until it is pressed, one
@@ -869,6 +875,38 @@ const _dbLandGrid = (cards, canAdd) =>
          you would have to buy are not the same suggestion. */
       badges: `${renderPrice(card)}${wantBtnHtml(card.name)}`,
     })).join('')}</div>`;
+
+// ── The way in, and the one way out ───────────────────────────────────────
+
+/* The tab, opened from outside the drawer — which is the readout's lands
+ * figure and nothing else. The figure used to raise a panel of its own out of
+ * that line; the check at the top of this tab is the same comparison with the
+ * requirement beside it and the fix underneath, so the figure is a door here
+ * rather than a second reading of the same numbers ten pixels away.
+ *
+ * The drawer is opened as well as switched: on the deck tab it is shut until
+ * something asks for it, and a tab switched to inside a shut drawer is a press
+ * that does nothing. Both halves of that are js/deckview-panels.js's, which is
+ * a file this one already reaches into unguarded for the drawer's own tile. */
+function dbOpenLandsTab() {
+  dbOpenSearchPanel();
+  dbSetLeftTab('lands');
+}
+
+/* And the way out: the Mana Base Calculator, which this tab did not absorb and
+ * will not. It is the only thing in the app that works with no deck loaded,
+ * which is the case this tab cannot serve — every number here is read off the
+ * deck on the mat. So it keeps a line through to it, worded as what it now is
+ * rather than as a second opinion on the check above.
+ *
+ * At the foot of the tab rather than at the top, because it is a way *out* and
+ * the cycles are what somebody opened this for. dbOpenInCalculator() is the
+ * mana module's — it is the fill as much as the jump, and the fill is that
+ * module's answer to what the deck holds. */
+const _dbLandsCalcHtml = () => `<div class="db-lands-calc">
+  <button class="db-lands-calc-link" onclick="dbOpenInCalculator()">Mana Base Calculator</button>
+  <span class="db-lands-calc-note">— a mana base worked by hand, or one worked out for a deck that doesn’t exist yet</span>
+</div>`;
 
 /* A different deck is on the mat. What was fetched stays fetched — it is a
  * fact about Magic and not about the deck that asked for it — and the sections

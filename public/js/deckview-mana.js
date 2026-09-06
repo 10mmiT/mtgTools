@@ -8,8 +8,9 @@
 //
 // This is the speaking. It is one pass over the open deck for two questions —
 // what its spells demand, and what its lands and rocks make — and the answer is
-// drawn in two places: a panel out of the readout, and the calculator's own
-// fields, filled.
+// read in three places: the lands figure on the readout, the drawer's Lands tab
+// (js/deckview-landbase.js), which is what that figure opens, and the
+// calculator's own fields, filled.
 //
 // ── Pips are what a card costs, not what a deck may hold ──────────────────
 //
@@ -32,20 +33,24 @@
 // {C} is one colourless pip and is why the calculator has a Wastes field.
 // Generic and {X} are not pips at all: they say how much mana, not which.
 //
-// This is a convention rather than a fact, which is why it is written down here
-// and said out loud in the panel. What it protects is the only property that
+// This is a convention rather than a fact, which is why it is written down
+// here. It used to be said out loud on the panel that drew the halves, and
+// nothing downstream draws them now — the Lands tab's check reads whole costs
+// a card at a time and names the card, and the calculator rounds them on the
+// way into its fields. What the convention protects is the only property that
 // matters to the maths downstream — the pips of a deck add up to the symbols in
 // its costs, so the proportional split of basics is a split of something real.
 //
 // ── A source is a card that makes mana, land or not ───────────────────────
 //
 // `produced_mana` is ticket 01's third field and it is what makes the other
-// half of this panel possible. A dual land is a source of each of its two
+// half of the comparison possible. A dual land is a source of each of its two
 // colours; Birds of Paradise is a source of all five; Sol Ring is a source of
 // colourless and is not a land. Counting sources by copies rather than by cards
 // is deliberate — a deck with two Command Towers has two of every colour it
-// plays — and it is why the source shares are shares of *source slots* rather
-// than of cards, which the panel says where it says the number.
+// plays — and it is why a source count is a count of *source slots* rather than
+// of cards. Read per colour, which is how the Lands tab reads it, the two are
+// the same number: a dual land is one blue source and one white one.
 
 /* WUBRG and colourless, in the order every colour list in this app is written
  * in. The ink names the theme's mana tokens rather than repeating hex, the way
@@ -195,7 +200,7 @@ function _dbComputeMana() {
    * else in the box, and a mana base that ignores what it costs is a mana base
    * for a different deck. That is a different rule from the count on the
    * readout, which leaves the commander out because it is not one of the
-   * ninety-nine, and the panel says which deck it counted. */
+   * ninety-nine, and the Lands tab says which cards it counted. */
   const cards = [...dbMainCards(), ...dbCommanderCards()];
 
   const pips    = _dbManaZero();
@@ -216,9 +221,9 @@ function _dbComputeMana() {
     const sf  = dbCardData.get(row.card_name);
 
     /* A cache mid-refresh, or a name the batch lookup has not come back with.
-     * Counted as nothing and named in the panel: a deck reported as wanting no
-     * white because eleven of its cards have not loaded yet is the one kind of
-     * wrong a mana base cannot survive. */
+     * Counted as nothing and named on the Lands tab: a deck reported as wanting
+     * no white because eleven of its cards have not loaded yet is the one kind
+     * of wrong a mana base cannot survive. */
     if (!sf) { unknown.push(row.card_name); continue; }
 
     const isLand = dbCardType(row.card_name) === 'land';
@@ -262,22 +267,12 @@ function _dbComputeMana() {
   };
 }
 
-// ── The figures, written ──────────────────────────────────────────────────
-
-/* A pip count that may be a half. Hybrid symbols make halves by construction —
- * see the note at the top — and a count rounded on the way to the eye would
- * make two decks with different mana bases show the same number. Whole numbers
- * are written whole, because most of them are. */
-const _dbPipNum = n => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-const _dbShare = (n, total) => (total > 0 ? Math.round((n / total) * 100) : 0);
-
 // ── The item on the readout ───────────────────────────────────────────────
 /* The lands figure, which has been on this line since the tab was written and
- * is now the way into what the lands are *for*. It is the item that opens this
- * panel rather than the row of colour symbols beside it for one reason worth
- * writing down: the symbols leave the line below 900px, and a panel whose only
- * door is hidden on a phone is a panel a phone does not have. */
+ * is now the door to what the lands are *for*. It is the item that opens the
+ * Lands tab rather than the row of colour symbols beside it for one reason
+ * worth writing down: the symbols leave the line below 900px, and a door that
+ * is hidden on a phone is a door a phone does not have. */
 function dbRenderManaStat() {
   const el = document.getElementById('dbStatLands');
   if (!el) return;
@@ -287,119 +282,11 @@ function dbRenderManaStat() {
     ? ` <span class="db-mana-gap">(${unmade.length} colour${unmade.length === 1 ? '' : 's'} unmade)</span>` : '';
   el.innerHTML = `<strong>${lands.total}</strong> lands${gap}`;
   el.title = unmade.length
-    ? `The deck asks for ${unmade.map(id => _dbManaColor(id).label).join(' and ')} and nothing in it makes ${unmade.length === 1 ? 'that' : 'those'} — open for the comparison`
-    : 'What the deck’s spells want against what its lands make — open for the comparison';
+    ? `The deck asks for ${unmade.map(id => _dbManaColor(id).label).join(' and ')} and nothing in it makes ${unmade.length === 1 ? 'that' : 'those'} — open the Lands tab for the check`
+    : 'What the deck’s spells want against what its lands make — open the Lands tab for the check';
 }
 
 const _dbManaColor = id => DB_MANA_COLORS.find(c => c.id === id);
-
-// ── The panel, out of the readout ─────────────────────────────────────────
-/* The third panel to rise out of this one thin line, and the third to put the
- * other two away when it opens. They are anchored to the same edge of the same
- * bar, so any two of them open at once would lie on top of each other. */
-let _dbManaPanelOpen = false;
-
-function dbToggleManaPanel() {
-  _dbManaPanelOpen = !_dbManaPanelOpen;
-  if (_dbManaPanelOpen) { dbCloseOwnedPanel(); dbCloseCheckPanel(); }
-  _dbSyncManaPanel();
-}
-
-function dbCloseManaPanel() {
-  if (!_dbManaPanelOpen) return;
-  _dbManaPanelOpen = false;
-  _dbSyncManaPanel();
-}
-
-function _dbSyncManaPanel() {
-  const panel = document.getElementById('dbManaPanel');
-  document.getElementById('dbStatLands')?.setAttribute('aria-expanded', _dbManaPanelOpen ? 'true' : 'false');
-  if (!panel) return;
-  panel.style.display = _dbManaPanelOpen ? '' : 'none';
-  if (_dbManaPanelOpen) panel.innerHTML = _dbManaPanelHtml();
-}
-
-function _dbManaPanelHtml() {
-  const mana = dbDeckMana();
-  return `
-    <div class="db-mana-hdr">
-      <span class="db-mana-title">Mana</span>
-      <button class="btn-secondary db-mana-calc" onclick="dbOpenInCalculator()"
-              title="Fill the Mana Base Calculator from this deck and go to it">Open in the calculator</button>
-      <button class="db-mana-close" onclick="dbCloseManaPanel()" title="Close">✕</button>
-    </div>
-    ${_dbManaRowsHtml(mana)}
-    ${_dbManaFootHtml(mana)}`;
-}
-
-/* One row per colour the deck touches — one it asks for, or one it makes, or
- * both. A colour that is in neither is not a gap in the deck and does not get a
- * line saying nought against nought. */
-function _dbManaRowsHtml(mana) {
-  const shown = DB_MANA_COLORS.filter(c => mana.pips[c.id] > 0 || mana.sources[c.id] > 0);
-
-  if (!shown.length) {
-    return `<div class="db-mana-none">${mana.unknown.length
-      ? 'No cards with facts yet — nothing to compare.'
-      : 'Nothing in this deck costs or makes coloured mana.'}</div>`;
-  }
-
-  const rows = shown.map(c => {
-    const pips    = mana.pips[c.id];
-    const sources = mana.sources[c.id];
-    const pipPct  = _dbShare(pips, mana.totalPips);
-    const srcPct  = _dbShare(sources, mana.totalSources);
-    /* Two bars, one over the other, both in the colour's own ink: the share of
-       the deck's pips this colour is, and the share of its sources. Reading
-       one against the other is the whole of what this panel is for, and a
-       shape does that faster than two numbers ever will. */
-    const bars = `<span class="db-mana-bars">
-        <span class="db-mana-bar"><span style="width:${pipPct}%;background:${c.ink}"></span></span>
-        <span class="db-mana-bar"><span style="width:${srcPct}%;background:${c.ink}"></span></span>
-      </span>`;
-    const said = sources === 0
-      ? `<span class="db-mana-warn">nothing makes it</span>`
-      : `<span class="db-mana-pct">${pipPct}% of pips · ${srcPct}% of sources</span>`;
-    return `<div class="db-mana-row">
-      <i class="ms ms-${c.id.toLowerCase()} ms-cost ms-shadow db-mana-sym" title="${esc(c.label)}"></i>
-      <span class="db-mana-fig"><strong>${_dbPipNum(pips)}</strong> pips</span>
-      ${bars}
-      <span class="db-mana-fig"><strong>${sources}</strong> sources</span>
-      ${said}
-    </div>`;
-  }).join('');
-
-  return `<div class="db-mana-group">
-    <div class="db-mana-group-hdr">Sources against pips
-      <span class="db-mana-note">what the spells want, and what the deck makes</span>
-    </div>
-    ${rows}
-  </div>`;
-}
-
-/* What the rows are counted from, said once underneath them rather than
- * hedged into every line: which cards were read, how the halves happen, and
- * the cards nobody could read at all. */
-function _dbManaFootHtml(mana) {
-  const { lands, otherSources, unknown } = mana;
-  const said = [
-    `<strong>${lands.total}</strong> land${lands.total === 1 ? '' : 's'} — ` +
-      `${lands.basic} basic, ${lands.nonBasic} non-basic`,
-    `<strong>${otherSources}</strong> card${otherSources === 1 ? '' : 's'} that make mana without being lands`,
-  ];
-  const notes = [
-    'Pips are counted off mana costs, commander included; a hybrid symbol is half a pip to each of the colours that pays it.',
-    'A source is counted for each colour it makes, so a dual land is two — the shares are of source slots, not of cards.',
-  ];
-  if (unknown.length) {
-    notes.push(`${unknown.length} card${unknown.length === 1 ? ' has' : 's have'} no facts yet and ` +
-               `${unknown.length === 1 ? 'is' : 'are'} counted in neither: ${unknown.join(', ')}.`);
-  }
-  return `<div class="db-mana-group">
-    <div class="db-mana-counts">${said.map(s => `<span class="db-count-item">${s}</span>`).join('')}</div>
-    ${notes.map(n => `<div class="db-mana-limit">${esc(n)}</div>`).join('')}
-  </div>`;
-}
 
 // ── The calculator, filled ────────────────────────────────────────────────
 
@@ -410,7 +297,7 @@ function _dbManaFootHtml(mana) {
  *
  * The pips are rounded here and nowhere else. The calculator's fields are whole
  * numbers, its maths is a proportional split, and half a pip either way cannot
- * move a basic; the panel above keeps the halves because that is where the
+ * move a basic; the pass above keeps the halves because that is where the
  * number is read rather than used. */
 function dbManaForCalculator() {
   if (typeof dbDeck === 'undefined' || !dbDeck) return null;
@@ -428,8 +315,13 @@ function dbManaForCalculator() {
   };
 }
 
-/** Fill the calculator from this deck and go there — the panel's one action. */
+/* Fill the calculator from this deck and go there — the Lands tab's one way
+ * out. The drawer is shut on the way past because it is the deck tab's and we
+ * are leaving that tab: setTab() closes the drawers it knows about, and this
+ * one is not one of them — left open it would hold the body's scroll lock over
+ * a calculator taller than the window. */
 function dbOpenInCalculator() {
+  if (typeof dbCloseSearchPanel === 'function') dbCloseSearchPanel();
   if (typeof setTab === 'function') setTab('lands');
   if (typeof landsUseDeck === 'function') landsUseDeck();
 }

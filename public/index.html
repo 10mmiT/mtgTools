@@ -1039,14 +1039,13 @@
          as the number beside it does. -->
     <span id="dbStatPrice" class="db-stat-item"></span>
     <span class="db-stat-sep">·</span>
-    <!-- How many lands, and what they are for: the comparison between what the
-         deck's spells want and what its lands make. This item opens it rather
-         than the row of colour symbols further along, because those leave the
-         line below 900px and a panel whose only door is hidden on a phone is a
-         panel a phone does not have. -->
+    <!-- How many lands, and the door to what they are for: the drawer's Lands
+         tab, where the comparison between what the deck's spells want and what
+         its lands make now lives. This item is the door rather than the row of
+         colour symbols further along, because those leave the line below 900px
+         and a door hidden on a phone is a door a phone does not have. -->
     <button id="dbStatLands" class="db-stat-item db-stat-open"
-            onclick="dbToggleManaPanel()" aria-expanded="false"
-            aria-controls="dbManaPanel"></button>
+            onclick="dbOpenLandsTab()"></button>
     <span class="db-stat-sep">·</span>
     <span id="dbStatCmc" class="db-stat-item"></span>
     <span class="db-stat-sep db-stat-sep-colors">·</span>
@@ -1062,13 +1061,6 @@
          Rises out of the same line as the missing list, which is why opening
          either puts the other away. Written by js/deckview-legality.js. -->
     <div id="dbCheckPanel" class="db-check-panel" style="display:none"></div>
-
-    <!-- What the deck's spells want against what its lands make, per colour,
-         and the way through to the Mana Base Calculator with every one of its
-         fields already filled. The third panel out of this line, and the third
-         to put the other two away when it opens. Written by
-         js/deckview-mana.js. -->
-    <div id="dbManaPanel" class="db-mana-panel" style="display:none"></div>
   </div>
 
   <!-- Search / EDHREC drawer panel -->

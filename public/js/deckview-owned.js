@@ -186,9 +186,9 @@ let _dbOwnedPanelOpen = false;
 
 function dbToggleOwnedPanel() {
   _dbOwnedPanelOpen = !_dbOwnedPanelOpen;
-  /* The other two panels rise out of the same line and would lie under this
-     one, so opening any of the three puts the other two away. */
-  if (_dbOwnedPanelOpen) { dbCloseCheckPanel(); dbCloseManaPanel(); }
+  /* The other panel rises out of the same line and would lie under this one,
+     so opening either of the two puts the other away. */
+  if (_dbOwnedPanelOpen) dbCloseCheckPanel();
   _dbSyncOwnedPanel();
 }
 

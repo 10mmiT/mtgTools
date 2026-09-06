@@ -105,6 +105,21 @@
  * The shelves it reads are the fixtures below, so this half touches the
  * network no more than the other two do.
  *
+ * ── And the two ends of it ────────────────────────────────────────────────
+ *
+ * The way in is the readout's lands figure, which used to raise a mana panel
+ * of its own out of that line. The check absorbed it — the panel drew pips
+ * against sources per colour, and the check draws the same comparison with the
+ * requirement beside it and the fix underneath — so the figure is a door now.
+ * What the panel used to say is asserted here; test/deckmana.test.js keeps the
+ * pass those numbers are read off.
+ *
+ * The way out is the Mana Base Calculator, which was *not* absorbed: it is the
+ * only thing in the app that works with no deck loaded, and every number on
+ * this tab is read off the deck on the mat. It keeps one line at the foot of
+ * the tab, and that line has to survive the empty deck, which is the case it
+ * exists for.
+ *
  * What is not asserted is what any of it looks like. That is the eye's.
  */
 
@@ -698,6 +713,39 @@ test('changing decks is what closes them', async () => {
 });
 
 // ── The frame ─────────────────────────────────────────────────────────────
+
+test('the readout’s lands figure is what opens the tab', () => {
+  /* The figure used to raise a mana panel out of the readout, which drew pips
+     against sources per colour. The check above draws the same comparison with
+     the requirement beside it and the fix underneath, so the figure is a door
+     here rather than a second reading ten pixels away. */
+  const tab = loadTab();
+  assert.notStrictEqual(tab.run('dbLeftTab'), 'lands', 'the drawer arrives on this tab');
+  tab.run('dbOpenLandsTab()');
+  assert.strictEqual(tab.run('dbLeftTab'), 'lands');
+  assert.ok(tab.el('dbSearchPanel').classList.contains('open'),
+    'the tab was switched to inside a drawer nobody opened');
+  assert.ok(tab.html().includes('db-sources-row'), 'and it arrived without its check');
+});
+
+test('the tab keeps one line out to the calculator, and keeps it with no deck', () => {
+  /* The Mana Base Calculator was not absorbed and will not be: it is the only
+     thing in the app that works with no deck loaded, which is exactly the case
+     every number on this tab cannot serve. So the line is at the foot of the
+     tab whatever the deck is — including the deck that is not there yet, which
+     is what it is for. */
+  const tab = loadTab();
+  tab.open();
+  assert.strictEqual((tab.html().match(/dbOpenInCalculator\(\)/g) || []).length, 1,
+    'the tab has no way out to the calculator, or more than one');
+  assert.match(tab.html(), /Mana Base Calculator/);
+
+  const empty = loadTab({ deck: [], commander: null });
+  empty.open();
+  assert.ok(!empty.html().includes('db-sources-row'), 'an empty deck was drawn a check');
+  assert.match(empty.html(), /dbOpenInCalculator\(\)/,
+    'the way out went away with the check, in the one case it is most wanted');
+});
 
 test('the drawer has a Lands tab and a pane for it', () => {
   const html = read('public/index.html');

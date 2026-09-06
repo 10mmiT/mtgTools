@@ -52,7 +52,6 @@ const EXTRA_VIEWS = {
   'deckview-owned':   'deckview',
   'deckview-analysis': 'deckview',
   'deckview-legality': 'deckview',
-  'deckview-mana':    'deckview',
   'deckview-lands':   'deckview',
   'deckview-menu':    'deckview',
   'rss-panel':        'available',
@@ -255,40 +254,28 @@ const PREP = {
     setTimeout(() => { if (!_dbCheckPanelOpen) dbToggleCheckPanel(); }, 1500);
     return 'true';
   })()`,
-  /* What the deck's spells want against what its lands make, out of the same
-     line again. Two controls in its header — the ✕ and the way through to the
-     calculator — and the second is the small one: a button that stands beside
-     a title on a desktop rather than beside other buttons is the kind that
-     arrives on a phone too short to hit. */
-  'deckview-mana': `(() => {
-    const sel = document.getElementById('dbDeckSel');
-    const opt = sel && [...sel.options].find(o => o.value);
-    if (!opt) return 'false';
-    sel.value = opt.value;
-    sel.dispatchEvent(new Event('change', { bubbles: true }));
-    if (typeof dbToggleManaPanel !== 'function') return 'false';
-    /* The deck's cards arrive over the network, and a deck with none of them
-       yet is a panel saying it has nothing to compare. */
-    setTimeout(() => { if (!_dbManaPanelOpen) dbToggleManaPanel(); }, 1500);
-    return 'true';
-  })()`,
   /* The drawer's third half, which the search view never reaches: it arrives
      on Search, and the Lands tab's rows — and the padded card names inside an
      expanded section — are only on screen once it has been switched to and one
      cycle opened. A closed section is a row of its own and would pass this by
-     having nothing in it. */
+     having nothing in it.
+
+     It is also the only view that reaches the check at the top of the tab and
+     the line out to the calculator at the foot of it, which is where the mana
+     panel's two controls went when this tab absorbed it. */
   'deckview-lands': `(() => {
     const sel = document.getElementById('dbDeckSel');
     const opt = sel && [...sel.options].find(o => o.value);
     if (!opt) return 'false';
     sel.value = opt.value;
     sel.dispatchEvent(new Event('change', { bubbles: true }));
-    if (typeof dbOpenSearchPanel !== 'function' || typeof dbToggleLandCycle !== 'function') return 'false';
-    dbOpenSearchPanel();
-    dbSetLeftTab('lands');
+    if (typeof dbOpenLandsTab !== 'function' || typeof dbToggleLandSection !== 'function') return 'false';
+    /* Through the readout's own door rather than by opening the drawer and
+       switching halves here — this measures what the lands figure does. */
+    dbOpenLandsTab();
     /* After the deck's cards arrive, so the cycle is asked for in the deck's
        own colours rather than in every colour there is. */
-    setTimeout(() => dbToggleLandCycle('shockland'), 1500);
+    setTimeout(() => dbToggleLandSection('shockland'), 1500);
     return 'true';
   })()`,
   /* Every control this tab has that is not the picker, the add field or the

@@ -1694,16 +1694,11 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-check-row  { align-items: center; }
   .db-check-cards { gap: var(--space-2); }
 
-  /* And again on the mana panel, whose header carries two: the ✕ and the way
-     through to the calculator. The second is a small button by design on a
-     desktop — it stands beside a title and not beside other buttons — which is
-     exactly the kind that arrives here too short. */
-  .db-mana-close { min-width: 44px; min-height: 44px; }
-  .db-mana-calc  { min-height: 44px; }
-
-  /* The same again on the Lands tab's check, whose one control — the way into
-     the per-card list — is deliberately a quiet line of text on a desktop. */
-  .db-sources-more { min-height: 44px; }
+  /* And on the Lands tab, whose two quiet controls are lines of text by design
+     on a desktop — the way into the per-card list, and the way out to the
+     calculator. That is exactly the kind that arrives here too short. */
+  .db-sources-more    { min-height: 44px; }
+  .db-lands-calc-link { min-height: 44px; }
 
   /* The menu beside the mat is a stack of full-width rows here, and every one
      of them is a thumb target — the ⋯ popover they replaced was measured the
@@ -2460,9 +2455,9 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 .db-sources-note { color: var(--text-subtle); font-size: var(--text-xs); }
 
-/* How far along its bar the colour is. One bar rather than the mana panel's
-   two: that panel compares two shares of a deck, and this one compares a
-   count against a threshold, which is a single distance. */
+/* How far along its bar the colour is. One bar rather than the two the mana
+   panel this tab absorbed drew: that one compared two shares of a deck, and
+   this one compares a count against a threshold, which is a single distance. */
 .db-sources-bar {
   display: block;
   height: 6px;
@@ -2501,9 +2496,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   padding: var(--space-2) 0 var(--space-1);
 }
 /* What the numbers assume, said under them rather than hedged into every
-   line — the same footing the bracket estimate's limits and the mana panel's
-   conventions get, for the same reason: a convention nobody wrote down is a
-   claim. */
+   line — the same footing the bracket estimate's limits get, for the same
+   reason: a convention nobody wrote down is a claim. */
 .db-sources-limit {
   color: var(--text-subtle);
   font-size: var(--text-xs);
@@ -2577,6 +2571,31 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 
 .db-land-body { padding-bottom: var(--space-2); }
+
+/* ── The Lands tab: the one way out ───────────────────────────────────────
+   The line through to the Mana Base Calculator, at the foot of the tab. Quiet
+   on purpose: the calculator is not a second opinion on the check above, it is
+   the thing to reach for when there is no deck to check — so it reads as a
+   footnote rather than as a control competing with the fix. */
+.db-lands-calc {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-3) var(--space-1) var(--space-2);
+}
+.db-lands-calc-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-decoration: underline;
+  transition: color var(--dur-base) var(--ease-tint);
+}
+.db-lands-calc-link:hover { color: var(--primary); }
+.db-lands-calc-note { color: var(--text-subtle); font-size: var(--text-xs); }
 
 /* The section label and the rule between sections, which the Deck Builder's ⋯
    popover named first and which outlived it: the Appearance popover and the
@@ -3224,115 +3243,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 .db-check-unknown, .db-check-est { color: var(--text-muted); font-size: var(--text-xs); }
 .db-check-undeclared { color: var(--text-muted); }
 
-/* ── What the spells want, against what the lands make ───────────────────────
-   The third panel to rise out of the readout, positioned exactly as the other
-   two are: it belongs to the line it was opened from, so it goes where that
-   line goes and folds away with it. Only one of the three is ever open — each
-   closes the other two — because they are anchored to the same edge of the
-   same bar. */
-.db-mana-panel {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  max-height: 50vh;
-  overflow-y: auto;
-  background: var(--surface-1);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: var(--space-2) var(--space-4) var(--space-3);
-  font-size: var(--text-sm);
-}
-.db-mana-hdr {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-bottom: var(--space-2);
-}
-.db-mana-title { font-weight: 700; }
-/* The way through to the calculator, with every one of its fields already
-   filled. It sits in the header rather than at the foot of the panel because
-   it is what this panel is *for* on the days you are not just reading it, and
-   because the foot of a panel that scrolls is not a place a control can live. */
-.db-mana-calc { margin-left: auto; font-size: var(--text-xs); padding: var(--space-1) var(--space-2); }
-.db-mana-close {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-}
-.db-mana-close:hover { color: var(--text); }
-
-.db-mana-group { padding-bottom: var(--space-2); }
-.db-mana-group-hdr {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  padding: var(--space-1) 0;
-}
-.db-mana-note { font-weight: 400; text-transform: none; letter-spacing: 0; }
-
-/* One colour: what it costs the deck, the two shares as a shape, and what the
-   deck makes of it. The row wraps rather than squeezing — on a phone the bars
-   drop under the figures, which is the one thing here that can afford to. */
-.db-mana-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
-  padding: var(--space-1) 0;
-}
-.db-mana-sym { flex: 0 0 auto; }
-.db-mana-fig { color: var(--text-muted); white-space: nowrap; }
-.db-mana-fig strong { color: var(--text); }
-.db-mana-pct { color: var(--text-subtle); font-size: var(--text-xs); }
-/* The deck asks for a colour and nothing in it makes that colour. The only
-   finding this panel is willing to call a fault, so it is the only thing on it
-   drawn in the colour a fault is drawn in. */
-.db-mana-warn { color: var(--danger); font-size: var(--text-xs); }
-
-/* Two bars, one over the other, in the colour's own ink: the share of the
-   deck's pips this colour is, and the share of its sources. Reading one
-   against the other is the whole of what this panel is for, and a shape does
-   that faster than two numbers ever will. */
-.db-mana-bars {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  flex: 1 1 120px;
-  min-width: 80px;
-}
-.db-mana-bar {
-  display: block;
-  height: 6px;
-  background: var(--surface-3);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.db-mana-bar > span { display: block; height: 100%; }
-
-.db-mana-counts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
-  padding: var(--space-1) 0;
-}
-/* How the numbers above were arrived at, said once underneath them rather than
-   hedged into every line — the same footing the bracket estimate's limits get,
-   and for the same reason: a convention that is not written down is a claim. */
-.db-mana-limit {
-  color: var(--text-subtle);
-  font-size: var(--text-xs);
-  padding: var(--space-1) 0 0;
-}
-.db-mana-none { color: var(--text-subtle); padding: var(--space-2) 0; }
+/* ── The lands figure's caption ──────────────────────────────────────────── */
 /* On the readout itself: the colours the deck asks for and nothing in it
    makes. A caption on a line of figures, in the colour of the thing it is. */
 .db-mana-gap { color: var(--danger); font-size: var(--text-xs); }

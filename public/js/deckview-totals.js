@@ -133,9 +133,9 @@ const _dbTypeLine = cardName => (dbCardData.get(cardName)?.type_line || '').toLo
 
 /* Which bucket a card is in — the app's one answer, not this module's.
  * js/deckview-mana.js asks it what a land is so that "38 lands" on the readout
- * and the 38 the mana panel splits into basics and non-basics are the same
+ * and the 38 the Lands tab reads its source-count row at are the same
  * thirty-eight. Two ways of deciding what a land is, in two places, is how a
- * readout starts disagreeing with the panel it opens. */
+ * readout starts disagreeing with the tab it opens. */
 const dbCardType = cardName => {
   const line = _dbTypeLine(cardName);
   return (DB_TYPES.find(t => t.match && line.includes(t.match)) || DB_TYPES[DB_TYPES.length - 1]).id;
