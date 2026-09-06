@@ -409,6 +409,10 @@ function dbOpenSearchPanel() {
   document.getElementById('dbSearchPanel')?.classList.add('open');
   document.getElementById('dbSearchBackdrop')?.classList.add('open');
   document.body.style.overflow = 'hidden';
+  /* The button on the strip says whether what it opens is open, the same as
+     the menu's does — the drawer can also be opened by `/` and by the mana
+     figure, so the state is written here rather than by whoever pressed. */
+  document.getElementById('dbFindBtn')?.setAttribute('aria-expanded', 'true');
   /* Drawn on the way in rather than at boot: the boards it lists are a fact
      about this deck's tab, and the drawer is where somebody is about to use
      it. Redrawing what the deck holds with it, because the deck may have moved
@@ -420,6 +424,7 @@ function dbCloseSearchPanel() {
   document.getElementById('dbSearchPanel')?.classList.remove('open');
   document.getElementById('dbSearchBackdrop')?.classList.remove('open');
   document.body.style.overflow = '';
+  document.getElementById('dbFindBtn')?.setAttribute('aria-expanded', 'false');
 }
 
 // ── Cards carried to another pile ────────────────────────────────────────────

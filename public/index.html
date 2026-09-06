@@ -832,10 +832,22 @@
          the state of its data is whether the last edit is saved. -->
     <span id="dbSaveStatus" class="db-save-status result-info"></span>
 
+    <!-- The way to a card this deck does not have yet. It was a row in the menu
+         while the drawer was one search box; it holds three ways of finding a
+         card now — Scryfall, EDHREC and the land cycles — which is more tab
+         than a line under "Look at" can stand for. On the strip it is where
+         the key already is, and the menu keeps only what the strip has no room
+         for. -->
+    <button class="btn-secondary db-find-btn db-when-deck" id="dbFindBtn"
+            onclick="dbOpenSearchPanel()" aria-expanded="false" aria-controls="dbSearchPanel"
+            title="Find cards — Search, EDHREC, Lands (/)" aria-label="Find cards">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+    </button>
+
     <!-- Everything else this tab can do, which is now a column beside the mat
-         rather than eleven more things on this line. It is the last control
-         before the way out, so the two that are always here sit together at
-         the end of the strip. -->
+         rather than eleven more things on this line. It sits between the way to
+         a card and the way out, so the controls that are always here are one
+         cluster at the end of the strip rather than three strays along it. -->
     <button class="btn-secondary db-menu-btn" id="dbMenuBtn" onclick="dbToggleMenu()"
             aria-expanded="false" aria-controls="dbMenu" title="Deck controls (m)">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -975,7 +987,6 @@
       <button class="db-menu-item" id="dbCurveBtn" onclick="dbToggleAnalysis()"
               aria-expanded="false" aria-controls="dbAnalysis"
               title="The curve, the types and the split">Analysis</button>
-      <button class="db-menu-item" onclick="dbOpenSearchPanel()" title="Search Scryfall / EDHREC">Search / EDHREC</button>
       <button class="db-menu-item" id="dbHistoryBtn" onclick="dbOpenHistoryPanel()">History</button>
       <button class="db-menu-item" onclick="dbLoadForComparison()">Compare</button>
       <button class="db-menu-item" id="dbCategoriesBtn" onclick="dbShowCategoriesModal()">Categories</button>

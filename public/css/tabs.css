@@ -1707,6 +1707,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-menu-item  { min-height: 44px; }
   .db-menu-close { min-width: 44px; min-height: 44px; }
   .db-menu-btn   { min-height: 44px; }
+  /* And the drawer's button beside it, which is the same size of press. */
+  .db-find-btn { min-height: 44px; }
 
   /* Grown. A whole row of the week list is the tap target for a day. */
   .avail-week-row { min-height: 44px; }
