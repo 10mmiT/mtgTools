@@ -1700,6 +1700,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   .db-sources-more    { min-height: 44px; }
   .db-lands-calc-link { min-height: 44px; }
 
+
   /* The menu beside the mat is a stack of full-width rows here, and every one
      of them is a thumb target — the ⋯ popover they replaced was measured the
      same way. Its ✕ is alone at the end of its header again. */
@@ -2502,6 +2503,96 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   color: var(--text-subtle);
   font-size: var(--text-xs);
 }
+
+/* ── The Lands tab: optimize basics ───────────────────────────────────────
+   Between the check and the fix, and the one thing on this tab that writes to
+   the deck. It borrows the check's heading above it and its footnote type
+   below, because it is the same panel's next sentence — but the row of
+   controls is its own, because nothing else in the drawer asks for a number.
+
+   The preview is a block that appears under the controls rather than a box
+   beside them: it grows by a row per colour, and a panel that changed width
+   between the two presses would move the button being pressed. */
+.db-basics {
+  padding: var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.db-basics-ask {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+.db-basics-lbl { font-size: var(--text-sm); color: var(--text-muted); }
+
+.db-basics-n {
+  width: 4.5rem;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.db-basics-n:focus { outline: none; border-color: var(--primary); }
+
+.db-basics-go {
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-base) var(--ease-tint),
+              color var(--dur-base) var(--ease-tint);
+}
+.db-basics-go:hover { border-color: var(--primary); color: var(--primary); }
+
+.db-basics-preview:empty { display: none; }
+.db-basics-preview { padding-top: var(--space-1); }
+
+/* The basics that came off the budget, above the split rather than under it:
+   it is the reason the numbers below are the numbers below. */
+.db-basics-spare {
+  padding-bottom: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.db-basics-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+.db-basics-card { flex: 1; color: var(--text); }
+.db-basics-fig  { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.db-basics-fig strong { color: var(--text); }
+/* A row that is not moving is still worth drawing — a basic that vanished
+   from the preview would read as one about to vanish from the deck. */
+.db-basics-same { opacity: .55; }
+
+.db-basics-size {
+  padding-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.db-basics-size strong { color: var(--text); }
+
+/* What the check would still say. Marked as a shortfall, because that is what
+   it is, and the whole reason to read the preview before pressing again. */
+.db-basics-verdict {
+  padding-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--danger);
+}
+.db-basics-clear { color: var(--text-subtle); }
 
 /* ── The Lands tab: fix it ────────────────────────────────────────────────
    Between the check and the cycles: one section per colour the check calls

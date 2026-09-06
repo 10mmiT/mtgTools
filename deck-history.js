@@ -71,7 +71,7 @@ const AGE_FLOOR     = 5;
 
 /** The reasons a snapshot can carry. A forced snapshot names the operation it
  *  was taken in front of; 'edit' is rule 1's. */
-const REASONS = new Set(['edit', 'import', 'category', 'move', 'restore', 'deck-delete']);
+const REASONS = new Set(['edit', 'import', 'category', 'move', 'basics', 'restore', 'deck-delete']);
 
 // ── The deck as it is stored ──────────────────────────────────────────────
 

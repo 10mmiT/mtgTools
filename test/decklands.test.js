@@ -105,6 +105,34 @@
  * The shelves it reads are the fixtures below, so this half touches the
  * network no more than the other two do.
  *
+ * ── And the optimizer, which is the one half that writes ─────────────────
+ *
+ * The control between the check and the fix: a budget of basics, split across
+ * the deck's colours by pips, previewed and then applied. It is the first
+ * thing in the app to write a calculation into a deck, and the four things
+ * asserted are the four places it can be wrong — the split, the basics it is
+ * not allowed to touch, the two rules about {C}, and the write.
+ *
+ * The split's expected numbers are worked out in the comment above the deck
+ * they are read off, by hand, rather than lifted from a run of the code. That
+ * is the whole reason to write them down: a test that records what the
+ * implementation did is a test that agrees with it forever.
+ *
+ * The two refusals are asserted the same way. A budget with nowhere to go and
+ * a deck whose facts have not all arrived are the same hazard wearing two
+ * faces — a plan made against a deck this cannot see — and in both the split
+ * moves every basic to nought, so a button that wrote would empty the deck
+ * while the panel above it said why it could not. Neither is pressable, both
+ * are drawn, and the press that draws a preview is the one that goes and
+ * fetches what is missing, so the refusal is a wait rather than a dead end.
+ *
+ * The write is asserted against the deck in the sandbox — categories kept,
+ * quantities set, a colour going to nought removed rather than clamped — and
+ * against the hooks it owes: one redraw, one save, and a snapshot out in front
+ * of it. The mat's redraw and the autosave are wrapped and counted at load,
+ * because "one render and one save however many rows moved" is a promise that
+ * can only be held to by counting.
+ *
  * ── And the two ends of it ────────────────────────────────────────────────
  *
  * The way in is the readout's lands figure, which used to raise a mana panel
@@ -195,6 +223,27 @@ const CARDS = {
     mana_cost: '{2}{R}', color_identity: ['R'], card_faces: [
       { name: 'Bonecrusher Giant', mana_cost: '{2}{R}', type_line: 'Creature — Giant' },
       { name: 'Stomp', mana_cost: '{1}{B}{B}', type_line: 'Instant — Adventure' }] },
+
+  /* And the rest of the six the optimizer writes to, plus the two basics it
+     will not: a snow basic, which _dbIsBasic() passes and no colour on the
+     split names, and Wastes, which is one of the six and therefore is managed
+     — the pair is what makes "unmanaged" a rule about names rather than a
+     hand-wave about snow. */
+  'Plains': { name: 'Plains', type_line: 'Basic Land — Plains', cmc: 0,
+    produced_mana: ['W'], color_identity: [] },
+  'Swamp': { name: 'Swamp', type_line: 'Basic Land — Swamp', cmc: 0,
+    produced_mana: ['B'], color_identity: [] },
+  'Mountain': { name: 'Mountain', type_line: 'Basic Land — Mountain', cmc: 0,
+    produced_mana: ['R'], color_identity: [] },
+  'Wastes': { name: 'Wastes', type_line: 'Basic Land', cmc: 0,
+    produced_mana: ['C'], color_identity: [] },
+  'Snow-Covered Forest': { name: 'Snow-Covered Forest', type_line: 'Basic Snow Land — Forest',
+    cmc: 0, produced_mana: ['G'], color_identity: [] },
+  /* A cost with a {C} pip in it, which is not the same thing as a generic one:
+     the split has a rule about {C} and a deck with no way to ask for one could
+     not exercise it. */
+  'Warping Wail': { name: 'Warping Wail', type_line: 'Instant', cmc: 2,
+    mana_cost: '{1}{C}', color_identity: [] },
 };
 
 /* The deck already holds one of the three shocklands, which is the case the
@@ -280,7 +329,16 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     /* Another query Scryfall knows the answer to, taught to it mid-test —
        for the cases where what changes is the question rather than the deck. */
     answersFor: (q, names) => { answers = { ...answers, [q]: names }; },
-    fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, version: 1 }) }),
+    /* Every request the app makes that is not Scryfall's — which on this tab
+       is the snapshot the optimizer takes in front of its write, and nothing
+       else. Recorded rather than merely answered: whether a snapshot went out
+       before the deck changed is half of what "it owes the same hooks the edit
+       module calls" means. */
+    posted: [],
+    fetch: async (url, opts) => {
+      sandbox.posted.push({ url, ...opts });
+      return { ok: true, status: 200, json: async () => ({ ok: true, version: 1 }) };
+    },
     // Outside this ticket: the pictures, the prices, the mana symbols.
     renderMana: () => '', renderPrice: () => '',
     openCardByName() {}, openDrawer() {}, closeDrawers() {}, renderDeck() {},
@@ -306,10 +364,13 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     return { ok: !!hit, status: hit ? 200 : 404, json: async () => body };
   };
   sandbox.setTimeout = fn => 1;
+  /* The facts, as the app's own load path hands them over — for the tests that
+     take a card out of the cache and then need it to come back. */
+  sandbox.CARD_FACTS = CARDS;
   sandbox.dbFetchCardData = async () => {};
   vm.createContext(sandbox);
   for (const file of ['state.js', 'sortui.js', 'cardturn.js', 'cardstack.js', 'cardquery.js',
-                      'auth.js', 'collections.js', 'owned.js',
+                      'auth.js', 'collections.js', 'owned.js', 'lands.js',
                       'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',
@@ -328,6 +389,14 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
   run(`dbCats = ${JSON.stringify(['Ramp', 'Lands', 'Creatures'].map((name, i) => ({ name, position: i })))}`);
   run(`dbCardData = new Map(${JSON.stringify(Object.entries(CARDS))})`);
 
+  /* The mat's redraw and the autosave, counted. The optimizer's promise is one
+     of each however many rows it moves, and the only way to hold it to that is
+     to count them. Wrapped rather than replaced, so what they do still
+     happens. */
+  run(`_dbRenderCalls = 0; _dbSaveCalls = 0;
+       { const r = dbRender;         dbRender = (...a) => { _dbRenderCalls++; return r(...a); };
+         const s = _dbScheduleSave;  _dbScheduleSave = (...a) => { _dbSaveCalls++; return s(...a); }; }`);
+
   return {
     run, answer, el,
     /** Every Scryfall query the tab has asked, in order. */
@@ -344,6 +413,30 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     },
     /** The check at the top of the tab, as figures rather than as markup. */
     check: () => answer('dbSourcesCheck()'),
+
+    // ── The optimizer ─────────────────────────────────────────────────────
+    /** What it would do for a budget, as figures. */
+    plan: n => answer(`dbBasicsPlan(${n})`),
+    /** The split on its own, for the rules that are about the split alone. */
+    split: (slots, pips) => answer(`dbBasicsSplit(${slots}, ${JSON.stringify(pips)})`),
+    /** A number typed into the field — which is what a person does, not a call. */
+    type(n) { el('dbBasicsN').value = String(n); run('dbBasicsTyped()'); },
+    /** The button. */
+    press() { return run('dbBasicsPress()'); },
+    /** The deck as it stands, and the piles it is filed into. */
+    cards: () => answer('dbCards'),
+    cats:  () => answer('dbCats.map(c => c.name)'),
+    /** How many times the mat has been redrawn and the save scheduled. */
+    renders: () => run('_dbRenderCalls'),
+    saves:   () => run('_dbSaveCalls'),
+    /** The reason on every snapshot taken, in order. */
+    snapshots: () => sandbox.posted
+      .filter(p => /\/snapshots$/.test(p.url))
+      .map(p => JSON.parse(p.body).reason),
+    /** The rows the preview is showing, as it writes them. */
+    previewRows: () => [...el('dbLandsContent').innerHTML
+      .matchAll(/db-basics-card">([^<]+)<\/span>\s*<span class="db-basics-fig">([\s\S]*?)<\/span>/g)]
+      .map(m => `${m[1]} ${m[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}`),
     /** The colours the fix region offers to close, as it labels them. */
     fixes: () => [...el('dbLandsContent').innerHTML
       .matchAll(/db-fix-name">([^<]+)/g)].map(m => m[1]),
@@ -1313,4 +1406,417 @@ test('a colour whose every land is already in the deck says that, not "nothing m
   assert.deepStrictEqual(tab.tiles(), [], 'a land the deck already runs was offered anyway');
   assert.match(tab.html(), /already in the deck/i,
     'the deck was told Magic has nothing, when what it has is all of it');
+});
+
+// ── Optimize basics: the budget, split ────────────────────────────────────
+/* The control the spec puts underneath the check, and the first thing in the
+ * app to write a calculation into a deck. Four things are asserted, which are
+ * the four places it can be wrong: the split, the basics it is not allowed to
+ * touch, the two rules about {C}, and the write.
+ *
+ * The deck below is the worked example. Chulane costs {2}{G}{W}{U}, Cryptic
+ * Command {1}{U}{U}{U} and Cultivate {2}{G}, so the deck's pips are one white,
+ * four blue and two green — seven of them — and 23 basics split by largest
+ * remainder is 3 Plains, 13 Islands and 7 Forests. Those numbers are worked
+ * out here rather than read off the implementation, which is the whole reason
+ * to write them down. */
+const BASICS_DECK = [
+  { card_name: 'Cryptic Command', category: 'Spells' },
+  { card_name: 'Cultivate',       category: 'Ramp' },
+  { card_name: 'Plains',          category: 'Lands', qty: 8 },
+  { card_name: 'Island',          category: 'Lands', qty: 9 },
+  { card_name: 'Forest',          category: 'Lands', qty: 6 },
+];
+
+/** The deck's basic rows, as name → quantity. */
+const basicsOf = tab => Object.fromEntries(tab.cards()
+  .filter(c => ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'].includes(c.card_name))
+  .map(c => [c.card_name, c.qty]));
+
+test('the split is proportional to the deck’s pips and sums to the budget', () => {
+  const tab  = loadTab({ deck: BASICS_DECK });
+  const plan = tab.plan(23);
+  const to   = Object.fromEntries(plan.rows.map(r => [r.name, r.to]));
+  assert.deepStrictEqual(to, { Plains: 3, Island: 13, Forest: 7 },
+    'the split is not proportional to one white, four blue and two green pips');
+  assert.strictEqual(Object.values(to).reduce((n, v) => n + v, 0), 23,
+    'the split does not add up to the budget');
+});
+
+test('the odd basic goes to the largest remainder, so nothing is lost to rounding', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  /* 23 over 1:4:2 is 3.29, 13.14, 6.57 — the floors are 22, and the one left
+     over belongs to green, whose fraction is the largest. A split that dropped
+     it, or handed it to the biggest colour instead of the biggest remainder,
+     is the failure this catches. */
+  assert.deepStrictEqual(tab.split(23, { W: 1, U: 4, B: 0, R: 0, G: 2, C: 0 }),
+    { W: 3, U: 13, B: 0, R: 0, G: 7, C: 0 });
+  for (const budget of [0, 1, 7, 14, 23, 40, 99]) {
+    const split = tab.split(budget, { W: 1, U: 4, B: 0, R: 0, G: 2, C: 0 });
+    assert.strictEqual(Object.values(split).reduce((n, v) => n + v, 0), budget,
+      `a budget of ${budget} did not come out whole`);
+  }
+});
+
+test('{C} sits out of the split, and takes no slot from a colour', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  /* Two colourless pips do not want two Wastes. The slot a proportional split
+     would hand one is a slot taken from a colour that needed it. */
+  assert.deepStrictEqual(tab.split(23, { W: 1, U: 4, B: 0, R: 0, G: 2, C: 5 }),
+    { W: 3, U: 13, B: 0, R: 0, G: 7, C: 0 },
+    'colourless pips moved basics away from the colours');
+});
+
+test('a deck with no coloured pips at all splits entirely into Wastes', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  /* The rule completed rather than contradicted: {C} never competes with a
+     colour, and with no colour to compete against it is simply the answer. */
+  assert.deepStrictEqual(tab.split(12, { W: 0, U: 0, B: 0, R: 0, G: 0, C: 3 }),
+    { W: 0, U: 0, B: 0, R: 0, G: 0, C: 12 });
+});
+
+test('a deck that asks for no colour at all has nowhere to put a budget, and says so', () => {
+  const tab = loadTab({ deck: [{ card_name: 'Plains', category: 'Lands', qty: 5 }], commander: null });
+  const plan = tab.plan(10);
+  assert.strictEqual(plan.nowhere, true, 'a budget was split over a deck with no pips in it');
+  assert.ok(Object.values(tab.split(10, { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }))
+    .every(n => n === 0), 'basics were invented for a deck that asks for nothing');
+});
+
+test('a budget of nought is a deck with no basics in it', () => {
+  const tab  = loadTab({ deck: BASICS_DECK });
+  const plan = tab.plan(0);
+  assert.deepStrictEqual(plan.rows.map(r => r.to), [0, 0, 0],
+    'a budget of nought left basics behind');
+});
+
+// ── The basics the optimizer does not manage ──────────────────────────────
+
+test('a snow basic comes off the budget and is named as untouched', () => {
+  const tab = loadTab({ deck: [...BASICS_DECK,
+    { card_name: 'Snow-Covered Forest', category: 'Lands', qty: 3 }] });
+  const plan = tab.plan(14);
+  assert.strictEqual(plan.extra, 3, 'the snow basics were not counted');
+  assert.strictEqual(plan.slots, 11, 'the snow basics did not come off the budget');
+  assert.strictEqual(plan.rows.reduce((n, r) => n + r.to, 0), 11,
+    'the deck would have grown by three behind the number typed');
+  assert.deepStrictEqual(plan.spare, [{ name: 'Snow-Covered Forest', qty: 3 }]);
+
+  tab.open();
+  tab.type(14);
+  tab.press();
+  assert.match(tab.html(), /3 Snow-Covered Forests aren’t touched — 11 to split/,
+    'the preview did not name the basics it will not write to');
+});
+
+test('Wastes is one of the six, so it is managed rather than left alone', () => {
+  /* The pair with the test above is the point: "unmanaged" is a rule about
+     which six names the optimizer writes to, not a rule about snow. */
+  const tab = loadTab({ deck: [...BASICS_DECK, { card_name: 'Wastes', category: 'Lands', qty: 2 }] });
+  const plan = tab.plan(23);
+  assert.strictEqual(plan.extra, 0, 'Wastes was treated as somebody else’s card');
+  assert.deepStrictEqual(plan.rows.filter(r => r.name === 'Wastes'), [
+    { id: 'C', name: 'Wastes', label: 'colourless', from: 2, to: 0 }],
+    'a deck with no colourless pips kept its Wastes through a re-split');
+});
+
+test('more unmanaged basics than the budget leaves nothing to split, and says that', () => {
+  const tab = loadTab({ deck: [...BASICS_DECK,
+    { card_name: 'Snow-Covered Forest', category: 'Lands', qty: 6 }] });
+  const plan = tab.plan(4);
+  assert.strictEqual(plan.over, true, 'the budget was not called for what it is');
+  assert.strictEqual(plan.slots, 0, 'a negative number of basics was split');
+  assert.strictEqual(plan.rows.reduce((n, r) => n + r.to, 0), 0);
+
+  tab.open();
+  tab.type(4);
+  tab.press();
+  assert.match(tab.html(), /already more than 4/,
+    'the preview implied a budget it cannot reach');
+});
+
+// ── The preview ───────────────────────────────────────────────────────────
+
+test('the field is prefilled with the basics the deck runs now', () => {
+  const tab = loadTab({ deck: [...BASICS_DECK,
+    { card_name: 'Snow-Covered Forest', category: 'Lands', qty: 3 }] });
+  const html = tab.open();
+  /* 8 + 9 + 6 + 3. The default press means "re-balance the basics I already
+     have", which is only true if the number in the field is all of them. */
+  assert.match(html, /id="dbBasicsN"[^>]*value="26"/,
+    'the field did not arrive holding what the deck runs');
+});
+
+test('the preview shows the rows, the deck size and the land total', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(26);
+  tab.press();
+  /* 26 over 1:4:2 is 3.71, 14.86, 7.43 — floors 3, 14, 7 with two left over,
+     to the two largest remainders. */
+  assert.deepStrictEqual(tab.previewRows(),
+    ['Plains 8 → 4', 'Island 9 → 15', 'Forest 6 → 7']);
+  /* Twenty-five cards, twenty-three of them lands; three more basics is three
+     more of each. The size line is on the panel because growing the basics is
+     what makes other cards have to go. */
+  assert.match(tab.html(), /deck 25 → <strong>28<\/strong>[\s\S]*?lands 23 → <strong>26<\/strong>/,
+    'the preview did not say what the deck would come to');
+});
+
+test('the preview says what the check would still call short', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(23);
+  tab.press();
+  /* Cryptic Command is {1}{U}{U}{U}, which wants far more blue than 23 basics
+     split three ways can make. The line is the reason the preview exists: the
+     case worth catching is the split that cost three spells and fixed nothing. */
+  const plan = tab.plan(23);
+  assert.ok(plan.still.some(c => c.id === 'U' && c.gap > 0),
+    'the deck was told a split it cannot make would clear blue');
+  assert.match(tab.html(), /blue still \d+ short — that’s a land, not a basic/,
+    'the preview did not say which colour the split could not reach');
+});
+
+test('a split that clears every bar is told so rather than left silent', () => {
+  /* A deck whose only demand is one green pip, and enough basics to bury it. */
+  const tab = loadTab({
+    deck: [{ card_name: 'Cultivate', category: 'Ramp' },
+           { card_name: 'Forest', category: 'Lands', qty: 30 }],
+    commander: null,
+  });
+  tab.open();
+  tab.type(30);
+  tab.press();
+  assert.match(tab.html(), /every colour clears its bar/,
+    'a split that fixed everything said nothing about it');
+});
+
+// ── Two presses ───────────────────────────────────────────────────────────
+
+test('nothing is written to the deck until a second, explicit press', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(26);
+  tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Plains: 8, Island: 9, Forest: 6 },
+    'the first press wrote to the deck');
+  assert.strictEqual(tab.saves(), 0, 'the first press scheduled a save');
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Apply/,
+    'the button did not become the one that writes');
+
+  tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Plains: 4, Island: 15, Forest: 7 },
+    'the second press did not write the split that was on screen');
+});
+
+test('typing a different number takes the plan down, so the second press is never the first answer', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(26);
+  tab.press();
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Apply/);
+
+  tab.type(14);
+  assert.strictEqual(tab.el('dbBasicsPreview').innerHTML, '',
+    'the plan for the old number stayed on screen');
+  assert.strictEqual(tab.el('dbBasicsGo').textContent, 'Preview',
+    'the button still offered to write the plan that is gone');
+
+  tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Plains: 8, Island: 9, Forest: 6 },
+    'a number typed over a preview was applied without being previewed');
+});
+
+test('a press that would change nothing does not become a press that writes', () => {
+  const tab = loadTab({ deck: [
+    { card_name: 'Cryptic Command', category: 'Spells' },
+    { card_name: 'Cultivate',       category: 'Ramp' },
+    { card_name: 'Plains',          category: 'Lands', qty: 3 },
+    { card_name: 'Island',          category: 'Lands', qty: 13 },
+    { card_name: 'Forest',          category: 'Lands', qty: 7 },
+  ] });
+  tab.open();
+  tab.type(23);
+  tab.press();
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Preview/,
+    'a plan that moves nothing offered to write itself');
+  tab.press();
+  assert.strictEqual(tab.saves(), 0, 'a deck already at its split was saved anyway');
+});
+
+// ── The write ─────────────────────────────────────────────────────────────
+
+test('applying keeps each existing row where it was filed', async () => {
+  const tab = loadTab({ deck: [...BASICS_DECK.filter(c => c.card_name !== 'Plains'),
+    { card_name: 'Plains', category: 'Mana Base', qty: 8 }] });
+  tab.open();
+  tab.type(26);
+  tab.press();
+  await tab.press();
+  const plains = tab.cards().find(c => c.card_name === 'Plains');
+  assert.strictEqual(plains.category, 'Mana Base',
+    'a Plains filed under a custom pile was refiled by the optimizer');
+  assert.strictEqual(plains.qty, 4, 'the quantity was not set on the row that was already there');
+});
+
+test('a genuinely new row is filed as a land', async () => {
+  /* A deck that wants black and holds no Swamp: the row has to be made, and
+     dbAutoCategory() is what decides where it goes. */
+  const tab = loadTab({
+    deck: [{ card_name: 'Bedevil', category: 'Spells' },
+           { card_name: 'Mountain', category: 'Lands', qty: 10 }],
+    commander: null,
+  });
+  tab.open();
+  tab.type(12);
+  tab.press();
+  await tab.press();
+  const swamp = tab.cards().find(c => c.card_name === 'Swamp');
+  assert.ok(swamp, 'the colour the deck wants was never given a basic');
+  assert.strictEqual(swamp.category, 'Lands', 'a new basic was not filed as a land');
+  assert.strictEqual(swamp.board, 'main', 'a new basic did not go into the deck');
+  assert.ok(tab.cats().includes('Lands'), 'the pile it was filed into does not exist');
+});
+
+test('a colour going to nought is removed, not clamped at one', async () => {
+  /* dbChangeQty() clamps at Math.max(1, …), and nothing else in the app takes
+     a row to nothing in bulk. A Plains the split does not want has to go. */
+  const tab = loadTab({ deck: [
+    { card_name: 'Cryptic Command', category: 'Spells' },
+    { card_name: 'Plains',  category: 'Lands', qty: 4 },
+    { card_name: 'Island',  category: 'Lands', qty: 10 },
+  ], commander: null });
+  tab.open();
+  tab.type(14);
+  tab.press();
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Island: 14 },
+    'a colour nothing in the deck asks for was left one lonely basic');
+});
+
+test('applying is one render and one save, however many rows moved', async () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(26);
+  tab.press();
+  const renders = tab.renders(), saves = tab.saves();
+  await tab.press();
+  assert.strictEqual(tab.renders() - renders, 1,
+    'the mat was redrawn once per row instead of once per press');
+  assert.strictEqual(tab.saves() - saves, 1, 'the deck was saved more than once');
+});
+
+test('a snapshot goes out in front of the write, and it names what it was taken for', async () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(26);
+  tab.press();
+  assert.deepStrictEqual(tab.snapshots(), [], 'a preview took a snapshot');
+  await tab.press();
+  assert.deepStrictEqual(tab.snapshots(), ['basics'],
+    'the write went out without a copy of the deck it replaced');
+});
+
+test('the check redraws off the deck the write made, not the deck as it was', async () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  assert.strictEqual(tab.check().colours.find(c => c.id === 'U').held, 9,
+    'the fixture is not the deck this test thinks it is');
+  tab.type(26);
+  tab.press();
+  await tab.press();
+  /* Fifteen Islands and nothing else in the deck makes blue, so the number the
+     check reports is the number the write made. A stale mana pass behind the
+     drawer is the failure this catches. */
+  assert.strictEqual(tab.check().colours.find(c => c.id === 'U').held, 15,
+    'the check is still reading the deck from before the split');
+  assert.match(tab.html(), /id="dbBasicsN"[^>]*value="26"/,
+    'the field did not come back holding what the deck now runs');
+  assert.strictEqual(tab.el('dbBasicsPreview').innerHTML, '',
+    'the plan stayed on screen after it had been applied');
+});
+
+test('somebody else’s deck is a tab with no optimizer on it', () => {
+  const tab = loadTab({ deck: BASICS_DECK, user: AS_ANNA });
+  const html = tab.open();
+  assert.ok(!html.includes('db-basics'), 'a deck that is not yours offered to rewrite its basics');
+  assert.ok(html.includes('The check'), 'the readings went with the edit');
+
+  tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Plains: 8, Island: 9, Forest: 6 },
+    'somebody else’s deck was rewritten by calling the function outright');
+});
+
+// ── The deck it cannot see ────────────────────────────────────────────────
+/* Two ways the same hazard bites: a plan worked out against a deck the app has
+ * not finished reading. The budget is the deck's total basics *after* this, so
+ * a deck half of which is still in flight is a deck whose other half this
+ * would quietly empty — which is the one kind of wrong a mana base cannot
+ * survive, and the reason the check panel names its unknowns too. */
+
+test('a deck that asks for no colour is not offered a press that empties it', async () => {
+  /* Nothing in the deck has a pip, so the split can place nothing — and every
+     basic already in it moves to nought. Drawing "there is nowhere to put
+     these" over a button that would delete five Plains is the preview saying
+     one thing and the press doing another. */
+  const tab = loadTab({ deck: [{ card_name: 'Plains', category: 'Lands', qty: 5 }], commander: null });
+  tab.open();
+  tab.type(10);
+  tab.press();
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Preview/,
+    'a budget with nowhere to go offered to write itself');
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Plains: 5 },
+    'the deck’s basics were thrown away for a split that could place none of them');
+});
+
+test('a basic whose facts have not arrived still comes off the budget', async () => {
+  /* _dbBasicsHeld() reads the type line to know a Snow-Covered Forest is a
+     basic, and a cache mid-refresh does not have one. Left alone that is
+     exactly the failure the unmanaged-basics rule exists to prevent: "I asked
+     for 12" becoming a deck of fifteen. */
+  const tab = loadTab({ deck: [
+    { card_name: 'Cryptic Command',    category: 'Spells' },
+    { card_name: 'Island',             category: 'Lands', qty: 9 },
+    { card_name: 'Snow-Covered Forest', category: 'Lands', qty: 3 },
+  ], commander: null });
+  tab.run(`dbCardData.delete('Snow-Covered Forest')`);
+  /* And Scryfall never answering, which is the state this has to be safe in:
+     a cache mid-refresh, a name the batch lookup does not come back with. */
+  tab.run(`dbFetchCardData = async () => {}`);
+  tab.open();
+  tab.type(12);
+  await tab.press();
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Preview/,
+    'a plan drawn over a half-read deck offered to write itself');
+  assert.match(tab.html(), /Snow-Covered Forest/,
+    'the card the plan could not read was not named');
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Island: 9 },
+    'a budget of 12 was written against a deck it could not fully see');
+});
+
+test('the facts are asked for on the press, so the block lifts by itself', async () => {
+  /* The refusal above must not be a dead end. The press that draws a preview
+     is what goes and gets what the app is missing, so the second press is
+     against a deck it can see all of. */
+  const tab = loadTab({ deck: [
+    { card_name: 'Cryptic Command',     category: 'Spells' },
+    { card_name: 'Island',              category: 'Lands', qty: 9 },
+    { card_name: 'Snow-Covered Forest', category: 'Lands', qty: 3 },
+  ], commander: null });
+  tab.run(`dbCardData.delete('Snow-Covered Forest')`);
+  /* Scryfall answering, the way the deck's own load path answers. */
+  tab.run(`dbFetchCardData = async names => {
+    for (const n of names) if (CARD_FACTS[n]) dbCardData.set(n, CARD_FACTS[n]);
+  }`);
+  tab.open();
+  tab.type(12);
+  await tab.press();
+  assert.match(tab.html(), /3 Snow-Covered Forests aren’t touched — 9 to split/,
+    'the facts arrived and the budget still did not account for them');
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Island: 9 },
+    'nine blue pips’ worth of budget did not come out as nine Islands');
 });

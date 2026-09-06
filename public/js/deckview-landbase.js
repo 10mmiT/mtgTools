@@ -23,8 +23,9 @@
 // draw, because Archidekt does not know what is in our boxes — and a
 // suggestion you can play tonight beats a better one you would have to buy.
 //
-// The optimizer the spec puts beside it — the button that re-splits the
-// deck's basics — is not here yet. It drops in underneath the check.
+// And underneath the check, the one control here that writes: a budget of
+// basics, split across the deck's colours in proportion to its pips, shown
+// before it is done and applied on a second press.
 //
 // See docs/design/spec-landbase.md.
 
@@ -415,6 +416,359 @@ function _dbSourcesFootHtml(check) {
       `source${check.other === 1 ? '' : 's'} — rocks and dorks, which the table does not count</span>`
     : '';
   return `${other}${notes.map(n => `<div class="db-sources-limit">${esc(n)}</div>`).join('')}`;
+}
+
+// ── Optimize basics: a budget, split by pips, previewed then applied ──────
+/* The one thing on this tab that writes to the deck, and the first thing in
+ * the app to write a calculation into one.
+ *
+ * It asks for a number of *basics*, not for a number of lands. The number is a
+ * budget rather than a remainder: different decks want different amounts of
+ * basic land, and typing the figure directly is the whole of what stops a
+ * split from crowding out the rest of the list. The deck's non-basic count is
+ * not an input and neither is its land total.
+ *
+ * The split is proportional to the deck's pips, by largest remainder, and then
+ * the check runs over the result and says what it could not fix. Gap-driven
+ * solving — pour basics into whichever colour is furthest below its bar — was
+ * considered and rejected: the total is fixed, so every Plains that fixes
+ * white takes a source away from something else, and in a three-colour deck
+ * there is frequently no basic-only split that clears every bar, because the
+ * answer is duals. Proportional is close to optimal for balance, and the
+ * verdict underneath is where the truth about the rest goes.
+ *
+ * Two presses, because it writes to the least-noticed cards in the list and
+ * silent would mean finding out three games later.
+ *
+ * See docs/design/spec-landbase.md. The "at least 1 basic of every colour"
+ * toggle the spec puts beside this is not here yet.
+ */
+
+/** The six the optimizer writes to, by name — the only names it will touch. */
+const DB_BASIC_OF = new Map(DB_MANA_COLORS.map(c => [c.basic, c.id]));
+
+/* What a preview is showing, as the number it was asked for rather than as the
+ * plan itself. The plan is worked out afresh on every draw, so a deck edited
+ * behind the drawer between the two presses is re-split rather than applied as
+ * it was half a minute ago — and the second press writes what is on screen,
+ * which is the whole of what the two presses are for. */
+let _dbBasicsBudget = null;
+
+/* The deck's basics, in the two piles that matter: the ones this writes to,
+ * and the ones it will not.
+ *
+ * The managed pile is decided by *name*, not by the type line, and that is
+ * deliberate — a row called Plains is a Plains whether or not its facts have
+ * arrived from Scryfall, and a prefill that read 0 because the cache was
+ * mid-refresh would be a budget that quietly emptied the deck.
+ *
+ * The unmanaged pile cannot be decided that way, because the whole point of it
+ * is the names nobody listed: _dbIsBasic() passes `Basic Snow Land — Island`
+ * and it passes Wastes. Those come off the budget and are named in the
+ * preview, so "I asked for 14" cannot mean a deck that grew by three. */
+function _dbBasicsHeld() {
+  const managed = _dbManaZero();
+  const spare   = [];
+  for (const row of dbMainCards()) {
+    const qty = row.qty || 1;
+    const id  = DB_BASIC_OF.get(row.card_name);
+    if (id) { managed[id] += qty; continue; }
+    const sf = dbCardData.get(row.card_name);
+    if (sf && _dbIsBasic(sf) && dbCardType(row.card_name) === 'land') {
+      spare.push({ name: row.card_name, qty });
+    }
+  }
+  const held  = DB_MANA_IDS.reduce((n, id) => n + managed[id], 0);
+  const extra = spare.reduce((n, s) => n + s.qty, 0);
+  return { managed, spare, held, extra, total: held + extra };
+}
+
+/* The split itself: landsDistribute()'s maths, over the pips this is allowed
+ * to split by.
+ *
+ * {C} sits out. A Commander deck with two colourless pips does not want two
+ * Wastes, and a proportional split that hands one a slot takes that slot from
+ * a colour that needed it. Unless there is no colour to take it from — a
+ * Kozilek deck, a Karn deck — in which case Wastes is simply the answer. That
+ * completes the rule rather than contradicting it: {C} never competes with a
+ * colour, and with no colour in the deck it is not competing with anything. */
+function dbBasicsSplit(slots, pips) {
+  const want    = _dbManaZero();
+  const colours = DB_MANA_IDS.filter(id => id !== 'C');
+  const inColour = colours.reduce((n, id) => n + (pips[id] || 0), 0);
+  if (inColour > 0) for (const id of colours) want[id] = pips[id] || 0;
+  else want.C = pips.C || 0;
+  return landsDistribute(Math.max(0, Math.round(slots)), want);
+}
+
+/** Everything the preview says, as figures. */
+function dbBasicsPlan(budget) {
+  const mana  = dbDeckMana();
+  const held  = _dbBasicsHeld();
+  const slots = Math.max(0, budget - held.extra);
+  const split = dbBasicsSplit(slots, mana.pips);
+
+  const rows = DB_MANA_COLORS
+    .map(c => ({ id: c.id, name: c.basic, label: c.label,
+                 from: held.managed[c.id], to: split[c.id] }))
+    .filter(r => r.from || r.to);
+  const moved = rows.reduce((n, r) => n + (r.to - r.from), 0);
+
+  /* Nowhere to put them: a deck with no pips at all — nothing in it yet, or
+     nothing whose facts have arrived. The budget cannot be spent, and saying
+     so is better than a preview of six rows of nought. */
+  const placed = DB_MANA_IDS.reduce((n, id) => n + split[id], 0);
+  const cards  = dbDeckTotals().cards;
+  return {
+    budget, slots, spare: held.spare, extra: held.extra,
+    /* The cards whose facts have not arrived, which is the one thing that can
+       make every number above wrong at once. The managed pile survives a cold
+       cache because it is decided by name — a row called Plains is a Plains —
+       but the unmanaged pile cannot be: knowing a Snow-Covered Forest is a
+       basic means reading its type line. So a deck half of which is still in
+       flight is a deck whose snow basics do not come off the budget, and "I
+       asked for 12" becomes a deck of fifteen. Named here, and refused below,
+       rather than written and found out three games later. */
+    blind: mana.unknown,
+    rows, changed: rows.filter(r => r.to !== r.from),
+    nowhere: slots > 0 && placed === 0,
+    /* More unmanaged basics than the whole budget: the number typed cannot be
+       reached by anything this is allowed to touch. */
+    over: budget < held.extra,
+    deck:  { from: cards,             to: cards + moved },
+    lands: { from: mana.lands.total,  to: mana.lands.total + moved },
+    still: _dbBasicsStill(rows, mana.lands.total + moved),
+  };
+}
+
+/* The check, run over the deck this would make — which is the line the spec
+ * says the preview exists for. The case worth catching is the one where the
+ * split cost three spells and fixed nothing.
+ *
+ * It is arithmetic rather than a second walk over a hypothetical deck: a basic
+ * makes exactly its own colour, so the sources after are the sources now plus
+ * what each row moved by. The bars are re-read at the new land count, because
+ * more lands is a different row of the table and a split that grows the deck
+ * moves the goalposts it is being measured against. */
+function _dbBasicsStill(rows, lands) {
+  const mana  = dbDeckMana();
+  const moved = _dbManaZero();
+  for (const r of rows) moved[r.id] = r.to - r.from;
+  const bars = _dbSourcesBars(_dbSourcesDemands(dbDeckFormat().id, lands));
+  return DB_MANA_COLORS
+    .filter(c => bars[c.id])
+    .map(c => ({ id: c.id, label: c.label,
+                 gap: bars[c.id].want - (mana.fromLands[c.id] + moved[c.id]) }))
+    .filter(c => c.gap > 0);
+}
+
+// ── The optimizer, drawn ──────────────────────────────────────────────────
+
+/* The whole control. Not drawn at all on somebody else's deck: the check above
+ * it and the cycles below are readings of a deck and this is an edit of one,
+ * and a button that greys out is still a button that has to be explained. */
+function _dbBasicsHtml() {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return '';
+  const plan  = _dbBasicsBudget === null ? null : dbBasicsPlan(_dbBasicsBudget);
+  /* The field holds the number a plan is up for, or — with no plan up — what
+     the deck runs now, so that the default press means "re-balance the basics
+     I already have" and changes the split without changing the deck's size. */
+  const asked = _dbBasicsBudget === null ? _dbBasicsHeld().total : _dbBasicsBudget;
+  return `<div class="db-basics">
+    <div class="db-sources-hdr"><span class="db-sources-title">Optimize basics</span></div>
+    <div class="db-basics-ask">
+      <label class="db-basics-lbl" for="dbBasicsN">How many basics</label>
+      <input id="dbBasicsN" class="db-basics-n" type="number" min="0" step="1"
+             inputmode="numeric" value="${asked}"
+             oninput="dbBasicsTyped()" onkeydown="if(event.key==='Enter')dbBasicsPress()">
+      <button id="dbBasicsGo" class="db-basics-go" onclick="dbBasicsPress()">
+        ${_dbBasicsReady(plan) ? 'Apply' : 'Preview'}</button>
+    </div>
+    <div id="dbBasicsPreview" class="db-basics-preview">${plan ? _dbBasicsPreviewHtml(plan) : ''}</div>
+    <div class="db-sources-limit">${esc(
+      'The number is the deck’s total basics after this, so the deck never grows behind you. ' +
+      'It is split across the colours in proportion to the deck’s pips.')}</div>
+  </div>`;
+}
+
+/* Whether the next press is the one that writes.
+ *
+ * Three things have to hold, and the two beyond "something would change" are
+ * both the same hazard: this must not write a plan made against a deck it
+ * cannot see. A budget with nowhere to go moves every basic to nought, which
+ * is a preview saying "there is nowhere to put these" over a button that
+ * empties the deck; a deck with cards still in flight is one whose basics this
+ * has not finished counting. Both are drawn, and neither is pressable. */
+const _dbBasicsReady = plan =>
+  !!plan && plan.changed.length > 0 && !plan.nowhere && !plan.blind.length;
+
+/* What it would do, before it does it: the rows, the resulting deck size and
+ * land total, and what the check would still say. The size line is there
+ * because growing the basics means other cards have to go, and the verdict
+ * line because a split that cost three spells and fixed nothing is the failure
+ * worth seeing before the press rather than after. */
+function _dbBasicsPreviewHtml(plan) {
+  const rows = plan.rows.map(r => `<div class="db-basics-row${r.to === r.from ? ' db-basics-same' : ''}">
+    ${_dbSourcesSym(r)}
+    <span class="db-basics-card">${esc(r.name)}</span>
+    <span class="db-basics-fig">${r.from} → <strong>${r.to}</strong></span>
+  </div>`).join('');
+
+  const size = `<div class="db-basics-size">deck ${plan.deck.from} → <strong>${plan.deck.to}</strong>
+    · lands ${plan.lands.from} → <strong>${plan.lands.to}</strong></div>`;
+
+  return `${_dbBasicsBlindHtml(plan)}${_dbBasicsSpareHtml(plan)}${rows}` +
+         `${plan.rows.length ? size : ''}${_dbBasicsStillHtml(plan)}`;
+}
+
+/* What the app has not read yet, named the way the check names it — because a
+ * deck reported as wanting no white while eleven of its cards are still in
+ * flight is the one kind of wrong a mana base cannot survive, and any of those
+ * eleven could be a basic this budget has not counted. */
+function _dbBasicsBlindHtml(plan) {
+  if (!plan.blind.length) return '';
+  const n = plan.blind.length;
+  return `<div class="db-basics-verdict">${esc(
+    `${n} card${n === 1 ? ' has' : 's have'} no facts yet, and any of ` +
+    `${n === 1 ? 'them' : 'them'} could be a basic this has not counted: ` +
+    `${plan.blind.join(', ')}. Nothing is written until they arrive.`)}</div>`;
+}
+
+/* The basics that came off the budget, named. We are not adding snow support;
+ * we are making the edge case visible to the person who has to fix it by
+ * hand, which is the whole of what this line is for. */
+function _dbBasicsSpareHtml(plan) {
+  if (!plan.spare.length) return '';
+  const named = plan.spare.map(s => `${s.qty} ${_dbBasicsPlural(s.name, s.qty)}`).join(' and ');
+  const tail  = plan.over
+    ? `that is already more than ${plan.budget}, so there is nothing left to split`
+    : `${plan.slots} to split`;
+  return `<div class="db-basics-spare">${esc(`${named} aren’t touched — ${tail}`)}</div>`;
+}
+
+/** A card name, more than once. Enough English for six land names. */
+const _dbBasicsPlural = (name, n) =>
+  n === 1 || /s$/i.test(name) ? name : `${name}s`;
+
+/* What the check would still say, which is the reason the preview is worth
+ * reading rather than a formality on the way to the button. Named as a land
+ * rather than a basic, because that is what the answer is: a colour the split
+ * cannot reach needs a dual, and the fix region underneath lists them. */
+function _dbBasicsStillHtml(plan) {
+  if (plan.nowhere) {
+    return `<div class="db-basics-verdict">${esc(
+      'Nothing in the deck asks for a colour yet, so there is nowhere to put these.')}</div>`;
+  }
+  if (!plan.rows.length) return '';
+  if (!plan.still.length) {
+    return `<div class="db-basics-verdict db-basics-clear">${esc('every colour clears its bar')}</div>`;
+  }
+  return plan.still.map(c => `<div class="db-basics-verdict">${esc(
+    `${c.label} still ${c.gap} short — that’s a land, not a basic`)}</div>`).join('');
+}
+
+// ── The two presses ───────────────────────────────────────────────────────
+
+/** The number in the field, read the way a budget has to be read. */
+function _dbBasicsAsked() {
+  const raw = String(document.getElementById('dbBasicsN')?.value ?? '').trim();
+  const n   = Math.round(Number(raw));
+  /* Emptied out is the prefill again, not nought. A field somebody has just
+     cleared to type a new number into is not an instruction to throw every
+     basic out of the deck. */
+  return raw === '' || !Number.isFinite(n) ? _dbBasicsHeld().total : Math.max(0, n);
+}
+
+/* The button. Which press this is is decided by the state rather than by a
+ * mode: a plan is on screen for this number, or it is not. Typing a different
+ * number takes the plan down, so "press twice" cannot mean "press once, change
+ * your mind, and write the first answer". */
+async function dbBasicsPress() {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  const asked = _dbBasicsAsked();
+  if (_dbBasicsBudget === asked && _dbBasicsReady(dbBasicsPlan(asked))) return dbBasicsApply();
+
+  /* The press that draws a preview is also the one that goes and fetches
+     whatever the app is still missing, so that refusing to write against a
+     half-read deck is a wait rather than a dead end: press once and the facts
+     are asked for, press again and the plan is against a deck it can see all
+     of. */
+  const deckId = dbDeck.id;
+  const blind  = dbDeckMana().unknown;
+  if (blind.length) {
+    await dbFetchCardData(blind);
+    if (!dbDeck || dbDeck.id !== deckId || !isMyPlayer(dbDeck.playerId)) return;
+  }
+  /* Read again on this side of the await: an empty field means the deck's own
+     count, and that count is one of the things the facts just changed. */
+  _dbBasicsBudget = _dbBasicsAsked();
+  _dbRenderLands();
+}
+
+/* The field, typed in. The plan goes, because it is a plan for a number that
+ * is no longer the one being asked for — and it goes without redrawing the
+ * tab, because a redraw would take the field out from under the cursor
+ * mid-number. Two elements are patched by hand for exactly that reason, and
+ * they are the two the state decides. */
+function dbBasicsTyped() {
+  if (_dbBasicsBudget === null) return;
+  _dbBasicsBudget = null;
+  const box = document.getElementById('dbBasicsPreview');
+  const go  = document.getElementById('dbBasicsGo');
+  if (box) box.innerHTML = '';
+  if (go)  go.textContent = 'Preview';
+}
+
+/* The write. Quantities set on the rows the deck already has, not a loop of
+ * dbAddCard() — that adds one copy at a time, is async, re-fetches card data
+ * and re-renders on each of them. Setting quantities is what preserves a
+ * Plains somebody filed under a custom "Mana Base", lets a colour going to
+ * nought be properly removed instead of clamped at one by dbChangeQty(), and
+ * makes the whole change one render and one save rather than fifteen.
+ *
+ * This is a second write path into dbCards, so it owes the hooks the edit
+ * module calls — the snapshot in front of it, and dbRenderStats() behind it,
+ * which is where dbManaChanged() lives and therefore where the check above
+ * this control stops being a reading of the deck as it was. */
+async function dbBasicsApply() {
+  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+  const deckId = dbDeck.id;
+
+  /* The facts first, for any basic the deck has never held: dbAutoCategory()
+     reads the type line, and a Plains categorised before Scryfall said it was
+     a land would be filed under "Other" for good. */
+  const fresh = dbBasicsPlan(_dbBasicsAsked()).rows
+    .filter(r => r.to > 0 && !dbFindCard(dbPlace(DB_MAIN_BOARD, r.name)) && !dbCardData.has(r.name))
+    .map(r => r.name);
+  if (fresh.length) await dbFetchCardData(fresh);
+  if (!dbDeck || dbDeck.id !== deckId || !isMyPlayer(dbDeck.playerId)) return;
+
+  /* Worked out again on this side of the await, against the deck as it stands
+     now. Everything the preview showed is a function of the deck and the
+     budget, and the deck is the half that can have moved. */
+  const plan = dbBasicsPlan(_dbBasicsAsked());
+  if (!_dbBasicsReady(plan)) return;
+
+  _dbForceSnapshot('basics');
+
+  for (const r of plan.rows) {
+    const ref  = dbPlace(DB_MAIN_BOARD, r.name);
+    const card = dbFindCard(ref);
+    if (r.to === 0) {
+      if (card) { dbCards = dbCards.filter(c => c !== card); dbSelectedCards.delete(ref); }
+      continue;
+    }
+    if (card) { card.qty = r.to; continue; }
+    const cat = dbAutoCategory(r.name);
+    dbEnsureCat(cat);
+    dbCards.push({ card_name: r.name, qty: r.to, category: cat,
+                   board: DB_MAIN_BOARD, position: dbCards.length });
+  }
+
+  _dbBasicsBudget = null;
+  dbRender();
+  dbRenderStats();
+  _dbScheduleSave();
 }
 
 // ── Fix it: the lands that would close a short colour ─────────────────────
@@ -820,7 +1174,7 @@ function _dbRenderLands() {
       body: got => _dbLandBody(got, canAdd),
     })).join('');
 
-  el.innerHTML = _dbSourcesHtml() + _dbFixHtml(colours, canAdd) +
+  el.innerHTML = _dbSourcesHtml() + _dbBasicsHtml() + _dbFixHtml(colours, canAdd) +
     `<div class="help-text db-land-note">${esc(_dbLandFilterNote(colours))}</div>${sections}` +
     _dbLandsCalcHtml();
 }
@@ -915,5 +1269,7 @@ const _dbLandsCalcHtml = () => `<div class="db-lands-calc">
 function _dbLandsClose() {
   _dbLandOpen.clear();
   _dbSourcesShortOpen = false;
+  /* And the plan, which is a plan for a deck that is no longer on the mat. */
+  _dbBasicsBudget = null;
   if (dbLeftTab === 'lands') _dbRenderLands();
 }
