@@ -25,7 +25,10 @@
 //
 // And underneath the check, the one control here that writes: a budget of
 // basics, split across the deck's colours in proportion to its pips, shown
-// before it is done and applied on a second press.
+// before it is done and applied on a second press. Beside it one override —
+// at least one basic of every colour the deck has pips in — off by default,
+// because the proportional split is the honest answer and the preview says
+// when it is about to cost the deck a colour outright.
 //
 // See docs/design/spec-landbase.md.
 
@@ -440,8 +443,14 @@ function _dbSourcesFootHtml(check) {
  * Two presses, because it writes to the least-noticed cards in the list and
  * silent would mean finding out three games later.
  *
- * See docs/design/spec-landbase.md. The "at least 1 basic of every colour"
- * toggle the spec puts beside this is not here yet.
+ * Beside it, one override: "at least 1 basic of every colour", off by default
+ * and remembered the way the drawer's "Add to" is. Off is the honest answer,
+ * so off is the default — but a colour the proportional split rounds to
+ * nothing, in a deck where nothing else makes that colour, is said out loud in
+ * the preview either way. You find out when it bites rather than having to
+ * know to flick a switch first.
+ *
+ * See docs/design/spec-landbase.md.
  */
 
 /** The six the optimizer writes to, by name — the only names it will touch. */
@@ -453,6 +462,31 @@ const DB_BASIC_OF = new Map(DB_MANA_COLORS.map(c => [c.basic, c.id]));
  * it was half a minute ago — and the second press writes what is on screen,
  * which is the whole of what the two presses are for. */
 let _dbBasicsBudget = null;
+
+/* The override, kept where dbAddTo() keeps its own — in localStorage, not on
+ * the deck. It is a way of working rather than a fact about any one list:
+ * somebody who wants a Swamp in every deck that has a black card in it wants
+ * it in the next deck too, and having to find the switch again on each of them
+ * is the switch not being remembered.
+ *
+ * Off unless it says otherwise, which is both the default and localStorage's
+ * usual rule: a stored value nothing recognises is the default, not a third
+ * state. */
+const DB_BASICS_ONE_EACH_KEY = 'mtgtools_db_basics_one_each';
+
+function dbBasicsOneEach() {
+  try { return localStorage.getItem(DB_BASICS_ONE_EACH_KEY) === '1'; } catch { return false; }
+}
+
+/* Flicked. The preview is patched rather than the tab redrawn, for the reason
+ * dbBasicsTyped() has: a redraw would take the number field out from under the
+ * cursor. Nothing above or below the control is a reading of this switch —
+ * the check counts the deck as it stands and the toggle changes no card — so
+ * the preview is the whole of what has gone stale. */
+function dbSetBasicsOneEach(on) {
+  try { localStorage.setItem(DB_BASICS_ONE_EACH_KEY, on ? '1' : '0'); } catch {}
+  _dbBasicsRepaint();
+}
 
 /* The deck's basics, in the two piles that matter: the ones this writes to,
  * and the ones it will not.
@@ -483,22 +517,69 @@ function _dbBasicsHeld() {
   return { managed, spare, held, extra, total: held + extra };
 }
 
-/* The split itself: landsDistribute()'s maths, over the pips this is allowed
- * to split by.
+/* The pips a budget is allowed to be split by, which is not every pip the
+ * deck has.
  *
  * {C} sits out. A Commander deck with two colourless pips does not want two
  * Wastes, and a proportional split that hands one a slot takes that slot from
  * a colour that needed it. Unless there is no colour to take it from — a
  * Kozilek deck, a Karn deck — in which case Wastes is simply the answer. That
  * completes the rule rather than contradicting it: {C} never competes with a
- * colour, and with no colour in the deck it is not competing with anything. */
-function dbBasicsSplit(slots, pips) {
-  const want    = _dbManaZero();
-  const colours = DB_MANA_IDS.filter(id => id !== 'C');
+ * colour, and with no colour in the deck it is not competing with anything.
+ *
+ * One function rather than two, because the toggle below and the flag beside
+ * it both mean "every colour the deck has pips in" and it would be a poor
+ * joke if the two of them disagreed about which colours those were. */
+function _dbBasicsWant(pips) {
+  const want     = _dbManaZero();
+  const colours  = DB_MANA_IDS.filter(id => id !== 'C');
   const inColour = colours.reduce((n, id) => n + (pips[id] || 0), 0);
   if (inColour > 0) for (const id of colours) want[id] = pips[id] || 0;
   else want.C = pips.C || 0;
-  return landsDistribute(Math.max(0, Math.round(slots)), want);
+  return want;
+}
+
+/* The split itself: landsDistribute()'s maths, over those pips.
+ *
+ * One-each is repaired into the finished split rather than reserved out of the
+ * budget in front of it, and that is the difference between an override and a
+ * second algorithm. Reserving one slot per colour and splitting the remainder
+ * would move basics around on decks where every colour already had some — flick
+ * the switch on a 3/13/7 and get a 4/12/7, for a deck that never had a colour
+ * at risk. A switch that changes an answer it was not needed for is a switch
+ * nobody can predict. Repairing means the toggle is exactly a no-op wherever
+ * the proportional split already seats every colour, which is most decks.
+ *
+ * Who pays is not a free choice either. The basic comes off whichever colour
+ * is furthest *above* its own exact share — the one holding a slot rounding
+ * gave it — so the result stays as close to proportional as a whole number
+ * lets it be. Never off a colour down to its own last basic: paying by
+ * starving somebody else is the split going round in a circle.
+ *
+ * Which is why a budget too small to seat every colour seats the colours with
+ * the most pips and leaves the rest at nought. There is no split of three
+ * slots that gives five colours one each; what there is, is a preview that
+ * says which colours the deck cannot make — see _dbBasicsStarved(). */
+function dbBasicsSplit(slots, pips) {
+  const want  = _dbBasicsWant(pips);
+  const total = Math.max(0, Math.round(slots));
+  const split = landsDistribute(total, want);
+  const asked = DB_MANA_IDS.reduce((n, id) => n + want[id], 0);
+  if (!dbBasicsOneEach() || !asked) return split;
+
+  /* Sorted so that where the budget runs out before the colours do, it is the
+     colour the deck asks for least that goes without. Array.sort is stable,
+     so colours asking equally keep WUBRG order. */
+  const needy = DB_MANA_IDS.filter(id => want[id] > 0 && split[id] === 0)
+                           .sort((a, b) => want[b] - want[a]);
+  const over  = id => split[id] - total * want[id] / asked;
+  for (const id of needy) {
+    const payer = DB_MANA_IDS.filter(o => split[o] > 1).sort((a, b) => over(b) - over(a))[0];
+    if (!payer) break;   // nobody can pay, so nobody after this one can be paid for either
+    split[payer]--;
+    split[id]++;
+  }
+  return split;
 }
 
 /** Everything the preview says, as figures. */
@@ -531,6 +612,18 @@ function dbBasicsPlan(budget) {
        rather than written and found out three games later. */
     blind: mana.unknown,
     rows, changed: rows.filter(r => r.to !== r.from),
+    /* The colours this leaves the deck unable to make at all — which is the
+       finding the toggle exists to prevent, said out loud whether or not the
+       toggle is on. Off is the default, so the moment it would have mattered
+       has to arrive by itself: nobody flicks a switch against a failure they
+       have not been shown. */
+    starved: _dbBasicsStarved(split, mana, held.managed),
+    /* And, with the override on, the colours it could not seat after all.
+       Three slots cannot give five colours one each, and a promise that
+       quietly is not kept is worse than one that says where it ran out — the
+       more so because the sentence below would otherwise be the *off* state's
+       sentence, which reads as the honest split having chosen this. */
+    unseated: dbBasicsOneEach() ? _dbBasicsNought(split, mana.pips) : [],
     nowhere: slots > 0 && placed === 0,
     /* More unmanaged basics than the whole budget: the number typed cannot be
        reached by anything this is allowed to touch. */
@@ -540,6 +633,31 @@ function dbBasicsPlan(budget) {
     still: _dbBasicsStill(rows, mana.lands.total + moved),
   };
 }
+
+/* A colour the split rounds to nothing, in a deck where nothing else makes it.
+ *
+ * Two halves, and both are needed. Rounded to nothing is dbBasicsSplit()'s
+ * answer, not the deck's current basics: a deck with four Forests whose split
+ * comes back with none is about to lose its green, and the row moving from 4
+ * to 0 is exactly the case worth catching. Nothing else makes it is
+ * dbDeckMana()'s source count with the basics this manages taken back out of
+ * it — a Forest is a green source and counting it here would have the flag
+ * telling us green is fine right up until the write removes it.
+ *
+ * Scoped to the colours a split is allowed to place, so it and the toggle
+ * agree: a deck with {C} pips and no Wastes is not flagged, because {C} sits
+ * out of the split by a rule of its own and the toggle would not seat it
+ * either. */
+function _dbBasicsStarved(split, mana, managed) {
+  return _dbBasicsNought(split, mana.pips)
+    .filter(c => mana.sources[c.id] - managed[c.id] <= 0);
+}
+
+/** The colours the deck asks for that a split leaves with no basic at all. */
+const _dbBasicsNought = (split, pips) => {
+  const want = _dbBasicsWant(pips);
+  return DB_MANA_COLORS.filter(c => want[c.id] > 0 && split[c.id] === 0);
+};
 
 /* The check, run over the deck this would make — which is the line the spec
  * says the preview exists for. The case worth catching is the one where the
@@ -584,11 +702,27 @@ function _dbBasicsHtml() {
       <button id="dbBasicsGo" class="db-basics-go" onclick="dbBasicsPress()">
         ${_dbBasicsReady(plan) ? 'Apply' : 'Preview'}</button>
     </div>
+    ${_dbBasicsOneEachHtml()}
     <div id="dbBasicsPreview" class="db-basics-preview">${plan ? _dbBasicsPreviewHtml(plan) : ''}</div>
     <div class="db-sources-limit">${esc(
       'The number is the deck’s total basics after this, so the deck never grows behind you. ' +
       'It is split across the colours in proportion to the deck’s pips.')}</div>
   </div>`;
+}
+
+/* The override, on a line of its own under the row it modifies rather than
+ * squeezed into it: the field and the button are one gesture with two steps,
+ * and a third control between them would read as part of the sentence they
+ * make. The label points at the box with `for` rather than wrapping it, which
+ * is how the drawer's other checkbox gets to a finger's worth of tap target
+ * without the box itself having to be finger-sized. */
+function _dbBasicsOneEachHtml() {
+  const on = dbBasicsOneEach();
+  return `<span class="db-basics-one-each">
+    <input type="checkbox" id="dbBasicsEachBox"${on ? ' checked' : ''}
+           onchange="dbSetBasicsOneEach(this.checked)">
+    <label for="dbBasicsEachBox">${esc('At least 1 basic of every colour')}</label>
+  </span>`;
 }
 
 /* Whether the next press is the one that writes.
@@ -618,7 +752,8 @@ function _dbBasicsPreviewHtml(plan) {
     · lands ${plan.lands.from} → <strong>${plan.lands.to}</strong></div>`;
 
   return `${_dbBasicsBlindHtml(plan)}${_dbBasicsSpareHtml(plan)}${rows}` +
-         `${plan.rows.length ? size : ''}${_dbBasicsStillHtml(plan)}`;
+         `${plan.rows.length ? size : ''}${_dbBasicsUnseatedHtml(plan)}` +
+         `${_dbBasicsStarvedHtml(plan)}${_dbBasicsStillHtml(plan)}`;
 }
 
 /* What the app has not read yet, named the way the check names it — because a
@@ -649,6 +784,30 @@ function _dbBasicsSpareHtml(plan) {
 /** A card name, more than once. Enough English for six land names. */
 const _dbBasicsPlural = (name, n) =>
   n === 1 || /s$/i.test(name) ? name : `${name}s`;
+
+/* Where the override was asked for and could not be given: a budget smaller
+ * than the number of colours in the deck. Said before the line below it
+ * because it is the reason for it — a colour at nought under a ticked box is
+ * not the proportional split having chosen that, and being told it in the
+ * split's own words would be the switch failing quietly. */
+function _dbBasicsUnseatedHtml(plan) {
+  if (plan.nowhere || !plan.unseated.length) return '';
+  const names = plan.unseated.map(c => c.label).join(' and ');
+  return `<div class="db-basics-verdict">${esc(
+    `a budget of ${plan.slots} cannot give every colour one — ` +
+    `${names} ${plan.unseated.length === 1 ? 'goes' : 'go'} without`)}</div>`;
+}
+
+/* A colour that rounds to nothing in a deck where nothing else makes it,
+ * named before the shortfalls below it — being unable to cast a colour at all
+ * is a different order of finding from being four sources light of a bar, and
+ * it is the one the toggle above fixes. Not a warning against pressing:
+ * plenty of decks mean it, and the deck that does not now knows to say so. */
+function _dbBasicsStarvedHtml(plan) {
+  if (plan.nowhere || !plan.starved.length) return '';
+  return plan.starved.map(c => `<div class="db-basics-verdict">${esc(
+    `${c.label} rounded to 0 basics, and nothing else in the deck makes ${c.label}`)}</div>`).join('');
+}
 
 /* What the check would still say, which is the reason the preview is worth
  * reading rather than a formality on the way to the button. Named as a land
@@ -708,15 +867,25 @@ async function dbBasicsPress() {
 /* The field, typed in. The plan goes, because it is a plan for a number that
  * is no longer the one being asked for — and it goes without redrawing the
  * tab, because a redraw would take the field out from under the cursor
- * mid-number. Two elements are patched by hand for exactly that reason, and
- * they are the two the state decides. */
+ * mid-number. */
 function dbBasicsTyped() {
   if (_dbBasicsBudget === null) return;
   _dbBasicsBudget = null;
-  const box = document.getElementById('dbBasicsPreview');
-  const go  = document.getElementById('dbBasicsGo');
-  if (box) box.innerHTML = '';
-  if (go)  go.textContent = 'Preview';
+  _dbBasicsRepaint();
+}
+
+/* The preview and the button, redrawn off the state without redrawing the tab
+ * around them. Two elements, patched by hand, because they are the two the
+ * state decides and a full redraw would move the field being typed into. With
+ * no plan up this draws the empty preview and the first press, which is what
+ * dbBasicsTyped() wants; with one up it re-splits, which is what the toggle
+ * does. */
+function _dbBasicsRepaint() {
+  const plan = _dbBasicsBudget === null ? null : dbBasicsPlan(_dbBasicsBudget);
+  const box  = document.getElementById('dbBasicsPreview');
+  const go   = document.getElementById('dbBasicsGo');
+  if (box) box.innerHTML = plan ? _dbBasicsPreviewHtml(plan) : '';
+  if (go)  go.textContent = _dbBasicsReady(plan) ? 'Apply' : 'Preview';
 }
 
 /* The write. Quantities set on the rows the deck already has, not a loop of

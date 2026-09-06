@@ -1789,8 +1789,8 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
   /* The checkbox is 14px and cannot grow without looking like a button, so its
      label carries the target: an overlay across the whole toggle, which a
      linked label may do because clicking anywhere on it is clicking the box. */
-  .db-ci-toggle { position: relative; min-height: 44px; }
-  .db-ci-toggle label::before {
+  .db-ci-toggle, .db-basics-one-each { position: relative; min-height: 44px; }
+  .db-ci-toggle label::before, .db-basics-one-each label::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -2551,6 +2551,28 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
               color var(--dur-base) var(--ease-tint);
 }
 .db-basics-go:hover { border-color: var(--primary); color: var(--primary); }
+
+/* The override, under the row it modifies rather than in it: the field and the
+   button are one gesture with two steps, and a third control wedged between
+   them would read as part of the sentence they make.
+
+   The same shape as .db-ci-toggle — the drawer's other checkbox — and
+   deliberately not the same rule. That one sits inline beside a select and is
+   `flex-shrink: 0; white-space: nowrap` so it never wraps out of that row;
+   this one owns its line and carries a sentence, so wrapping is exactly what
+   it must be allowed to do on a narrow drawer. The two are paired in the phone
+   block above, where what they share — a label stretched to a finger's worth
+   of tap target — really is one rule. */
+.db-basics-one-each {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-bottom: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.db-basics-one-each input[type="checkbox"] { accent-color: var(--primary); cursor: pointer; }
+.db-basics-one-each label { cursor: pointer; }
 
 .db-basics-preview:empty { display: none; }
 .db-basics-preview { padding-top: var(--space-1); }

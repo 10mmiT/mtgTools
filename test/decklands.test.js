@@ -109,9 +109,30 @@
  *
  * The control between the check and the fix: a budget of basics, split across
  * the deck's colours by pips, previewed and then applied. It is the first
- * thing in the app to write a calculation into a deck, and the four things
- * asserted are the four places it can be wrong — the split, the basics it is
- * not allowed to touch, the two rules about {C}, and the write.
+ * thing in the app to write a calculation into a deck, and the five things
+ * asserted are the five places it can be wrong — the split, the basics it is
+ * not allowed to touch, the two rules about {C}, the override beside it, and
+ * the write.
+ *
+ * The override is "at least 1 basic of every colour", and what is asserted
+ * about it is both of its states, because it has two jobs and only one of them
+ * is the switch. On, it seats every colour the deck has *pips* in — pips, not
+ * the commander's identity, which is a Golgari commander's black never getting
+ * a Swamp for a colour nothing in the deck asks for — and the split still adds
+ * up, because the floor is repaired into a finished largest-remainder split
+ * rather than reserved out in front of one. That is also asserted as the
+ * property it was chosen for: on a deck where every colour already has basics
+ * the switch changes nothing at all.
+ *
+ * Off, which is the default, the preview says the moment it would have
+ * mattered — a colour rounded to nought in a deck where nothing else makes it.
+ * Both halves of that are asserted, because a flag that read the deck's
+ * current sources straight would call white fine on its way out of the deck.
+ *
+ * And the two sentences are asserted as two. A budget of three cannot give
+ * five colours one each, so the switch can be on and still leave a colour at
+ * nought — and telling somebody that in the off state's words would be the
+ * switch failing quietly, which is the one thing a switch must never do.
  *
  * The split's expected numbers are worked out in the comment above the deck
  * they are read off, by hand, rather than lifted from a run of the code. That
@@ -213,6 +234,12 @@ const CARDS = {
     produced_mana: ['W', 'U', 'B', 'R', 'G'], color_identity: [] },
   'Yavimaya Coast': { name: 'Yavimaya Coast', type_line: 'Land', cmc: 0,
     produced_mana: ['G', 'U', 'C'], color_identity: ['G', 'U'] },
+  /* A Golgari commander whose black is in an activated ability rather than in
+     its cost — the spec's own example of why "every colour" cannot mean the
+     commander's identity. */
+  'Nemata, Primeval Warden': { name: 'Nemata, Primeval Warden',
+    type_line: 'Legendary Creature — Treefolk Warrior', cmc: 5, mana_cost: '{4}{G}',
+    color_identity: ['B', 'G'] },
   'Birds of Paradise': { name: 'Birds of Paradise', type_line: 'Creature — Bird', cmc: 1,
     mana_cost: '{G}', produced_mana: ['W', 'U', 'B', 'R', 'G'], color_identity: ['G'] },
   /* A cost that asks for two colours at once, and a card that is two costs on
@@ -289,8 +316,11 @@ const ANSWERS = {
 };
 
 function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
-                   answers = ANSWERS, collections = SHELVES } = {}) {
-  const store = new Map();
+                   answers = ANSWERS, collections = SHELVES,
+                   /* The browser's own store, handed in — which is how a
+                      preference that outlives one visit is asserted at all: a
+                      second load over the same Map is the next reload. */
+                   store = new Map() } = {}) {
   const mat = { innerHTML: '', classList: { toggle() {} } };
   const els = {};
   const el = id => (els[id] ||= {
@@ -379,6 +409,11 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
   }
   const run    = expr => vm.runInContext(expr, sandbox);
   const answer = expr => JSON.parse(run(`JSON.stringify(${expr})`));
+  /* The preview as the tab drew it, for the reads that happen before anything
+     has patched it in place. */
+  const _preview = () =>
+    (el('dbLandsContent').innerHTML.match(
+      /<div id="dbBasicsPreview"[^>]*>([\s\S]*?)<\/div>\s*<div class="db-sources-limit">/) || [, ''])[1];
 
   run(`currentUser = ${JSON.stringify(user)}`);
   run(`hydrateState(${JSON.stringify({ players: PLAYERS, collections })})`);
@@ -398,7 +433,7 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
          const s = _dbScheduleSave;  _dbScheduleSave = (...a) => { _dbSaveCalls++; return s(...a); }; }`);
 
   return {
-    run, answer, el,
+    run, answer, el, store,
     /** Every Scryfall query the tab has asked, in order. */
     asked: () => sandbox.asked.map(u => new URL(u, 'http://x').searchParams.get('q')),
     /** The tab, switched to. */
@@ -421,6 +456,15 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     split: (slots, pips) => answer(`dbBasicsSplit(${slots}, ${JSON.stringify(pips)})`),
     /** A number typed into the field — which is what a person does, not a call. */
     type(n) { el('dbBasicsN').value = String(n); run('dbBasicsTyped()'); },
+    /** The "at least 1 basic of every colour" box, ticked or cleared. */
+    oneEach(on) { el('dbBasicsEachBox').checked = on; run(`dbSetBasicsOneEach(${!!on})`); },
+    /* The preview on its own. In the browser it is a child of the tab, so
+       patching it is patching what you see; here they are two objects, and
+       this is the one the repaint writes to — so it, where it has anything,
+       is the freshest answer. */
+    preview: () => el('dbBasicsPreview').innerHTML || _preview(),
+    /** The word on the button, which says which press the next one is. */
+    button: () => el('dbBasicsGo').textContent,
     /** The button. */
     press() { return run('dbBasicsPress()'); },
     /** The deck as it stands, and the piles it is filed into. */
@@ -434,7 +478,7 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
       .filter(p => /\/snapshots$/.test(p.url))
       .map(p => JSON.parse(p.body).reason),
     /** The rows the preview is showing, as it writes them. */
-    previewRows: () => [...el('dbLandsContent').innerHTML
+    previewRows: () => [...(el('dbBasicsPreview').innerHTML || _preview())
       .matchAll(/db-basics-card">([^<]+)<\/span>\s*<span class="db-basics-fig">([\s\S]*?)<\/span>/g)]
       .map(m => `${m[1]} ${m[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()}`),
     /** The colours the fix region offers to close, as it labels them. */
@@ -1488,6 +1532,206 @@ test('a budget of nought is a deck with no basics in it', () => {
   const plan = tab.plan(0);
   assert.deepStrictEqual(plan.rows.map(r => r.to), [0, 0, 0],
     'a budget of nought left basics behind');
+});
+
+// ── At least 1 basic of every colour ─────────────────────────────────────
+/* The one override beside the optimizer, and the reason it can afford to be
+ * off by default: the preview says the moment it would have mattered.
+ *
+ * The numbers below are worked out by hand from the same seven pips the split
+ * tests above are read off — one white, four blue, two green. A budget of 3
+ * over 1:4:2 is 0.43, 1.71, 0.86: the floors are 1, the two left over go to
+ * the two largest fractions, green and blue, and white comes out at nought.
+ * That is the deck this section is about.
+ */
+
+test('the toggle is off until it is turned on, and is still on for the next deck', () => {
+  /* Read off the attribute rather than off the tag, because the handler beside
+     it is written `dbSetBasicsOneEach(this.checked)` and a looser match would
+     find the word there. */
+  const ticked = html => /id="dbBasicsEachBox" checked/.test(html);
+
+  const first = loadTab({ deck: BASICS_DECK });
+  assert.match(first.open(), /id="dbBasicsEachBox"/, 'the override is not on the tab at all');
+  assert.strictEqual(ticked(first.html()), false,
+    'the override arrived already on, which makes the proportional split the override');
+
+  first.oneEach(true);
+  assert.strictEqual(ticked(first.open()), true,
+    'the box did not come back ticked in the tab it was ticked in');
+
+  /* A different deck, in a later visit — a second load over the same store is
+     the next reload, and DECK is a different list from the one it was ticked
+     on. It is kept the way dbAddTo() is kept because it is the same kind of
+     thing: a way of working, not a fact about any one list. */
+  const later = loadTab({ deck: DECK, store: first.store });
+  assert.strictEqual(ticked(later.open()), true,
+    'the override was forgotten between decks, or between visits');
+  assert.strictEqual(first.store.get('mtgtools_db_basics_one_each'), '1');
+});
+
+test('on, every colour the deck has pips in gets one, and the split still adds up', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.oneEach(true);
+  assert.deepStrictEqual(tab.split(3, { W: 1, U: 4, B: 0, R: 0, G: 2, C: 0 }),
+    { W: 1, U: 1, B: 0, R: 0, G: 1, C: 0 },
+    'a colour the deck asks for was left with no basic at all');
+  for (const budget of [3, 4, 7, 14, 23, 40, 99]) {
+    const split = tab.split(budget, { W: 1, U: 4, B: 0, R: 0, G: 2, C: 0 });
+    assert.strictEqual(Object.values(split).reduce((n, v) => n + v, 0), budget,
+      `a budget of ${budget} did not come out whole with the floor on`);
+    for (const id of ['W', 'U', 'G']) {
+      assert.ok(split[id] >= 1, `${id} went without at a budget of ${budget}`);
+    }
+    assert.strictEqual(split.B + split.R + split.C, 0,
+      `a colour with no pips in it was given a basic at a budget of ${budget}`);
+  }
+});
+
+test('a split that already seats every colour is left exactly as it was', () => {
+  /* The property that makes this an override rather than a second algorithm.
+     Reserving a slot per colour up front and splitting the remainder would
+     turn 3/13/7 into 4/12/7 on a deck that never had a colour at risk, which
+     is a switch nobody can predict the effect of. */
+  const tab = loadTab({ deck: BASICS_DECK });
+  const pips = { W: 1, U: 4, B: 0, R: 0, G: 2, C: 0 };
+  const off  = tab.split(23, pips);
+  tab.oneEach(true);
+  assert.deepStrictEqual(tab.split(23, pips), off);
+  assert.deepStrictEqual(off, { W: 3, U: 13, B: 0, R: 0, G: 7, C: 0 });
+});
+
+test('the basic comes off the colour furthest above its share, not off the largest', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.oneEach(true);
+  /* 6 over 1:9:8 is 0.33, 3.00, 2.67 — floors 0, 3, 2, and the one left over
+     goes to black, whose fraction is the largest. So white needs a basic and
+     blue and black are level on three apiece. Blue is exactly on its share and
+     black is a third of a basic above it, holding the slot rounding just gave
+     it, so black is the one that pays. A rule that took from the largest pile
+     would have to toss a coin here. */
+  assert.deepStrictEqual(tab.split(6, { W: 1, U: 9, B: 8, R: 0, G: 0, C: 0 }),
+    { W: 1, U: 3, B: 2, R: 0, G: 0, C: 0 });
+});
+
+test('a colour is never starved to feed another one', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.oneEach(true);
+  /* Two slots and three colours: there is no split that honours the floor, and
+     a repair that took blue's last basic to give white one would only move the
+     hole. The colours the deck asks for most are the ones seated, and the
+     preview is where white being unmakeable gets said. */
+  const split = tab.split(2, { W: 1, U: 4, B: 0, R: 0, G: 2, C: 0 });
+  assert.deepStrictEqual(split, { W: 0, U: 1, B: 0, R: 0, G: 1, C: 0 });
+  assert.strictEqual(Object.values(split).reduce((n, v) => n + v, 0), 2,
+    'the budget stopped adding up where it could not be honoured');
+});
+
+test('an override that could not be honoured says so in its own words', () => {
+  /* The failure this catches is the quiet one. White is at nought under a
+     ticked box, and the sentence the off state would use for that — "white
+     rounded to 0 basics" — reads as the proportional split having chosen it.
+     A switch that is on and not keeping its promise has to say which. */
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.oneEach(true);
+  tab.type(2);
+  tab.press();
+  assert.deepStrictEqual(tab.plan(2).unseated.map(c => c.id), ['W']);
+  assert.match(tab.preview(),
+    /a budget of 2 cannot give every colour one — white goes without/,
+    'the override ran out of budget and did not say so');
+});
+
+test('with the override off, nothing is ever reported as unseated', () => {
+  /* The pair with the test above: off, a colour at nought is the split's
+     answer and not a promise broken, and the preview has its own sentence for
+     it. Two findings, two states, and neither borrows the other's words. */
+  const tab = loadTab({ deck: BASICS_DECK });
+  assert.deepStrictEqual(tab.plan(2).unseated, []);
+  assert.deepStrictEqual(tab.plan(3).starved.map(c => c.id), ['W']);
+});
+
+test('“every colour” is the colours with pips, not the commander’s identity', () => {
+  /* Nemata is a Golgari commander whose black is an activated ability. Nothing
+     in this deck costs black, so a forced Swamp would be a basic for a colour
+     nothing asks for — which is the whole reason the rule is written in pips. */
+  const tab = loadTab({
+    deck: [{ card_name: 'Cultivate', category: 'Ramp' },
+           { card_name: 'Forest', category: 'Lands', qty: 10 }],
+    commander: { card_name: 'Nemata, Primeval Warden', category: 'Creatures',
+                 board: 'commander' },
+  });
+  tab.oneEach(true);
+  const to = Object.fromEntries(tab.plan(10).rows.map(r => [r.name, r.to]));
+  assert.deepStrictEqual(to, { Forest: 10 },
+    'a colour the commander merely permits was given a basic of its own');
+});
+
+test('the whole budget goes in on the second press, one basic of each colour and all', async () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.oneEach(true);
+  tab.type(3);
+  await tab.press();
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Plains: 1, Island: 1, Forest: 1 },
+    'the override was previewed and then not written');
+});
+
+// ── Off, and the moment it would have mattered ────────────────────────────
+
+test('a colour that rounds to nothing, in a deck that cannot otherwise make it, is said', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  const plan = tab.plan(3);
+  assert.deepStrictEqual(plan.starved.map(c => c.id), ['W'],
+    'white was about to leave the deck and the plan did not notice');
+
+  tab.open();
+  tab.type(3);
+  tab.press();
+  assert.match(tab.preview(),
+    /white rounded to 0 basics, and nothing else in the deck makes white/,
+    'the preview let a colour out of the deck without saying so');
+});
+
+test('a colour something else makes is not flagged for rounding to nothing', () => {
+  /* The other half of the rule, and the reason it is not simply "this row went
+     to nought": a deck with a Temple Garden in it can still cast its white
+     card. What the flag is about is the deck being unable to make a colour at
+     all, which is the one finding the mana panel was ever willing to call a
+     fault. */
+  const tab = loadTab({ deck: [...BASICS_DECK, { card_name: 'Temple Garden', category: 'Lands' }] });
+  assert.deepStrictEqual(tab.plan(3).starved, [],
+    'a colour with a dual behind it was called unmakeable');
+});
+
+test('a basic the split is about to remove does not count as making its colour', () => {
+  /* The trap the other way round: the Plains this is about to take out of the
+     deck are green-lit sources right up until the write, so a flag that read
+     dbDeckMana() straight would report white fine on its way out the door. */
+  const tab = loadTab({ deck: BASICS_DECK });
+  assert.strictEqual(tab.check().colours.find(c => c.id === 'W').held > 0, true,
+    'the deck under test has no white sources to be fooled by');
+  assert.deepStrictEqual(tab.plan(3).starved.map(c => c.id), ['W']);
+});
+
+test('the toggle repaints the plan without taking the field away mid-number', () => {
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(3);
+  tab.press();
+  assert.match(tab.preview(), /white rounded to 0 basics/);
+
+  tab.oneEach(true);
+  assert.doesNotMatch(tab.preview(), /white rounded to 0 basics/,
+    'the preview still showed the answer the toggle had just changed');
+  assert.deepStrictEqual(tab.previewRows(),
+    ['Plains 8 → 1', 'Island 9 → 1', 'Forest 6 → 1']);
+  assert.strictEqual(tab.el('dbBasicsN').value, '3',
+    'the number typed was thrown away by the flick of a switch');
+  assert.strictEqual(tab.button(), 'Apply',
+    'the plan on screen was no longer the one the next press would write');
 });
 
 // ── The basics the optimizer does not manage ──────────────────────────────
