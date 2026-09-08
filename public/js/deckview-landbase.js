@@ -475,7 +475,7 @@ function _dbSourcesLimitsHtml(check) {
  * See docs/design/spec-landbase.md.
  */
 
-/** The six the optimizer writes to, by name — the only names it will touch. */
+/** The six basic names, by the colour each one makes — the only names touched. */
 const DB_BASIC_OF = new Map(DB_MANA_COLORS.map(c => [c.basic, c.id]));
 
 /* What a preview is showing, as the number it was asked for rather than as the
@@ -513,22 +513,47 @@ function dbSetBasicsOneEach(on) {
 /* The deck's basics, in the two piles that matter: the ones this writes to,
  * and the ones it will not.
  *
- * The managed pile is decided by *name*, not by the type line, and that is
- * deliberate — a row called Plains is a Plains whether or not its facts have
- * arrived from Scryfall, and a prefill that read 0 because the cache was
- * mid-refresh would be a budget that quietly emptied the deck.
+ * Which pile a row falls in is decided by *name*, not by the type line, and
+ * that is deliberate — a row called Plains is a Plains whether or not its
+ * facts have arrived from Scryfall, and a prefill that read 0 because the
+ * cache was mid-refresh would be a budget that quietly emptied the deck.
  *
- * The unmanaged pile cannot be decided that way, because the whole point of it
- * is the names nobody listed: _dbIsBasic() passes `Basic Snow Land — Island`
- * and it passes Wastes. Those come off the budget and are named in the
- * preview, so "I asked for 14" cannot mean a deck that grew by three. */
+ * Five of the six are managed wherever they appear. Wastes is the sixth, and
+ * is managed only where _dbBasicsWant() puts weight on {C} — a deck whose pips
+ * are colourless ones. That is the same rule the split runs on, read from the
+ * same function so the two cannot disagree, and it has to be read here as well
+ * as there: anywhere a colour could take the slot, {C} is given none, so a
+ * Wastes counted as managed is a row the split takes to nought and
+ * dbBasicsApply() then deletes. An Eldrazi-splash deck would lose its Wastes
+ * to the default re-balance press, which is the optimizer removing cards
+ * nobody asked it to touch.
+ *
+ * That one rule is the exception to the paragraph above it: the pips are read
+ * from the cache, so a deck still in flight files its Wastes as spare rather
+ * than as managed. Spare is the safe way round — it is the pile that is left
+ * alone — and the budget does not notice either way, the prefill being the two
+ * piles added together. Nothing is written while anything is in flight at all;
+ * see `blind`, in dbBasicsPlan().
+ *
+ * The rest of the unmanaged pile is the names nobody listed, and those cannot
+ * be decided by name at all: _dbIsBasic() passes `Basic Snow Land — Island`.
+ * Everything in that pile — the snow basics, and the Wastes of a coloured deck
+ * — comes off the budget and is named in the preview, so "I asked for 14"
+ * cannot mean a deck that grew by three. */
 function _dbBasicsHeld() {
   const managed = _dbManaZero();
   const spare   = [];
+  const want    = _dbBasicsWant(dbDeckMana().pips);
   for (const row of dbMainCards()) {
     const qty = row.qty || 1;
     const id  = DB_BASIC_OF.get(row.card_name);
-    if (id) { managed[id] += qty; continue; }
+    if (id) {
+      /* By name on the way out too: counting an unmanaged Wastes off its type
+         line would have a cold cache hide it from the budget as well. */
+      if (id !== 'C' || want.C > 0) managed[id] += qty;
+      else spare.push({ name: row.card_name, qty });
+      continue;
+    }
     const sf = dbCardData.get(row.card_name);
     if (sf && _dbIsBasic(sf) && dbCardType(row.card_name) === 'land') {
       spare.push({ name: row.card_name, qty });

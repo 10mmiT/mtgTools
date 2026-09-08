@@ -251,11 +251,11 @@ const CARDS = {
       { name: 'Bonecrusher Giant', mana_cost: '{2}{R}', type_line: 'Creature — Giant' },
       { name: 'Stomp', mana_cost: '{1}{B}{B}', type_line: 'Instant — Adventure' }] },
 
-  /* And the rest of the six the optimizer writes to, plus the two basics it
-     will not: a snow basic, which _dbIsBasic() passes and no colour on the
-     split names, and Wastes, which is one of the six and therefore is managed
-     — the pair is what makes "unmanaged" a rule about names rather than a
-     hand-wave about snow. */
+  /* And the rest of the six the optimizer writes to, plus the two basics a
+     coloured deck's budget leaves alone: a snow basic, which _dbIsBasic()
+     passes and no colour on the split names, and Wastes, which is one of the
+     six but is only managed where {C} is what the split is made of. The pair
+     is what keeps "unmanaged" from being a hand-wave about snow. */
   'Plains': { name: 'Plains', type_line: 'Basic Land — Plains', cmc: 0,
     produced_mana: ['W'], color_identity: [] },
   'Swamp': { name: 'Swamp', type_line: 'Basic Land — Swamp', cmc: 0,
@@ -1764,15 +1764,89 @@ test('a snow basic comes off the budget and is named as untouched', () => {
     'the preview did not name the basics it will not write to');
 });
 
-test('Wastes is one of the six, so it is managed rather than left alone', () => {
-  /* The pair with the test above is the point: "unmanaged" is a rule about
-     which six names the optimizer writes to, not a rule about snow. */
+test('a deck with coloured pips keeps its Wastes through a re-split', () => {
+  /* The pair with the test above is the point, and Wastes is the harder half
+     of it: it is one of the six names, but {C} sits out of the split of a
+     coloured deck — so a slot the split is not allowed to give it is a slot it
+     must not be made to give up either. Managed by name and unwanted by the
+     split is a row written to nought, which is the deck losing cards it was
+     promised nobody would touch. */
   const tab = loadTab({ deck: [...BASICS_DECK, { card_name: 'Wastes', category: 'Lands', qty: 2 }] });
   const plan = tab.plan(23);
-  assert.strictEqual(plan.extra, 0, 'Wastes was treated as somebody else’s card');
-  assert.deepStrictEqual(plan.rows.filter(r => r.name === 'Wastes'), [
-    { id: 'C', name: 'Wastes', label: 'colourless', from: 2, to: 0 }],
-    'a deck with no colourless pips kept its Wastes through a re-split');
+  assert.strictEqual(plan.extra, 2, 'the Wastes did not come off the budget');
+  assert.strictEqual(plan.slots, 21, 'the deck would have grown by two behind the number typed');
+  assert.deepStrictEqual(plan.rows.filter(r => r.name === 'Wastes'), [],
+    'a deck with no colourless pips was about to lose its Wastes');
+  assert.deepStrictEqual(plan.spare, [{ name: 'Wastes', qty: 2 }]);
+
+  tab.open();
+  tab.type(23);
+  tab.press();
+  assert.match(tab.html(), /2 Wastes aren’t touched — 21 to split/,
+    'the preview did not name the Wastes it will not write to');
+});
+
+test('the write leaves those Wastes in the deck', async () => {
+  /* The plan says untouched; this is the row still being there afterwards,
+     because the branch that removes a colour going to nought is a different
+     piece of code from the one that decides which colours there are. */
+  const tab = loadTab({ deck: [...BASICS_DECK, { card_name: 'Wastes', category: 'Lands', qty: 2 }] });
+  tab.open();
+  tab.type(25);
+  tab.press();
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Plains: 3, Island: 13, Forest: 7, Wastes: 2 },
+    'the optimizer deleted the Wastes it had named as untouched');
+});
+
+test('a colourless deck’s Wastes is managed, and the split writes to it', async () => {
+  /* The other side of the rule. Kozilek's deck has no colour for {C} to take a
+     slot from, so Wastes is the whole split — and Wastes off the budget there
+     would be a budget with nowhere at all to go. */
+  const tab = loadTab({
+    deck: [{ card_name: 'Warping Wail', category: 'Spells' },
+           { card_name: 'Wastes', category: 'Lands', qty: 2 }],
+    commander: { card_name: 'Kozilek, Butcher of Truth', category: 'Creatures',
+                 board: 'commander' },
+  });
+  const plan = tab.plan(12);
+  assert.strictEqual(plan.extra, 0, 'Wastes came off a budget with nowhere else to go');
+  assert.deepStrictEqual(plan.spare, []);
+  assert.deepStrictEqual(plan.rows,
+    [{ id: 'C', name: 'Wastes', label: 'colourless', from: 2, to: 12 }],
+    'the one basic a colourless deck can play was left out of its own split');
+
+  tab.open();
+  tab.type(12);
+  tab.press();
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Wastes: 12 },
+    'the split a colourless deck previewed was not written');
+});
+
+test('a deck that asks for no pip at all is inert, and its Wastes stays put', async () => {
+  /* The deck between the two: all-generic Eldrazi, no colour and no {C} pip
+     either. _dbBasicsWant() has no weight to give anything, so this is the
+     "nowhere to put these" answer the optimizer already had — and the Wastes
+     being spare is that same answer said about the basics rather than a second
+     rule. What it must not be is a row on its way to nought. */
+  const tab = loadTab({
+    deck: [{ card_name: 'Sol Ring', category: 'Ramp' },
+           { card_name: 'Wastes', category: 'Lands', qty: 2 }],
+    commander: { card_name: 'Kozilek, Butcher of Truth', category: 'Creatures',
+                 board: 'commander' },
+  });
+  const plan = tab.plan(12);
+  assert.strictEqual(plan.nowhere, true, 'a budget was split over a deck that asks for nothing');
+  assert.deepStrictEqual(plan.rows, [], 'a deck with nothing to split was given rows anyway');
+  assert.deepStrictEqual(plan.spare, [{ name: 'Wastes', qty: 2 }]);
+
+  tab.open();
+  tab.type(12);
+  await tab.press();
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Wastes: 2 },
+    'the deck the optimizer had nothing to say about was written to anyway');
 });
 
 test('more unmanaged basics than the budget leaves nothing to split, and says that', () => {

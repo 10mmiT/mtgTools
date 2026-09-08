@@ -148,6 +148,21 @@ the preview.**
 
 > 3 Snow-Covered Forests aren't touched — 11 to split
 
+Wastes is the one name on both sides of that line, and which side it falls on is
+decided by the same rule the split runs on (below): **Wastes is managed only
+where the split would put `{C}` weight on it** — a deck whose pips are
+colourless ones. Anywhere a colour could take the slot, `{C}` is given none, so
+a Wastes counted as managed is a row the split takes to nought and the write
+then deletes; an Eldrazi-splash deck would lose its Wastes to the default
+re-balance press. So in a deck with a colour in it Wastes comes off the budget
+and is named as untouched, like a snow basic; in a colourless one it is the
+whole split.
+
+The deck with neither — all-generic costs, no `{C}` pip anywhere — asks for
+nothing, and the optimizer already says so rather than splitting a budget over
+it (`nowhere`, below). Its Wastes being spare is the same answer said about the
+basics: there is nothing here to work out.
+
 The number typed therefore means total basics in the deck *after* this, the deck
 never silently grows, and the edge case we chose not to build for is at least
 visible to the person who has to fix it.
@@ -161,7 +176,9 @@ a colour that needed it. `{C}` is still counted in the check.
 **Unless the deck has no coloured pips at all** — a Kozilek or Karn deck — in
 which case Wastes is the whole split. This completes the rule rather than
 contradicting it: `{C}` never competes with a colour, and with no colour to
-compete against, Wastes is simply the answer.
+compete against, Wastes is simply the answer. It is also the rule that decides
+whether Wastes is a basic the optimizer manages at all — `_dbBasicsHeld()` reads
+`_dbBasicsWant()` rather than keeping a second opinion about `{C}`.
 
 ### The toggle
 

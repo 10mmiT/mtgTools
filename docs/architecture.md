@@ -59,7 +59,7 @@ mtgtools/
 │   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and
 │   │                        # whether it is the printing the deck runs
 │   ├── decklegality.test.js # Legal or the reason it is not, the bracket estimate, and tonight's bracket
-│   └── decklands.test.js    # The Lands tab — the cycles' pinned sizes and what one open section costs; the check: the source-count table at its boundaries, the hardest cost per colour, and what is allowed to count as a source; the fix: the query a short colour asks, and the copies in the house sorting above the play rate; and the basics optimizer: the split, the basics it will not touch, the two rules about {C}, the "at least 1 basic of every colour" override in both its states, and the write
+│   └── decklands.test.js    # The Lands tab — the cycles' pinned sizes and what one open section costs; the check: the source-count table at its boundaries, the hardest cost per colour, and what is allowed to count as a source; the fix: the query a short colour asks, and the copies in the house sorting above the play rate; and the basics optimizer: the split, the basics it will not touch, the three rules about {C} — the third of which is whether Wastes is one of those, the "at least 1 basic of every colour" override in both its states, and the write
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
