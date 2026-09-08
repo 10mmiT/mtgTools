@@ -147,8 +147,12 @@ function _dbOracle(sf) {
 
 /* A card's colour identity, which for a transforming card is the whole card's
  * and not the front face's — Scryfall puts one `color_identity` on the object
- * for exactly that reason. */
-const _dbIdentityOf = sf => sf.color_identity || [];
+ * for exactly that reason.
+ *
+ * Public: the Lands tab works out the deck's identity the same way before it
+ * asks Scryfall for lands that would fit in it, and a suggestion outside the
+ * identity is a card the deck may not legally run. */
+const dbIdentityOf = sf => sf.color_identity || [];
 
 const _dbTypeLineOf = sf =>
   (sf.type_line || sf.card_faces?.map(f => f.type_line).join(' ') || '').toLowerCase();
@@ -158,10 +162,14 @@ const _dbTypeLineOf = sf =>
  * is unlimited by its own type line, and Relentless Rats and its cousins say so
  * in their rules text. Neither is a special case we invented — the cards are
  * written that way, and reading them is what keeps this from being a list that
- * goes stale the next time Wizards prints another one. */
+ * goes stale the next time Wizards prints another one.
+ *
+ * Public: the Lands tab's fix asks it how many copies of a suggested land the
+ * deck could take, so that the one place the app *offers* a card and the place
+ * it judges the deck are answering out of the same function. */
 const DB_ANY_NUMBER = /a deck can have any number of cards named/i;
 
-function _dbCopyLimit(sf, format) {
+function dbCopyLimit(sf, format) {
   const type = _dbTypeLineOf(sf);
   if (type.includes('basic') && type.includes('land')) return Infinity;
   if (DB_ANY_NUMBER.test(_dbOracle(sf))) return Infinity;
@@ -311,13 +319,13 @@ function dbCommanderIdentity() {
      * deck is often a card the deck also holds, and its facts are already in
      * this tab's cache. */
     const sf = dbCardData.get((dbDeck?.commander || '').trim());
-    return sf ? new Set(_dbIdentityOf(sf)) : null;
+    return sf ? new Set(dbIdentityOf(sf)) : null;
   }
   const ci = new Set();
   for (const card of cards) {
     const sf = dbCardData.get(card.card_name);
     if (!sf) return null;   // half an identity is a wrong answer, not a smaller one
-    for (const c of _dbIdentityOf(sf)) ci.add(c);
+    for (const c of dbIdentityOf(sf)) ci.add(c);
   }
   return ci;
 }
@@ -359,8 +367,8 @@ function _dbComputeCheck() {
      * deck whatever we know about it, and it is judged for nothing else. */
     if (!sf) { unchecked.push(name); continue; }
 
-    if (n > _dbCopyLimit(sf, format)) tooMany.push({ name, n });
-    if (identity && !_dbIdentityOf(sf).every(c => identity.has(c))) outside.push(name);
+    if (n > dbCopyLimit(sf, format)) tooMany.push({ name, n });
+    if (identity && !dbIdentityOf(sf).every(c => identity.has(c))) outside.push(name);
 
     /* The ban list, when the format names one. A row still in the old trimmed
      * shape has `legalities: {}` filled in on the way out of the cache, so this

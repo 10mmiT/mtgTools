@@ -27,7 +27,7 @@ calls underneath the check have to be right. The check drops into the top of a
 tab that by then exists.
 
 The `+` on a card means what it already means everywhere else in the drawer, and
-goes wherever the drawer's "Add to" says. `_dbDrawerTile()`
+goes wherever the drawer's "Add to" says. `dbDrawerTile()`
 ([deckview-panels.js:198](../../public/js/deckview-panels.js#L198)) is reused
 whole — the grid, the "already in Deck ×1" badge, the ownership mark, all of it.
 
@@ -138,7 +138,7 @@ check underneath is where the truth about what it could not fix goes.
 Six names, from `DB_MANA_COLORS[].basic`. No snow, no printing selection — a
 deck running Snow-Covered Forests is an edge case its owner can fix by hand.
 
-But `_dbIsBasic()` reads the type line, and `Basic Snow Land — Island` and
+But `dbIsBasic()` reads the type line, and `Basic Snow Land — Island` and
 `Basic Land` (Wastes) both pass it. So the deck's basic count includes cards the
 optimizer will not write to, and left alone that turns "I asked for 14" into a
 deck that grew by three.

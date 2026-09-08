@@ -188,6 +188,16 @@ function _dbHeldOn(name) {
 const _dbBoardLabel = id => id === DB_MAIN_BOARD
   ? 'Deck' : (DB_BOARDS.find(b => b.id === id)?.label || id);
 
+/* ── The drawer's own furniture, which its tabs share ─────────────────────
+ *
+ * The next three are public, and they are the reason a card found by searching
+ * for it and a card found under a land cycle are the same card in the same
+ * grid. The drawer's tabs are not all in this file — the Lands tab is
+ * js/deckview-landbase.js — so anything a tab draws itself would be a second
+ * kind of tile, with its own idea of what the + does and whether the deck
+ * already holds the card. These are what a tab uses instead of having one.
+ */
+
 /* The picture on a card Scryfall handed back, which is where a two-sided one
  * keeps it: no `image_uris` on the card itself, one on the front face. Every
  * half of the drawer wanted the same two lines for it.
@@ -196,13 +206,13 @@ const _dbBoardLabel = id => id === DB_MAIN_BOARD
  * *row of a deck* — a name, and the printing that row was pinned to. The mat
  * draws cards it holds and the drawer draws cards it has just been told about,
  * and only one of the two has a printing to honour. */
-const _dbSfImg = sf =>
+const dbSfImg = sf =>
   sf?.image_uris?.normal || sf?.card_faces?.[0]?.image_uris?.normal || '';
 
 /* Cards Scryfall has just handed us, kept where the rest of the tab looks for
  * them. Both names of a two-sided card point at the one object, because the
  * deck may hold it under either. */
-function _dbCacheCards(cards) {
+function dbCacheCards(cards) {
   for (const card of cards) {
     dbCardData.set(card.name, card);
     if (card.card_faces?.[0]?.name) dbCardData.set(card.card_faces[0].name, card);
@@ -217,7 +227,7 @@ function _dbCacheCards(cards) {
  * sixty-card deck so is a fourth Lightning Bolt — but it can no longer be
  * pressed *blindly*: the count is on it, so a second copy is something you
  * chose rather than something that happened while you were clicking. */
-function _dbDrawerTile(name, { img, badges = '', canAdd }) {
+function dbDrawerTile(name, { img, badges = '', canAdd }) {
   const into  = dbAddTo();
   const held  = _dbHeldOn(name);
   const here  = held.find(h => h.board === into);
@@ -297,7 +307,7 @@ async function dbSearch() {
       return;
     }
     dbSrResults = data.data || [];
-    _dbCacheCards(dbSrResults);
+    dbCacheCards(dbSrResults);
     _dbRenderSearch();
   } catch (e) {
     resultsEl.innerHTML = `<div class="error-msg" style="margin:var(--space-2) 0">${esc(e.message)}</div>`;
@@ -392,13 +402,13 @@ function _dbRenderSearch(note = _dbSearchNote) {
     ? `<div class="help-text db-sr-note">${esc(note)}</div>` : '';
   const canAdd = !!(dbDeck && isMyPlayer(dbDeck.playerId));
   el.innerHTML = noteHtml + `<div class="sf-grid db-find-grid">` + dbSrResults.map(card => {
-    const img = _dbSfImg(card);
+    const img = dbSfImg(card);
     /* The price and the want-list button, which are what this half of the
        drawer knows about a card beyond its picture. The mana cost and the type
        line are gone from the tile and not lost: they are on the card, which is
        the picture, and a type line under a full-art thumbnail is the app
        reading the card out to you. */
-    return _dbDrawerTile(card.name, {
+    return dbDrawerTile(card.name, {
       img, canAdd, badges: `${renderPrice(card)}${wantBtnHtml(card.name)}`,
     });
   }).join('') + `</div>`;
@@ -631,10 +641,10 @@ function _dbRenderEdhrec() {
       const cards = views
           .filter(c => !dbMainCards().some(d => d.card_name === c.name))
           .slice(0, DB_EDHREC_PER_SECTION).map(c => {
-        const img    = _dbSfImg(dbCardData.get(c.name));
+        const img    = dbSfImg(dbCardData.get(c.name));
         const synPct   = c.synergy != null ? `${Math.round(c.synergy * 100)}%` : '';
         const incCount = c.num_decks != null ? `${c.num_decks.toLocaleString()} decks` : '';
-        return _dbDrawerTile(c.name, { img, canAdd, badges:
+        return dbDrawerTile(c.name, { img, canAdd, badges:
           `${synPct ? `<span class="db-edh-syn">${synPct}</span>` : ''}${
             incCount ? `<span class="db-edh-inc">${incCount}</span>` : ''}` });
       }).join('');
@@ -684,7 +694,7 @@ async function dbCreateDeck() {
         const d = await r.json();
         commanderImg = d.image_uris?.art_crop || d.card_faces?.[0]?.image_uris?.art_crop || null;
         // Store card data
-        _dbCacheCards([d]);
+        dbCacheCards([d]);
       }
     } catch {}
   }
@@ -788,7 +798,7 @@ async function _dbImportCards(cards) {
    * pasted list and a CSV file — come through here, and an import aimed at the
    * wrong deck is the one on the list that can bury a deck under someone
    * else's ninety-nine cards. */
-  _dbForceSnapshot('import');
+  dbForceSnapshot('import');
   document.getElementById('dbDeckContent').innerHTML =
     '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Importing cards…</div>';
 
@@ -817,7 +827,7 @@ async function _dbImportCards(cards) {
 
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
 }
 
 /* The ⋯ popover that used to hang off the strip is gone. What it held —

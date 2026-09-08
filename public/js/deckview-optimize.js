@@ -73,7 +73,7 @@ const DB_OPT_POOL_SAID =
  * stay the same rule — a basic is four-of-any-number in one and untouchable in
  * the other, and both are the same fact about the card.
  *
- * (js/deckview-mana.js's `_dbIsBasic` looks shorter and is not a third answer:
+ * (js/deckview-mana.js's `dbIsBasic` looks shorter and is not a third answer:
  * it is asked only of a card already known to be a land, so its caller has
  * already done the half that is missing from it.)
  *
@@ -476,7 +476,7 @@ async function dbOptimizeApply() {
      because one press puts it all back, and a run that wrote after a refused
      POST would be the `commander` bug again: a screen saying History has a row
      that History has never heard of. */
-  const snapshot = await _dbForceSnapshot(`optimize-${run.mode}`);
+  const snapshot = await dbForceSnapshot(`optimize-${run.mode}`);
   /* Cancelled while the snapshot was in flight. */
   if (!_dbOptLive(run)) return 0;
   if (!snapshot) { run.phase = 'nohistory'; _dbOptPaint(); return 0; }

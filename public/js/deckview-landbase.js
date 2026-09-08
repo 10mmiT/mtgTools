@@ -5,7 +5,7 @@
 // are my options in these colours?" — and answers it the way the game groups
 // lands: by cycle. Shocks, fetches, triomes, painlands and the rest.
 //
-// What it draws is _dbDrawerTile(), whole. The + means what it means on every
+// What it draws is dbDrawerTile(), whole. The + means what it means on every
 // other tile in the drawer, goes wherever the drawer's "Add to" says, wears
 // the ownership mark and says when the deck already holds the card. A land
 // found here and a land found by searching for it are the same card in the
@@ -164,6 +164,53 @@ function dbSourcesWanted(format, lands, cmc, pips) {
   return row[(value * (value - 1)) / 2 + p - 1];
 }
 
+// ── Reading a cost as what it *demands* ───────────────────────────────────
+/* js/deckview-mana.js reads a cost as a share — a hybrid symbol is half a pip
+ * to each of the colours that pays it, so the pips of a deck add up to the
+ * symbols in its costs, and a proportional split of basics is a split of
+ * something real. The check reads the same string for something else: not "how
+ * much of this deck is blue" but "what does this one card make me have before I
+ * can cast it", which is a single cost paid at one moment.
+ *
+ * The three below are that second reading, and the check is the only thing in
+ * the app that asks for it, so they live here. What they are given is one
+ * face's symbols, which is dbManaSymbols() over one of dbCostFaces()' faces —
+ * both public, both the mana module's, so that "what are a card's costs" stays
+ * answered in one place however many ways it is read.
+ */
+
+/* What one symbol is worth towards a cost's mana value. A number is itself;
+ * {2/W} is two, because two is what it costs when you pay it the way that is
+ * not white; {X} is nought, because the cost is what you decide it is and
+ * nought is what the rules call it on the stack. Everything else — a colour, a
+ * snow symbol, a Phyrexian pip — is one. */
+function _dbSymbolValue(symbol) {
+  const parts = symbol.split('/');
+  const nums  = parts.map(p => parseInt(p, 10)).filter(n => Number.isFinite(n));
+  if (nums.length) return Math.max(...nums);
+  if (parts.every(p => /^[XYZ]$/.test(p))) return 0;
+  return 1;
+}
+
+/** What a cost is worth, in mana, as the game counts it. */
+const _dbCostValue = symbols => symbols.reduce((n, s) => n + _dbSymbolValue(s), 0);
+
+/* How many pips of one colour a cost *demands*, which is not the same as how
+ * many it counts towards that colour's share in js/deckview-mana.js.
+ *
+ * Only a symbol that can be paid one way counts here. {U} demands blue. {G/U}
+ * does not demand blue — it is a card you cast off green when green is what
+ * you have — and {2/U} and {U/P} do not either, the other payments being two
+ * generic and two life. Counting them would have the check shouting for
+ * Islands at a deck that never needs one, which is exactly the failure this
+ * whole panel exists to avoid: a bar nobody believes is a bar nobody reads.
+ *
+ * What it costs us is the deck of nothing but hybrid cards, whose colours show
+ * a row with no bar on it. That is the honest answer — the table the check
+ * reads has no column for "either of these two" — and the row still says what
+ * the deck holds. */
+const _dbHardPips = (symbols, id) => symbols.filter(s => s === id).length;
+
 // ── The hardest cost the deck actually runs ───────────────────────────────
 
 /* Every requirement the deck's costs put on a colour: one entry per card, per
@@ -195,8 +242,8 @@ function _dbSourcesDemands(format, lands) {
   for (const row of [...dbMainCards(), ...dbCommanderCards()]) {
     const sf = dbCardData.get(row.card_name);
     if (!sf) continue;
-    for (const face of _dbCostFaces(sf)) {
-      const symbols  = _dbManaSymbols(face);
+    for (const face of dbCostFaces(sf)) {
+      const symbols  = dbManaSymbols(face);
       const cmc      = _dbCostValue(symbols);
       const demanded = DB_MANA_IDS.filter(id => _dbHardPips(symbols, id) > 0);
       const gold     = demanded.length > 1;
@@ -389,7 +436,7 @@ function _dbSourcesShortHtml(check) {
   if (!_dbSourcesShortOpen || !check.short.length) return '';
   const rows = check.short.map(c => `<div class="db-sources-short-row">
     <span class="db-sources-short-name">${esc(c.name)}</span>
-    <span class="db-sources-short-fig">wants ${c.want} ${esc(_dbManaColor(c.id).label)}, has ${c.held}</span>
+    <span class="db-sources-short-fig">wants ${c.want} ${esc(dbManaColor(c.id).label)}, has ${c.held}</span>
   </div>`).join('');
   return `<div class="db-sources-short">${rows}</div>`;
 }
@@ -550,12 +597,12 @@ function dbSetBasicsOneEach(on) {
  * see `blind`, in dbBasicsPlan().
  *
  * The rest of the unmanaged pile is the names nobody listed, and those cannot
- * be decided by name at all: _dbIsBasic() passes `Basic Snow Land — Island`.
+ * be decided by name at all: dbIsBasic() passes `Basic Snow Land — Island`.
  * Everything in that pile — the snow basics, and the Wastes of a coloured deck
  * — comes off the budget and is named in the preview, so "I asked for 14"
  * cannot mean a deck that grew by three. */
 function _dbBasicsHeld() {
-  const managed = _dbManaZero();
+  const managed = dbManaZero();
   const spare   = [];
   const want    = _dbBasicsWant(dbDeckMana().pips);
   for (const row of dbMainCards()) {
@@ -569,7 +616,7 @@ function _dbBasicsHeld() {
       continue;
     }
     const sf = dbCardData.get(row.card_name);
-    if (sf && _dbIsBasic(sf) && dbCardType(row.card_name) === 'land') {
+    if (sf && dbIsBasic(sf) && dbCardType(row.card_name) === 'land') {
       spare.push({ name: row.card_name, qty });
     }
   }
@@ -592,7 +639,7 @@ function _dbBasicsHeld() {
  * it both mean "every colour the deck has pips in" and it would be a poor
  * joke if the two of them disagreed about which colours those were. */
 function _dbBasicsWant(pips) {
-  const want     = _dbManaZero();
+  const want     = dbManaZero();
   const colours  = DB_MANA_IDS.filter(id => id !== 'C');
   const inColour = colours.reduce((n, id) => n + (pips[id] || 0), 0);
   if (inColour > 0) for (const id of colours) want[id] = pips[id] || 0;
@@ -731,7 +778,7 @@ const _dbBasicsNought = (split, pips) => {
  * moves the goalposts it is being measured against. */
 function _dbBasicsStill(rows, lands) {
   const mana  = dbDeckMana();
-  const moved = _dbManaZero();
+  const moved = dbManaZero();
   for (const r of rows) moved[r.id] = r.to - r.from;
   const bars = _dbSourcesBars(_dbSourcesDemands(dbDeckFormat().id, lands));
   return DB_MANA_COLORS
@@ -980,7 +1027,7 @@ async function dbBasicsApply() {
   const plan = dbBasicsPlan(_dbBasicsAsked());
   if (!_dbBasicsReady(plan)) return;
 
-  _dbForceSnapshot('basics');
+  dbForceSnapshot('basics');
 
   for (const r of plan.rows) {
     const ref  = dbPlace(DB_MAIN_BOARD, r.name);
@@ -999,7 +1046,7 @@ async function dbBasicsApply() {
   _dbBasicsBudget = null;
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
 }
 
 // ── Fix it: the lands that would close a short colour ─────────────────────
@@ -1136,7 +1183,7 @@ function _dbFixOffers(cards) {
        one in Commander, and however many a card that says so allows. The
        maybeboard is not counted — a card set aside is one you have not put in
        the deck. */
-    .filter(card => (runs.get(card.name) || 0) < _dbCopyLimit(card, format))
+    .filter(card => (runs.get(card.name) || 0) < dbCopyLimit(card, format))
     .map(card => ({ card, held: _dbFixHeld(card.name) }))
     .sort((a, b) => (b.held ? 1 : 0) - (a.held ? 1 : 0));
 }
@@ -1260,7 +1307,7 @@ function dbLandIdentity() {
     const sf = dbCardData.get(row.card_name);
     if (!sf) { missing = true; continue; }
     read++;
-    for (const c of _dbIdentityOf(sf)) seen.add(c);
+    for (const c of dbIdentityOf(sf)) seen.add(c);
   }
   return _dbLandColours(seen) || (read && !missing ? 'C' : '');
 }
@@ -1317,7 +1364,7 @@ async function _dbLoadLandSection(id, colours) {
         /* Into the tab's card cache on the way past, the way a search does:
            the + adds by name, and a name the tab has no card for is a second
            request for something we are already holding. */
-        _dbCacheCards(cards);
+        dbCacheCards(cards);
         answer = { cards, total };
       }
     } catch (e) {
@@ -1453,8 +1500,8 @@ function _dbLandBody(got, canAdd, empty = 'Nothing in this cycle is in these col
 /** The cards, as the drawer's own tiles. Both halves of the tab draw this one. */
 const _dbLandGrid = (cards, canAdd) =>
   `<div class="sf-grid db-find-grid">${cards.map(card =>
-    _dbDrawerTile(card.name, {
-      img: _dbSfImg(card), canAdd,
+    dbDrawerTile(card.name, {
+      img: dbSfImg(card), canAdd,
       /* The price and the want-list button, the same two things the Search
          half puts on a tile: a fetchland you can play tonight and a fetchland
          you would have to buy are not the same suggestion. */
@@ -1472,7 +1519,9 @@ const _dbLandGrid = (cards, canAdd) =>
  * The drawer is opened as well as switched: on the deck tab it is shut until
  * something asks for it, and a tab switched to inside a shut drawer is a press
  * that does nothing. Both halves of that are js/deckview-panels.js's, which is
- * a file this one already reaches into unguarded for the drawer's own tile. */
+ * the file this tab's furniture comes from anyway — dbDrawerTile() and the two
+ * beside it, public there because this tab is one of the drawer's tabs and is
+ * not in that file. */
 function dbOpenLandsTab() {
   dbOpenSearchPanel();
   dbSetLeftTab('lands');

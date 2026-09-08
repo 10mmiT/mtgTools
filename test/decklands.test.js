@@ -252,7 +252,7 @@ const CARDS = {
       { name: 'Stomp', mana_cost: '{1}{B}{B}', type_line: 'Instant — Adventure' }] },
 
   /* And the rest of the six the optimizer writes to, plus the two basics a
-     coloured deck's budget leaves alone: a snow basic, which _dbIsBasic()
+     coloured deck's budget leaves alone: a snow basic, which dbIsBasic()
      passes and no colour on the split names, and Wastes, which is one of the
      six but is only managed where {C} is what the split is made of. The pair
      is what keeps "unmanaged" from being a hand-wave about snow. */
@@ -430,7 +430,7 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
      happens. */
   run(`_dbRenderCalls = 0; _dbSaveCalls = 0;
        { const r = dbRender;         dbRender = (...a) => { _dbRenderCalls++; return r(...a); };
-         const s = _dbScheduleSave;  _dbScheduleSave = (...a) => { _dbSaveCalls++; return s(...a); }; }`);
+         const s = dbScheduleSave;   dbScheduleSave = (...a) => { _dbSaveCalls++; return s(...a); }; }`);
 
   return {
     run, answer, el, store,
@@ -907,6 +907,41 @@ test('the module is served after the one it reads a colour’s basic off', () =>
   assert.ok(at('deckview-mana.js') > 0, 'js/deckview-mana.js is not loaded');
   assert.ok(at('deckview-landbase.js') > at('deckview-mana.js'),
     'the colours a basic is looked up in are not defined yet when the module is parsed');
+});
+
+test('the module borrows nothing another module marked private', () => {
+  /* One global scope means nothing *stops* this file calling another's
+     `_db`-prefixed name, and for a while it called fourteen of them across
+     five files — more than twice the next-highest borrower in the tab. The
+     prefix is this repo's only signal that a name belongs to the file that
+     wrote it, so a borrowed one is either a public helper that was never given
+     a public name, or a helper living in the wrong file.
+
+     Asserted the static way, over the shipped files, because this is a fact
+     about how the source is arranged rather than about what it computes:
+     nothing at runtime can tell a borrowed name from an owned one.
+
+     What it does not assert is the reverse direction — a sibling reaching into
+     this file — which is issue #67's, and a wider sweep would fail on
+     crossings this file did not make. */
+  const JS = path.join(ROOT, 'public', 'js');
+  const DECLARED = /^(?:function|const|let|var)\s+(_[\w$]*)/;
+
+  const owner = new Map();
+  for (const file of fs.readdirSync(JS).filter(f => f.endsWith('.js')).sort()) {
+    if (file === 'deckview-landbase.js') continue;
+    for (const line of fs.readFileSync(path.join(JS, file), 'utf8').split('\n')) {
+      const name = line.match(DECLARED)?.[1];
+      if (name) owner.set(name, file);
+    }
+  }
+
+  const mine = read('public/js/deckview-landbase.js');
+  const borrowed = [...owner]
+    .filter(([name]) => new RegExp(`\\b${name}\\b`).test(mine))
+    .map(([name, file]) => `${name} — ${file}`);
+  assert.deepStrictEqual(borrowed, [],
+    `the land base module reaches into names its owners marked private:\n  ${borrowed.join('\n  ')}`);
 });
 
 // ── The check: the table ──────────────────────────────────────────────────

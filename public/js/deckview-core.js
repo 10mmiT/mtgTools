@@ -359,7 +359,7 @@ async function dbSelectDeck(value) {
         for (const card of dbCards) {
           if (!card.category) card.category = dbAutoCategory(card.card_name);
         }
-        _dbScheduleSave();
+        dbScheduleSave();
         dbRender();
         dbRenderStats();
         if (!dbSortMounted) {
@@ -617,7 +617,7 @@ async function dbDeleteDeck() {
    * will ask for again are orphans, so the server keeps only this one — what
    * the deck was as it went. A deck re-added afterwards under the same id, as
    * the confirmation above invites, finds it in the History panel. */
-  await _dbForceSnapshot('deck-delete');
+  await dbForceSnapshot('deck-delete');
 
   // Wipe server-side cards/categories for this deck (no dedicated delete-deck
   // endpoint — reuse the full-replace endpoint with empty arrays).

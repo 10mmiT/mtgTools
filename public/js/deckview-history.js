@@ -33,12 +33,17 @@ let _dbSnapshotInFlight = null;
 
 /* Capture the deck as it is, before the caller changes it.
  *
+ * Public, and read by every file in the tab that writes: a change big enough
+ * to want undoing is not this module's to recognise, so the module that makes
+ * one says so here. That is why it takes a reason — the History panel names
+ * what a row was taken for.
+ *
  * Called *before* the mutation, always, and the body is built synchronously
  * here so that being called before is enough — nothing this function does
  * later can see a deck that has moved on. Callers do not await it: a failed
  * snapshot must not stop an edit the person asked for, and the save that
  * follows serialises against it anyway. */
-function _dbForceSnapshot(reason) {
+function dbForceSnapshot(reason) {
   if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return Promise.resolve(null);
   const body = _dbSnapshotBody(reason);
   const { playerId, id } = dbDeck;
@@ -216,7 +221,7 @@ async function dbRestoreSnapshot(id) {
   // Awaited, unlike every other forced snapshot: what is about to be
   // overwritten is the whole deck, and the row holding it has to exist before
   // the overwrite rather than alongside it.
-  await _dbForceSnapshot('restore');
+  await dbForceSnapshot('restore');
 
   await dbFetchCardData([...new Set((snap.cards || []).map(c => c.card_name))]);
   _dbApplyRestored(snap.cards || [], snap.categories || []);

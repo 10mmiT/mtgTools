@@ -476,7 +476,7 @@ function dbAutoCategorizeMove() {
   if (_dbBulkMoveMode) dbSelectedCards.clear();
   dbHideMoveCard();
   dbRender();
-  _dbScheduleSave();
+  dbScheduleSave();
 }
 
 function dbBulkMove() {
