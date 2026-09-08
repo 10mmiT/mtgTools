@@ -893,7 +893,20 @@ test('the drawer has a Lands tab and a pane for it', () => {
   assert.match(html, /id="db-left-lands"[^>]*style="display:none"/,
     'the pane is missing, or the drawer opens on it');
   assert.match(html, /id="dbLandsContent"/, 'nothing for the sections to be written into');
-  assert.match(html, /<script src="js\/deckview-landbase\.js">/, 'the module is not loaded');
+});
+
+test('the module is served after the one it reads a colour’s basic off', () => {
+  /* deckview-landbase.js builds DB_BASIC_OF out of DB_MANA_COLORS the moment
+     it is parsed, so this is a load-*order* dependency and not merely a
+     load one: served first, the file throws and the drawer never opens. The
+     tag rather than the name, as in test/cardowned.test.js — index.html says
+     both file names in comments long before it loads either. */
+  const html = read('public/index.html');
+  const at = file => html.indexOf(`<script src="js/${file}">`);
+  assert.ok(at('deckview-landbase.js') > 0, 'the module is not loaded');
+  assert.ok(at('deckview-mana.js') > 0, 'js/deckview-mana.js is not loaded');
+  assert.ok(at('deckview-landbase.js') > at('deckview-mana.js'),
+    'the colours a basic is looked up in are not defined yet when the module is parsed');
 });
 
 // ── The check: the table ──────────────────────────────────────────────────
