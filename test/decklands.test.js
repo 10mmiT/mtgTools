@@ -2162,3 +2162,58 @@ test('the facts are asked for on the press, so the block lifts by itself', async
   assert.deepStrictEqual(basicsOf(tab), { Island: 9 },
     'nine blue pips’ worth of budget did not come out as nine Islands');
 });
+
+test('the check names what it could not read, in the number of cards there are', () => {
+  /* One card and several are different sentences, and the singular is the one
+     that gets written once and never read back — so it is asserted rather than
+     eyeballed. Both halves of the tab say this, and each is loaded fresh:
+     the check is worked out once per deck, so a card taken out of the cache
+     behind a redraw would be answered off the reading before it. */
+  const load = () => loadTab({ commander: null, deck: [
+    { card_name: 'Island',          qty: 14, category: 'Lands' },
+    { card_name: 'Cryptic Command', category: 'Ramp' },
+    { card_name: 'Cultivate',       category: 'Ramp' },
+    { card_name: 'Lightning Bolt',  category: 'Ramp' }] });
+
+  const one = load();
+  one.run(`dbCardData.delete('Cultivate')`);
+  assert.match(one.open(),
+    /1 card has no facts yet, and is counted in neither half of this: Cultivate\./,
+    'one card in flight was written up as several');
+
+  const two = load();
+  two.run(`dbCardData.delete('Cultivate'); dbCardData.delete('Lightning Bolt')`);
+  assert.match(two.open(),
+    /2 cards have no facts yet, and are counted in neither half of this: Cultivate, Lightning Bolt\./,
+    'two cards in flight were not written up as two');
+});
+
+test('the split names what it could not read the same way, in the same numbers', async () => {
+  /* The other half of the tab says the same thing for its own reason — any of
+     those cards could be a basic the budget has not counted — and it has to
+     agree with the check above it, down to the verb. */
+  const load = () => loadTab({ commander: null, deck: [
+    { card_name: 'Cryptic Command',     category: 'Spells' },
+    { card_name: 'Cultivate',           category: 'Ramp' },
+    { card_name: 'Island',              category: 'Lands', qty: 9 },
+    { card_name: 'Snow-Covered Forest', category: 'Lands', qty: 3 }] });
+
+  const one = load();
+  one.run(`dbCardData.delete('Snow-Covered Forest'); dbFetchCardData = async () => {}`);
+  one.open();
+  one.type(12);
+  await one.press();
+  assert.match(one.html(),
+    /1 card has no facts yet, and it could be a basic this has not counted: Snow-Covered Forest\. Nothing is written until it arrives\./,
+    'one card in flight was told the plural, over the button it is holding shut');
+
+  const two = load();
+  two.run(`dbCardData.delete('Snow-Covered Forest'); dbCardData.delete('Cultivate');
+           dbFetchCardData = async () => {}`);
+  two.open();
+  two.type(12);
+  await two.press();
+  assert.match(two.html(),
+    /2 cards have no facts yet, and any of them could be a basic this has not counted: Cultivate, Snow-Covered Forest\. Nothing is written until they arrive\./,
+    'two cards in flight were not written up as two');
+});

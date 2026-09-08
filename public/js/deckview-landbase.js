@@ -296,6 +296,22 @@ function _dbSourcesShortfalls(demands, mana) {
   return [...worst.values()].sort((a, b) => b.gap - a.gap || a.name.localeCompare(b.name));
 }
 
+// ── The cards it could not read ───────────────────────────────────────────
+
+/* The one sentence both halves of the tab say about them: how many there are,
+ * and their names. It is said twice — under the check's numbers and over the
+ * optimizer's preview — because it means something different in each place,
+ * and it is written here once because the half that is the same in both is the
+ * half that would otherwise drift. `clause` is what follows "and", and the
+ * caller writes it for the number at hand: a deck with a single card in flight
+ * told "1 card have no facts yet" reads as a bug in the numbers rather than
+ * the gap in them it is. */
+function _dbBlindSentence(names, clause) {
+  const n = names.length;
+  return `${n} card${n === 1 ? ' has' : 's have'} no facts yet, and ` +
+         `${clause}: ${names.join(', ')}.`;
+}
+
 // ── The check, drawn ──────────────────────────────────────────────────────
 
 /* Whether the per-card list is spread out. Shut to begin with and on every new
@@ -405,10 +421,8 @@ function _dbSourcesFootHtml(check) {
      apart from a deck that really has no white in it. */
   const n = check.unknown.length;
   const blind = n
-    ? `<div class="db-sources-limit">${esc(
-        `${n} card${n === 1 ? ' has' : 's have'} no facts yet, and ` +
-        `${n === 1 ? 'is' : 'are'} counted in neither half of this: ` +
-        `${check.unknown.join(', ')}.`)}</div>`
+    ? `<div class="db-sources-limit">${esc(_dbBlindSentence(check.unknown,
+        `${n === 1 ? 'is' : 'are'} counted in neither half of this`))}</div>`
     : '';
   return `${other}${blind}
     <button class="db-sources-more db-sources-how" aria-expanded="${_dbSourcesFootOpen}"
@@ -807,12 +821,12 @@ function _dbBasicsPreviewHtml(plan) {
  * flight is the one kind of wrong a mana base cannot survive, and any of those
  * eleven could be a basic this budget has not counted. */
 function _dbBasicsBlindHtml(plan) {
-  if (!plan.blind.length) return '';
   const n = plan.blind.length;
+  if (!n) return '';
   return `<div class="db-basics-verdict">${esc(
-    `${n} card${n === 1 ? ' has' : 's have'} no facts yet, and any of ` +
-    `${n === 1 ? 'them' : 'them'} could be a basic this has not counted: ` +
-    `${plan.blind.join(', ')}. Nothing is written until they arrive.`)}</div>`;
+    _dbBlindSentence(plan.blind,
+      `${n === 1 ? 'it' : 'any of them'} could be a basic this has not counted`) +
+    ` Nothing is written until ${n === 1 ? 'it arrives' : 'they arrive'}.`)}</div>`;
 }
 
 /* The basics that came off the budget, named. We are not adding snow support;
