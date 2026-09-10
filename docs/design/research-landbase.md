@@ -65,7 +65,7 @@ Four of the five pieces, and none of them know about each other yet.
 | piece | where | what it gives a landbase tab |
 |---|---|---|
 | the drawer, with tabs | `dbSetLeftTab()` [deckview-panels.js:515](../../public/js/deckview-panels.js#L515), [index.html:1077](../../public/index.html#L1077) | a third tab is about six lines; the switcher already toggles two |
-| the tile with the `+` | `_dbDrawerTile()` [deckview-panels.js:198](../../public/js/deckview-panels.js#L198) | the card grid, the "already in Deck ×1" badge, the ownership mark, the "Add to" destination — all of it, free |
+| the tile with the `+` | `dbDrawerTile()` [deckview-panels.js:198](../../public/js/deckview-panels.js#L198) | the card grid, the "already in Deck ×1" badge, the ownership mark, the "Add to" destination — all of it, free |
 | pips and sources, per colour | `dbDeckMana()` [deckview-mana.js:122](../../public/js/deckview-mana.js#L122) | what the deck's costs demand, counted off `mana_cost`, and what its lands make, counted off `produced_mana` |
 | whose shelf it is on | `dbCardOwnership()` [deckview-owned.js:139](../../public/js/deckview-owned.js#L139) | a landbase suggestion you can play tonight, rather than one you would have to buy |
 | the Scryfall proxy | [routes/scryfall-proxy.js:52](../../routes/scryfall-proxy.js#L52) | any `cards/search` query, rate-limited once for the whole house and cached ten minutes |
@@ -174,7 +174,7 @@ We can compute the input side of that lookup today, with no new data:
   both, counting a dual as a source of each colour it makes;
 - the **hardest requirement per colour** — walk `mana_cost` for every card and
   find the most demanding shape per colour (`{1}{U}{U}` beats `{3}{U}`), which is
-  one more pass over the symbols `_dbManaSymbols()` already parses.
+  one more pass over the symbols `dbManaSymbols()` already parses.
 
 So the tab can say, per colour: **"blue: 21 sources — wants 27, for Cryptic
 Command on turn three"** — and then list the lands that would fix it, sorted by
@@ -200,7 +200,7 @@ stacked regions, top to bottom:
    exist on Archidekt, because Archidekt does not know what is in our boxes.
 3. **Browse** — the cycles, collapsed, in colour identity. Shocks, fetches,
    triomes and the rest, each a row that opens into a grid of
-   `_dbDrawerTile()`s.
+   `dbDrawerTile()`s.
 
 The `+` means what it already means, and goes wherever the drawer's "Add to"
 says.

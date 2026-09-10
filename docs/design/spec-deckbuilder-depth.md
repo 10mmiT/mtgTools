@@ -72,7 +72,7 @@ Consequences worth stating plainly, because most of the proposals below run into
 - A card exists **once** per deck. There is no board, no second copy in a different category,
   and no way to say "this is the version I'm considering".
 - A card is a **name**, not a printing. No set, no collector number, no foil flag.
-- There is **no history**, and `_dbScheduleSave()` debounces at **800 ms** before firing the
+- There is **no history**, and `dbScheduleSave()` debounces at **800 ms** before firing the
   full-replace `PUT`. A mis-click, a bad paste-import or a deleted category is gone about a
   second later. That debounce is also why "snapshot on every save" is not a viable history
   rule — see proposal 5.
@@ -472,7 +472,7 @@ unrecoverable the instant that fires. This is the one gap on the list that can *
 already a full replace of a known shape, which is precisely the shape that snapshots trivially
 — no diffing engine needed.
 
-**When it writes is the whole design**, because `_dbScheduleSave()` debounces at 800 ms:
+**When it writes is the whole design**, because `dbScheduleSave()` debounces at 800 ms:
 snapshotting every save would write a row a second and a 50-row cap would then hold about
 eight minutes of history, silently evicting the state you actually wanted back. So:
 

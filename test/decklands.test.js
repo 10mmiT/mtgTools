@@ -251,11 +251,11 @@ const CARDS = {
       { name: 'Bonecrusher Giant', mana_cost: '{2}{R}', type_line: 'Creature — Giant' },
       { name: 'Stomp', mana_cost: '{1}{B}{B}', type_line: 'Instant — Adventure' }] },
 
-  /* And the rest of the six the optimizer writes to, plus the two basics it
-     will not: a snow basic, which _dbIsBasic() passes and no colour on the
-     split names, and Wastes, which is one of the six and therefore is managed
-     — the pair is what makes "unmanaged" a rule about names rather than a
-     hand-wave about snow. */
+  /* And the rest of the six the optimizer writes to, plus the two basics a
+     coloured deck's budget leaves alone: a snow basic, which dbIsBasic()
+     passes and no colour on the split names, and Wastes, which is one of the
+     six but is only managed where {C} is what the split is made of. The pair
+     is what keeps "unmanaged" from being a hand-wave about snow. */
   'Plains': { name: 'Plains', type_line: 'Basic Land — Plains', cmc: 0,
     produced_mana: ['W'], color_identity: [] },
   'Swamp': { name: 'Swamp', type_line: 'Basic Land — Swamp', cmc: 0,
@@ -404,7 +404,8 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
                       'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',
-                      'deckview-mana.js', 'deckview-landbase.js']) {
+                      'deckview-mana.js', 'deckview-landbase.js',
+                      'deckview-basics.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
   const run    = expr => vm.runInContext(expr, sandbox);
@@ -430,7 +431,13 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
      happens. */
   run(`_dbRenderCalls = 0; _dbSaveCalls = 0;
        { const r = dbRender;         dbRender = (...a) => { _dbRenderCalls++; return r(...a); };
-         const s = _dbScheduleSave;  _dbScheduleSave = (...a) => { _dbSaveCalls++; return s(...a); }; }`);
+         const s = dbScheduleSave;   dbScheduleSave = (...a) => { _dbSaveCalls++; return s(...a); }; }`);
+
+  /* And the tab's own redraw, counted the same way. Whether an edit made under
+     an open drawer reaches the tab is a fact about wiring, and counting the
+     calls says it without reading a number back out of the markup. */
+  run(`_dbLandsDraws = 0;
+       { const d = dbRenderLands; dbRenderLands = (...a) => { _dbLandsDraws++; return d(...a); }; }`);
 
   return {
     run, answer, el, store,
@@ -442,14 +449,16 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     how() { run('dbToggleSourcesFoot()'); return el('dbLandsContent').innerHTML; },
     html: () => el('dbLandsContent').innerHTML,
     /** A section, pressed — settled by the time this resolves. */
-    toggle(id) { return run(`dbToggleLandSection('${id}')`); },
+    toggle(kind, name) { return run(`dbToggleLandSection('${kind}', '${name}')`); },
     /** The tab drawn again, and whatever that made it go and ask for. */
     render() {
-      run('_dbRenderLands()');
+      run('dbRenderLands()');
       return run('Promise.all([..._dbLandAsking.values()])');
     },
     /** The check at the top of the tab, as figures rather than as markup. */
     check: () => answer('dbSourcesCheck()'),
+    /** How many times the tab has been drawn. */
+    draws: () => run('_dbLandsDraws'),
 
     // ── The optimizer ─────────────────────────────────────────────────────
     /** What it would do for a budget, as figures. */
@@ -532,6 +541,43 @@ test('a cycle is drawn under a name of ours and asked for under Scryfall’s', (
     'the query is the predicate and the colours, and nothing else');
 });
 
+test('a section carries its kind, so a colour can never be mistaken for a cycle', () => {
+  /* Both halves of the tab are sections — one set of open ones, one cache, one
+     toggle — and the only thing that differs between them is which question
+     they ask Scryfall. That used to be decided by reading a `fix:` prefix back
+     out of the name, which is a domain distinction living in a string: it
+     depended on the prefix being spelled the same in the writing and in the
+     reading, and a cycle Scryfall happened to call `fix` would have been read
+     as a colour.
+
+     The kind is a field now, so two sections that share a name are still two
+     sections, and the question each asks comes off the kind rather than off
+     the spelling. */
+  const tab = loadTab();
+  const cycle = `_dbSection('cycle', 'dual', 'WUG')`;
+  const fix   = `_dbSection('fix', 'dual', 'WUG')`;
+  assert.notStrictEqual(tab.answer(`_dbSectionId(${cycle})`), tab.answer(`_dbSectionId(${fix})`),
+    'a colour and a cycle of the same name are the same section');
+  assert.strictEqual(tab.answer(`_dbSectionQuery(${cycle})`), 'is:dual id<=wug');
+  assert.strictEqual(tab.answer(`_dbSectionQuery(${fix})`), 't:land produces:dual -t:basic id<=wug');
+});
+
+test('which section it is does not change with the deck’s colours, but what it holds does', () => {
+  /* The two keys are deliberately different questions. Which section this is
+     is what the open set holds and what the button names, and a deck gaining a
+     colour must not close a section under the reader. What a section *holds*
+     is another matter: `is:shockland` in Bant and the same cycle in mono-red
+     are two different answers, so the colours are part of what a cached answer
+     is filed under. */
+  const tab = loadTab();
+  const bant = `_dbSection('cycle', 'shockland', 'WUG')`;
+  const mono = `_dbSection('cycle', 'shockland', 'R')`;
+  assert.strictEqual(tab.answer(`_dbSectionId(${bant})`), tab.answer(`_dbSectionId(${mono})`),
+    'a deck changing colour would close the sections the reader had open');
+  assert.notStrictEqual(tab.answer(`_dbLandKey(${bant})`), tab.answer(`_dbLandKey(${mono})`),
+    'one cycle in two sets of colours would share a cached answer');
+});
+
 // ── Opening the tab costs nothing ─────────────────────────────────────────
 
 test('the tab opens with every section closed and asks Scryfall nothing', () => {
@@ -562,7 +608,7 @@ test('switching to the tab and away leaves the other halves of the drawer alone'
 test('expanding a section asks for that one cycle, in the commander’s colours', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=wug'],
     'the one cycle asked for was not the one opened, or not in the deck’s colours');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
@@ -573,10 +619,10 @@ test('expanding a section asks for that one cycle, in the commander’s colours'
 test('re-expanding a section does not ask again', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
-  await tab.toggle('shockland');           // closed
+  await tab.toggle('cycle', 'shockland');
+  await tab.toggle('cycle', 'shockland');           // closed
   assert.deepStrictEqual(tab.tiles(), [], 'a closed section kept its grid');
-  await tab.toggle('shockland');           // and open again
+  await tab.toggle('cycle', 'shockland');           // and open again
   assert.strictEqual(tab.asked().length, 1,
     'the second look at a cycle cost the house a second request');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden']);
@@ -585,8 +631,8 @@ test('re-expanding a section does not ask again', async () => {
 test('a second section is a second request, and the first stays open', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
-  await tab.toggle('triome');
+  await tab.toggle('cycle', 'shockland');
+  await tab.toggle('cycle', 'triome');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=wug', 'is:triome id<=wug']);
   assert.deepStrictEqual(tab.openCycles(), ['Shocklands', 'Triomes'],
     'opening one section closed another');
@@ -595,12 +641,12 @@ test('a second section is a second request, and the first stays open', async () 
 test('a deck in other colours asks again, because it is a different question', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   /* The commander comes off the board, and an Azorius one goes on. */
   tab.run(`dbCards = dbCards.filter(c => c.board !== 'commander').concat([
     { card_name: 'Hallowed Fountain', qty: 1, board: 'commander', category: 'Creatures', position: 9 }])`);
-  await tab.toggle('shockland');   // closed
-  await tab.toggle('shockland');   // opened, in new colours
+  await tab.toggle('cycle', 'shockland');   // closed
+  await tab.toggle('cycle', 'shockland');   // opened, in new colours
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=wug', 'is:shockland id<=wu'],
     'the new colours were answered out of the old ones’ cache');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain']);
@@ -616,7 +662,7 @@ test('an open section follows the deck into its new colours', async () => {
   tab.run(`answersFor('is:shockland id<=g', []);
            answersFor('is:shockland id<=wug', ['Temple Garden'])`);
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=g']);
 
   /* A white-blue land goes into the deck, and it is three colours. */
@@ -646,7 +692,7 @@ test('a colourless commander is colourless, not unfiltered', async () => {
                                      category: 'Creatures', board: 'commander' } });
   assert.strictEqual(tab.answer('dbLandIdentity()'), 'C');
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=c']);
 });
 
@@ -685,7 +731,7 @@ test('a deck with no colours in it is colourless, not unfiltered', async () => {
   const tab = loadTab({ deck: [{ card_name: 'Sol Ring', category: 'Ramp' }], commander: null });
   assert.strictEqual(tab.answer('dbLandIdentity()'), 'C');
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=c'],
     'a deck that reads as colourless was shown the whole cycle');
 });
@@ -729,7 +775,7 @@ test('a deck with nothing in it yet is every cycle, unfiltered', async () => {
   assert.ok(!html.includes('error-msg'), 'an empty deck was drawn an error');
   assert.ok(html.includes('every cycle, unfiltered'),
     'the tab did not say it had nothing to filter on');
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland'], 'an empty filter was sent as one');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
     'the cycle came back with nothing to show for it');
@@ -740,7 +786,7 @@ test('a deck with nothing in it yet is every cycle, unfiltered', async () => {
 test('a card in the section is the same tile Search draws — the +, the mark, the badge', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   const html = tab.html();
 
   assert.match(html, /dbAddFromDrawer\('Breeding Pool'\)/,
@@ -761,7 +807,7 @@ test('the + honours the drawer’s "Add to", the way it does on the other halves
   const tab = loadTab();
   tab.run(`dbSetAddTo('maybe')`);
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.match(tab.html(), /title="Add to Maybeboard"/,
     'the tile offered to add somewhere other than where the drawer is pointing');
 
@@ -778,7 +824,7 @@ test('the + honours the drawer’s "Add to", the way it does on the other halves
 test('somebody else’s deck is a tab you can read and not one you can add from', async () => {
   const tab = loadTab({ user: AS_ANNA });
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
     'the cards are the same cards whoever is looking');
   assert.ok(!tab.html().includes('dbAddFromDrawer'), 'a + was drawn on a deck that is not ours');
@@ -791,7 +837,7 @@ test('a cycle with nothing in these colours says so, rather than reading as brok
      correct answer to "the triomes a Dimir deck may play" and not a failure. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('triome');
+  await tab.toggle('cycle', 'triome');
   assert.match(tab.html(), /Nothing in this cycle is in these colours/);
   assert.ok(!tab.html().includes('error-msg'), 'an empty cycle was drawn as an error');
 });
@@ -799,9 +845,9 @@ test('a cycle with nothing in these colours says so, rather than reading as brok
 test('a cycle that came back empty is not asked for twice either', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('triome');
-  await tab.toggle('triome');
-  await tab.toggle('triome');
+  await tab.toggle('cycle', 'triome');
+  await tab.toggle('cycle', 'triome');
+  await tab.toggle('cycle', 'triome');
   assert.strictEqual(tab.asked().length, 1, 'a settled nothing was re-fetched');
 });
 
@@ -812,12 +858,12 @@ test('a section that fails says why, and lets you ask again', async () => {
   tab.run(`_realFetch = scryfallFetch;
            scryfallFetch = async () => { throw new Error('offline'); }`);
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.match(tab.html(), /error-msg[\s\S]*offline/, 'the failure was swallowed');
 
   tab.run('scryfallFetch = _realFetch');
-  await tab.toggle('shockland');   // read, and closed
-  await tab.toggle('shockland');   // asked again
+  await tab.toggle('cycle', 'shockland');   // read, and closed
+  await tab.toggle('cycle', 'shockland');   // asked again
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
     'the section was stuck with a failure it could not be asked out of');
 });
@@ -827,12 +873,12 @@ test('a section that fails says why, and lets you ask again', async () => {
 test('a new deck arrives with the sections closed, and does not pay for them again', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
-  tab.run('_dbLandsClose()');
+  await tab.toggle('cycle', 'shockland');
+  tab.run('_dbLandsForgetDeck()');
   assert.deepStrictEqual(tab.openCycles(), [],
     'the last deck’s open sections were still spread out');
 
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.strictEqual(tab.asked().length, 1,
     'what a cycle holds is a fact about Magic and was fetched twice anyway');
 });
@@ -843,7 +889,7 @@ test('changing decks is what closes them', async () => {
      not a page of loading, and it is a deck change like any other. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.openCycles(), ['Shocklands']);
 
   await tab.run(`dbSelectDeck('')`);
@@ -893,7 +939,213 @@ test('the drawer has a Lands tab and a pane for it', () => {
   assert.match(html, /id="db-left-lands"[^>]*style="display:none"/,
     'the pane is missing, or the drawer opens on it');
   assert.match(html, /id="dbLandsContent"/, 'nothing for the sections to be written into');
-  assert.match(html, /<script src="js\/deckview-landbase\.js">/, 'the module is not loaded');
+});
+
+test('the file that reads a colour’s basic off another is served after it', () => {
+  /* DB_BASIC_OF is built out of DB_MANA_COLORS the moment its file is parsed,
+     so this is a load-*order* dependency and not merely a load one: served
+     first, the file throws and the drawer never opens.
+
+     That file used to be js/deckview-landbase.js and is js/deckview-basics.js
+     now — DB_BASIC_OF went with the optimizer, and the land base module has no
+     parse-time reading of another file left. So the assertion follows the
+     constant rather than staying on the file it used to live in, and the whole
+     chain is pinned: the optimizer is the one with the parse-time need, and it
+     is last.
+
+     The tag rather than the name, as in test/cardowned.test.js — index.html
+     says all three file names in comments long before it loads any of them. */
+  const html = read('public/index.html');
+  const at = file => html.indexOf(`<script src="js/${file}">`);
+  assert.ok(at('deckview-mana.js') > 0, 'js/deckview-mana.js is not loaded');
+  assert.ok(at('deckview-landbase.js') > 0, 'the module is not loaded');
+  assert.ok(at('deckview-basics.js') > 0, 'the optimizer is not loaded');
+
+  assert.ok(read('public/js/deckview-basics.js').includes('const DB_BASIC_OF'),
+    'DB_BASIC_OF has moved again, and this test is now pinning the wrong file');
+  assert.ok(at('deckview-basics.js') > at('deckview-mana.js'),
+    'the colours a basic is looked up in are not defined yet when the optimizer is parsed');
+  assert.ok(at('deckview-landbase.js') > at('deckview-mana.js'),
+    'the land base module is served before the mana pass it reads');
+});
+
+test('the optimizer is served after the module whose tables it is built on', () => {
+  /* js/deckview-basics.js is one file of a two-file module, and it is the
+     second one. It reads dbSourcesDemands() and dbSourcesBars() out of the
+     land base module to run the check over the deck a split would make. The
+     order is the statement that these two are a pair, and it is half of what
+     earns the one exemption in the sweep above.
+
+     It is not the parse-time half. What this file needs before it is parsed is
+     js/deckview-mana.js, for DB_BASIC_OF, and that is the test above. This one
+     is about the pair. Asserted on the tag rather than the name, the same way:
+     index.html says both file names in comments long before it loads either. */
+  const html = read('public/index.html');
+  const at = file => html.indexOf('<script src="js/' + file + '">');
+  assert.ok(at('deckview-basics.js') > 0, 'the optimizer is not loaded');
+  assert.ok(at('deckview-basics.js') > at('deckview-landbase.js'),
+    'the optimizer is served before the module it is a half of');
+});
+
+test('and the module it is a half of does not require it back', () => {
+  /* The other direction, which is what makes the pair a one-way dependency
+     rather than a knot — and the reason the sweep above can let one file call
+     in unguarded without the policy quietly meaning nothing.
+
+     Every call the land base module makes into the optimizer asks whether it
+     is there first, so a harness that drives the mat without
+     js/deckview-basics.js gets a Lands tab with its three readings and no
+     Apply button. That is the same bargain js/deckview-render.js has always
+     struck with the land base module itself. */
+  const named = [...new Set([...read('public/js/deckview-basics.js')
+    .matchAll(/^(?:async\s+)?(?:function|const|let|var)\s+(db[\w$]*)/gm)].map(m => m[1]))];
+  assert.ok(named.length, 'the optimizer declares no public name, so this proves nothing');
+
+  const unguarded = [];
+  read('public/js/deckview-landbase.js').split('\n').forEach((line, i) => {
+    for (const name of named) {
+      const call = new RegExp(String.raw`\b${name}\s*\(`);
+      if (call.test(line) && !line.includes(`typeof ${name}`)) {
+        unguarded.push(`deckview-landbase.js:${i + 1} — ${name}()`);
+      }
+    }
+  });
+  assert.deepStrictEqual(unguarded, [],
+    `the land base module calls the optimizer without asking whether it is loaded:\n  ${unguarded.join('\n  ')}`);
+});
+
+test('the module borrows nothing another module marked private', () => {
+  /* One global scope means nothing *stops* this file calling another's
+     `_db`-prefixed name, and for a while it called fourteen of them across
+     five files — more than twice the next-highest borrower in the tab. The
+     prefix is this repo's only signal that a name belongs to the file that
+     wrote it, so a borrowed one is either a public helper that was never given
+     a public name, or a helper living in the wrong file.
+
+     Asserted the static way, over the shipped files, because this is a fact
+     about how the source is arranged rather than about what it computes:
+     nothing at runtime can tell a borrowed name from an owned one.
+
+     The reverse direction — a sibling reaching into this file — is a separate
+     question with a separate answer, and it is the test below. Kept apart
+     because a single wider sweep would fail on crossings this file did not
+     make. */
+  const JS = path.join(ROOT, 'public', 'js');
+  const DECLARED = /^(?:function|const|let|var)\s+(_[\w$]*)/;
+
+  const owner = new Map();
+  for (const file of fs.readdirSync(JS).filter(f => f.endsWith('.js')).sort()) {
+    if (file === 'deckview-landbase.js') continue;
+    for (const line of fs.readFileSync(path.join(JS, file), 'utf8').split('\n')) {
+      const name = line.match(DECLARED)?.[1];
+      if (name) owner.set(name, file);
+    }
+  }
+
+  const mine = read('public/js/deckview-landbase.js');
+  const borrowed = [...owner]
+    .filter(([name]) => new RegExp(`\\b${name}\\b`).test(mine))
+    .map(([name, file]) => `${name} — ${file}`);
+  assert.deepStrictEqual(borrowed, [],
+    `the land base module reaches into names its owners marked private:\n  ${borrowed.join('\n  ')}`);
+});
+
+test('and the optimizer, which may call in, still borrows none of them either', () => {
+  /* The sweep above catches this file borrowing; the sweep below catches a
+     sibling calling in without asking. js/deckview-basics.js is exempt from
+     the second, because it is the write half of this module rather than a
+     sibling and a `typeof` there would protect nothing.
+
+     That exemption is only sound if something else keeps the boundary honest,
+     because the sweep it escapes covers every name this file declares — the
+     private ones included. This is that something. The optimizer may call in,
+     and it may call in unguarded; what it may not do is reach for a name the
+     module marked private. Five names it needed were made public with a note
+     saying who reads them, which is the same resolution the sweep above drove
+     for the twelve before them, and this is what stops a sixth being taken
+     rather than given. */
+  const DECLARED = /^(?:function|const|let|var)\s+(_[\w$]*)/;
+  const mine = new Set();
+  for (const line of read('public/js/deckview-landbase.js').split('\n')) {
+    const name = line.match(DECLARED)?.[1];
+    if (name) mine.add(name);
+  }
+  assert.ok(mine.size, 'the module declares no private name, so this proves nothing');
+
+  const theirs = read('public/js/deckview-basics.js');
+  const borrowed = [...mine].filter(name => new RegExp(String.raw`\b${name}\b`).test(theirs));
+  assert.deepStrictEqual(borrowed, [],
+    `the optimizer reaches into names the land base module marked private:\n  ${borrowed.join('\n  ')}`);
+});
+
+test('a sibling calls into the module only where it asked whether it is there', () => {
+  /* The other direction of the sweep above: not what this file reaches out
+     for, but what a sibling reaches in for. The module is *optional*. Not
+     every harness that drives the mat wants a Lands tab, and for a while two
+     that have nothing to do with land bases had to load this file anyway —
+     js/deckview-core.js called _dbLandsForgetDeck() outright on every deck
+     change, so a harness without the file threw the moment a deck was opened.
+
+     The policy pinned here is the one js/deckview-render.js already kept: a
+     file that is not this one asks whether the name is there before it calls.
+     A tab that quietly does not redraw where nobody loaded it is the right
+     failure; a deck that will not open is not.
+
+     Asserted the static way, line by line over the shipped files, because it
+     is a fact about what is loaded rather than about what the tab computes —
+     at runtime a guarded call and an unguarded one are the same call.
+
+     What a line-at-a-time rule can hold is a *call* with a `typeof` on the
+     same line as it. Two things it therefore cannot: a sibling reading one of
+     this file's values rather than calling one of its functions, which throws
+     the same way, and a guard written further off than the line it protects.
+     Neither has happened; both would need a reader, not this test. */
+  const JS = path.join(ROOT, 'public', 'js');
+  /* Every name the file declares, not just the `_db` ones the sweep above
+     reads. Optionality is not privacy: a public helper called outright by a
+     sibling breaks a harness without the file exactly as a private one does,
+     so the whole surface is in scope even though only the private half has
+     ever been crossed. */
+  const DECLARED = /^(?:function|const|let|var)\s+([A-Za-z_$][\w$]*)/;
+
+  const mine = [];
+  for (const line of read('public/js/deckview-landbase.js').split('\n')) {
+    const name = line.match(DECLARED)?.[1];
+    /* Followed by a bracket, so that a sibling merely naming the function in
+       prose is not read as calling it. A comment that writes the brackets too
+       still counts, which is the price of a rule one line long. */
+    if (name) mine.push([name, new RegExp(`\\b${name}\\s*\\(`)]);
+  }
+
+  const unguarded = [];
+  for (const file of fs.readdirSync(JS).filter(f => f.endsWith('.js')).sort()) {
+    if (file === 'deckview-landbase.js') continue;
+    /* The one file that is not a sibling. js/deckview-basics.js is the write
+       half of this module living in its own file: it is built on the check's
+       tables, it is meaningless without them, and it is served immediately
+       after the file it reads them from. A guard there would protect nothing —
+       it would draw an Apply button with no check behind it.
+
+       This sweep covers every name the module declares, privates included, so
+       dropping one file from it would be a hole unless something else holds
+       that file to the boundary. Two things do, and both are tests above: the
+       optimizer borrows no private name of this module, and every call this
+       module makes back into the optimizer asks whether it is loaded first.
+       What is exempted here is the `typeof` on a call, and nothing else. */
+    if (file === 'deckview-basics.js') continue;
+    const text = fs.readFileSync(path.join(JS, file), 'utf8');
+    const crossings = mine.filter(([name]) => text.includes(name));
+    if (!crossings.length) continue;
+    text.split('\n').forEach((line, i) => {
+      for (const [name, call] of crossings) {
+        if (call.test(line) && !line.includes(`typeof ${name}`)) {
+          unguarded.push(`${file}:${i + 1} — ${name}()`);
+        }
+      }
+    });
+  }
+  assert.deepStrictEqual(unguarded, [],
+    `a sibling calls the land base module without asking whether it is loaded:\n  ${unguarded.join('\n  ')}`);
 });
 
 // ── The check: the table ──────────────────────────────────────────────────
@@ -1087,10 +1339,17 @@ test('the headline is the sources held, the sources wanted, and the card', () =>
     { card_name: 'Island',          qty: 14, category: 'Lands' },
     { card_name: 'Forest',          qty: 10, category: 'Lands' },
     { card_name: 'Cryptic Command', category: 'Ramp' }] });
-  const html = tab.open();
-  assert.match(html, /blue[\s\S]{0,300}?14[\s\S]{0,120}?20[\s\S]{0,200}?Cryptic Command/,
-    'the blue line does not say held, wanted, and the card that set it');
+  tab.open();
+  /* Held, wanted, and the card that set the bar — asked of the decision rather
+     than of the sentence the panel writes them into. What stood here walked the
+     drawn markup for "blue", then 14, then 20, then the card name, each within
+     so many characters of the last: an assertion about the order of words,
+     which would go red on a reworded line that had every number right. The
+     three numbers are the finding; the wording of the line is the eye's. */
   const blue = tab.check().colours.find(c => c.id === 'U');
+  assert.strictEqual(blue.held, 14, 'the sources held are not the deck’s blue lands');
+  assert.strictEqual(blue.want, 20, '{1}{U}{U}{U} at 24 lands is 20 blue sources');
+  assert.strictEqual(blue.card, 'Cryptic Command', 'the card that set the bar was not named');
   assert.strictEqual(blue.gap, 6, 'the gap is not the difference');
   /* Green is asked for by nothing, so it is not a colour of this deck at all
      and gets no line — nought against nought is not a finding. */
@@ -1148,10 +1407,16 @@ test('a deck edited behind the drawer redraws the check, not the deck as it was'
     { card_name: 'Island',          qty: 10, category: 'Lands' },
     { card_name: 'Cryptic Command', category: 'Ramp' }] });
   tab.open();
-  assert.match(tab.html(), /<strong>10<\/strong> sources/, 'the check did not draw');
+  assert.strictEqual(tab.check().lands, 10, 'the check did not read the deck it was given');
+  const drawn = tab.draws();
 
+  /* Two facts, and the markup was standing in for both: that the edit reaches
+     the open tab at all, which is the redraw, and that what it then says is
+     read off the deck as it now is. Counted and asked, rather than found as a
+     number inside a <strong>. */
   tab.run(`dbCards.find(c => c.card_name === 'Island').qty = 20; dbRenderStats()`);
-  assert.match(tab.html(), /<strong>20<\/strong> sources/,
+  assert.ok(tab.draws() > drawn, 'an edit under the open drawer did not redraw the tab');
+  assert.strictEqual(tab.check().lands, 20,
     'the check went on answering for the deck as it was');
 });
 
@@ -1297,7 +1562,7 @@ test('opening a short colour asks for the lands that make it, in the deck’s co
      of every list. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.asked(), ['t:land produces:u -t:basic id<=wug'],
     'the fix asked Magic the wrong question');
   assert.ok(tab.tiles().includes('Command Tower'), 'the lands that make blue are not in the section');
@@ -1311,7 +1576,7 @@ test('a land somebody has sorts above one nobody has, and play rate does the res
      in the deck, and a singleton deck cannot hold a second — see below.) */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.tiles(), ['Breeding Pool', 'Command Tower', 'Yavimaya Coast'],
     'the copy in the box did not come first, or play rate stopped ordering the rest');
 });
@@ -1327,7 +1592,7 @@ test('somebody else’s box is a copy in the house too', async () => {
       cards: { 'Yavimaya Coast': { name: 'Yavimaya Coast', qty: 1 } } },
   ] });
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.tiles(), ['Breeding Pool', 'Yavimaya Coast', 'Command Tower'],
     'a land in somebody else’s box was sorted as one nobody has');
 });
@@ -1339,7 +1604,7 @@ test('a suggestion is the drawer’s own tile, with a + that adds', async () => 
      drawer's "Add to" points. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.match(tab.html(), /dbAddFromDrawer\('Command Tower'\)/,
     'the + does not add through the drawer’s own add');
 
@@ -1358,7 +1623,7 @@ test('a land the deck already runs is not offered as the fix for a singleton dec
      number of stays offered. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.ok(!tab.tiles().includes('Hallowed Fountain'),
     'a land the deck cannot hold a second of was offered as the fix');
 });
@@ -1371,7 +1636,7 @@ test('a 60-card deck is offered a second copy of a land it already runs', async 
     { card_name: 'Cryptic Command',   category: 'Ramp' },
     { card_name: 'Hallowed Fountain', category: 'Lands' }] });
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.asked(), ['t:land produces:u -t:basic id<=wug'],
     'a deck with no commander was not asked about in its own colours');
   assert.ok(tab.tiles().includes('Hallowed Fountain'),
@@ -1394,7 +1659,7 @@ test('a long list is cut to what can be read, and everything somebody has surviv
                       'Green 20': { name: 'Green 20', qty: 1 } } }],
   });
   tab.open();
-  await tab.toggle('fix:G');
+  await tab.toggle('fix', 'G');
   assert.deepStrictEqual(tab.tiles(),
     ['Green 15', 'Green 20', ...GREENS.slice(0, 10)],
     'the cut dropped a land somebody has, or stopped following play rate');
@@ -1409,7 +1674,7 @@ test('a list that fits is shown whole, and says nothing about what it left out',
      nothing. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.ok(!/Showing/.test(tab.html()),
     'a region showing everything it had claimed there was more');
 });
@@ -1420,7 +1685,7 @@ test('a colour that has been fixed stops being offered', async () => {
      Twenty Islands is more blue than the table wants. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.ok(tab.fixes().some(f => f.startsWith('blue')), 'blue was not short to begin with');
 
   tab.run(`dbCards.push({ card_name: 'Island', qty: 20, board: 'main',
@@ -1438,11 +1703,11 @@ test('a new deck arrives with the fix sections shut, and the argument with it', 
      headline. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   tab.run('dbToggleSourcesShort()');
   assert.ok(tab.html().includes('db-sources-short-row'), 'the per-card list did not open');
 
-  tab.run('_dbLandsClose()');
+  tab.run('_dbLandsForgetDeck()');
   assert.deepStrictEqual(tab.tiles(), [], 'the last deck’s fix sections were still spread out');
   assert.ok(!tab.html().includes('db-sources-short-row'),
     'the last deck’s argument was still spread out over the next one');
@@ -1457,7 +1722,7 @@ test('a colour whose every land is already in the deck says that, not "nothing m
     answers: { ...ANSWERS, 't:land produces:u -t:basic id<=wug': ['Hallowed Fountain'] },
   });
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.tiles(), [], 'a land the deck already runs was offered anyway');
   assert.match(tab.html(), /already in the deck/i,
     'the deck was told Magic has nothing, when what it has is all of it');
@@ -1764,15 +2029,89 @@ test('a snow basic comes off the budget and is named as untouched', () => {
     'the preview did not name the basics it will not write to');
 });
 
-test('Wastes is one of the six, so it is managed rather than left alone', () => {
-  /* The pair with the test above is the point: "unmanaged" is a rule about
-     which six names the optimizer writes to, not a rule about snow. */
+test('a deck with coloured pips keeps its Wastes through a re-split', () => {
+  /* The pair with the test above is the point, and Wastes is the harder half
+     of it: it is one of the six names, but {C} sits out of the split of a
+     coloured deck — so a slot the split is not allowed to give it is a slot it
+     must not be made to give up either. Managed by name and unwanted by the
+     split is a row written to nought, which is the deck losing cards it was
+     promised nobody would touch. */
   const tab = loadTab({ deck: [...BASICS_DECK, { card_name: 'Wastes', category: 'Lands', qty: 2 }] });
   const plan = tab.plan(23);
-  assert.strictEqual(plan.extra, 0, 'Wastes was treated as somebody else’s card');
-  assert.deepStrictEqual(plan.rows.filter(r => r.name === 'Wastes'), [
-    { id: 'C', name: 'Wastes', label: 'colourless', from: 2, to: 0 }],
-    'a deck with no colourless pips kept its Wastes through a re-split');
+  assert.strictEqual(plan.extra, 2, 'the Wastes did not come off the budget');
+  assert.strictEqual(plan.slots, 21, 'the deck would have grown by two behind the number typed');
+  assert.deepStrictEqual(plan.rows.filter(r => r.name === 'Wastes'), [],
+    'a deck with no colourless pips was about to lose its Wastes');
+  assert.deepStrictEqual(plan.spare, [{ name: 'Wastes', qty: 2 }]);
+
+  tab.open();
+  tab.type(23);
+  tab.press();
+  assert.match(tab.html(), /2 Wastes aren’t touched — 21 to split/,
+    'the preview did not name the Wastes it will not write to');
+});
+
+test('the write leaves those Wastes in the deck', async () => {
+  /* The plan says untouched; this is the row still being there afterwards,
+     because the branch that removes a colour going to nought is a different
+     piece of code from the one that decides which colours there are. */
+  const tab = loadTab({ deck: [...BASICS_DECK, { card_name: 'Wastes', category: 'Lands', qty: 2 }] });
+  tab.open();
+  tab.type(25);
+  tab.press();
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Plains: 3, Island: 13, Forest: 7, Wastes: 2 },
+    'the optimizer deleted the Wastes it had named as untouched');
+});
+
+test('a colourless deck’s Wastes is managed, and the split writes to it', async () => {
+  /* The other side of the rule. Kozilek's deck has no colour for {C} to take a
+     slot from, so Wastes is the whole split — and Wastes off the budget there
+     would be a budget with nowhere at all to go. */
+  const tab = loadTab({
+    deck: [{ card_name: 'Warping Wail', category: 'Spells' },
+           { card_name: 'Wastes', category: 'Lands', qty: 2 }],
+    commander: { card_name: 'Kozilek, Butcher of Truth', category: 'Creatures',
+                 board: 'commander' },
+  });
+  const plan = tab.plan(12);
+  assert.strictEqual(plan.extra, 0, 'Wastes came off a budget with nowhere else to go');
+  assert.deepStrictEqual(plan.spare, []);
+  assert.deepStrictEqual(plan.rows,
+    [{ id: 'C', name: 'Wastes', label: 'colourless', from: 2, to: 12 }],
+    'the one basic a colourless deck can play was left out of its own split');
+
+  tab.open();
+  tab.type(12);
+  tab.press();
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Wastes: 12 },
+    'the split a colourless deck previewed was not written');
+});
+
+test('a deck that asks for no pip at all is inert, and its Wastes stays put', async () => {
+  /* The deck between the two: all-generic Eldrazi, no colour and no {C} pip
+     either. _dbBasicsWant() has no weight to give anything, so this is the
+     "nowhere to put these" answer the optimizer already had — and the Wastes
+     being spare is that same answer said about the basics rather than a second
+     rule. What it must not be is a row on its way to nought. */
+  const tab = loadTab({
+    deck: [{ card_name: 'Sol Ring', category: 'Ramp' },
+           { card_name: 'Wastes', category: 'Lands', qty: 2 }],
+    commander: { card_name: 'Kozilek, Butcher of Truth', category: 'Creatures',
+                 board: 'commander' },
+  });
+  const plan = tab.plan(12);
+  assert.strictEqual(plan.nowhere, true, 'a budget was split over a deck that asks for nothing');
+  assert.deepStrictEqual(plan.rows, [], 'a deck with nothing to split was given rows anyway');
+  assert.deepStrictEqual(plan.spare, [{ name: 'Wastes', qty: 2 }]);
+
+  tab.open();
+  tab.type(12);
+  await tab.press();
+  await tab.press();
+  assert.deepStrictEqual(basicsOf(tab), { Wastes: 2 },
+    'the deck the optimizer had nothing to say about was written to anyway');
 });
 
 test('more unmanaged basics than the budget leaves nothing to split, and says that', () => {
@@ -1881,6 +2220,27 @@ test('typing a different number takes the plan down, so the second press is neve
   tab.press();
   assert.deepStrictEqual(basicsOf(tab), { Plains: 8, Island: 9, Forest: 6 },
     'a number typed over a preview was applied without being previewed');
+});
+
+test('a plan does not survive the deck it was made for', () => {
+  /* The other half of what a deck change takes down. Which cycles you had
+     spread out is a fact about the last deck; so is a split worked out for it,
+     and a plan left standing over the deck that arrived next would be an Apply
+     button offering to write numbers read off a deck that is no longer on the
+     mat. Driven through the tab's own way of being told the deck changed,
+     which is the one js/deckview-core.js calls on all three of its paths. */
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(26);
+  tab.press();
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Apply/,
+    'the plan was not up to begin with');
+
+  tab.run('_dbLandsForgetDeck()');
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Preview/,
+    'the next deck was offered a write of the last deck’s split');
+  assert.deepStrictEqual(tab.previewRows(), [],
+    'the last deck’s preview was still on screen over the next one');
 });
 
 test('a press that would change nothing does not become a press that writes', () => {
@@ -2074,4 +2434,59 @@ test('the facts are asked for on the press, so the block lifts by itself', async
   await tab.press();
   assert.deepStrictEqual(basicsOf(tab), { Island: 9 },
     'nine blue pips’ worth of budget did not come out as nine Islands');
+});
+
+test('the check names what it could not read, in the number of cards there are', () => {
+  /* One card and several are different sentences, and the singular is the one
+     that gets written once and never read back — so it is asserted rather than
+     eyeballed. Both halves of the tab say this, and each is loaded fresh:
+     the check is worked out once per deck, so a card taken out of the cache
+     behind a redraw would be answered off the reading before it. */
+  const load = () => loadTab({ commander: null, deck: [
+    { card_name: 'Island',          qty: 14, category: 'Lands' },
+    { card_name: 'Cryptic Command', category: 'Ramp' },
+    { card_name: 'Cultivate',       category: 'Ramp' },
+    { card_name: 'Lightning Bolt',  category: 'Ramp' }] });
+
+  const one = load();
+  one.run(`dbCardData.delete('Cultivate')`);
+  assert.match(one.open(),
+    /1 card has no facts yet, and is counted in neither half of this: Cultivate\./,
+    'one card in flight was written up as several');
+
+  const two = load();
+  two.run(`dbCardData.delete('Cultivate'); dbCardData.delete('Lightning Bolt')`);
+  assert.match(two.open(),
+    /2 cards have no facts yet, and are counted in neither half of this: Cultivate, Lightning Bolt\./,
+    'two cards in flight were not written up as two');
+});
+
+test('the split names what it could not read the same way, in the same numbers', async () => {
+  /* The other half of the tab says the same thing for its own reason — any of
+     those cards could be a basic the budget has not counted — and it has to
+     agree with the check above it, down to the verb. */
+  const load = () => loadTab({ commander: null, deck: [
+    { card_name: 'Cryptic Command',     category: 'Spells' },
+    { card_name: 'Cultivate',           category: 'Ramp' },
+    { card_name: 'Island',              category: 'Lands', qty: 9 },
+    { card_name: 'Snow-Covered Forest', category: 'Lands', qty: 3 }] });
+
+  const one = load();
+  one.run(`dbCardData.delete('Snow-Covered Forest'); dbFetchCardData = async () => {}`);
+  one.open();
+  one.type(12);
+  await one.press();
+  assert.match(one.html(),
+    /1 card has no facts yet, and it could be a basic this has not counted: Snow-Covered Forest\. Nothing is written until it arrives\./,
+    'one card in flight was told the plural, over the button it is holding shut');
+
+  const two = load();
+  two.run(`dbCardData.delete('Snow-Covered Forest'); dbCardData.delete('Cultivate');
+           dbFetchCardData = async () => {}`);
+  two.open();
+  two.type(12);
+  await two.press();
+  assert.match(two.html(),
+    /2 cards have no facts yet, and any of them could be a basic this has not counted: Cultivate, Snow-Covered Forest\. Nothing is written until they arrive\./,
+    'two cards in flight were not written up as two');
 });

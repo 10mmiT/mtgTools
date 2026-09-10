@@ -684,7 +684,7 @@ test('a card the deck already holds says so on its tile, and says where', async 
   /* Pressing + used to change nothing you could see, so a second press was the
      obvious thing to do and it silently made two copies. */
   const tab = loadTab(DECK);
-  const tile = () => tab.run(`_dbDrawerTile('Sol Ring', { img: '', canAdd: true })`);
+  const tile = () => tab.run(`dbDrawerTile('Sol Ring', { img: '', canAdd: true })`);
   assert.ok(tile().includes('✓'), 'a card already in the deck offers a bare +');
 
   tab.run(`dbSetAddTo('maybe')`);
@@ -699,12 +699,12 @@ test('a card the deck already holds says so on its tile, and says where', async 
 test('the + says what pressing it will do', () => {
   const tab = loadTab(DECK);
   tab.run(`dbSetAddTo('side')`);
-  assert.ok(tab.run(`_dbDrawerTile('Doom Blade', { img: '', canAdd: true })`)
+  assert.ok(tab.run(`dbDrawerTile('Doom Blade', { img: '', canAdd: true })`)
     .includes('Add to Sideboard'));
 });
 
 test('somebody else’s deck gets no + at all', () => {
   const tab = loadTab(DECK);
-  assert.ok(!tab.run(`_dbDrawerTile('Doom Blade', { img: '', canAdd: false })`)
+  assert.ok(!tab.run(`dbDrawerTile('Doom Blade', { img: '', canAdd: false })`)
     .includes('dbAddFromDrawer'));
 });
