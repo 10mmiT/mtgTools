@@ -31,6 +31,25 @@ goes wherever the drawer's "Add to" says. `dbDrawerTile()`
 ([deckview-panels.js:198](../../public/js/deckview-panels.js#L198)) is reused
 whole — the grid, the "already in Deck ×1" badge, the ownership mark, all of it.
 
+### How the drawer is reached
+
+A third tab makes the drawer three ways of finding a card rather than one search
+box, and that changed where it is opened from. It had a row under the menu's
+"Look at", written when there was only the search box; `ab1435d` replaced that
+row with **a magnifier on the control strip**, `#dbFindBtn`, in the cluster with
+the ☰, the fold and the `?`.
+
+The menu row **went**, deliberately: one drawer, one place to press for it. The
+menu's own argument is that it holds what the strip has no room for, and the
+strip had room — on a phone it already wrapped to a second line, so a fourth
+button makes that 2+2 rather than 3+1. `/` and the readout's mana figure open
+the drawer exactly as they did; this adds a way in and removes a duplicate, and
+takes nothing away.
+
+The button reports `aria-expanded` the way the menu button does, and the state
+is written inside `dbOpenSearchPanel()` / `dbCloseSearchPanel()` rather than by
+whoever pressed, because three different things open this drawer.
+
 ### What this replaces
 
 The readout's mana panel is **absorbed**. It draws pips against sources per
@@ -114,6 +133,45 @@ sits behind the headline — small print is disclosed, not published: four lines
 of prose standing over three bars is a wall in front of the finding. Two things
 stay in the open regardless, because both change what the bars *mean*: the
 sources the table does not count, and the cards it could not read.
+
+## The fix
+
+The table above gives this region one line — *"the lands that would close a
+gap, the group's copies first"* — and that is the whole of what it asks for.
+Three rules that shape what the reader actually sees were added while building
+it, and none of them is in this spec or in #57's acceptance criteria. They are
+wanted, and they are written down here because a rule nobody can find is a rule
+nobody can argue with.
+
+The query is `t:land produces:<colour> -t:basic`, narrowed by `id<=` the deck's
+colours where there are any. `t:land` rather than anything with `produced_mana`,
+because the check counts land sources and nothing else: a Signet offered here
+could not move the number it was offered to move.
+
+**No basics.** `-t:basic` is on the query. The order this region sorts in is
+play rate, and Island is the most played card in Magic that makes blue, so
+without it every list of what makes a colour opens with its own basic. A deck
+short of a colour's basics does not need a search for one — it needs the
+optimizer two sections up, which splits them. The two halves of the tab would
+otherwise be answering the same question in different voices.
+
+**Nothing the deck is already full of.** A land the deck runs to its copy limit
+cannot close a gap, so it is dropped. The limit is `dbCopyLimit()` in
+[deckview-legality.js](../../public/js/deckview-legality.js) rather than a
+second reading of the rule, so that the Lands tab and the legality panel cannot
+disagree about what a deck may run: four in a 60-card deck, one in Commander,
+and whatever a card that says so allows. The maybeboard does not count against
+the limit, because a card set aside is a card you have not played.
+
+**A dozen, and it says so.** `DB_FIX_SHOWN = 12` — about four rows of tiles in
+the drawer, which is a list somebody reads, where a hundred and forty-one is a
+list somebody scrolls past. Two things survive the cut whatever their play rate:
+everything somebody in the house has a copy of, because that is this region's
+one claim over Archidekt's and cutting it to keep the ranking tidy would be
+cutting the answer. And where anything was cut — or where Scryfall's first page
+of 175 never held it — the region says what it is showing out of: *"Showing 12
+of the 141 lands that make blue in these colours."* Twelve of a hundred and
+forty-one presented silently would read as the whole answer.
 
 ## Optimize basics
 
@@ -207,9 +265,23 @@ the override. But the preview flags the moment it would have mattered —
 
 > green rounded to 0 basics, and nothing else in the deck makes green
 
-— which is the `unmade` signal `dbDeckMana()` already computes
-([deckview-mana.js:178](../../public/js/deckview-mana.js#L178)). You find out
-when it bites rather than having to know to flick a switch first.
+You find out when it bites rather than having to know to flick a switch first.
+
+**Not off the `unmade` signal, though this spec first said it would be.** That
+signal is the colours a deck asks for that *nothing in the deck makes*, read off
+the deck as it stands ([deckview-mana.js:246](../../public/js/deckview-mana.js#L246)),
+and the deck as it stands is the wrong deck to ask about. A deck holding four
+Forests makes green right up to the moment of the write, so `unmade` never names
+green — and a split that takes those four Forests to nought is precisely the
+case this flag exists to catch. It would have fired on nothing.
+
+`_dbBasicsStarved()` recomputes the condition instead, in two halves. Rounded to
+nothing is the split's answer rather than the deck's current basics, because the
+row moving from 4 to 0 is the finding. Nothing else makes it is the deck's
+sources of that colour with the basics this optimizer manages taken back out —
+what would still make green once the write has landed. It is scoped to the
+colours a split may place, so the flag and the toggle agree about `{C}`. The
+reasoning is argued in full in the commit message of `ac9515c`.
 
 ### Preview, then apply
 
