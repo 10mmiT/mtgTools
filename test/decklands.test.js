@@ -432,6 +432,12 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
        { const r = dbRender;         dbRender = (...a) => { _dbRenderCalls++; return r(...a); };
          const s = dbScheduleSave;   dbScheduleSave = (...a) => { _dbSaveCalls++; return s(...a); }; }`);
 
+  /* And the tab's own redraw, counted the same way. Whether an edit made under
+     an open drawer reaches the tab is a fact about wiring, and counting the
+     calls says it without reading a number back out of the markup. */
+  run(`_dbLandsDraws = 0;
+       { const d = _dbRenderLands; _dbRenderLands = (...a) => { _dbLandsDraws++; return d(...a); }; }`);
+
   return {
     run, answer, el, store,
     /** Every Scryfall query the tab has asked, in order. */
@@ -450,6 +456,8 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     },
     /** The check at the top of the tab, as figures rather than as markup. */
     check: () => answer('dbSourcesCheck()'),
+    /** How many times the tab has been drawn. */
+    draws: () => run('_dbLandsDraws'),
 
     // ── The optimizer ─────────────────────────────────────────────────────
     /** What it would do for a budget, as figures. */
@@ -1193,10 +1201,17 @@ test('the headline is the sources held, the sources wanted, and the card', () =>
     { card_name: 'Island',          qty: 14, category: 'Lands' },
     { card_name: 'Forest',          qty: 10, category: 'Lands' },
     { card_name: 'Cryptic Command', category: 'Ramp' }] });
-  const html = tab.open();
-  assert.match(html, /blue[\s\S]{0,300}?14[\s\S]{0,120}?20[\s\S]{0,200}?Cryptic Command/,
-    'the blue line does not say held, wanted, and the card that set it');
+  tab.open();
+  /* Held, wanted, and the card that set the bar — asked of the decision rather
+     than of the sentence the panel writes them into. What stood here walked the
+     drawn markup for "blue", then 14, then 20, then the card name, each within
+     so many characters of the last: an assertion about the order of words,
+     which would go red on a reworded line that had every number right. The
+     three numbers are the finding; the wording of the line is the eye's. */
   const blue = tab.check().colours.find(c => c.id === 'U');
+  assert.strictEqual(blue.held, 14, 'the sources held are not the deck’s blue lands');
+  assert.strictEqual(blue.want, 20, '{1}{U}{U}{U} at 24 lands is 20 blue sources');
+  assert.strictEqual(blue.card, 'Cryptic Command', 'the card that set the bar was not named');
   assert.strictEqual(blue.gap, 6, 'the gap is not the difference');
   /* Green is asked for by nothing, so it is not a colour of this deck at all
      and gets no line — nought against nought is not a finding. */
@@ -1254,10 +1269,16 @@ test('a deck edited behind the drawer redraws the check, not the deck as it was'
     { card_name: 'Island',          qty: 10, category: 'Lands' },
     { card_name: 'Cryptic Command', category: 'Ramp' }] });
   tab.open();
-  assert.match(tab.html(), /<strong>10<\/strong> sources/, 'the check did not draw');
+  assert.strictEqual(tab.check().lands, 10, 'the check did not read the deck it was given');
+  const drawn = tab.draws();
 
+  /* Two facts, and the markup was standing in for both: that the edit reaches
+     the open tab at all, which is the redraw, and that what it then says is
+     read off the deck as it now is. Counted and asked, rather than found as a
+     number inside a <strong>. */
   tab.run(`dbCards.find(c => c.card_name === 'Island').qty = 20; dbRenderStats()`);
-  assert.match(tab.html(), /<strong>20<\/strong> sources/,
+  assert.ok(tab.draws() > drawn, 'an edit under the open drawer did not redraw the tab');
+  assert.strictEqual(tab.check().lands, 20,
     'the check went on answering for the deck as it was');
 });
 
