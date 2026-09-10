@@ -157,7 +157,7 @@ function _dbRenderAddTo() {
  * it one. */
 function _dbRefreshDrawer() {
   if (dbLeftTab === 'edhrec') { if (dbEdhrecData) _dbRenderEdhrec(); }
-  else if (dbLeftTab === 'lands') { if (typeof _dbRenderLands === 'function') _dbRenderLands(); }
+  else if (dbLeftTab === 'lands') { if (typeof dbRenderLands === 'function') dbRenderLands(); }
   else if (dbSrResults.length) _dbRenderSearch();
   _dbRenderAddTo();
 }

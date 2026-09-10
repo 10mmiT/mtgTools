@@ -903,7 +903,7 @@ function dbRenderStats() {
      quietly does not redraw in those is the right failure; a whole tab that
      throws is not. No sibling calls into that file without asking first, which
      is the policy test/decklands.test.js holds them to. */
-  if (typeof _dbRenderLands === 'function' && dbLeftTab === 'lands') _dbRenderLands();
+  if (typeof dbRenderLands === 'function' && dbLeftTab === 'lands') dbRenderLands();
   const totals = dbDeckTotals();
 
   /* How big the deck is *meant* to be, asked of js/deckview-legality.js rather

@@ -404,7 +404,8 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
                       'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',
                       'deckview-owned.js', 'deckview-totals.js', 'deckview-legality.js',
-                      'deckview-mana.js', 'deckview-landbase.js']) {
+                      'deckview-mana.js', 'deckview-landbase.js',
+                      'deckview-basics.js']) {
     vm.runInContext(read(`public/js/${file}`), sandbox);
   }
   const run    = expr => vm.runInContext(expr, sandbox);
@@ -436,7 +437,7 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
      an open drawer reaches the tab is a fact about wiring, and counting the
      calls says it without reading a number back out of the markup. */
   run(`_dbLandsDraws = 0;
-       { const d = _dbRenderLands; _dbRenderLands = (...a) => { _dbLandsDraws++; return d(...a); }; }`);
+       { const d = dbRenderLands; dbRenderLands = (...a) => { _dbLandsDraws++; return d(...a); }; }`);
 
   return {
     run, answer, el, store,
@@ -451,7 +452,7 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     toggle(id) { return run(`dbToggleLandSection('${id}')`); },
     /** The tab drawn again, and whatever that made it go and ask for. */
     render() {
-      run('_dbRenderLands()');
+      run('dbRenderLands()');
       return run('Promise.all([..._dbLandAsking.values()])');
     },
     /** The check at the top of the tab, as figures rather than as markup. */
@@ -917,6 +918,49 @@ test('the module is served after the one it reads a colour’s basic off', () =>
     'the colours a basic is looked up in are not defined yet when the module is parsed');
 });
 
+test('the optimizer is served after the module whose tables it is built on', () => {
+  /* js/deckview-basics.js is one file of a two-file module, and it is the
+     second one. It reads dbSourcesDemands() and dbSourcesBars() out of the
+     land base module to run the check over the deck a split would make.
+     Served first it would still parse — nothing in it runs at parse time —
+     but the order is the statement that these two are a pair, and it is what
+     earns the one exemption in the sweep above. Asserted on the tag rather
+     than the name, as the load-order test further up is: index.html says both
+     file names in comments long before it loads either. */
+  const html = read('public/index.html');
+  const at = file => html.indexOf('<script src="js/' + file + '">');
+  assert.ok(at('deckview-basics.js') > 0, 'the optimizer is not loaded');
+  assert.ok(at('deckview-basics.js') > at('deckview-landbase.js'),
+    'the optimizer is served before the module it is a half of');
+});
+
+test('and the module it is a half of does not require it back', () => {
+  /* The other direction, which is what makes the pair a one-way dependency
+     rather than a knot — and the reason the sweep above can let one file call
+     in unguarded without the policy quietly meaning nothing.
+
+     Every call the land base module makes into the optimizer asks whether it
+     is there first, so a harness that drives the mat without
+     js/deckview-basics.js gets a Lands tab with its three readings and no
+     Apply button. That is the same bargain js/deckview-render.js has always
+     struck with the land base module itself. */
+  const named = [...new Set([...read('public/js/deckview-basics.js')
+    .matchAll(/^(?:async\s+)?(?:function|const|let|var)\s+(db[\w$]*)/gm)].map(m => m[1]))];
+  assert.ok(named.length, 'the optimizer declares no public name, so this proves nothing');
+
+  const unguarded = [];
+  read('public/js/deckview-landbase.js').split('\n').forEach((line, i) => {
+    for (const name of named) {
+      const call = new RegExp(String.raw`\b${name}\s*\(`);
+      if (call.test(line) && !line.includes(`typeof ${name}`)) {
+        unguarded.push(`deckview-landbase.js:${i + 1} — ${name}()`);
+      }
+    }
+  });
+  assert.deepStrictEqual(unguarded, [],
+    `the land base module calls the optimizer without asking whether it is loaded:\n  ${unguarded.join('\n  ')}`);
+});
+
 test('the module borrows nothing another module marked private', () => {
   /* One global scope means nothing *stops* this file calling another's
      `_db`-prefixed name, and for a while it called fourteen of them across
@@ -995,6 +1039,15 @@ test('a sibling calls into the module only where it asked whether it is there', 
   const unguarded = [];
   for (const file of fs.readdirSync(JS).filter(f => f.endsWith('.js')).sort()) {
     if (file === 'deckview-landbase.js') continue;
+    /* The one file that is not a sibling. js/deckview-basics.js is the write
+       half of this module living in its own file: it is built on the check's
+       tables, it is meaningless without them, and it is served immediately
+       after the file it reads them from, which the two tests below pin. A
+       guard there would protect nothing — it would draw an Apply button with
+       no check behind it. What keeps this from being a hole is that the
+       dependency runs one way only, and the other direction is asserted:
+       every call the land base module makes into the optimizer asks first. */
+    if (file === 'deckview-basics.js') continue;
     const text = fs.readFileSync(path.join(JS, file), 'utf8');
     const crossings = mine.filter(([name]) => text.includes(name));
     if (!crossings.length) continue;

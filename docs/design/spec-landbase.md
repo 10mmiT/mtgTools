@@ -178,6 +178,15 @@ forty-one presented silently would read as the whole answer.
 A button in the tab. It asks **how many basics**, splits that number across the
 colours, shows what it would do, and applies it on a second press.
 
+It lives in `public/js/deckview-basics.js`, its own file, served immediately
+after `deckview-landbase.js`. Everything else on this tab is a reading of a
+deck; this is the only thing that writes one, and it owns state and a history
+reason nothing else in the tab touches. The dependency runs one way: the
+optimizer is built on the check's tables and requires them, while the land base
+module asks whether the optimizer is loaded before drawing its control — so a
+tab drawn without the file is three readings and no Apply button. Both halves of
+that are asserted in `test/decklands.test.js`.
+
 ### It asks for basics, not for lands
 
 The number is a budget, not a remainder. Different decks want different amounts
