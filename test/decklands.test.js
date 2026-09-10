@@ -941,29 +941,45 @@ test('the drawer has a Lands tab and a pane for it', () => {
   assert.match(html, /id="dbLandsContent"/, 'nothing for the sections to be written into');
 });
 
-test('the module is served after the one it reads a colour’s basic off', () => {
-  /* deckview-landbase.js builds DB_BASIC_OF out of DB_MANA_COLORS the moment
-     it is parsed, so this is a load-*order* dependency and not merely a
-     load one: served first, the file throws and the drawer never opens. The
-     tag rather than the name, as in test/cardowned.test.js — index.html says
-     both file names in comments long before it loads either. */
+test('the file that reads a colour’s basic off another is served after it', () => {
+  /* DB_BASIC_OF is built out of DB_MANA_COLORS the moment its file is parsed,
+     so this is a load-*order* dependency and not merely a load one: served
+     first, the file throws and the drawer never opens.
+
+     That file used to be js/deckview-landbase.js and is js/deckview-basics.js
+     now — DB_BASIC_OF went with the optimizer, and the land base module has no
+     parse-time reading of another file left. So the assertion follows the
+     constant rather than staying on the file it used to live in, and the whole
+     chain is pinned: the optimizer is the one with the parse-time need, and it
+     is last.
+
+     The tag rather than the name, as in test/cardowned.test.js — index.html
+     says all three file names in comments long before it loads any of them. */
   const html = read('public/index.html');
   const at = file => html.indexOf(`<script src="js/${file}">`);
-  assert.ok(at('deckview-landbase.js') > 0, 'the module is not loaded');
   assert.ok(at('deckview-mana.js') > 0, 'js/deckview-mana.js is not loaded');
+  assert.ok(at('deckview-landbase.js') > 0, 'the module is not loaded');
+  assert.ok(at('deckview-basics.js') > 0, 'the optimizer is not loaded');
+
+  assert.ok(read('public/js/deckview-basics.js').includes('const DB_BASIC_OF'),
+    'DB_BASIC_OF has moved again, and this test is now pinning the wrong file');
+  assert.ok(at('deckview-basics.js') > at('deckview-mana.js'),
+    'the colours a basic is looked up in are not defined yet when the optimizer is parsed');
   assert.ok(at('deckview-landbase.js') > at('deckview-mana.js'),
-    'the colours a basic is looked up in are not defined yet when the module is parsed');
+    'the land base module is served before the mana pass it reads');
 });
 
 test('the optimizer is served after the module whose tables it is built on', () => {
   /* js/deckview-basics.js is one file of a two-file module, and it is the
      second one. It reads dbSourcesDemands() and dbSourcesBars() out of the
-     land base module to run the check over the deck a split would make.
-     Served first it would still parse — nothing in it runs at parse time —
-     but the order is the statement that these two are a pair, and it is what
-     earns the one exemption in the sweep above. Asserted on the tag rather
-     than the name, as the load-order test further up is: index.html says both
-     file names in comments long before it loads either. */
+     land base module to run the check over the deck a split would make. The
+     order is the statement that these two are a pair, and it is half of what
+     earns the one exemption in the sweep above.
+
+     It is not the parse-time half. What this file needs before it is parsed is
+     js/deckview-mana.js, for DB_BASIC_OF, and that is the test above. This one
+     is about the pair. Asserted on the tag rather than the name, the same way:
+     index.html says both file names in comments long before it loads either. */
   const html = read('public/index.html');
   const at = file => html.indexOf('<script src="js/' + file + '">');
   assert.ok(at('deckview-basics.js') > 0, 'the optimizer is not loaded');
@@ -1034,6 +1050,34 @@ test('the module borrows nothing another module marked private', () => {
     `the land base module reaches into names its owners marked private:\n  ${borrowed.join('\n  ')}`);
 });
 
+test('and the optimizer, which may call in, still borrows none of them either', () => {
+  /* The sweep above catches this file borrowing; the sweep below catches a
+     sibling calling in without asking. js/deckview-basics.js is exempt from
+     the second, because it is the write half of this module rather than a
+     sibling and a `typeof` there would protect nothing.
+
+     That exemption is only sound if something else keeps the boundary honest,
+     because the sweep it escapes covers every name this file declares — the
+     private ones included. This is that something. The optimizer may call in,
+     and it may call in unguarded; what it may not do is reach for a name the
+     module marked private. Five names it needed were made public with a note
+     saying who reads them, which is the same resolution the sweep above drove
+     for the twelve before them, and this is what stops a sixth being taken
+     rather than given. */
+  const DECLARED = /^(?:function|const|let|var)\s+(_[\w$]*)/;
+  const mine = new Set();
+  for (const line of read('public/js/deckview-landbase.js').split('\n')) {
+    const name = line.match(DECLARED)?.[1];
+    if (name) mine.add(name);
+  }
+  assert.ok(mine.size, 'the module declares no private name, so this proves nothing');
+
+  const theirs = read('public/js/deckview-basics.js');
+  const borrowed = [...mine].filter(name => new RegExp(String.raw`\b${name}\b`).test(theirs));
+  assert.deepStrictEqual(borrowed, [],
+    `the optimizer reaches into names the land base module marked private:\n  ${borrowed.join('\n  ')}`);
+});
+
 test('a sibling calls into the module only where it asked whether it is there', () => {
   /* The other direction of the sweep above: not what this file reaches out
      for, but what a sibling reaches in for. The module is *optional*. Not
@@ -1079,11 +1123,15 @@ test('a sibling calls into the module only where it asked whether it is there', 
     /* The one file that is not a sibling. js/deckview-basics.js is the write
        half of this module living in its own file: it is built on the check's
        tables, it is meaningless without them, and it is served immediately
-       after the file it reads them from, which the two tests below pin. A
-       guard there would protect nothing — it would draw an Apply button with
-       no check behind it. What keeps this from being a hole is that the
-       dependency runs one way only, and the other direction is asserted:
-       every call the land base module makes into the optimizer asks first. */
+       after the file it reads them from. A guard there would protect nothing —
+       it would draw an Apply button with no check behind it.
+
+       This sweep covers every name the module declares, privates included, so
+       dropping one file from it would be a hole unless something else holds
+       that file to the boundary. Two things do, and both are tests above: the
+       optimizer borrows no private name of this module, and every call this
+       module makes back into the optimizer asks whether it is loaded first.
+       What is exempted here is the `typeof` on a call, and nothing else. */
     if (file === 'deckview-basics.js') continue;
     const text = fs.readFileSync(path.join(JS, file), 'utf8');
     const crossings = mine.filter(([name]) => text.includes(name));
