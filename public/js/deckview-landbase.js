@@ -1067,8 +1067,12 @@ async function dbBasicsApply() {
  * called `dual` from ever being a cycle called `dual`. */
 const DB_FIX_PREFIX = 'fix:';
 
-/** The colours to offer a fix for, in the order the check reports them. */
-const _dbSourcesFix = () => dbSourcesCheck().colours.filter(c => c.gap > 0);
+/** The colours short of sources, in the order the check reports them — which
+ *  is one fix section each, and none at all for a colour that clears its bar.
+ *  Named at length because `short` on its own is already the check's word for
+ *  the cards it cannot support, and these are the other thing. */
+const _dbSourcesShortColours = () =>
+  dbSourcesCheck().colours.filter(c => c.gap > 0);
 
 /* The region, drawn. Nothing at all where the check itself has nothing to say
  * — a deck with no costs in it yet is not a deck that has been found to be
@@ -1077,7 +1081,7 @@ const _dbSourcesFix = () => dbSourcesCheck().colours.filter(c => c.gap > 0);
  * fix" is a finding: it is the one the tab was opened to get. */
 function _dbFixHtml(colours, canAdd) {
   if (!dbSourcesCheck().colours.length) return '';
-  const short = _dbSourcesFix();
+  const short = _dbSourcesShortColours();
 
   return `<div class="db-fix">
     <div class="db-sources-hdr"><span class="db-sources-title">Fix it</span></div>
@@ -1542,11 +1546,17 @@ const _dbLandsCalcHtml = () => `<div class="db-lands-calc">
   <span class="db-lands-calc-note">— a mana base worked by hand, or one worked out for a deck that doesn’t exist yet</span>
 </div>`;
 
-/* A different deck is on the mat. What was fetched stays fetched — it is a
- * fact about Magic and not about the deck that asked for it — and the sections
- * close, because which cycles you had spread out is a fact about the deck you
- * were building. */
-function _dbLandsClose() {
+/* A different deck is on the mat, so everything on this tab that was a fact
+ * about the last one goes: which sections were spread out, whether the
+ * argument behind the check and the small print under it were, and any plan
+ * the optimizer had worked out. What was *fetched* stays fetched — what a
+ * cycle holds is a fact about Magic and not about the deck that asked for it.
+ *
+ * All of that in one call, because all of it is what a deck change means and
+ * js/deckview-core.js has three paths into one. Taking only the sections down
+ * would leave an Apply button offering to write a split read off a deck that
+ * is no longer here. */
+function _dbLandsForgetDeck() {
   _dbLandOpen.clear();
   _dbSourcesShortOpen = false;
   _dbSourcesFootOpen  = false;

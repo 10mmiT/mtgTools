@@ -828,7 +828,7 @@ test('a new deck arrives with the sections closed, and does not pay for them aga
   const tab = loadTab();
   tab.open();
   await tab.toggle('shockland');
-  tab.run('_dbLandsClose()');
+  tab.run('_dbLandsForgetDeck()');
   assert.deepStrictEqual(tab.openCycles(), [],
     'the last deck’s open sections were still spread out');
 
@@ -950,8 +950,8 @@ test('a sibling calls into the module only where it asked whether it is there', 
      for, but what a sibling reaches in for. The module is *optional*. Not
      every harness that drives the mat wants a Lands tab, and for a while two
      that have nothing to do with land bases had to load this file anyway —
-     js/deckview-core.js called _dbLandsClose() outright on every deck change,
-     so a harness without the file threw the moment a deck was opened.
+     js/deckview-core.js called _dbLandsForgetDeck() outright on every deck
+     change, so a harness without the file threw the moment a deck was opened.
 
      The policy pinned here is the one js/deckview-render.js already kept: a
      file that is not this one asks whether the name is there before it calls.
@@ -1548,7 +1548,7 @@ test('a new deck arrives with the fix sections shut, and the argument with it', 
   tab.run('dbToggleSourcesShort()');
   assert.ok(tab.html().includes('db-sources-short-row'), 'the per-card list did not open');
 
-  tab.run('_dbLandsClose()');
+  tab.run('_dbLandsForgetDeck()');
   assert.deepStrictEqual(tab.tiles(), [], 'the last deck’s fix sections were still spread out');
   assert.ok(!tab.html().includes('db-sources-short-row'),
     'the last deck’s argument was still spread out over the next one');
@@ -2061,6 +2061,27 @@ test('typing a different number takes the plan down, so the second press is neve
   tab.press();
   assert.deepStrictEqual(basicsOf(tab), { Plains: 8, Island: 9, Forest: 6 },
     'a number typed over a preview was applied without being previewed');
+});
+
+test('a plan does not survive the deck it was made for', () => {
+  /* The other half of what a deck change takes down. Which cycles you had
+     spread out is a fact about the last deck; so is a split worked out for it,
+     and a plan left standing over the deck that arrived next would be an Apply
+     button offering to write numbers read off a deck that is no longer on the
+     mat. Driven through the tab's own way of being told the deck changed,
+     which is the one js/deckview-core.js calls on all three of its paths. */
+  const tab = loadTab({ deck: BASICS_DECK });
+  tab.open();
+  tab.type(26);
+  tab.press();
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Apply/,
+    'the plan was not up to begin with');
+
+  tab.run('_dbLandsForgetDeck()');
+  assert.match(tab.html(), /id="dbBasicsGo"[^>]*>\s*Preview/,
+    'the next deck was offered a write of the last deck’s split');
+  assert.deepStrictEqual(tab.previewRows(), [],
+    'the last deck’s preview was still on screen over the next one');
 });
 
 test('a press that would change nothing does not become a press that writes', () => {
