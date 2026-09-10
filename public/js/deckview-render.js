@@ -898,9 +898,11 @@ function dbRenderStats() {
      staleness _dbRefreshDrawer() exists to fix for the tiles.
 
      Asked for by name rather than called outright, unlike the three above it:
-     the drawer is a later file than this one, and three test harnesses load
-     the mat without it. A readout that quietly does not redraw in those is the
-     right failure; a whole tab that throws is not. */
+     the drawer is a later file than this one and an optional one, and plenty of
+     the harnesses that drive the mat load it without a Lands tab. A readout that
+     quietly does not redraw in those is the right failure; a whole tab that
+     throws is not. No sibling calls into that file without asking first, which
+     is the policy test/decklands.test.js holds them to. */
   if (typeof _dbRenderLands === 'function' && dbLeftTab === 'lands') _dbRenderLands();
   const totals = dbDeckTotals();
 

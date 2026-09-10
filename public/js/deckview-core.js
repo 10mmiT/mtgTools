@@ -273,6 +273,15 @@ function _dbPopulateNewDeckPlayers() {
 }
 
 // ── Deck selection ────────────────────────────────────────────────────────────
+/* Three places in this file swap the deck on the mat — two here and the delete
+ * further down — and all three have to tell the Lands tab to forget which of
+ * the last deck's cycles you had spread out. That tab is
+ * js/deckview-landbase.js, a later file than this one and an optional one: a
+ * harness that drives the mat without a drawer does not load it. So each of
+ * the three asks whether the name is there before calling, the same way
+ * js/deckview-render.js asks before its redraw. A tab nobody loaded quietly
+ * forgetting nothing is the right failure; a deck that will not open is not.
+ */
 async function dbSelectDeck(value) {
   dbCloseHistoryPanel();  // one deck's history is not another's
   dbCloseOwnedPanel();    // and one deck's missing twelve are not another's
@@ -294,7 +303,7 @@ async function dbSelectDeck(value) {
   if (!value) {
     dbDeck = null; dbCards = []; dbCats = []; dbCardData = new Map();
     dbSortMounted = false; dbEdhrecData = null; _dbEdhrecLoaded = false;
-    _dbLandsClose();
+    if (typeof _dbLandsClose === 'function') _dbLandsClose();
     dbShownBoards = new Set();  // another deck's boards are not this one's
     _dbRenderBoardToggles();
     _dbHideDeckUI();
@@ -318,7 +327,7 @@ async function dbSelectDeck(value) {
   dbDeck = { id: stableId, playerId, playerName: player.name,
              name: deck.name, commander: deck.commander || '', commanderImg: deck.commanderImg || null };
   dbEdhrecData = null; _dbEdhrecLoaded = false;
-  _dbLandsClose();               // and the last deck's open land cycles are not either
+  if (typeof _dbLandsClose === 'function') _dbLandsClose();  // and the last deck's cycles are not either
   dbShownBoards = new Set();      // the last deck's boards are not this one's
   _dbRenderBoardToggles();
 
@@ -633,7 +642,7 @@ async function dbDeleteDeck() {
   await saveToStorage();
 
   dbDeck = null; dbCards = []; dbCats = []; dbEdhrecData = null; _dbEdhrecLoaded = false;
-  _dbLandsClose();
+  if (typeof _dbLandsClose === 'function') _dbLandsClose();
   _dbHideDeckUI();
   dbPopulateDeckSel();
 }

@@ -921,9 +921,10 @@ test('the module borrows nothing another module marked private', () => {
      about how the source is arranged rather than about what it computes:
      nothing at runtime can tell a borrowed name from an owned one.
 
-     What it does not assert is the reverse direction — a sibling reaching into
-     this file — which is issue #67's, and a wider sweep would fail on
-     crossings this file did not make. */
+     The reverse direction — a sibling reaching into this file — is a separate
+     question with a separate answer, and it is the test below. Kept apart
+     because a single wider sweep would fail on crossings this file did not
+     make. */
   const JS = path.join(ROOT, 'public', 'js');
   const DECLARED = /^(?:function|const|let|var)\s+(_[\w$]*)/;
 
@@ -942,6 +943,63 @@ test('the module borrows nothing another module marked private', () => {
     .map(([name, file]) => `${name} — ${file}`);
   assert.deepStrictEqual(borrowed, [],
     `the land base module reaches into names its owners marked private:\n  ${borrowed.join('\n  ')}`);
+});
+
+test('a sibling calls into the module only where it asked whether it is there', () => {
+  /* The other direction of the sweep above: not what this file reaches out
+     for, but what a sibling reaches in for. The module is *optional*. Not
+     every harness that drives the mat wants a Lands tab, and for a while two
+     that have nothing to do with land bases had to load this file anyway —
+     js/deckview-core.js called _dbLandsClose() outright on every deck change,
+     so a harness without the file threw the moment a deck was opened.
+
+     The policy pinned here is the one js/deckview-render.js already kept: a
+     file that is not this one asks whether the name is there before it calls.
+     A tab that quietly does not redraw where nobody loaded it is the right
+     failure; a deck that will not open is not.
+
+     Asserted the static way, line by line over the shipped files, because it
+     is a fact about what is loaded rather than about what the tab computes —
+     at runtime a guarded call and an unguarded one are the same call.
+
+     What a line-at-a-time rule can hold is a *call* with a `typeof` on the
+     same line as it. Two things it therefore cannot: a sibling reading one of
+     this file's values rather than calling one of its functions, which throws
+     the same way, and a guard written further off than the line it protects.
+     Neither has happened; both would need a reader, not this test. */
+  const JS = path.join(ROOT, 'public', 'js');
+  /* Every name the file declares, not just the `_db` ones the sweep above
+     reads. Optionality is not privacy: a public helper called outright by a
+     sibling breaks a harness without the file exactly as a private one does,
+     so the whole surface is in scope even though only the private half has
+     ever been crossed. */
+  const DECLARED = /^(?:function|const|let|var)\s+([A-Za-z_$][\w$]*)/;
+
+  const mine = [];
+  for (const line of read('public/js/deckview-landbase.js').split('\n')) {
+    const name = line.match(DECLARED)?.[1];
+    /* Followed by a bracket, so that a sibling merely naming the function in
+       prose is not read as calling it. A comment that writes the brackets too
+       still counts, which is the price of a rule one line long. */
+    if (name) mine.push([name, new RegExp(`\\b${name}\\s*\\(`)]);
+  }
+
+  const unguarded = [];
+  for (const file of fs.readdirSync(JS).filter(f => f.endsWith('.js')).sort()) {
+    if (file === 'deckview-landbase.js') continue;
+    const text = fs.readFileSync(path.join(JS, file), 'utf8');
+    const crossings = mine.filter(([name]) => text.includes(name));
+    if (!crossings.length) continue;
+    text.split('\n').forEach((line, i) => {
+      for (const [name, call] of crossings) {
+        if (call.test(line) && !line.includes(`typeof ${name}`)) {
+          unguarded.push(`${file}:${i + 1} — ${name}()`);
+        }
+      }
+    });
+  }
+  assert.deepStrictEqual(unguarded, [],
+    `a sibling calls the land base module without asking whether it is loaded:\n  ${unguarded.join('\n  ')}`);
 });
 
 // ── The check: the table ──────────────────────────────────────────────────
