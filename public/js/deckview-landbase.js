@@ -532,11 +532,8 @@ function _dbSourcesLimitsHtml(check) {
  * check that has just said green is fine is a fix for nothing.
  */
 
-/* A fix section's id, so that one set of open sections, one cache and one
- * toggle can hold both halves of the tab. A cycle is named by its Scryfall
- * predicate and a colour by its letter, and the prefix is what keeps a colour
- * called `dual` from ever being a cycle called `dual`. */
-const DB_FIX_PREFIX = 'fix:';
+/* A section of this tab is a small object, and _dbSection() below is where it
+ * is made. A fix section is one of the two kinds. */
 
 /** The colours short of sources, in the order the check reports them — which
  *  is one fix section each, and none at all for a colour that clears its bar.
@@ -568,7 +565,7 @@ function _dbFixHtml(colours, canAdd) {
  * the heading is what is read while the section is shut, and "blue — 10
  * short" is the whole finding. */
 const _dbFixSectionHtml = (c, colours, canAdd) =>
-  _dbLandSectionHtml(DB_FIX_PREFIX + c.id, colours, {
+  _dbLandSectionHtml(_dbSection('fix', c.id, colours), {
     heading: () => `${dbSourcesSym(c)}
       <span class="db-fix-name">${esc(c.label)} — ${c.gap} short</span>`,
     body: got => _dbFixBody(c, got, canAdd),
@@ -802,14 +799,45 @@ function dbLandQuery(id, colours) {
   return `is:${id}${colours ? ` id<=${colours.toLowerCase()}` : ''}`;
 }
 
-/* Which question a section id stands for. One cache, one set of open sections
- * and one toggle serve both halves of the tab, and this is the one place that
- * knows a fix section from a cycle. */
-const _dbSectionQuery = (id, colours) => id.startsWith(DB_FIX_PREFIX)
-  ? dbFixQuery(id.slice(DB_FIX_PREFIX.length), colours)
-  : dbLandQuery(id, colours);
+/* ── What a section is ─────────────────────────────────────────────────────
+ *
+ * One set of open sections, one cache and one toggle serve both halves of the
+ * tab: a cycle you browse and a colour the check calls short are the same
+ * gesture, and what differs between them is one thing — which question they
+ * ask Scryfall.
+ *
+ * That one thing used to live in the name. A section was called `fix:U` or
+ * `shockland`, and the place that had to tell them apart read the kind back
+ * out of the string with startsWith(). A domain distinction in a prefix is a
+ * distinction nothing can check: `fix:` had to be spelled the same in the
+ * writing and in the reading, and a cycle Scryfall named `fix` would have been
+ * a colour.
+ *
+ * So the kind is a field. And the name never travelled alone anyway — the
+ * colours are part of the question, because `is:shockland` in Bant and the
+ * same cycle in mono-red are two different answers, so the two went together
+ * through every function that handled a section. They are one value now.
+ */
+const _dbSection = (kind, name, colours) => ({ kind, name, colours });
 
-const _dbLandKey = (id, colours) => `${id}|${colours}`;
+/* Which question each kind asks. Written as a table rather than a branch
+ * because that is what it is: a kind of section *is* a way of asking Scryfall
+ * something, and a third kind would be a third line here. */
+const _dbSectionAsks = { cycle: dbLandQuery, fix: dbFixQuery };
+
+const _dbSectionQuery = s => _dbSectionAsks[s.kind](s.name, s.colours);
+
+/* A section's identity — its kind and its name, and not its colours: which
+ * section this is does not change when the deck's colours do, only what it
+ * holds does. This is what the open set stores and what the markup names.
+ *
+ * It is a string, and it is only ever *written* from a section: nothing reads
+ * one back out of it. The button carries the kind and the name as two
+ * arguments, and dbToggleLandSection() builds the section again from them. */
+const _dbSectionId = s => `${s.kind}:${s.name}`;
+
+/** And a cached answer is filed under that, plus the colours it was asked in. */
+const _dbLandKey = s => `${_dbSectionId(s)}|${s.colours}`;
 
 /* One section's cards, fetched once.
  *
@@ -817,15 +845,15 @@ const _dbLandKey = (id, colours) => `${id}|${colours}`;
  * answer, including both kinds of nothing: Scryfall says 404 when a query
  * matches no cards, which for a mono-white deck asking about triomes is not a
  * failure but the correct answer, and it is read as one. */
-async function _dbLoadLandSection(id, colours) {
-  const key = _dbLandKey(id, colours);
+async function _dbLoadLandSection(section) {
+  const key = _dbLandKey(section);
   if (_dbLandCache.has(key))  return _dbLandCache.get(key);
   if (_dbLandFlight.has(key)) return _dbLandFlight.get(key);
 
   const job = (async () => {
     let answer;
     try {
-      const q   = _dbSectionQuery(id, colours);
+      const q   = _dbSectionQuery(section);
       const res = await scryfallFetch(
         `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=edhrec&unique=cards`);
       const data = await res.json();
@@ -864,15 +892,15 @@ async function _dbLoadLandSection(id, colours) {
  * At most one request per cycle-and-colours in the air, and the redraw is on
  * the back of it, so the chain settles: the second render finds the answer in
  * the cache and asks for nothing. */
-function _dbAskForLandSection(id, colours) {
-  const key = _dbLandKey(id, colours);
+function _dbAskForLandSection(section) {
+  const key = _dbLandKey(section);
   if (_dbLandAsking.has(key)) return _dbLandAsking.get(key);
-  const asking = _dbLoadLandSection(id, colours).then(() => {
+  const asking = _dbLoadLandSection(section).then(() => {
     _dbLandAsking.delete(key);
     /* Unless it was shut again while the request was out, in which case the
        answer is in the cache for next time and drawing it would reopen a
        section the reader has closed. */
-    if (_dbLandOpen.has(id)) dbRenderLands();
+    if (_dbLandOpen.has(_dbSectionId(section))) dbRenderLands();
   });
   _dbLandAsking.set(key, asking);
   return asking;
@@ -882,7 +910,13 @@ function _dbAskForLandSection(id, colours) {
  * the only thing on this tab that costs a request; the render is what makes
  * it, and the request is handed back here so that pressing a section is
  * something a caller can wait for. */
-function dbToggleLandSection(id) {
+function dbToggleLandSection(kind, name) {
+  /* The section, built again from what the button carries and the colours of
+     the moment — which is the same pair the render built it from, since the
+     render is what wrote the button. */
+  const section = _dbSection(kind, name, dbLandIdentity());
+  const id = _dbSectionId(section);
+
   if (_dbLandOpen.has(id)) { _dbLandOpen.delete(id); dbRenderLands(); return; }
   _dbLandOpen.add(id);
   /* A failure is not an answer, so it is not one this section is stuck with:
@@ -890,7 +924,7 @@ function dbToggleLandSection(id) {
      you have read it — and opening the section again asks Scryfall again. A
      lost connection for one second must not cost a cycle until the deck is
      switched. */
-  const key = _dbLandKey(id, dbLandIdentity());
+  const key = _dbLandKey(section);
   if (_dbLandCache.get(key)?.error) _dbLandCache.delete(key);
   dbRenderLands();
   return _dbLandAsking.get(key);
@@ -926,7 +960,7 @@ function dbRenderLands() {
   const canAdd  = !!(dbDeck && isMyPlayer(dbDeck.playerId));
 
   const sections = DB_LAND_CYCLES.map(cycle =>
-    _dbLandSectionHtml(cycle.id, colours, {
+    _dbLandSectionHtml(_dbSection('cycle', cycle.id, colours), {
       heading: got => `<span class="db-land-name">${esc(cycle.label)}</span>
         ${got?.cards ? `<span class="db-land-count">${got.cards.length}</span>` : ''}`,
       body: got => _dbLandBody(got, canAdd),
@@ -958,13 +992,13 @@ function dbRenderLands() {
  * because that is a button of its own and the whole row is the control here —
  * a name you have to miss to hit is a row that reads as pressable and mostly
  * is not. A button cannot hold another button. */
-function _dbLandSectionHtml(id, colours, { heading, body }) {
-  const open = _dbLandOpen.has(id);
-  const got  = open ? _dbLandCache.get(_dbLandKey(id, colours)) : null;
-  if (open && !got) _dbAskForLandSection(id, colours);
+function _dbLandSectionHtml(section, { heading, body }) {
+  const open = _dbLandOpen.has(_dbSectionId(section));
+  const got  = open ? _dbLandCache.get(_dbLandKey(section)) : null;
+  if (open && !got) _dbAskForLandSection(section);
   return `<div class="db-land-section">
     <button class="db-land-hdr" aria-expanded="${open}"
-            onclick="dbToggleLandSection('${jsAttr(id)}')">
+            onclick="dbToggleLandSection('${jsAttr(section.kind)}', '${jsAttr(section.name)}')">
       <span class="db-land-caret">${open ? '▾' : '▸'}</span>
       ${heading(got)}
     </button>

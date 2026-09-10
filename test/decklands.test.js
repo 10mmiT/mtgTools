@@ -449,7 +449,7 @@ function loadTab({ deck = DECK, commander = COMMANDER, user = AS_TIM,
     how() { run('dbToggleSourcesFoot()'); return el('dbLandsContent').innerHTML; },
     html: () => el('dbLandsContent').innerHTML,
     /** A section, pressed — settled by the time this resolves. */
-    toggle(id) { return run(`dbToggleLandSection('${id}')`); },
+    toggle(kind, name) { return run(`dbToggleLandSection('${kind}', '${name}')`); },
     /** The tab drawn again, and whatever that made it go and ask for. */
     render() {
       run('dbRenderLands()');
@@ -541,6 +541,43 @@ test('a cycle is drawn under a name of ours and asked for under Scryfall’s', (
     'the query is the predicate and the colours, and nothing else');
 });
 
+test('a section carries its kind, so a colour can never be mistaken for a cycle', () => {
+  /* Both halves of the tab are sections — one set of open ones, one cache, one
+     toggle — and the only thing that differs between them is which question
+     they ask Scryfall. That used to be decided by reading a `fix:` prefix back
+     out of the name, which is a domain distinction living in a string: it
+     depended on the prefix being spelled the same in the writing and in the
+     reading, and a cycle Scryfall happened to call `fix` would have been read
+     as a colour.
+
+     The kind is a field now, so two sections that share a name are still two
+     sections, and the question each asks comes off the kind rather than off
+     the spelling. */
+  const tab = loadTab();
+  const cycle = `_dbSection('cycle', 'dual', 'WUG')`;
+  const fix   = `_dbSection('fix', 'dual', 'WUG')`;
+  assert.notStrictEqual(tab.answer(`_dbSectionId(${cycle})`), tab.answer(`_dbSectionId(${fix})`),
+    'a colour and a cycle of the same name are the same section');
+  assert.strictEqual(tab.answer(`_dbSectionQuery(${cycle})`), 'is:dual id<=wug');
+  assert.strictEqual(tab.answer(`_dbSectionQuery(${fix})`), 't:land produces:dual -t:basic id<=wug');
+});
+
+test('which section it is does not change with the deck’s colours, but what it holds does', () => {
+  /* The two keys are deliberately different questions. Which section this is
+     is what the open set holds and what the button names, and a deck gaining a
+     colour must not close a section under the reader. What a section *holds*
+     is another matter: `is:shockland` in Bant and the same cycle in mono-red
+     are two different answers, so the colours are part of what a cached answer
+     is filed under. */
+  const tab = loadTab();
+  const bant = `_dbSection('cycle', 'shockland', 'WUG')`;
+  const mono = `_dbSection('cycle', 'shockland', 'R')`;
+  assert.strictEqual(tab.answer(`_dbSectionId(${bant})`), tab.answer(`_dbSectionId(${mono})`),
+    'a deck changing colour would close the sections the reader had open');
+  assert.notStrictEqual(tab.answer(`_dbLandKey(${bant})`), tab.answer(`_dbLandKey(${mono})`),
+    'one cycle in two sets of colours would share a cached answer');
+});
+
 // ── Opening the tab costs nothing ─────────────────────────────────────────
 
 test('the tab opens with every section closed and asks Scryfall nothing', () => {
@@ -571,7 +608,7 @@ test('switching to the tab and away leaves the other halves of the drawer alone'
 test('expanding a section asks for that one cycle, in the commander’s colours', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=wug'],
     'the one cycle asked for was not the one opened, or not in the deck’s colours');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
@@ -582,10 +619,10 @@ test('expanding a section asks for that one cycle, in the commander’s colours'
 test('re-expanding a section does not ask again', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
-  await tab.toggle('shockland');           // closed
+  await tab.toggle('cycle', 'shockland');
+  await tab.toggle('cycle', 'shockland');           // closed
   assert.deepStrictEqual(tab.tiles(), [], 'a closed section kept its grid');
-  await tab.toggle('shockland');           // and open again
+  await tab.toggle('cycle', 'shockland');           // and open again
   assert.strictEqual(tab.asked().length, 1,
     'the second look at a cycle cost the house a second request');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden']);
@@ -594,8 +631,8 @@ test('re-expanding a section does not ask again', async () => {
 test('a second section is a second request, and the first stays open', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
-  await tab.toggle('triome');
+  await tab.toggle('cycle', 'shockland');
+  await tab.toggle('cycle', 'triome');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=wug', 'is:triome id<=wug']);
   assert.deepStrictEqual(tab.openCycles(), ['Shocklands', 'Triomes'],
     'opening one section closed another');
@@ -604,12 +641,12 @@ test('a second section is a second request, and the first stays open', async () 
 test('a deck in other colours asks again, because it is a different question', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   /* The commander comes off the board, and an Azorius one goes on. */
   tab.run(`dbCards = dbCards.filter(c => c.board !== 'commander').concat([
     { card_name: 'Hallowed Fountain', qty: 1, board: 'commander', category: 'Creatures', position: 9 }])`);
-  await tab.toggle('shockland');   // closed
-  await tab.toggle('shockland');   // opened, in new colours
+  await tab.toggle('cycle', 'shockland');   // closed
+  await tab.toggle('cycle', 'shockland');   // opened, in new colours
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=wug', 'is:shockland id<=wu'],
     'the new colours were answered out of the old ones’ cache');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain']);
@@ -625,7 +662,7 @@ test('an open section follows the deck into its new colours', async () => {
   tab.run(`answersFor('is:shockland id<=g', []);
            answersFor('is:shockland id<=wug', ['Temple Garden'])`);
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=g']);
 
   /* A white-blue land goes into the deck, and it is three colours. */
@@ -655,7 +692,7 @@ test('a colourless commander is colourless, not unfiltered', async () => {
                                      category: 'Creatures', board: 'commander' } });
   assert.strictEqual(tab.answer('dbLandIdentity()'), 'C');
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=c']);
 });
 
@@ -694,7 +731,7 @@ test('a deck with no colours in it is colourless, not unfiltered', async () => {
   const tab = loadTab({ deck: [{ card_name: 'Sol Ring', category: 'Ramp' }], commander: null });
   assert.strictEqual(tab.answer('dbLandIdentity()'), 'C');
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland id<=c'],
     'a deck that reads as colourless was shown the whole cycle');
 });
@@ -738,7 +775,7 @@ test('a deck with nothing in it yet is every cycle, unfiltered', async () => {
   assert.ok(!html.includes('error-msg'), 'an empty deck was drawn an error');
   assert.ok(html.includes('every cycle, unfiltered'),
     'the tab did not say it had nothing to filter on');
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.asked(), ['is:shockland'], 'an empty filter was sent as one');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
     'the cycle came back with nothing to show for it');
@@ -749,7 +786,7 @@ test('a deck with nothing in it yet is every cycle, unfiltered', async () => {
 test('a card in the section is the same tile Search draws — the +, the mark, the badge', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   const html = tab.html();
 
   assert.match(html, /dbAddFromDrawer\('Breeding Pool'\)/,
@@ -770,7 +807,7 @@ test('the + honours the drawer’s "Add to", the way it does on the other halves
   const tab = loadTab();
   tab.run(`dbSetAddTo('maybe')`);
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.match(tab.html(), /title="Add to Maybeboard"/,
     'the tile offered to add somewhere other than where the drawer is pointing');
 
@@ -787,7 +824,7 @@ test('the + honours the drawer’s "Add to", the way it does on the other halves
 test('somebody else’s deck is a tab you can read and not one you can add from', async () => {
   const tab = loadTab({ user: AS_ANNA });
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
     'the cards are the same cards whoever is looking');
   assert.ok(!tab.html().includes('dbAddFromDrawer'), 'a + was drawn on a deck that is not ours');
@@ -800,7 +837,7 @@ test('a cycle with nothing in these colours says so, rather than reading as brok
      correct answer to "the triomes a Dimir deck may play" and not a failure. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('triome');
+  await tab.toggle('cycle', 'triome');
   assert.match(tab.html(), /Nothing in this cycle is in these colours/);
   assert.ok(!tab.html().includes('error-msg'), 'an empty cycle was drawn as an error');
 });
@@ -808,9 +845,9 @@ test('a cycle with nothing in these colours says so, rather than reading as brok
 test('a cycle that came back empty is not asked for twice either', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('triome');
-  await tab.toggle('triome');
-  await tab.toggle('triome');
+  await tab.toggle('cycle', 'triome');
+  await tab.toggle('cycle', 'triome');
+  await tab.toggle('cycle', 'triome');
   assert.strictEqual(tab.asked().length, 1, 'a settled nothing was re-fetched');
 });
 
@@ -821,12 +858,12 @@ test('a section that fails says why, and lets you ask again', async () => {
   tab.run(`_realFetch = scryfallFetch;
            scryfallFetch = async () => { throw new Error('offline'); }`);
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.match(tab.html(), /error-msg[\s\S]*offline/, 'the failure was swallowed');
 
   tab.run('scryfallFetch = _realFetch');
-  await tab.toggle('shockland');   // read, and closed
-  await tab.toggle('shockland');   // asked again
+  await tab.toggle('cycle', 'shockland');   // read, and closed
+  await tab.toggle('cycle', 'shockland');   // asked again
   assert.deepStrictEqual(tab.tiles(), ['Hallowed Fountain', 'Breeding Pool', 'Temple Garden'],
     'the section was stuck with a failure it could not be asked out of');
 });
@@ -836,12 +873,12 @@ test('a section that fails says why, and lets you ask again', async () => {
 test('a new deck arrives with the sections closed, and does not pay for them again', async () => {
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   tab.run('_dbLandsForgetDeck()');
   assert.deepStrictEqual(tab.openCycles(), [],
     'the last deck’s open sections were still spread out');
 
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.strictEqual(tab.asked().length, 1,
     'what a cycle holds is a fact about Magic and was fetched twice anyway');
 });
@@ -852,7 +889,7 @@ test('changing decks is what closes them', async () => {
      not a page of loading, and it is a deck change like any other. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('shockland');
+  await tab.toggle('cycle', 'shockland');
   assert.deepStrictEqual(tab.openCycles(), ['Shocklands']);
 
   await tab.run(`dbSelectDeck('')`);
@@ -1477,7 +1514,7 @@ test('opening a short colour asks for the lands that make it, in the deck’s co
      of every list. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.asked(), ['t:land produces:u -t:basic id<=wug'],
     'the fix asked Magic the wrong question');
   assert.ok(tab.tiles().includes('Command Tower'), 'the lands that make blue are not in the section');
@@ -1491,7 +1528,7 @@ test('a land somebody has sorts above one nobody has, and play rate does the res
      in the deck, and a singleton deck cannot hold a second — see below.) */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.tiles(), ['Breeding Pool', 'Command Tower', 'Yavimaya Coast'],
     'the copy in the box did not come first, or play rate stopped ordering the rest');
 });
@@ -1507,7 +1544,7 @@ test('somebody else’s box is a copy in the house too', async () => {
       cards: { 'Yavimaya Coast': { name: 'Yavimaya Coast', qty: 1 } } },
   ] });
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.tiles(), ['Breeding Pool', 'Yavimaya Coast', 'Command Tower'],
     'a land in somebody else’s box was sorted as one nobody has');
 });
@@ -1519,7 +1556,7 @@ test('a suggestion is the drawer’s own tile, with a + that adds', async () => 
      drawer's "Add to" points. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.match(tab.html(), /dbAddFromDrawer\('Command Tower'\)/,
     'the + does not add through the drawer’s own add');
 
@@ -1538,7 +1575,7 @@ test('a land the deck already runs is not offered as the fix for a singleton dec
      number of stays offered. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.ok(!tab.tiles().includes('Hallowed Fountain'),
     'a land the deck cannot hold a second of was offered as the fix');
 });
@@ -1551,7 +1588,7 @@ test('a 60-card deck is offered a second copy of a land it already runs', async 
     { card_name: 'Cryptic Command',   category: 'Ramp' },
     { card_name: 'Hallowed Fountain', category: 'Lands' }] });
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.asked(), ['t:land produces:u -t:basic id<=wug'],
     'a deck with no commander was not asked about in its own colours');
   assert.ok(tab.tiles().includes('Hallowed Fountain'),
@@ -1574,7 +1611,7 @@ test('a long list is cut to what can be read, and everything somebody has surviv
                       'Green 20': { name: 'Green 20', qty: 1 } } }],
   });
   tab.open();
-  await tab.toggle('fix:G');
+  await tab.toggle('fix', 'G');
   assert.deepStrictEqual(tab.tiles(),
     ['Green 15', 'Green 20', ...GREENS.slice(0, 10)],
     'the cut dropped a land somebody has, or stopped following play rate');
@@ -1589,7 +1626,7 @@ test('a list that fits is shown whole, and says nothing about what it left out',
      nothing. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.ok(!/Showing/.test(tab.html()),
     'a region showing everything it had claimed there was more');
 });
@@ -1600,7 +1637,7 @@ test('a colour that has been fixed stops being offered', async () => {
      Twenty Islands is more blue than the table wants. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.ok(tab.fixes().some(f => f.startsWith('blue')), 'blue was not short to begin with');
 
   tab.run(`dbCards.push({ card_name: 'Island', qty: 20, board: 'main',
@@ -1618,7 +1655,7 @@ test('a new deck arrives with the fix sections shut, and the argument with it', 
      headline. */
   const tab = loadTab();
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   tab.run('dbToggleSourcesShort()');
   assert.ok(tab.html().includes('db-sources-short-row'), 'the per-card list did not open');
 
@@ -1637,7 +1674,7 @@ test('a colour whose every land is already in the deck says that, not "nothing m
     answers: { ...ANSWERS, 't:land produces:u -t:basic id<=wug': ['Hallowed Fountain'] },
   });
   tab.open();
-  await tab.toggle('fix:U');
+  await tab.toggle('fix', 'U');
   assert.deepStrictEqual(tab.tiles(), [], 'a land the deck already runs was offered anyway');
   assert.match(tab.html(), /already in the deck/i,
     'the deck was told Magic has nothing, when what it has is all of it');
