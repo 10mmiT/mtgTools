@@ -82,6 +82,14 @@ const CARDS = {
                        mana_cost: '', colors: ['U'], color_identity: ['U'],
                        card_faces: [{ name: 'Delver of Secrets', mana_cost: '{U}' },
                                     { name: 'Insectile Aberration', mana_cost: null }] },
+  /* An Adventure: two costs on one card, and both are cast off real mana. Its
+     top-level mana_cost is the creature's alone, so a reading that trusts that
+     field sees one red pip where the card asks for two. */
+  'Bonecrusher Giant': { name: 'Bonecrusher Giant', cmc: 3,
+                       type_line: 'Creature — Giant // Instant — Adventure',
+                       mana_cost: '{2}{R}', colors: ['R'], color_identity: ['R'],
+                       card_faces: [{ name: 'Bonecrusher Giant', mana_cost: '{2}{R}' },
+                                    { name: 'Stomp', mana_cost: '{1}{R}' }] },
   'Atraxa, Praetors’ Voice': {
                        name: 'Atraxa, Praetors’ Voice', type_line: 'Legendary Creature — Angel',
                        cmc: 4, mana_cost: '{G}{W}{U}{B}', colors: ['W','U','B','G'],
@@ -551,6 +559,23 @@ test('one press fills every field the calculator used to ask you to count', () =
   assert.strictEqual(tab.field('pip-B'), 1, 'the commander’s black pip');
   assert.strictEqual(tab.field('pip-C'), 1, 'the colourless one');
   assert.strictEqual(tab.field('pip-W'), 3, 'the white pips, rounded to a whole one');
+});
+
+test('an Adventure’s two costs both reach the calculator, because both are cast', () => {
+  /* The pass reads a card's costs through dbCostFaces(), which gives an
+     Adventure two of them, so Bonecrusher Giant asks for two red pips rather
+     than the one its top-level mana_cost carries. The Giant's {2}{R} and
+     Stomp's {1}{R} are both red mana somebody had to have.
+
+     Pinned at this boundary rather than at the pass because this is where the
+     difference shows to anyone reading the app: the calculator's numbers moved
+     when the faces began to be summed, and docs/design/spec-landbase.md had
+     said this tab was being left alone. The spec says what happened now, and
+     this is the assertion that keeps it deliberate. */
+  const tab = loadTab({ deck: [{ card_name: 'Bonecrusher Giant', category: 'Creatures' }], commander: '' });
+  tab.run('initLands()');
+  tab.run('landsUseDeck()');
+  assert.strictEqual(tab.field('pip-R'), 2, 'only one of the Adventure’s two costs reached the calculator');
 });
 
 test('a colour the deck does not ask for is left blank, not typed in as nought', () => {

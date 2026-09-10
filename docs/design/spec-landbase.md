@@ -44,7 +44,19 @@ app that works with no deck loaded, which [lands.js:44](../../public/js/lands.js
 already says out loud, and this tab does not serve that case. It keeps one quiet
 inbound link from here, worded as what it now is: the way to work a mana base by
 hand, or to work one out for a deck that does not exist yet. `landsUseDeck()` and
-`dbManaForCalculator()` stay as they are.
+`dbManaForCalculator()` keep their shape and their fields.
+
+**One of the calculator's numbers did move, and this line used to deny it.** The
+pips it is filled with are read by `_dbManaCostOf()`, which now sums every face
+of a card rather than trusting its top-level `mana_cost`. For most cards the two
+are the same string. For an Adventure they are not: Bonecrusher Giant's own
+field says `{2}{R}`, and Stomp — a second cost on the same card, paid at its own
+moment — is invisible to it. Both are red mana somebody had to have, so both are
+counted, and a deck of Adventures fills the calculator with more pips than it
+used to. This is wanted: the old reading was short, not different. `dbCostFaces()`
+is where "what are a card's costs" is answered, for the check and for this tab
+alike, and test/deckmana.test.js pins the Adventure at the calculator's own
+boundary so that the change stays deliberate rather than incidental.
 
 ## Both formats
 
