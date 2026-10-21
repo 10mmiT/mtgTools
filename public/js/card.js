@@ -30,23 +30,21 @@ let _cardPrints    = [];
 let _cardPrintCard = null;
 let _cardPrintsAt  = '';
 
-// Convert "{2}{W}{U/P}{T}" → mana-font icons
+// Convert "{2}{W}{U/P}{T}" → mana-font icons. The app's one rule for that is
+// renderMana (js/state.js) — every slash dropped, so {G/U/P} is ms-gup, and
+// the symbol escaped where it is written into the title.
 function cardManaSymbols(cost) {
-  if (!cost) return '';
-  return cost.replace(/\{([^}]+)\}/g, (_, sym) => {
-    let code = sym.toLowerCase().replace('/', '');
-    if (code === 't') code = 'tap';
-    if (code === 'q') code = 'untap';
-    return `<i class="ms ms-${code} ms-cost ms-shadow" title="{${sym}}"></i>`;
-  });
+  return renderMana(cost);
 }
 
-// Replace {symbol} runs inside oracle text with inline mana icons
+// Replace {symbol} runs inside oracle text with inline mana icons. Not
+// renderMana: the text is escaped first, so the symbols arrive escaped, and
+// these icons carry no shadow. The slash rule is the same one — every slash.
 function cardOracleHtml(text) {
   if (!text) return '';
   return esc(text)
     .replace(/\{([^}]+)\}/g, (_, sym) => {
-      let code = sym.toLowerCase().replace('/', '');
+      let code = sym.toLowerCase().replace(/\//g, '');
       if (code === 't') code = 'tap';
       if (code === 'q') code = 'untap';
       return `<i class="ms ms-${code} ms-cost" title="{${sym}}"></i>`;

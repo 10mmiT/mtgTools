@@ -786,7 +786,7 @@ function _dbGridTile(card, canEdit) {
   return `<div class="sf-card-lg db-tile${selected ? ' db-tile-selected' : ''}${_dbLanded(ref)}"
     ${_dbMoves('card', ref)} ${_dbCarry(ref, canEdit)} ${clickAttrs}>
     ${cardArtHtml(`<div data-name="${esc(card.card_name)}">
-      ${img ? `<img class="sf-card-lg-img card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
+      ${img ? `<img class="sf-card-lg-img card-img" src="${esc(img)}" loading="lazy" alt="${esc(card.card_name)}">` :
               `<div class="sf-card-lg-img sf-thumb-ph" style="aspect-ratio:5/7"></div>`}
     </div>`, { back: _dbCardBack(card), own: cardOwnMark(card.card_name) })}
     <div class="sf-card-lg-footer">
@@ -863,7 +863,7 @@ function _dbPileTile(card, canEdit) {
     ${_dbMoves('card', ref)} ${_dbCarry(ref, canEdit)} ${clickAttrs}>
     ${(card.qty || 1) > 1 ? `<span class="db-pile-qty">×${card.qty}</span>` : ''}
     ${cardArtHtml(`<div data-name="${esc(card.card_name)}">
-      ${img ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(card.card_name)}">` :
+      ${img ? `<img class="card-img" src="${esc(img)}" loading="lazy" alt="${esc(card.card_name)}">` :
               /* Artwork that is missing is a surface and not a card, which is
                  one rule said in one place — components.css's, the same shape
                  a stack's face falls back to. It was written out inline here

@@ -128,7 +128,7 @@ function cardStackHtml(cards, { count, layers, attrs = '' } = {}) {
    * one: the placeholder keeps the hairline and fill that a card refuses,
    * exactly as the grids' does. */
   const faceHtml = face.img
-    ? `<img class="card-img card-stack-face" src="${face.img}" loading="lazy" alt="${esc(face.name)}">`
+    ? `<img class="card-img card-stack-face" src="${esc(face.img)}" loading="lazy" alt="${esc(face.name)}">`
     : `<div class="card-stack-face card-stack-blank"></div>`;
 
   return `<div class="card-stack" style="--stack-depth:${depth};--stack-turn:${stackJitter(face.name)}deg" ${attrs}>
@@ -262,7 +262,7 @@ function pileToggleHtml(open, { title = '', attrs = '' } = {}) {
  * there rather than replacing it with a tidier one. */
 function cardFanHtml({ name, img, badge, href, back }) {
   const picture = img
-    ? `<img class="card-img" src="${img}" loading="lazy" alt="${esc(name)}">`
+    ? `<img class="card-img" src="${esc(img)}" loading="lazy" alt="${esc(name)}">`
     : `<div class="card-stack-blank"></div>`;
   const spin = `--stack-turn:${stackJitter(name)}deg`;
   /* Whatever this card has to carry: the control that turns it over, and the

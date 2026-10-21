@@ -57,7 +57,7 @@ function renderPickSetup() {
     const on = pickSelected.has(p.id);
     return `<button class="chip chip--select" aria-pressed="${on}"
         style="--pc:${playerColor(p)}"
-        onclick="pickTogglePlayer('${p.id}')">
+        onclick="pickTogglePlayer('${jsAttr(p.id)}')">
       <span class="chip-dot"></span>
       <span class="chip-label">${esc(p.name)}</span>
       ${on ? `<svg class="chip-check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
@@ -237,7 +237,7 @@ function renderPickPool() {
     if (!decks.length) return '';
     return `<div class="pick-pool-group">
       <div class="pick-pool-player" style="color:${playerColor(p)};cursor:pointer" title="Toggle all of ${esc(p.name)}'s decks"
-           onclick="pickTogglePlayerDecks('${p.id}')">${esc(p.name)}</div>
+           onclick="pickTogglePlayerDecks('${jsAttr(p.id)}')">${esc(p.name)}</div>
       <div class="pick-pool-chips">${decks.map(d => {
         const off = !pickIncludedDeckIds.has(d.id);
         /* A deck that is in the pool and out of tonight's bracket is marked
@@ -249,7 +249,7 @@ function renderPickPool() {
         const band   = dbBracketOf(d) === null
           ? '' : `<span class="pick-pool-bracket">B${dbBracketOf(d)}</span>`;
         return `<button class="pick-pool-chip${off ? ' pick-pool-chip-off' : ''}${barred ? ' pick-pool-chip-barred' : ''}"
-            onclick="pickToggleDeck('${d.id}')"
+            onclick="pickToggleDeck('${jsAttr(d.id)}')"
             title="${barred ? esc(`Not ${pickBracketWords()} — outside tonight’s draw`) : ''}">${esc(d.name)}${band}</button>`;
       }).join('')}</div>
     </div>`;
@@ -351,7 +351,7 @@ function renderPickResults() {
   const tiles = pickResults.map(({ player, deckEntry }, i) => {
     const d       = deckEntry.deck;
     const owner   = deckEntry.player;
-    const bg      = d.commanderImg ? `background-image:url('${d.commanderImg}')` : '';
+    const bg      = cssUrl(d.commanderImg) ? `background-image:url('${esc(cssUrl(d.commanderImg))}')` : '';
     const cmdLine = d.commander
       ? `<div class="pick-deck-commander">${esc(d.commander)}</div>` : '';
     const ownerTag = owner.id !== player.id
@@ -377,7 +377,7 @@ function renderPickResults() {
             ${cmdLine}
           </div>
           <div class="deck-tile-bottom">
-            <span class="deck-tile-count">${d.cardCount ? `${d.cardCount} cards` : ''}</span>
+            <span class="deck-tile-count">${d.cardCount ? `${esc(d.cardCount)} cards` : ''}</span>
             <button class="btn-edit-tile" onclick="pickRerollOne(${i})">↺ Re-roll</button>
           </div>
         </div>

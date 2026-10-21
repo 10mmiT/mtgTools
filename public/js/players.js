@@ -560,16 +560,20 @@ function deckSourceLabel(d) {
 // The tile the grid and the sections both draw. `player` owns the deck; the
 // action handlers are keyed by the pair, and `canEdit` gates the ⋯ menu.
 function deckTileHtml(player, d, canEdit) {
+  /* The pair every handler is keyed by, ready for a quoted string inside an
+     inline onclick. Ids are held to a plain shape by the server, but this
+     tile is where a stored one would otherwise become markup. */
+  const pid = jsAttr(player.id), did = jsAttr(d.id);
   if (d.editing) {
-    return `<div class="deck-tile-edit" data-deck-id="${d.id}">
+    return `<div class="deck-tile-edit" data-deck-id="${esc(d.id)}">
       <div class="edit-label">Edit Deck</div>
       <input type="text" name="edit-name"       value="${esc(d.name)}"      placeholder="Deck name…">
       <input type="text" name="edit-commander"  value="${esc(d.commander)}" placeholder="Commander name…">
       <input type="text" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
-             onkeydown="if(event.key==='Enter')saveEditDeck('${player.id}','${d.id}')">
+             onkeydown="if(event.key==='Enter')saveEditDeck('${pid}','${did}')">
       <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
-        <button class="btn-primary"   style="flex:1;padding:var(--space-1) var(--space-2);font-size:var(--text-sm)" onclick="saveEditDeck('${player.id}','${d.id}')">Save</button>
-        <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-sm)"         onclick="cancelEditDeck('${player.id}','${d.id}')">Cancel</button>
+        <button class="btn-primary"   style="flex:1;padding:var(--space-1) var(--space-2);font-size:var(--text-sm)" onclick="saveEditDeck('${pid}','${did}')">Save</button>
+        <button class="btn-secondary" style="padding:var(--space-1) var(--space-2);font-size:var(--text-sm)"         onclick="cancelEditDeck('${pid}','${did}')">Cancel</button>
       </div>
     </div>`;
   }
@@ -577,7 +581,7 @@ function deckTileHtml(player, d, canEdit) {
   const srcLabel     = deckSourceLabel(d);
   const busy         = d.nameStatus === 'loading';
   const nameClass    = d.nameStatus === 'loading' ? 'loading' : d.nameStatus === 'error' ? 'error' : '';
-  const bgStyle      = d.commanderImg ? `background-image:url('${d.commanderImg}')` : '';
+  const bgStyle      = cssUrl(d.commanderImg) ? `background-image:url('${esc(cssUrl(d.commanderImg))}')` : '';
   /* What bracket its owner says it is. Drawn by js/deckview-legality.js,
      which is where the five brackets are named and where the declaration is
      made — this tile is one of the places the answer is read. */
@@ -591,7 +595,7 @@ function deckTileHtml(player, d, canEdit) {
   // action row: it is something the deck *is*, not something to do to
   // it, and on a 260px tile the row it used to share has only enough
   // width for the three controls.
-  const countInfo    = d.cardCount ? `<div class="deck-tile-meta">${d.cardCount} cards</div>` : '';
+  const countInfo    = d.cardCount ? `<div class="deck-tile-meta">${esc(d.cardCount)} cards</div>` : '';
   const cmdLine      = d.commander
     ? `<div class="deck-tile-commander">Commander: ${esc(d.commander)}</div>` : '';
   // Where it could be filed, if its owner has made anywhere to file it.
@@ -603,7 +607,7 @@ function deckTileHtml(player, d, canEdit) {
   // relationship to the menu: the same decks, the same move, one hand quicker.
   const drag = deckDragAttrs(player.id, d.id, canEdit);
 
-  return `<div class="deck-tile" data-deck-id="${d.id}" style="${bgStyle}"${drag}>
+  return `<div class="deck-tile" data-deck-id="${esc(d.id)}" style="${bgStyle}"${drag}>
     <div class="deck-tile-overlay">
       <div class="deck-tile-top">
         <span class="deck-source-badge">${srcLabel}</span>
@@ -617,15 +621,15 @@ function deckTileHtml(player, d, canEdit) {
         ${countInfo}
       </div>
       <div class="deck-tile-bottom">
-        <button class="btn-load-tile" onclick="loadPlayerDeck('${player.id}','${d.id}')" ${busy ? 'disabled' : ''}>Compare</button>
-        <button class="btn-dv-tile" onclick="openInDeckView('${player.id}','${d.id}')" title="Open in Deck Builder">Build</button>
+        <button class="btn-load-tile" onclick="loadPlayerDeck('${pid}','${did}')" ${busy ? 'disabled' : ''}>Compare</button>
+        <button class="btn-dv-tile" onclick="openInDeckView('${pid}','${did}')" title="Open in Deck Builder">Build</button>
         ${canEdit ? kebabMenuHtml([
-          { label: 'Edit',   onclick: `startEditDeck('${player.id}','${d.id}')` },
+          { label: 'Edit',   onclick: `startEditDeck('${pid}','${did}')` },
           ...privacyItems,
           { divider: true },
           ...folderItems,
           ...(folderItems.length ? [{ divider: true }] : []),
-          { label: 'Remove', onclick: `removeDeck('${player.id}','${d.id}')`, danger: true },
+          { label: 'Remove', onclick: `removeDeck('${pid}','${did}')`, danger: true },
         ], { title: 'Deck actions', btnClass: 'kebab-btn-tile' }) : ''}
       </div>
     </div>

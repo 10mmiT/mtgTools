@@ -479,6 +479,20 @@ const PRINTING_FIELDS =
  * silence, which is what a card is a name unless a printing says otherwise. */
 const ORDINARY_FINISH = 'nonfoil';
 
+/* What a URL the browser is handed may be. The server stores what clients
+ * send, and the tab draws these into markup — a link's href, an <img src>, a
+ * tile's background-image — so a `javascript:` or `data:` value stored here is
+ * script in somebody else's tab later. Two strengths:
+ *
+ *   isHttpUrl   — a link somebody typed: http(s) and nothing else is asked of
+ *                 it, because "any URL is valid as a link" and the tab escapes
+ *                 it where it is drawn.
+ *   isImageUrl  — a picture: http(s), and none of the characters that end a
+ *                 quoted attribute or a CSS url('…'). Every real one is a
+ *                 Scryfall CDN address, which never carries them. */
+const isHttpUrl  = v => typeof v === 'string' && /^https?:\/\/\S+$/i.test(v);
+const isImageUrl = v => typeof v === 'string' && /^https?:\/\/[^\s"'()<>\\]+$/i.test(v);
+
 /** A printing, from the column's text or from a client's object — trimmed to
  *  the fields above, in that order, or null if it names no printing.
  *
@@ -502,6 +516,9 @@ function readPrinting(value) {
     if (typeof raw[field] === 'string' && raw[field] !== '') printing[field] = raw[field];
   }
   if (printing.finish === ORDINARY_FINISH) delete printing.finish;
+  // A picture that is not one is no picture: the write routes refuse it with a
+  // 400, and this keeps one stored before they did from reaching an <img src>.
+  if ('image' in printing && !isImageUrl(printing.image)) delete printing.image;
   return printing;
 }
 
@@ -696,7 +713,7 @@ db.prepare("UPDATE collection_imports SET status = 'interrupted' WHERE status = 
 
 module.exports = {
   db, DEFAULT_CAL_ID,
-  readPrinting, writePrinting, deckCardRow,
+  readPrinting, writePrinting, deckCardRow, isHttpUrl, isImageUrl,
   CARD_PRINTING_FIELDS, namesPrinting, readCardPrintings, addCardPrinting, collectionCardRow,
   readCollectionCards, writeCollectionCards,
 };

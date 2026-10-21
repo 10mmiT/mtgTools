@@ -505,13 +505,27 @@ function renderMana(cost) {
     let cls = sym.toLowerCase().replace(/\//g, ''); // {W/U} → wu
     if (cls === 't')  cls = 'tap';
     if (cls === 'q')  cls = 'untap';
-    return `<i class="ms ms-${cls} ms-cost ms-shadow" title="${esc(match)}"></i>`;
+    return `<i class="ms ms-${esc(cls)} ms-cost ms-shadow" title="${esc(match)}"></i>`;
   });
 }
 
+/* Text made safe for HTML — an element's content or a quoted attribute, either
+ * quote. Anything at all comes in: a number is its digits (0 included, which
+ * used to come out as nothing) and only null/undefined are empty. */
 function esc(s) {
-  if (!s) return '';
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* A picture's address for a style attribute's url('…'), or '' for anything
+ * that is not http(s). The server refuses anything else on the way in, and
+ * this is the same rule where it is drawn: the characters that would close the
+ * quotes or the url( are percent-encoded — which a real address already is —
+ * and esc() around the result still does the attribute's part. */
+function cssUrl(u) {
+  if (typeof u !== 'string' || !/^https?:\/\//i.test(u)) return '';
+  // encodeURIComponent covers all of them but the three it leaves alone.
+  return u.replace(/["'()\\\s<>]/g, c => ({ "'": '%27', '(': '%28', ')': '%29' })[c] || encodeURIComponent(c));
 }
 
 // Escape a value for safe use inside a single-quoted JS string in an inline

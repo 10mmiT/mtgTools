@@ -1,21 +1,83 @@
 'use strict';
 const express = require('express');
-const { db, writePrinting, deckCardRow } = require('../available-db');
+const { db, writePrinting, deckCardRow, isImageUrl } = require('../available-db');
 const history = require('../deck-history');
 const { requireAuth, requirePlayerAccess, getSession } = require('../middleware/auth');
-const { deckVisibleTo } = require('./state');
+const { deckVisibleTo, deckWritableBy, isBlank, readNumber } = require('./state');
 
 const router = express.Router();
 
-/* The read guard for a deck named by id. The write routes are owner-scoped by
- * requirePlayerAccess already; the reads below are requireAuth only, so anyone
- * logged in could otherwise pull a private deck's cards or history by id. A
- * non-owner asking after a private deck gets a 404 — its existence is hidden,
- * not confirmed with a 403. deckVisibleTo carries the open-mode no-op (the guest
- * session is admin) and the owner/admin rule, shared with the /api/state filter. */
+/* The read guard for a deck named by id. The reads below are requireAuth only,
+ * so anyone logged in could otherwise pull a private deck's cards or history by
+ * id. A non-owner asking after a private deck gets a 404 — its existence is
+ * hidden, not confirmed with a 403. deckVisibleTo carries the open-mode no-op
+ * (the guest session is admin) and the owner/admin rule, shared with the
+ * /api/state filter. */
 function requireDeckVisible(req, res, next) {
   if (deckVisibleTo(getSession(req), req.params.deckId)) return next();
   res.status(404).json({ error: 'Not found' });
+}
+
+/* The write guard, after requirePlayerAccess. That one only proves the URL's
+ * :playerId is the requester; nothing tied the deck to that player, so
+ * `PUT /players/<me>/decks/<your deck>/cards` replaced your deck, and a
+ * `deck-delete` snapshot wiped its history. deckWritableBy (routes/state.js)
+ * is the rule: an admin, or the deck is :playerId's — or nobody's yet. A deck
+ * the requester could not even read is answered as the read guard answers it,
+ * so a write is no way to learn a private deck exists. */
+function requireDeckWrite(req, res, next) {
+  const sess = getSession(req);
+  if (deckWritableBy(sess, req.params.playerId, req.params.deckId)) return next();
+  if (!deckVisibleTo(sess, req.params.deckId)) return res.status(404).json({ error: 'Not found' });
+  res.status(403).json({ error: 'Forbidden' });
+}
+
+/* What a deck's rows may hold, checked on the way in. The numbers are numbers
+ * (a string where a count goes is drawn into the tile as markup later), and a
+ * chosen printing's picture is an http(s) image URL — refused rather than
+ * dropped, so a client that sent one learns it did not take. Each returns the
+ * reason, or null, and coerces a number written as a string in place. */
+function numberFields(row, fields, what) {
+  for (const f of fields) {
+    if (isBlank(row[f])) { row[f] = undefined; continue; }
+    const n = readNumber(row[f]);
+    if (Number.isNaN(n)) return `${what} ${f} must be a number`;
+    row[f] = n;
+  }
+  return null;
+}
+function textFields(row, fields, what) {
+  for (const f of fields) {
+    if (row[f] !== undefined && row[f] !== null && typeof row[f] !== 'string') return `${what} ${f} must be text`;
+  }
+  return null;
+}
+function printingProblem(value) {
+  let raw = value;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { return null; } }
+  if (raw && typeof raw === 'object' && !isBlank(raw.image) && !isImageUrl(raw.image)) {
+    return 'A printing\'s image must be an http(s) image URL';
+  }
+  return null;
+}
+function cardProblem(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return 'A card must be an object';
+  if (typeof c.card_name !== 'string' || !c.card_name) return 'card_name required';
+  return numberFields(c, ['qty', 'position'], 'A card\'s')
+    || textFields(c, ['category', 'board'], 'A card\'s')
+    || printingProblem(c.printing);
+}
+function categoryProblem(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return 'A category must be an object';
+  if (typeof c.name !== 'string') return 'A category\'s name must be text';
+  return numberFields(c, ['position'], 'A category\'s');
+}
+/* The first problem in a list of rows, or null; a list that is not one is
+ * itself the problem. */
+function listProblem(list, check, what) {
+  if (!Array.isArray(list)) return `${what} must be a list`;
+  for (const row of list) { const why = check(row); if (why) return why; }
+  return null;
 }
 
 /* No Commander among them. The commander is a board — see DB_BOARDS in
@@ -57,10 +119,12 @@ router.get('/players/:playerId/decks/:deckId/cards', requireAuth, requireDeckVis
 });
 
 // PUT /api/players/:playerId/decks/:deckId/cards — full replace
-router.put('/players/:playerId/decks/:deckId/cards', requirePlayerAccess,
+router.put('/players/:playerId/decks/:deckId/cards', requirePlayerAccess, requireDeckWrite,
   express.json({ limit: '2mb' }), (req, res) => {
   const { deckId } = req.params;
-  const { cards = [], categories = [] } = req.body;
+  const { cards = [], categories = [] } = req.body || {};
+  const bad = listProblem(cards, cardProblem, 'cards') || listProblem(categories, categoryProblem, 'categories');
+  if (bad) return res.status(400).json({ error: bad });
 
   // Before the replace, not inside it: what this save is about to overwrite is
   // the only copy of the state it overwrites. Most saves write nothing here —
@@ -92,11 +156,16 @@ router.put('/players/:playerId/decks/:deckId/cards', requirePlayerAccess,
 });
 
 // POST /api/players/:playerId/decks/:deckId/cards/add
-router.post('/players/:playerId/decks/:deckId/cards/add', requirePlayerAccess,
+router.post('/players/:playerId/decks/:deckId/cards/add', requirePlayerAccess, requireDeckWrite,
   express.json(), (req, res) => {
   const { deckId } = req.params;
-  const { card_name, qty = 1, category = '', board } = req.body || {};
-  if (!card_name?.trim()) return res.status(400).json({ error: 'card_name required' });
+  const body = req.body && typeof req.body === 'object' ? { ...req.body } : {};
+  if (typeof body.card_name !== 'string' || !body.card_name.trim()) {
+    return res.status(400).json({ error: 'card_name required' });
+  }
+  const bad = numberFields(body, ['qty'], 'A card\'s') || textFields(body, ['category', 'board'], 'A card\'s');
+  if (bad) return res.status(400).json({ error: bad });
+  const { card_name, qty = 1, category = '', board } = body;
   const name = card_name.trim();
   const onBoard = boardOf(board);
 
@@ -129,7 +198,7 @@ router.post('/players/:playerId/decks/:deckId/cards/add', requirePlayerAccess,
  * maybeboard must not take the one in the deck with it. Which board is a query
  * parameter and defaults to the mainboard, so a caller that has never heard of
  * boards goes on removing from the deck. */
-router.delete('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerAccess, (req, res) => {
+router.delete('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerAccess, requireDeckWrite, (req, res) => {
   const { deckId, cardName } = req.params;
   db.prepare('DELETE FROM deck_cards WHERE deck_id = ? AND board = ? AND card_name = ?')
     .run(deckId, boardOf(req.query.board), decodeURIComponent(cardName));
@@ -137,11 +206,15 @@ router.delete('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerA
 });
 
 // PATCH /api/players/:playerId/decks/:deckId/cards/:cardName
-router.patch('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerAccess,
+router.patch('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerAccess, requireDeckWrite,
   express.json(), (req, res) => {
   const { deckId, cardName } = req.params;
   const name    = decodeURIComponent(cardName);
-  const { qty, category, board } = req.body || {};
+  const body    = req.body && typeof req.body === 'object' ? { ...req.body } : {};
+  const bad     = (body.qty !== undefined && numberFields(body, ['qty'], 'A card\'s'))
+    || textFields(body, ['category', 'board'], 'A card\'s');
+  if (bad) return res.status(400).json({ error: bad });
+  const { qty, category, board } = body;
   const sets = []; const params = [];
   if (qty      !== undefined) { sets.push('qty = ?');      params.push(qty); }
   if (category !== undefined) { sets.push('category = ?'); params.push(category); }
@@ -160,10 +233,12 @@ router.patch('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerAc
 });
 
 // PUT /api/players/:playerId/decks/:deckId/categories
-router.put('/players/:playerId/decks/:deckId/categories', requirePlayerAccess,
+router.put('/players/:playerId/decks/:deckId/categories', requirePlayerAccess, requireDeckWrite,
   express.json(), (req, res) => {
   const { deckId } = req.params;
   const { categories = [] } = req.body || {};
+  const bad = listProblem(categories, categoryProblem, 'categories');
+  if (bad) return res.status(400).json({ error: bad });
   const save = db.transaction(() => {
     db.prepare('DELETE FROM deck_categories WHERE deck_id = ?').run(deckId);
     const ins = db.prepare(
@@ -199,10 +274,14 @@ router.get('/players/:playerId/decks/:deckId/snapshots/:id', requireAuth, requir
  * most of a second behind what the person is looking at, and the state worth
  * keeping is the one they can see. deck-history.js cuts what arrives down to
  * the shape a deck row has. */
-router.post('/players/:playerId/decks/:deckId/snapshots', requirePlayerAccess,
+router.post('/players/:playerId/decks/:deckId/snapshots', requirePlayerAccess, requireDeckWrite,
   express.json({ limit: '2mb' }), (req, res) => {
   const { reason, cards, categories } = req.body || {};
   if (!history.REASONS.has(reason)) return res.status(400).json({ error: 'Unknown reason' });
+  // deck-history.js cuts the rest down to a row's shape; the picture is the
+  // one field it would carry into markup, so it is refused here as on a save.
+  const bad = Array.isArray(cards) && cards.map(c => printingProblem(c?.printing)).find(Boolean);
+  if (bad) return res.status(400).json({ error: bad });
   try {
     const snapshot = reason === 'deck-delete'
       ? history.deckDeleted(req.params.deckId, { cards, categories })

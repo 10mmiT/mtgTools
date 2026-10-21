@@ -2,7 +2,7 @@
 const express = require('express');
 const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { db, readCollectionCards, writeCollectionCards } = require('../available-db');
+const { db, readCollectionCards, writeCollectionCards, isHttpUrl, isImageUrl } = require('../available-db');
 const { getSession, requireAuth, requirePlayerAccess } = require('../middleware/auth');
 const imports = require('../collection-import');
 
@@ -143,19 +143,216 @@ function canSeeDeck(session, ownerId, deck) {
 // deckId no player owns is not private, so it stays visible — the route already
 // answers emptiness on its own (and open mode's guest is admin, so nothing is
 // withheld there either).
+//
+// Every listing of the id has to agree, not the first one found. The write
+// paths below keep a deck id to one player, but state written before they did
+// may hold a copy of somebody's private deck id in a second player's list —
+// and "the first player listing it says public" must not be what unlocks it.
 function deckVisibleTo(session, deckId) {
   for (const p of (readState().players || [])) {
-    const deck = (p.decks || []).find(d => d.id === deckId);
-    if (deck) return canSeeDeck(session, p.id, deck);
+    for (const deck of (p.decks || [])) {
+      if (deck?.id === deckId && !canSeeDeck(session, p.id, deck)) return false;
+    }
   }
   return true;
+}
+
+/* The players whose deck lists name this id — one, normally; none for a deck
+ * nobody has stored yet; more only in state written before deck ids were kept
+ * to one player. */
+function deckOwners(deckId, players = readState().players || []) {
+  return players.filter(p => (p.decks || []).some(d => d?.id === deckId)).map(p => p.id);
+}
+
+/* Who may write a deck's cards, categories and history (the routes in
+ * routes/decks.js). requirePlayerAccess already holds the route's :playerId to
+ * the requester; this is the other half — that the deck is that player's. An
+ * admin may write any deck, and open mode's guest is one.
+ *
+ * A deck id no player lists is writable by whoever names it under their own
+ * player, and has to be: the tab gives a legacy deck its stable id
+ * (`legacy_…` / `arch_…`, js/deckview-core.js) the moment it is opened and
+ * only stores it with the next whole-state save, a deck whose save fell back
+ * to localStorage is still edited on the mat, and the ids the server tests
+ * build decks under belong to nobody. What it may never do is reach a deck
+ * another player lists. An id two players list is ambiguous and is nobody's
+ * but an admin's to write. */
+function deckWritableBy(session, playerId, deckId) {
+  if (!session) return false;
+  if (session.role === 'admin') return true;
+  if (!session.playerId || session.playerId !== playerId) return false;
+  return deckOwners(deckId).every(id => id === playerId);
+}
+
+// ── What a client may store (the write-side half of escaping) ─────────────
+/* An id the tab draws into markup — a data attribute, an inline onclick — so
+ * it is held to a shape with nothing in it that could end either. Every id
+ * this app has minted fits: d_<ms>, deck_<ms>_<rand>, uuids, arch_<n>,
+ * legacy_<player>_<i>, f_<ms>_<n>, p_<ms>, csv:<ms>, archidekt:<n>. */
+const ID_RE = /^[\w:.\-]{1,200}$/;
+const isId = v => (typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)))
+  && ID_RE.test(String(v));
+const isHexColor = v => typeof v === 'string'
+  && /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v);
+const isBlank = v => v === null || v === undefined || v === '';
+
+/* A number, or a string that plainly is one (what a JSON client means by a
+ * count it read out of a form). Anything else is NaN, which callers refuse. */
+function readNumber(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : NaN;
+  if (typeof v === 'string' && /^\s*-?\d+(?:\.\d+)?\s*$/.test(v)) return Number(v);
+  return NaN;
+}
+
+/* Two names that are one name to a person reading them — and to the
+ * calendar's by-name check in routes/available.js, which is why it matters. */
+const sameName = (a, b) =>
+  String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+/* A deck record as a client wants it stored, checked — with its two counts
+ * coerced to numbers in place. The reason it is refused, or null. */
+function deckProblem(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return 'A deck must be an object';
+  if (!isId(d.id)) return 'A deck id may only hold letters, digits and _ : . -';
+  if (!isBlank(d.deckId) && !isId(d.deckId)) return 'A deck\'s source id may only hold letters, digits and _ : . -';
+  if (!isBlank(d.folderId) && !isId(d.folderId)) return 'A folder id may only hold letters, digits and _ : . -';
+  for (const f of ['name', 'commander', 'source', 'nameStatus']) {
+    if (!isBlank(d[f]) && typeof d[f] !== 'string') return `A deck's ${f} must be text`;
+  }
+  for (const f of ['url', 'deckUrl']) {
+    if (!isBlank(d[f]) && !isHttpUrl(d[f])) return `A deck's ${f} must be an http(s) URL`;
+  }
+  if (!isBlank(d.commanderImg) && !isImageUrl(d.commanderImg)) return 'A deck\'s commander art must be an http(s) image URL';
+  if (!isBlank(d.cardCount)) {
+    const n = readNumber(d.cardCount);
+    if (Number.isNaN(n)) return 'A deck\'s cardCount must be a number';
+    d.cardCount = n;
+  }
+  /* The bracket is the one cosmetic exception: it arrives from Archidekt's
+   * deckBracket/powerLevel as well as from the tab's own control, and the tab
+   * reads anything that is not a number as no bracket at all (dbBracketOf).
+   * So that is what it is stored as, rather than failing the whole deck save
+   * over a value Archidekt chose. */
+  if (!isBlank(d.bracket)) {
+    const n = readNumber(d.bracket);
+    d.bracket = Number.isNaN(n) ? null : n;
+  }
+  return null;
+}
+
+function folderProblem(f) {
+  if (!f || typeof f !== 'object' || Array.isArray(f)) return 'A folder must be an object';
+  if (!isId(f.id)) return 'A folder id may only hold letters, digits and _ : . -';
+  if (!isBlank(f.name) && typeof f.name !== 'string') return 'A folder\'s name must be text';
+  if (!isBlank(f.position)) {
+    const n = readNumber(f.position);
+    if (Number.isNaN(n)) return 'A folder\'s position must be a number';
+    f.position = n;
+  }
+  return null;
+}
+
+/* One player as a request wrote it, against the stored record (null for a new
+ * one). A deck or folder identical to the stored one is not checked: it is
+ * not this write's doing, and refusing every later save over something stored
+ * before these checks existed would lock that player's state for good. */
+function playerProblem(p, stored) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return 'A player must be an object';
+  if (!stored && !isId(p.id)) return 'A player id may only hold letters, digits and _ : . -';
+  if (!isBlank(p.name) && typeof p.name !== 'string') return 'A player\'s name must be text';
+  if (!isBlank(p.colorIdx) && !Number.isInteger(p.colorIdx)) return 'A player\'s colour slot must be a whole number';
+  if (!isBlank(p.color) && !isHexColor(p.color)) return 'A player\'s colour must be a #hex colour';
+  for (const list of ['decks', 'folders']) {
+    if (p[list] !== undefined && !Array.isArray(p[list])) return `A player's ${list} must be a list`;
+  }
+  const keep = (records, shape) => new Map((records || []).filter(Boolean)
+    .map(r => [r.id, JSON.stringify(shape(r))]));
+  const storedDecks   = keep(stored?.decks, normalizeDeck);
+  const storedFolders = keep(stored?.folders, f => f);
+  for (const d of (p.decks || [])) {
+    if (d && typeof d === 'object' && storedDecks.get(d.id) === JSON.stringify(normalizeDeck(d))) continue;
+    const why = deckProblem(d);
+    if (why) return why;
+  }
+  for (const f of (p.folders || [])) {
+    if (f && typeof f === 'object' && storedFolders.get(f.id) === JSON.stringify(f)) continue;
+    const why = folderProblem(f);
+    if (why) return why;
+  }
+  return null;
+}
+
+/* Accounts that answer to their username on the calendar: routes/available.js
+ * falls back to it when the account is linked to no player (or to one that is
+ * gone). A non-admin taking such a name for their player would be answering
+ * to it there as well. Admins are not asked — an admin making player "Carol"
+ * for the unlinked account "carol" is about to link the two. */
+function nameOfUnlinkedAccount(name, players, exceptUsername) {
+  const live = new Set(players.map(p => p?.id));
+  return db.prepare("SELECT username, player_id FROM users WHERE role != 'admin'").all()
+    .some(u => u.username !== exceptUsername
+      && (!u.player_id || !live.has(u.player_id))
+      && sameName(u.username, name));
+}
+
+/* The rules a write is held to, for the players it wrote (`written`, ids):
+ *
+ *   – each one is well-formed (playerProblem);
+ *   – a deck id belongs to one player: a deck may not arrive under a player
+ *     while another player lists its id. Otherwise listing a neighbour's
+ *     private deck id under your own player makes you its owner, as far as
+ *     the read guards can tell. An admin moving a deck from one player to
+ *     another does it in one write, so the old listing is gone by then;
+ *   – a name belongs to one player, compared trimmed and case-blind: the
+ *     calendar authorises by name, so a second "Bob" could clear Bob's days.
+ *
+ * Only what this write *adds* is held to the last two — a deck the player
+ * already listed, a name it already had — so a duplicate stored before the
+ * rule existed does not make the state unwritable.
+ *
+ * Returns { status, error } to refuse with, or null. */
+function playersWriteProblem(stored, next, written, sess) {
+  const storedById = new Map(stored.filter(Boolean).map(p => [p.id, p]));
+  for (const p of next) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return { status: 400, error: 'A player must be an object' };
+    if (!written.has(p.id)) continue;
+    const before = storedById.get(p.id) || null;
+    const why = playerProblem(p, before);
+    if (why) return { status: 400, error: why };
+
+    const had = new Set((before?.decks || []).map(d => d?.id));
+    for (const d of (p.decks || [])) {
+      if (d.id == null || had.has(d.id)) continue;
+      if (next.some(q => q !== p && q?.id !== p.id && (q?.decks || []).some(o => o?.id === d.id))) {
+        return { status: 409, error: `Deck ${d.id} already belongs to another player` };
+      }
+    }
+
+    if (!before || !sameName(before.name, p.name)) {
+      const name = String(p.name ?? '').trim();
+      if (next.some(q => q !== p && q?.id !== p.id && sameName(q?.name, name))) {
+        return { status: 409, error: `Another player is already called "${name}"` };
+      }
+      if (sess?.role !== 'admin' && name && nameOfUnlinkedAccount(name, next, sess?.username)) {
+        return { status: 409, error: `"${name}" is another account's name` };
+      }
+    }
+  }
+  return null;
 }
 
 function createLinkedPlayer(username) {
   const appState = readState();
   const players  = appState.players || [];
   const playerId = uuidv4();
-  const name     = username.charAt(0).toUpperCase() + username.slice(1);
+  const base     = username.charAt(0).toUpperCase() + username.slice(1);
+  /* Never a second player answering to a name somebody already has — the
+   * calendar authorises by name (routes/available.js), so an account request
+   * for "bob" approved without a link would otherwise become a second Bob,
+   * able to clear the first one's days. The new player gets a number instead,
+   * which an admin can rename. */
+  let name = base;
+  for (let n = 2; players.some(p => sameName(p.name, name)); n++) name = `${base} ${n}`;
   players.push({ id: playerId, name, colorIdx: players.length % PLAYER_SLOTS, wantList: [], decks: [] });
   appState.players = players;
   writeState(appState);
@@ -297,6 +494,7 @@ router.post('/state', requireAuth, express.json({ limit: '10mb' }), (req, res) =
   const current  = readState();
   const curPlayers = current.players || [];
   const incoming = req.body.players || [];
+  if (!Array.isArray(incoming)) return res.status(400).json({ error: 'players must be a list' });
   // Admins receive and write the whole blob; a non-admin's write is merged.
   let players = incoming;
   if (sess.role !== 'admin') {
@@ -323,6 +521,11 @@ router.post('/state', requireAuth, express.json({ limit: '10mb' }), (req, res) =
     players = curPlayers.map(cp =>
       cp.id === sess.playerId ? (incById.get(cp.id) || cp) : cp);
   }
+  // What this write changed is held to the rules a stored player is: an admin
+  // wrote every player, a non-admin only their own (the merge kept the rest).
+  const written = new Set(sess.role === 'admin' ? players.map(p => p?.id) : [sess.playerId]);
+  const refused = playersWriteProblem(curPlayers, players, written, sess);
+  if (refused) return res.status(refused.status).json({ error: refused.error });
   try {
     const clientVersion = typeof req.body.version === 'number' ? req.body.version : undefined;
     const newVersion    = writeState({ ...current, players }, clientVersion);
@@ -341,7 +544,12 @@ router.put('/players/:playerId/decks', requirePlayerAccess, express.json({ limit
   const appState = readState();
   const player   = appState.players.find(p => p.id === req.params.playerId);
   if (!player) return res.status(404).json({ error: 'Player not found' });
+  const stored   = readState().players || [];
   player.decks = decks;
+  // The same rules the whole-state POST holds a player to: well-formed decks,
+  // and no deck id another player already lists.
+  const refused = playersWriteProblem(stored, appState.players, new Set([player.id]), getSession(req));
+  if (refused) return res.status(refused.status).json({ error: refused.error });
   const version = writeState(appState);
   res.json({ ok: true, version });
 });
@@ -383,17 +591,67 @@ function readOwner(raw) {
   return (readState().players || []).some(p => p.id === raw) ? raw : false;
 }
 
+/* Who may change a collection (product owner's rule, audit #3).
+ *
+ * A collection with an owner is that player's and an admin's to edit, delete
+ * or give away; one with no owner is the group's, and anybody logged in may
+ * change it. The same predicate answers the second question — whose a
+ * non-admin may *say* a collection is: their own, or the group's. Open mode's
+ * guest is admin (middleware/auth), so nothing changes there. */
+const actsFor = (sess, owner) => sess?.role === 'admin' || owner == null || owner === sess?.playerId;
+
+/* Every owner a key answers to right now: the shelved row's, and — for one
+ * being imported — the owner the import was started with. Both, because an
+ * import of somebody's shelf is theirs before it lands as well as after. */
+function collectionOwners(key) {
+  const owners = [];
+  const row = db.prepare('SELECT owner_player_id FROM collections WHERE key = ?').get(key);
+  if (row) owners.push(row.owner_player_id || null);
+  const imp = imports.getImport(key);
+  if (imp) owners.push(imp.owner_player_id || null);
+  return owners;
+}
+const mayChangeCollection = (sess, key) => collectionOwners(key).every(owner => actsFor(sess, owner));
+
+/* A collection as a client wants it stored, checked — with its counts coerced
+ * to numbers in place. The key and colour are drawn into the tab's markup (an
+ * inline onclick, a style), which is why they are held to a shape. */
+function collectionProblem(body) {
+  if (!isId(body.key)) return 'A collection key may only hold letters, digits and _ : . -';
+  if (typeof body.name !== 'string') return 'A collection\'s name must be text';
+  if (typeof body.source !== 'string' || !/^[\w-]{1,40}$/.test(body.source)) return 'A collection\'s source must be a single word';
+  if (!isBlank(body.id) && !isId(body.id)) return 'A collection id may only hold letters, digits and _ : . -';
+  if (!isBlank(body.color) && !isHexColor(body.color)) return 'A collection\'s colour must be a #hex colour';
+  if (!isBlank(body.savedAt) && typeof body.savedAt !== 'string') return 'savedAt must be text';
+  for (const f of ['entries', 'total']) {
+    if (isBlank(body[f])) continue;
+    const n = readNumber(body[f]);
+    if (Number.isNaN(n)) return `A collection's ${f} must be a number`;
+    body[f] = n;
+  }
+  return null;
+}
+
+const FORBIDDEN_OWNER = 'You can only make a collection yours or the group\'s';
+const NOT_YOURS       = 'That collection belongs to another player';
+
 router.post('/collections', requireAuth, express.json({ limit: '10mb' }), (req, res) => {
-  const { key, name, source, id, color, cards, entries, total, savedAt } = req.body || {};
-  if (!key || !name || !source) return res.status(400).json({ error: 'key, name, source required' });
+  const sess = getSession(req);
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  if (!body.key || !body.name || !body.source) return res.status(400).json({ error: 'key, name, source required' });
+  const bad = collectionProblem(body);
+  if (bad) return res.status(400).json({ error: bad });
+  if (!mayChangeCollection(sess, body.key)) return res.status(403).json({ error: NOT_YOURS });
+  const { key, name, source, id, color, cards, entries, total, savedAt } = body;
   /* Whether the owner was *said*, not what it came out as. This route is the
    * whole-collection write — adding one, refreshing one, re-importing a CSV —
    * and a client that does not mention the owner must not have it cleared as
    * a side effect of a refresh. So an absent field leaves the column alone,
    * and only a stated one (a player, or null for the group) writes it. */
-  const given = Object.prototype.hasOwnProperty.call(req.body || {}, 'owner');
-  const owner = given ? readOwner(req.body.owner) : null;
+  const given = Object.prototype.hasOwnProperty.call(body, 'owner');
+  const owner = given ? readOwner(body.owner) : null;
   if (owner === false) return res.status(400).json({ error: 'Unknown player' });
+  if (given && !actsFor(sess, owner)) return res.status(403).json({ error: FORBIDDEN_OWNER });
   try {
     db.prepare(`
       INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at, owner_player_id)
@@ -417,9 +675,15 @@ router.post('/collections', requireAuth, express.json({ limit: '10mb' }), (req, 
  * above, because a collection is its cards: re-uploading five thousand of them
  * to say a different name is what an owner change would otherwise cost. */
 router.put('/collections/:key/owner', requireAuth, express.json(), (req, res) => {
+  const sess  = getSession(req);
   const key   = decodeURIComponent(req.params.key);
+  if (!db.prepare('SELECT 1 FROM collections WHERE key = ?').get(key)) {
+    return res.status(404).json({ error: 'Collection not found' });
+  }
+  if (!mayChangeCollection(sess, key)) return res.status(403).json({ error: NOT_YOURS });
   const owner = readOwner((req.body || {}).owner);
   if (owner === false) return res.status(400).json({ error: 'Unknown player' });
+  if (!actsFor(sess, owner)) return res.status(403).json({ error: FORBIDDEN_OWNER });
   const { changes } = db.prepare('UPDATE collections SET owner_player_id = ? WHERE key = ?').run(owner, key);
   if (!changes) return res.status(404).json({ error: 'Collection not found' });
   res.json({ ok: true, owner });
@@ -427,6 +691,7 @@ router.put('/collections/:key/owner', requireAuth, express.json(), (req, res) =>
 
 router.delete('/collections/:key', requireAuth, (req, res) => {
   const key = decodeURIComponent(req.params.key);
+  if (!mayChangeCollection(getSession(req), key)) return res.status(403).json({ error: NOT_YOURS });
   // An import still gathering pages for this collection has to go too, or it
   // would finish minutes later and put the collection back.
   imports.clearImport(key);
@@ -458,6 +723,12 @@ router.post('/collections/:key/import', requireAuth, express.json(), (req, res) 
     return res.status(400).json({ error: `Cannot import a ${source} collection on the server` });
   }
   if (!id) return res.status(400).json({ error: 'id required' });
+  // The import lands as a collection (collection-import.js _finish), so it is
+  // held to the same shapes the whole-collection POST is.
+  const bad = collectionProblem({ key, name, source, id, color });
+  if (bad) return res.status(400).json({ error: bad });
+  const sess = getSession(req);
+  if (!mayChangeCollection(sess, key)) return res.status(403).json({ error: NOT_YOURS });
 
   // Same rule as the whole-collection POST above: an owner that is not
   // mentioned leaves the existing one alone rather than clearing it.
@@ -466,9 +737,10 @@ router.post('/collections/:key/import', requireAuth, express.json(), (req, res) 
     || db.prepare('SELECT owner_player_id FROM collections WHERE key = ?').get(key)?.owner_player_id
     || null);
   if (owner === false) return res.status(400).json({ error: 'Unknown player' });
+  if (given && !actsFor(sess, owner)) return res.status(403).json({ error: FORBIDDEN_OWNER });
 
   const started = imports.startImport({ key, name, source, id, color, owner, restart: !!restart },
-    getSession(req)?.username || null);
+    sess?.username || null);
   res.json({ ok: true, ...started, done: undefined, imports: imports.listImports() });
 });
 
@@ -479,9 +751,14 @@ router.get('/imports', requireAuth, (req, res) => res.json({ imports: imports.li
  * button in front of a job nobody wants is worse than no button. */
 router.delete('/imports/:key', requireAuth, (req, res) => {
   const key = decodeURIComponent(req.params.key);
+  // Stopping one, and above all forgetting its pages, is changing the shelf.
+  if (!mayChangeCollection(getSession(req), key)) return res.status(403).json({ error: NOT_YOURS });
   const gone = req.query.forget ? imports.clearImport(key) : imports.cancelImport(key);
   if (!gone) return res.status(404).json({ error: 'No such import' });
   res.json({ ok: true, imports: imports.listImports() });
 });
 
-module.exports = { router, createLinkedPlayer, readState, writeState, deckVisibleTo };
+module.exports = {
+  router, createLinkedPlayer, readState, writeState, deckVisibleTo, deckWritableBy,
+  isBlank, readNumber,
+};

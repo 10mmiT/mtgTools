@@ -502,7 +502,7 @@ function renderImports() {
       return `
         <div class="import-row${running ? '' : ' is-stopped'}">
           <div class="import-head">
-            <span class="import-dot" style="background:${imp.color}"></span>
+            <span class="import-dot" style="background:${esc(imp.color)}"></span>
             <span class="import-name">${esc(imp.name)}</span>
             <span class="import-pct">${running && pct !== null ? pct + '%' : ''}</span>
           </div>
@@ -510,9 +510,9 @@ function renderImports() {
           <div class="import-meta">${esc(line)}</div>
           <div class="import-actions">
             ${running
-              ? `<button class="btn-secondary import-btn" onclick="stopImport('${imp.key}')">Stop</button>`
-              : `<button class="btn-secondary import-btn" onclick="resumeImport('${imp.key}')">Resume</button>
-                 <button class="btn-secondary import-btn import-btn--quiet" onclick="stopImport('${imp.key}', true)">Discard</button>`}
+              ? `<button class="btn-secondary import-btn" onclick="stopImport('${jsAttr(imp.key)}')">Stop</button>`
+              : `<button class="btn-secondary import-btn" onclick="resumeImport('${jsAttr(imp.key)}')">Resume</button>
+                 <button class="btn-secondary import-btn import-btn--quiet" onclick="stopImport('${jsAttr(imp.key)}', true)">Discard</button>`}
           </div>
         </div>`;
     }).join('')}
@@ -988,9 +988,9 @@ function chipHtml(col, imp, onShelf) {
    * the run is the panel's job, and the tooltip says so. */
   const menu = busy ? ''
     : !col ? kebabMenuHtml([
-        { label: 'Resume', onclick: `resumeImport('${key}')` },
+        { label: 'Resume', onclick: `resumeImport('${jsAttr(key)}')` },
         { divider: true },
-        { label: 'Discard', onclick: `stopImport('${key}', true)`, danger: true },
+        { label: 'Discard', onclick: `stopImport('${jsAttr(key)}', true)`, danger: true },
       ], { title: 'Import actions' })
     : kebabMenuHtml([
         /* A shelf nothing can fetch is offered its export instead of a Refresh
@@ -999,18 +999,18 @@ function chipHtml(col, imp, onShelf) {
          * neither can be fetched nor read back from a file is offered neither:
          * the menu keeps the owner and the Remove, which still work. */
         ...(by ? [{ label: by === 'file' ? 'Re-import CSV' : 'Refresh',
-                    onclick: `updateCollection('${key}')` }] : []),
+                    onclick: `updateCollection('${jsAttr(key)}')` }] : []),
         ...colOwnerMenuItems(col),
         { divider: true },
-        { label: 'Remove', onclick: `removeCollection('${key}')`, danger: true },
+        { label: 'Remove', onclick: `removeCollection('${jsAttr(key)}')`, danger: true },
       ], { title: 'Collection actions' });
 
   return `
       <span class="chip${cls}" title="${esc(tip)}">
-        <span class="chip-dot" style="background:${color}"></span>
+        <span class="chip-dot" style="background:${esc(color)}"></span>
         <span class="chip-label">${esc(name)}</span>
         ${owner ? `<span class="chip-owner">${esc(owner.name)}</span>` : ''}
-        <span class="chip-count">${count}</span>
+        <span class="chip-count">${esc(count)}</span>
         ${menu}
       </span>`;
 }
@@ -1281,15 +1281,15 @@ function renderResults() {
     const running = state.imports.find(i => i.status === 'running');
     if (running) {
       colSayInstead(running.total
-        ? `Importing ${running.name} — ${running.entries.toLocaleString()} of ${running.total.toLocaleString()} cards so far. This runs on the server, so you can close the page.`
-        : `Importing ${running.name}…`);
+        ? `Importing ${esc(running.name)} — ${running.entries.toLocaleString()} of ${running.total.toLocaleString()} cards so far. This runs on the server, so you can close the page.`
+        : `Importing ${esc(running.name)}…`);
       return;
     }
     const stopped = state.imports[0];
     if (stopped) {
       colSayInstead(stopped.status === 'error'
-        ? `Importing ${stopped.name} failed: ${stopped.error || 'unknown error'}`
-        : `Importing ${stopped.name} stopped at ${stopped.entries.toLocaleString()} cards — resume it from the Deck panel.`);
+        ? `Importing ${esc(stopped.name)} failed: ${esc(stopped.error || 'unknown error')}`
+        : `Importing ${esc(stopped.name)} stopped at ${stopped.entries.toLocaleString()} cards — resume it from the Deck panel.`);
       return;
     }
     // "above" was the form directly over this table; it is the toolbar's
