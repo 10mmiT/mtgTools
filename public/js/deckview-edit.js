@@ -65,7 +65,7 @@ async function dbAddCard(nameOverride, board) {
 
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
 }
 
 /* One copy of the card, on the board it was asked about. Removing a card from
@@ -80,7 +80,7 @@ async function dbRemoveCard(ref) {
   dbSelectedCards.delete(ref);
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
   /* Taking one of two commanders off the board leaves the other one the card
      the deck is named after. */
   if (wasCommander) _dbSyncCommanderRecord();
@@ -93,7 +93,7 @@ async function dbChangeQty(ref, delta) {
   card.qty = Math.max(1, (card.qty || 1) + delta);
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
 }
 
 // ── Which printing the deck runs ──────────────────────────────────────────
@@ -172,7 +172,7 @@ function dbChoosePrintings(items) {
   if (!applied) return 0;
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
   return applied;
 }
 
@@ -216,7 +216,7 @@ function dbMakeCommander(ref) {
   /* One press moving several cards, from a menu, and the thing it replaces is
      the decision the whole deck was built around. Worth being able to get
      back. */
-  _dbForceSnapshot('commander');
+  dbForceSnapshot('commander');
 
   for (const held of dbCommanderCards()) {
     held.board = DB_MAIN_BOARD;
@@ -236,7 +236,7 @@ function dbMakeCommander(ref) {
 
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
   _dbSyncCommanderRecord();
   return true;
 }
@@ -276,7 +276,7 @@ function dbAddPartner(ref) {
 
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
   _dbSyncCommanderRecord();
   return true;
 }
@@ -344,7 +344,7 @@ function _dbAddCategoryByName(name) {
   if (!name || dbCats.find(c => c.name === name)) return false;
   dbCats.push({ name, position: dbCats.length });
   dbRender();
-  _dbScheduleSave();
+  dbScheduleSave();
   return true;
 }
 
@@ -362,7 +362,7 @@ function dbDeleteCategory(name) {
   if (!confirm(`Delete category "${name}"? Cards will move to Uncategorised.`)) return;
   // Before a card is touched: this is one of the four operations that can take
   // a shape of the deck away in a single press.
-  _dbForceSnapshot('category');
+  dbForceSnapshot('category');
   /* Every card filed under it, on every board: a category belongs to the deck
      rather than to the mainboard, and a card set aside still carrying a name
      no pile answers to would bring the deleted category back with it the
@@ -373,7 +373,7 @@ function dbDeleteCategory(name) {
   if (moved) dbEnsureCat('Uncategorised');
   dbRender();
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
   _dbRenderCategoriesModalList();
 }
 
@@ -403,7 +403,7 @@ function _dbRenameCategory(from, to) {
   const cat = dbCats.find(c => c.name === from);
   if (cat) cat.name = to;
   dbRender();
-  _dbScheduleSave();
+  dbScheduleSave();
 }
 
 function dbConfirmRenameCat() {
@@ -645,7 +645,7 @@ function dbMoveCardsTo(refs, place) {
   const commanders = dbReadPlace(place).board === DB_COMMANDER_BOARD
     || moving.some(card => (card.board || DB_MAIN_BOARD) === DB_COMMANDER_BOARD);
 
-  if (moving.length > 1) _dbForceSnapshot('move');
+  if (moving.length > 1) dbForceSnapshot('move');
   for (const card of moving) _dbPutCard(card, place);
 
   /* A card has landed on the head of the deck, so the head of the deck is on
@@ -660,7 +660,7 @@ function dbMoveCardsTo(refs, place) {
      as adding or removing the card would, and the line has to be redrawn to say
      so rather than waiting for the next time the deck is opened. */
   dbRenderStats();
-  _dbScheduleSave();
+  dbScheduleSave();
   if (commanders) _dbSyncCommanderRecord();
   return true;
 }
@@ -677,7 +677,15 @@ function dbConfirmMoveCard(place) {
 }
 
 // ── Auto-save ─────────────────────────────────────────────────────────────────
-function _dbScheduleSave() {
+
+/* Say the deck has changed; the write follows in 800 ms.
+ *
+ * Public, and the whole tab's one way of saying it — the mat, the drawer and
+ * the Lands tab all change the deck, and a module that wrote its own save
+ * would be a second debounce racing this one. Every caller says it *after* the
+ * change is in `dbDeck`, because what is written is whatever the deck holds
+ * when the timer fires rather than anything captured here. */
+function dbScheduleSave() {
   clearTimeout(dbSaveTimer);
   _dbSetSaveStatus('saving…');
   dbSaveTimer = setTimeout(_dbSave, 800);

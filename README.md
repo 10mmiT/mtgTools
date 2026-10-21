@@ -39,6 +39,8 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 Data is stored in a Docker volume (`mtgtools-data`) and persists across restarts and rebuilds.
 
+The container runs as the unprivileged `node` user (uid 1000). A volume created by an older image, which ran as root, may need a one-off `chown -R 1000:1000` on its host path before the app can write to it.
+
 ### Accounts, in brief
 
 Set `ADMIN_PASSWORD` (via `.env`) to enable per-player accounts with **player** and **admin** roles; leave it unset to run in **open mode** — no login, everyone has full access. Full first-time setup, the role matrix, all environment variables, and where data lives are in [docs/configuration.md](docs/configuration.md).

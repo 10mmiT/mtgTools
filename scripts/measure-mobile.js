@@ -202,7 +202,7 @@ const PREP = {
        is not a row — the Restore button is the control worth measuring. One
        is taken here rather than seeded into the fixture so the row measured
        is a row the app wrote. */
-    _dbForceSnapshot('edit').then(dbOpenHistoryPanel);
+    dbForceSnapshot('edit').then(dbOpenHistoryPanel);
     return 'true';
   })()`,
   /* The curve, the type breakdown and the split, expanded out of the toolbar.

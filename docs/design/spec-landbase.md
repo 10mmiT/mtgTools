@@ -27,9 +27,28 @@ calls underneath the check have to be right. The check drops into the top of a
 tab that by then exists.
 
 The `+` on a card means what it already means everywhere else in the drawer, and
-goes wherever the drawer's "Add to" says. `_dbDrawerTile()`
+goes wherever the drawer's "Add to" says. `dbDrawerTile()`
 ([deckview-panels.js:198](../../public/js/deckview-panels.js#L198)) is reused
 whole — the grid, the "already in Deck ×1" badge, the ownership mark, all of it.
+
+### How the drawer is reached
+
+A third tab makes the drawer three ways of finding a card rather than one search
+box, and that changed where it is opened from. It had a row under the menu's
+"Look at", written when there was only the search box; `ab1435d` replaced that
+row with **a magnifier on the control strip**, `#dbFindBtn`, in the cluster with
+the ☰, the fold and the `?`.
+
+The menu row **went**, deliberately: one drawer, one place to press for it. The
+menu's own argument is that it holds what the strip has no room for, and the
+strip had room — on a phone it already wrapped to a second line, so a fourth
+button makes that 2+2 rather than 3+1. `/` and the readout's mana figure open
+the drawer exactly as they did; this adds a way in and removes a duplicate, and
+takes nothing away.
+
+The button reports `aria-expanded` the way the menu button does, and the state
+is written inside `dbOpenSearchPanel()` / `dbCloseSearchPanel()` rather than by
+whoever pressed, because three different things open this drawer.
 
 ### What this replaces
 
@@ -44,7 +63,19 @@ app that works with no deck loaded, which [lands.js:44](../../public/js/lands.js
 already says out loud, and this tab does not serve that case. It keeps one quiet
 inbound link from here, worded as what it now is: the way to work a mana base by
 hand, or to work one out for a deck that does not exist yet. `landsUseDeck()` and
-`dbManaForCalculator()` stay as they are.
+`dbManaForCalculator()` keep their shape and their fields.
+
+**One of the calculator's numbers did move, and this line used to deny it.** The
+pips it is filled with are read by `_dbManaCostOf()`, which now sums every face
+of a card rather than trusting its top-level `mana_cost`. For most cards the two
+are the same string. For an Adventure they are not: Bonecrusher Giant's own
+field says `{2}{R}`, and Stomp — a second cost on the same card, paid at its own
+moment — is invisible to it. Both are red mana somebody had to have, so both are
+counted, and a deck of Adventures fills the calculator with more pips than it
+used to. This is wanted: the old reading was short, not different. `dbCostFaces()`
+is where "what are a card's costs" is answered, for the check and for this tab
+alike, and test/deckmana.test.js pins the Adventure at the calculator's own
+boundary so that the change stays deliberate rather than incidental.
 
 ## Both formats
 
@@ -103,10 +134,58 @@ of prose standing over three bars is a wall in front of the finding. Two things
 stay in the open regardless, because both change what the bars *mean*: the
 sources the table does not count, and the cards it could not read.
 
+## The fix
+
+The table above gives this region one line — *"the lands that would close a
+gap, the group's copies first"* — and that is the whole of what it asks for.
+Three rules that shape what the reader actually sees were added while building
+it, and none of them is in this spec or in #57's acceptance criteria. They are
+wanted, and they are written down here because a rule nobody can find is a rule
+nobody can argue with.
+
+The query is `t:land produces:<colour> -t:basic`, narrowed by `id<=` the deck's
+colours where there are any. `t:land` rather than anything with `produced_mana`,
+because the check counts land sources and nothing else: a Signet offered here
+could not move the number it was offered to move.
+
+**No basics.** `-t:basic` is on the query. The order this region sorts in is
+play rate, and Island is the most played card in Magic that makes blue, so
+without it every list of what makes a colour opens with its own basic. A deck
+short of a colour's basics does not need a search for one — it needs the
+optimizer two sections up, which splits them. The two halves of the tab would
+otherwise be answering the same question in different voices.
+
+**Nothing the deck is already full of.** A land the deck runs to its copy limit
+cannot close a gap, so it is dropped. The limit is `dbCopyLimit()` in
+[deckview-legality.js](../../public/js/deckview-legality.js) rather than a
+second reading of the rule, so that the Lands tab and the legality panel cannot
+disagree about what a deck may run: four in a 60-card deck, one in Commander,
+and whatever a card that says so allows. The maybeboard does not count against
+the limit, because a card set aside is a card you have not played.
+
+**A dozen, and it says so.** `DB_FIX_SHOWN = 12` — about four rows of tiles in
+the drawer, which is a list somebody reads, where a hundred and forty-one is a
+list somebody scrolls past. Two things survive the cut whatever their play rate:
+everything somebody in the house has a copy of, because that is this region's
+one claim over Archidekt's and cutting it to keep the ranking tidy would be
+cutting the answer. And where anything was cut — or where Scryfall's first page
+of 175 never held it — the region says what it is showing out of: *"Showing 12
+of the 141 lands that make blue in these colours."* Twelve of a hundred and
+forty-one presented silently would read as the whole answer.
+
 ## Optimize basics
 
 A button in the tab. It asks **how many basics**, splits that number across the
 colours, shows what it would do, and applies it on a second press.
+
+It lives in `public/js/deckview-basics.js`, its own file, served immediately
+after `deckview-landbase.js`. Everything else on this tab is a reading of a
+deck; this is the only thing that writes one, and it owns state and a history
+reason nothing else in the tab touches. The dependency runs one way: the
+optimizer is built on the check's tables and requires them, while the land base
+module asks whether the optimizer is loaded before drawing its control — so a
+tab drawn without the file is three readings and no Apply button. Both halves of
+that are asserted in `test/decklands.test.js`.
 
 ### It asks for basics, not for lands
 
@@ -138,7 +217,7 @@ check underneath is where the truth about what it could not fix goes.
 Six names, from `DB_MANA_COLORS[].basic`. No snow, no printing selection — a
 deck running Snow-Covered Forests is an edge case its owner can fix by hand.
 
-But `_dbIsBasic()` reads the type line, and `Basic Snow Land — Island` and
+But `dbIsBasic()` reads the type line, and `Basic Snow Land — Island` and
 `Basic Land` (Wastes) both pass it. So the deck's basic count includes cards the
 optimizer will not write to, and left alone that turns "I asked for 14" into a
 deck that grew by three.
@@ -147,6 +226,21 @@ So: **basics the optimizer does not manage come off the budget and are named in
 the preview.**
 
 > 3 Snow-Covered Forests aren't touched — 11 to split
+
+Wastes is the one name on both sides of that line, and which side it falls on is
+decided by the same rule the split runs on (below): **Wastes is managed only
+where the split would put `{C}` weight on it** — a deck whose pips are
+colourless ones. Anywhere a colour could take the slot, `{C}` is given none, so
+a Wastes counted as managed is a row the split takes to nought and the write
+then deletes; an Eldrazi-splash deck would lose its Wastes to the default
+re-balance press. So in a deck with a colour in it Wastes comes off the budget
+and is named as untouched, like a snow basic; in a colourless one it is the
+whole split.
+
+The deck with neither — all-generic costs, no `{C}` pip anywhere — asks for
+nothing, and the optimizer already says so rather than splitting a budget over
+it (`nowhere`, below). Its Wastes being spare is the same answer said about the
+basics: there is nothing here to work out.
 
 The number typed therefore means total basics in the deck *after* this, the deck
 never silently grows, and the edge case we chose not to build for is at least
@@ -161,7 +255,9 @@ a colour that needed it. `{C}` is still counted in the check.
 **Unless the deck has no coloured pips at all** — a Kozilek or Karn deck — in
 which case Wastes is the whole split. This completes the rule rather than
 contradicting it: `{C}` never competes with a colour, and with no colour to
-compete against, Wastes is simply the answer.
+compete against, Wastes is simply the answer. It is also the rule that decides
+whether Wastes is a basic the optimizer manages at all — `_dbBasicsHeld()` reads
+`_dbBasicsWant()` rather than keeping a second opinion about `{C}`.
 
 ### The toggle
 
@@ -178,9 +274,23 @@ the override. But the preview flags the moment it would have mattered —
 
 > green rounded to 0 basics, and nothing else in the deck makes green
 
-— which is the `unmade` signal `dbDeckMana()` already computes
-([deckview-mana.js:178](../../public/js/deckview-mana.js#L178)). You find out
-when it bites rather than having to know to flick a switch first.
+You find out when it bites rather than having to know to flick a switch first.
+
+**Not off the `unmade` signal, though this spec first said it would be.** That
+signal is the colours a deck asks for that *nothing in the deck makes*, read off
+the deck as it stands ([deckview-mana.js:246](../../public/js/deckview-mana.js#L246)),
+and the deck as it stands is the wrong deck to ask about. A deck holding four
+Forests makes green right up to the moment of the write, so `unmade` never names
+green — and a split that takes those four Forests to nought is precisely the
+case this flag exists to catch. It would have fired on nothing.
+
+`_dbBasicsStarved()` recomputes the condition instead, in two halves. Rounded to
+nothing is the split's answer rather than the deck's current basics, because the
+row moving from 4 to 0 is the finding. Nothing else makes it is the deck's
+sources of that colour with the basics this optimizer manages taken back out —
+what would still make green once the write has landed. It is scoped to the
+colours a split may place, so the flag and the toggle agree about `{C}`. The
+reasoning is argued in full in the commit message of `ac9515c`.
 
 ### Preview, then apply
 

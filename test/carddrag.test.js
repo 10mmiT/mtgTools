@@ -326,7 +326,7 @@ test('the card in the hand is aimed at the hand itself', () => {
 
 /** The Deck Builder's editing module, over a deck. The render is stubbed, since
  *  what a mat looks like is not this file's question — but the autosave is the
- *  module's own _dbScheduleSave(), and what is counted is the deferred write it
+ *  module's own dbScheduleSave(), and what is counted is the deferred write it
  *  actually schedules, so "the autosave fires as it does today" is asserted
  *  against the path that saves rather than against a stand-in for it. */
 function loadDeck(cards) {
