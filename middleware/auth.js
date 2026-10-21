@@ -29,7 +29,10 @@ function getSession(req) {
   for (const part of raw.split(';')) {
     const [k, ...v] = part.trim().split('=');
     if (k.trim() === SESSION_COOKIE) {
-      const token = decodeURIComponent(v.join('='));
+      // A cookie that is not valid percent-encoding is nobody's session. Left
+      // to throw, it failed every API request the browser made with a 500.
+      let token;
+      try { token = decodeURIComponent(v.join('=')); } catch { return null; }
       const row   = db.prepare('SELECT * FROM sessions WHERE token_hash = ?').get(hashToken(token));
       if (!row) return null;
       if (row.expires_at <= Date.now()) {
@@ -44,6 +47,14 @@ function getSession(req) {
 
 function deleteSession(token) {
   db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+}
+
+// A password change signs the account out everywhere but the browser that
+// made it. `keepToken` may be absent (or belong to someone else, when an
+// admin resets another user's password), and then every session goes.
+function deleteOtherSessions(username, keepToken) {
+  db.prepare('DELETE FROM sessions WHERE username = ? AND token_hash != ?')
+    .run(username, keepToken ? hashToken(keepToken) : '');
 }
 
 function requireAuth(req, res, next) {
@@ -67,6 +78,6 @@ function requirePlayerAccess(req, res, next) {
 
 module.exports = {
   OPEN_MODE, SESSION_COOKIE, SESSION_TTL,
-  createSession, getSession, deleteSession,
+  createSession, getSession, deleteSession, deleteOtherSessions,
   requireAuth, requireAdmin, requirePlayerAccess,
 };

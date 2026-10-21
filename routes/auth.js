@@ -4,35 +4,50 @@ const bcrypt  = require('bcryptjs');
 const { db }  = require('../available-db');
 const {
   OPEN_MODE, SESSION_COOKIE,
-  createSession, getSession, deleteSession,
+  createSession, getSession, deleteSession, deleteOtherSessions,
   requireAuth, requireAdmin,
 } = require('../middleware/auth');
+const { asyncHandler } = require('../middleware/async-handler');
 // Moved to middleware/limits.js when the playmat upload route needed a
 // limiter of its own; the configuration is unchanged.
 const { authLimiter } = require('../middleware/limits');
 
 const router = express.Router();
 
+const isString = v => typeof v === 'string';
+
+// A password is stored exactly as typed. Until this change account requests,
+// admin-created accounts and password changes stored it trimmed, and login
+// trimmed what was typed to match — so a hash made from the trimmed form is
+// still tried when the exact one fails, or those accounts would be locked out.
+async function passwordMatches(password, hash) {
+  if (await bcrypt.compare(password, hash)) return true;
+  const trimmed = password.trim();
+  return trimmed !== password && trimmed !== '' && bcrypt.compare(trimmed, hash);
+}
+
 // ── Login ──────────────────────────────────────────────────────────────────────
-router.post('/login', authLimiter, express.json(), async (req, res) => {
+router.post('/login', authLimiter, express.json(), asyncHandler(async (req, res) => {
   if (OPEN_MODE) return res.json({ ok: true, user: { username: 'guest', role: 'admin', playerId: null } });
   const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  if (!isString(username) || !isString(password) || !username.trim() || !password)
+    return res.status(400).json({ error: 'Username and password required' });
   const user  = db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim().toLowerCase());
-  const valid = user && await bcrypt.compare(password.trim(), user.password_hash);
+  const valid = user && await passwordMatches(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid username or password' });
   const token  = createSession(user.username, user.role, user.player_id);
   const secure = process.env.COOKIE_SECURE === '1' ? '; Secure' : '';
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${30 * 24 * 3600}${secure}`);
   res.json({ ok: true, user: { username: user.username, role: user.role, playerId: user.player_id } });
-});
+}));
 
 // ── Logout ─────────────────────────────────────────────────────────────────────
 router.post('/logout', (req, res) => {
   const raw = req.headers.cookie || '';
   for (const part of raw.split(';')) {
     const [k, ...v] = part.trim().split('=');
-    if (k.trim() === SESSION_COOKIE) deleteSession(decodeURIComponent(v.join('=')));
+    if (k.trim() !== SESSION_COOKIE) continue;
+    try { deleteSession(decodeURIComponent(v.join('='))); } catch { /* not a token we issued */ }
   }
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0`);
   res.json({ ok: true });
@@ -46,27 +61,28 @@ router.get('/me', (req, res) => {
 });
 
 // ── Change password ────────────────────────────────────────────────────────────
-router.post('/change-password', requireAuth, express.json(), async (req, res) => {
+router.post('/change-password', authLimiter, requireAuth, express.json(), asyncHandler(async (req, res) => {
   if (OPEN_MODE) return res.status(400).json({ error: 'Not applicable in open mode' });
   const sess = getSession(req);
   const { currentPassword, newPassword } = req.body || {};
-  if (!currentPassword || !newPassword?.trim())
+  if (!isString(currentPassword) || !isString(newPassword) || !currentPassword || !newPassword.trim())
     return res.status(400).json({ error: 'Current and new password required' });
   if (newPassword.trim().length < 6)
     return res.status(400).json({ error: 'New password must be at least 6 characters' });
   const user  = db.prepare('SELECT * FROM users WHERE username = ?').get(sess.username);
-  const valid = user && await bcrypt.compare(currentPassword, user.password_hash);
+  const valid = user && await passwordMatches(currentPassword, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
-  const newHash = await bcrypt.hash(newPassword.trim(), 10);
+  const newHash = await bcrypt.hash(newPassword, 10);
   db.prepare('UPDATE users SET password_hash = ? WHERE username = ?').run(newHash, sess.username);
+  deleteOtherSessions(sess.username, sess._token);
   res.json({ ok: true });
-});
+}));
 
 // ── Account requests ───────────────────────────────────────────────────────────
-router.post('/request-account', authLimiter, express.json(), async (req, res) => {
+router.post('/request-account', authLimiter, express.json(), asyncHandler(async (req, res) => {
   if (OPEN_MODE) return res.status(400).json({ error: 'Not applicable in open mode' });
   const { username, password } = req.body || {};
-  if (!username?.trim() || !password?.trim())
+  if (!isString(username) || !isString(password) || !username.trim() || !password.trim())
     return res.status(400).json({ error: 'Username and password required' });
   const uname = username.trim().toLowerCase();
   if (uname.length < 2 || uname.length > 30)
@@ -79,10 +95,10 @@ router.post('/request-account', authLimiter, express.json(), async (req, res) =>
     return res.status(409).json({ error: 'Username already taken' });
   if (db.prepare('SELECT id FROM account_requests WHERE username = ?').get(uname))
     return res.status(409).json({ error: 'A request for this username is already pending' });
-  const hash = await bcrypt.hash(password.trim(), 10);
+  const hash = await bcrypt.hash(password, 10);
   db.prepare('INSERT INTO account_requests (username, password_hash) VALUES (?, ?)').run(uname, hash);
   res.json({ ok: true });
-});
+}));
 
 // ── Legacy compat ─────────────────────────────────────────────────────────────
 router.get('/status', (req, res) =>

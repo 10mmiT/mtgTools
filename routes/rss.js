@@ -2,23 +2,31 @@
 const https   = require('https');
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
+const { asyncHandler } = require('../middleware/async-handler');
 
 const router   = express.Router();
 const RSS_FEEDS = (process.env.RSS_FEEDS || '').split(',').map(s => s.trim()).filter(Boolean);
 const rssCache = new Map(); // url -> { data, fetchedAt }
 const RSS_TTL  = 10 * 60 * 1000;
+// The socket timeout below catches a feed that goes silent; this catches one
+// that trickles. Each redirect hop gets its own.
+const RSS_DEADLINE_MS = 30_000;
 
 function fetchRssUrl(url, hops = 0) {
   return new Promise((resolve, reject) => {
     if (hops > 4) return reject(new Error('Too many redirects'));
     const mod = url.startsWith('https') ? https : require('http');
-    const req = mod.get(url, { headers: { 'User-Agent': 'MTGTools/1.0' } }, res => {
+    const req = mod.get(url, {
+      headers: { 'User-Agent': 'MTGTools/1.0' },
+      signal:  AbortSignal.timeout(RSS_DEADLINE_MS),
+    }, res => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         return fetchRssUrl(res.headers.location, hops + 1).then(resolve).catch(reject);
       }
       if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode}`)); }
       let buf = '';
+      res.on('error', reject);
       res.setEncoding('utf8');
       res.on('data', c => {
         buf += c;
@@ -46,6 +54,15 @@ function rssStripHtml(s) {
     .replace(/\s+/g,' ').trim();
 }
 
+// A feed's links end up as hrefs in the panel, so anything that is not a web
+// page — javascript:, data:, a relative path — is dropped rather than linked.
+function rssSafeLink(link) {
+  try {
+    const { protocol } = new URL(link);
+    return protocol === 'http:' || protocol === 'https:' ? link : '';
+  } catch { return ''; }
+}
+
 function parseRssFeed(xml, url) {
   const isAtom   = /<feed[\s>]/i.test(xml);
   const rawTitle = rssExtractTag(xml, 'title') || url;
@@ -69,12 +86,12 @@ function parseRssFeed(xml, url) {
       rssExtractTag(chunk, isAtom ? 'summary' : 'description') ||
       rssExtractTag(chunk, 'content')
     ).slice(0, 220);
-    items.push({ title: iTitle, link: iLink.trim(), date: iDate.trim(), description: iDesc });
+    items.push({ title: iTitle, link: rssSafeLink(iLink.trim()), date: iDate.trim(), description: iDesc });
   }
   return { title, url, items };
 }
 
-router.get('/rss', requireAuth, async (req, res) => {
+router.get('/rss', requireAuth, asyncHandler(async (req, res) => {
   if (!RSS_FEEDS.length) return res.json([]);
   const results = await Promise.all(RSS_FEEDS.map(async url => {
     const cached = rssCache.get(url);
@@ -90,6 +107,6 @@ router.get('/rss', requireAuth, async (req, res) => {
     }
   }));
   res.json(results);
-});
+}));
 
-module.exports = router;
+module.exports = Object.assign(router, { parseRssFeed }); // parseRssFeed for tests

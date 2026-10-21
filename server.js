@@ -1,6 +1,7 @@
 'use strict';
 const express   = require('express');
 const path      = require('path');
+const http      = require('http');
 const bcrypt    = require('bcryptjs');
 const helmet    = require('helmet');
 const compression = require('compression');
@@ -29,8 +30,29 @@ require('./deck-history').init();
 // ── App setup ──────────────────────────────────────────────────────────────────
 const app = express();
 
-// Security + compression
-app.use(helmet({ contentSecurityPolicy: false }));
+// Behind a reverse proxy every request arrives from the proxy's address, and
+// the rate limiters would count the whole world as one client. Opt-in, because
+// trusting X-Forwarded-For from a client that is not a proxy lets it pick its
+// own address. A hop count, true/false, or Express's names and subnets
+// ('loopback', '10.0.0.0/8', a comma-separated list).
+if (process.env.TRUST_PROXY) {
+  const tp = process.env.TRUST_PROXY.trim();
+  app.set('trust proxy', /^\d+$/.test(tp) ? Number(tp) : tp === 'true' ? true : tp === 'false' ? false : tp);
+}
+
+// Security + compression. The CSP is the part of one that cannot break the
+// app: no script or style rules, since the pages run on inline handlers.
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc:     helmet.contentSecurityPolicy.dangerouslyDisableDefaultSrc,
+      objectSrc:      ["'none'"],
+      baseUri:        ["'self'"],
+      frameAncestors: ["'self'"],
+    },
+  },
+}));
 app.use(compression());
 
 // Inject shared helpers into app.locals so routes can access them
@@ -142,6 +164,22 @@ if (process.env.MTGTOOLS_NO_BACKGROUND !== '1') {
 
 // ── Available@ calendar routes ─────────────────────────────────────────────────
 app.use('/available', require('./routes/available'));
+
+// ── Errors ────────────────────────────────────────────────────────────────────
+// Last, so it sees whatever any route above passes to next(err): a body that
+// is not JSON or is too large (400 / 413 from body-parser, which marks those
+// as safe to repeat), or a handler that threw. The stack goes to the log and
+// never to the client.
+app.use((err, req, res, next) => {
+  const code   = Number(err.status || err.statusCode);
+  const status = code >= 400 && code < 600 ? code : 500;
+  if (status >= 500) console.error(`[server] ${req.method} ${req.originalUrl}:`, err);
+  else console.error(`[server] ${req.method} ${req.originalUrl}: ${status} ${err.message}`);
+  if (res.headersSent) return next(err);   // Express's own handler ends the response
+  const error = status < 500 && err.expose ? err.message
+              : status < 500 ? http.STATUS_CODES[status] || 'Bad request' : 'Internal server error';
+  res.status(status).json({ error });
+});
 
 
 

@@ -2,6 +2,7 @@ services:
   mtgtools:
     image: ${DOCKERHUB_USERNAME:-local}/mtgtools:latest
     build: .
+    restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:

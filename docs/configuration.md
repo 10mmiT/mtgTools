@@ -50,6 +50,7 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | `RSS_FEEDS` | Optional comma-separated RSS/Atom feed URLs for the RSS panel |
 | `MTGTOOLS_NO_BACKGROUND` | Set to `1` to skip both Scryfall background jobs — the daily bulk download and the set-index sweep. For tests and offline runs; the app then serves whatever those two last cached |
 | `COOKIE_SECURE` | Set to `1` to add the `Secure` flag to session cookies — recommended when running behind HTTPS |
+| `TRUST_PROXY` | Set when running behind a reverse proxy, so the rate limits see each client's address instead of the proxy's. Takes Express's `trust proxy` values: a hop count (`1`), `true`, or names and subnets (`loopback`, `10.0.0.0/8`, comma-separated). Leave unset when the app is reached directly — trusting `X-Forwarded-For` from clients lets them choose their own address |
 | `AUTH_RATE_LIMIT_MAX` | Override the login rate-limit window max (default: 30 requests per 15 min per IP) |
 | `UPLOAD_RATE_LIMIT_MAX` | Override the playmat-upload rate-limit window max (default: 20 uploads per 15 min per IP) |
 

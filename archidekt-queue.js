@@ -32,6 +32,10 @@ const AD_MAX_INTERVAL = Number(process.env.ARCHIDEKT_MAX_INTERVAL_MS) || 4000;  
 const AD_RECOVER_MS   = Number(process.env.ARCHIDEKT_RECOVER_MS)      || 10 * 60 * 1000;
 const AD_BACKOFF_MS   = Number(process.env.ARCHIDEKT_BACKOFF_MS)      || 10_000; // measured recovery time; 429s name no Retry-After
 const AD_MAX_RETRIES  = 5;    // attempts per request before a 429 is passed on
+// Per attempt, body included. A request that never answers would otherwise
+// hold the queue, and every import behind it, forever; the timeout rejects
+// like any other network error and the caller's error path takes it.
+const AD_TIMEOUT_MS   = 30_000;
 
 const AD_HEADERS = { 'User-Agent': 'MTGCollectionSearch/1.0', 'Accept': 'application/json' };
 
@@ -73,7 +77,7 @@ async function _send(url, opts) {
     if (wait > 0) await sleep(wait);
     _nextSlot = Date.now() + _interval;
 
-    const res = await fetch(url, { headers: AD_HEADERS, ...opts });
+    const res = await fetch(url, { headers: AD_HEADERS, signal: AbortSignal.timeout(AD_TIMEOUT_MS), ...opts });
     if (res.status !== 429) return res;
 
     _last429  = Date.now();

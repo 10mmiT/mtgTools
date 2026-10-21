@@ -157,7 +157,13 @@ async function refreshBulk(force = false) {
   if (_refreshing) return { skipped: 'already refreshing' };
   _refreshing = true;
   try {
-    const idxRes = await fetch(BULK_INDEX_URL, { headers: { 'User-Agent': 'MTGTools/1.0' } });
+    // The index is a small JSON document, so it gets an ordinary deadline. The
+    // download below does not: it is tens of megabytes on whatever line the
+    // server has, and no fixed figure fits both a fast one and a slow one.
+    const idxRes = await fetch(BULK_INDEX_URL, {
+      headers: { 'User-Agent': 'MTGTools/1.0' },
+      signal:  AbortSignal.timeout(30_000),
+    });
     if (!idxRes.ok) throw new Error(`bulk index HTTP ${idxRes.status}`);
     const idx   = await idxRes.json();
     const entry = (idx.data || []).find(d => d.type === BULK_TYPE);

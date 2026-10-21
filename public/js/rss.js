@@ -59,12 +59,13 @@ function renderRss(feeds) {
 function rssRelativeDate(dateStr) {
   try {
     const d = new Date(dateStr);
-    if (isNaN(d)) return dateStr;
+    // Whatever the feed put there goes into innerHTML, so it is escaped.
+    if (isNaN(d)) return esc(String(dateStr));
     const diff = Date.now() - d.getTime();
     if (diff < 60_000)       return 'just now';
     if (diff < 3_600_000)    return `${Math.floor(diff / 60_000)}m ago`;
     if (diff < 86_400_000)   return `${Math.floor(diff / 3_600_000)}h ago`;
     if (diff < 604_800_000)  return `${Math.floor(diff / 86_400_000)}d ago`;
     return d.toLocaleDateString();
-  } catch { return dateStr; }
+  } catch { return esc(String(dateStr)); }
 }

@@ -12,6 +12,12 @@ const SF_MIN_INTERVAL = 110;   // ms between request starts (~9 req/s)
 
 const SF_HEADERS = { 'User-Agent': 'MTGTools/1.0', 'Accept': 'application/json' };
 
+// A request that never answers would hold the queue, and every Scryfall caller
+// behind it, forever. Each attempt gets a fresh deadline; it covers reading
+// the body too, and a timeout rejects like any other network error.
+const SF_TIMEOUT_MS = 30_000;
+const withTimeout = opts => ({ ...opts, signal: opts?.signal ?? AbortSignal.timeout(SF_TIMEOUT_MS) });
+
 const _queue = [];
 let _pumping  = false;
 let _nextSlot = 0;
@@ -32,14 +38,14 @@ async function _pump() {
     _nextSlot = Date.now() + SF_MIN_INTERVAL;
     const job = _queue.shift();
     try {
-      let res = await fetch(job.url, job.opts);
+      let res = await fetch(job.url, withTimeout(job.opts));
       if (res.status === 429) {
         const ra    = parseInt(res.headers.get('Retry-After'), 10);
         const delay = Number.isFinite(ra) ? Math.min(ra, 70) * 1000 : 2000;
         console.warn(`[scryfall-queue] 429 — pausing all Scryfall traffic ${delay / 1000}s`);
         await new Promise(r => setTimeout(r, delay));
         _nextSlot = Date.now() + SF_MIN_INTERVAL;
-        res = await fetch(job.url, job.opts);
+        res = await fetch(job.url, withTimeout(job.opts));
       }
       job.resolve(res);
     } catch (e) { job.reject(e); }

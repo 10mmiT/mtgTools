@@ -148,7 +148,9 @@ describe('Auth: login / logout', () => {
     assert.ok(res.headers['set-cookie'], 'should set cookie');
   });
 
-  test('login trims password whitespace', async () => {
+  // Passwords are no longer trimmed, but a hash made while they were still
+  // answers to the trimmed form of what is typed.
+  test('login still accepts a stored-trimmed password typed with spaces', async () => {
     const res = await request
       .post('/api/auth/login')
       .send({ username: 'admin', password: '  testpass  ' });
@@ -1403,6 +1405,166 @@ describe('Playmat uploads: /api/prefs/playmat', () => {
     const over = await upload(cookie, PNG, 'image/png');
     assert.equal(over.status, 429);
     assert.match(over.body.error, /Too many/i);
+  });
+});
+
+// ── Hardening ─────────────────────────────────────────────────────────────────
+// Each of these once took the process down or answered with a 500 (or worse,
+// a stack trace). The assertion that matters in the first few is the second
+// request: the server is still there to answer it.
+describe('Hardening: bad input is a 4xx, not a crash', () => {
+  beforeEach(resetDb);
+
+  test('login with a non-string username is a 400, and the server keeps answering', async () => {
+    const res = await request.post('/api/auth/login').send({ username: 1, password: 'x' });
+    assert.equal(res.status, 400);
+    const bad = await request.post('/api/auth/login').send({ username: 'admin', password: ['testpass'] });
+    assert.equal(bad.status, 400);
+    assert.equal((await request.get('/healthz')).status, 200);
+  });
+
+  test('request-account and change-password reject non-string fields', async () => {
+    const reqAcct = await request.post('/api/auth/request-account').send({ username: 'numpw', password: 123456 });
+    assert.equal(reqAcct.status, 400);
+    const cookie = await loginAs('admin', 'testpass');
+    const change = await request.post('/api/auth/change-password').set('Cookie', cookie)
+      .send({ currentPassword: 'testpass', newPassword: 123456 });
+    assert.equal(change.status, 400);
+    const create = await request.post('/api/admin/users').set('Cookie', cookie)
+      .send({ username: { a: 1 }, password: 'secret1' });
+    assert.equal(create.status, 400);
+    assert.equal((await request.get('/healthz')).status, 200);
+  });
+
+  test('a session cookie that is not valid percent-encoding is no session', async () => {
+    const me = await request.get('/api/auth/me').set('Cookie', 'mtg_session=%E0');
+    assert.equal(me.status, 401);
+    const api = await request.get('/api/state').set('Cookie', 'mtg_session=%E0');
+    assert.equal(api.status, 401);
+    const out = await request.post('/api/auth/logout').set('Cookie', 'mtg_session=%E0');
+    assert.equal(out.status, 200);
+  });
+
+  test('a malformed JSON body is a 400 in JSON, with no stack', async () => {
+    const res = await request.post('/api/auth/login')
+      .set('Content-Type', 'application/json').send('{"username": ');
+    assert.equal(res.status, 400);
+    assert.match(res.headers['content-type'], /json/);
+    assert.equal(typeof res.body.error, 'string');
+    assert.doesNotMatch(res.text, /node_modules|\n\s+at /);
+  });
+
+  test('a body over the limit is a 413 in JSON', async () => {
+    const res = await request.post('/api/auth/login')
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ username: 'admin', password: 'x'.repeat(200_000) }));
+    assert.equal(res.status, 413);
+    assert.equal(typeof res.body.error, 'string');
+  });
+
+  test('the CSP sets only the directives that cannot break the app', async () => {
+    const csp = (await request.get('/healthz')).headers['content-security-policy'];
+    assert.match(csp, /object-src 'none'/);
+    assert.match(csp, /base-uri 'self'/);
+    assert.match(csp, /frame-ancestors 'self'/);
+    assert.doesNotMatch(csp, /script-src|default-src/);
+  });
+});
+
+describe('Hardening: a password change signs the account out elsewhere', () => {
+  beforeEach(resetDb);
+
+  test('change-password ends every other session and keeps this one', async () => {
+    const here  = await loginAs('admin', 'testpass');
+    const there = await loginAs('admin', 'testpass');
+    const res = await request.post('/api/auth/change-password').set('Cookie', here)
+      .send({ currentPassword: 'testpass', newPassword: '  spaced pw  ' });
+    assert.equal(res.status, 200);
+    assert.equal((await request.get('/api/auth/me').set('Cookie', here)).status, 200);
+    assert.equal((await request.get('/api/auth/me').set('Cookie', there)).status, 401);
+    // Stored as typed: the spaces are part of it now.
+    const exact = await request.post('/api/auth/login').send({ username: 'admin', password: '  spaced pw  ' });
+    assert.equal(exact.status, 200);
+    const trimmed = await request.post('/api/auth/login').send({ username: 'admin', password: 'spaced pw' });
+    assert.equal(trimmed.status, 401);
+  });
+
+  test('an admin reset ends the user\'s sessions and not the admin\'s', async () => {
+    const admin = await loginAs('admin', 'testpass');
+    await request.post('/api/admin/users').set('Cookie', admin)
+      .send({ username: 'resetme', password: 'oldpass1', playerId: 'p-reset' });
+    const user = await loginAs('resetme', 'oldpass1');
+    assert.ok(user);
+    const res = await request.patch('/api/admin/users/resetme').set('Cookie', admin)
+      .send({ password: 'newpass1' });
+    assert.equal(res.status, 200);
+    assert.equal((await request.get('/api/auth/me').set('Cookie', user)).status, 401);
+    assert.equal((await request.get('/api/auth/me').set('Cookie', admin)).status, 200);
+    assert.ok(await loginAs('resetme', 'newpass1'));
+  });
+});
+
+describe('Hardening: proxy, RSS and calendar input', () => {
+  beforeEach(resetDb);
+
+  test('an EDHREC name is decoded once, so a literal % is a name and not a crash', async () => {
+    const https = require('https');
+    const realGet = https.get;
+    const asked = [];
+    https.get = url => {
+      asked.push(url);
+      const req = new (require('events'))();
+      setImmediate(() => req.emit('error', new Error('offline')));
+      return req;
+    };
+    try {
+      const cookie = await loginAs('admin', 'testpass');
+      const odd = await request.get('/api/edhrec/commander/%25E0').set('Cookie', cookie);
+      assert.equal(odd.status, 502);
+      const pair = await request.get('/api/edhrec/commander/' +
+        encodeURIComponent("Tymna the Weaver|Kraum, Ludevic's Opus")).set('Cookie', cookie);
+      assert.equal(pair.status, 502);
+    } finally { https.get = realGet; }
+    assert.deepEqual(asked, [
+      'https://json.edhrec.com/pages/commanders/e0.json',
+      'https://json.edhrec.com/pages/commanders/kraum-ludevics-opus-tymna-the-weaver.json',
+    ]);
+  });
+
+  test('archidekt paging takes digits only, and the page size is capped', async () => {
+    const cookie = await loginAs('admin', 'testpass');
+    const bad = await request.get('/api/archidekt/collection/1?page=1%26x%3D1').set('Cookie', cookie);
+    assert.equal(bad.status, 400);
+    const realFetch = globalThis.fetch;
+    let asked;
+    globalThis.fetch = async url => { asked = String(url); return new Response('{}', { status: 200 }); };
+    try {
+      const ok = await request.get('/api/archidekt/collection/1?page=2&pageSize=5000').set('Cookie', cookie);
+      assert.equal(ok.status, 200);
+    } finally { globalThis.fetch = realFetch; }
+    assert.equal(asked, 'https://archidekt.com/api/collection/1/?page=2&pageSize=100');
+  });
+
+  test('a feed item links only to a web page', () => {
+    const { parseRssFeed } = require('../routes/rss');
+    const feed = parseRssFeed(`<rss><channel><title>F</title>
+      <item><title>a</title><link>javascript:alert(1)</link></item>
+      <item><title>b</title><link>https://example.com/b</link></item>
+      <item><title>c</title><link>data:text/html,hi</link></item>
+    </channel></rss>`, 'https://example.com/feed');
+    assert.deepEqual(feed.items.map(i => i.link), ['', 'https://example.com/b', '']);
+  });
+
+  test('an availability toggle needs a real YYYY-MM-DD date', async () => {
+    const cookie = await loginAs('admin', 'testpass');
+    const { DEFAULT_CAL_ID } = dbModule;
+    const url = `/available/api/calendars/${DEFAULT_CAL_ID}/toggle`;
+    for (const date of ['9999', '2999-02-30', '2999-1-01', 'zzzz', 12345]) {
+      const res = await request.post(url).set('Cookie', cookie).send({ person_name: 'admin', date });
+      assert.equal(res.status, 400, `date ${date}`);
+    }
+    const ok = await request.post(url).set('Cookie', cookie).send({ person_name: 'admin', date: '2999-02-28' });
+    assert.equal(ok.status, 200);
   });
 });
 

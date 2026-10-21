@@ -8,6 +8,15 @@ const router = express.Router();
 
 function today() { return new Date().toISOString().slice(0, 10); }
 
+// A calendar day as YYYY-MM-DD, and one that exists: the string comparison
+// against today() below only means something for that shape, and anything
+// else would have been stored as it came.
+function isDay(s) {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00Z');
+  return !isNaN(d) && d.toISOString().slice(0, 10) === s;
+}
+
 // Initial cleanup of stale availability rows
 db.prepare('DELETE FROM availability WHERE date < ?').run(today());
 // Daily sweep
@@ -26,9 +35,9 @@ router.get('/api/calendars/:id', requireAuth, (req, res) => {
 
 router.post('/api/calendars/:id/toggle', requireAuth, express.json(), (req, res) => {
   const sess = getSession(req);
-  const { person_name, date } = req.body;
-  if (!person_name?.trim()) return res.status(400).json({ error: 'Name is required' });
-  if (!date || date < today()) return res.status(400).json({ error: 'Invalid date' });
+  const { person_name, date } = req.body || {};
+  if (typeof person_name !== 'string' || !person_name.trim()) return res.status(400).json({ error: 'Name is required' });
+  if (!isDay(date) || date < today()) return res.status(400).json({ error: 'Invalid date' });
 
   if (sess && sess.role !== 'admin') {
     const appState    = readState();
