@@ -142,14 +142,8 @@ async function quickAddToMyWants(cardName, btn) {
   }
   try {
     btn.disabled = true;
-    const res = await fetch(`/api/players/${encodeURIComponent(currentUser.playerId)}/wants`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cardName }),
-    });
-    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-    const json = await res.json().catch(() => ({}));
-    if (typeof json.version === 'number') state.version = json.version;
+    // The write and what its answer means for state.version: js/state.js.
+    if (!await writeWant(currentUser.playerId, cardName)) return;
     // Update local state so re-renders show correct state
     const player = state.players.find(p => p.id === currentUser.playerId);
     if (player) {

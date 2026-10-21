@@ -1467,6 +1467,17 @@ td { padding: var(--space-2) var(--space-3); }
   white-space: nowrap;
 }
 .want-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* The same toast saying a save did not take (showSaveNotice in js/state.js):
+   the danger pair in place of the success one, and allowed to wrap — it is a
+   sentence rather than a card name, and on one line it would run off a phone. */
+.want-toast--error {
+  background: var(--danger);
+  color: var(--danger-fg);
+  white-space: normal;
+  text-align: center;
+  width: max-content;
+  max-width: min(var(--measure), calc(100vw - 2 * var(--space-4)));
+}
 /* Custom steppers replace the native number spinners */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

@@ -55,7 +55,10 @@ async function dbAddCard(nameOverride, board) {
 
   // Fetch card data if we don't have it yet
   if (!dbCardData.has(name)) {
+    const deck = dbDeck;
     await dbFetchCardData([name]);
+    // Another deck opened meanwhile, and the card below would be its card.
+    if (dbDeck !== deck) return;
     // Re-check category now that we have type data
     if (existing === undefined) {
       const card = dbFindCard(ref);
@@ -312,15 +315,19 @@ async function _dbSyncCommanderRecord() {
   const name = dbCommanderCards()[0]?.card_name;
   if (!name || name === dbDeck.commander) return;
 
-  const entry = state.players.find(p => p.id === dbDeck.playerId)
-    ?.decks.find(d => d.id === dbDeck.id);
+  /* The deck this was asked about, held rather than read again: the second
+     write comes after a fetch, by when the mat may be showing another deck,
+     and that deck's record is not the one being named. */
+  const deck  = dbDeck;
+  const entry = state.players.find(p => p.id === deck.playerId)
+    ?.decks.find(d => d.id === deck.id);
 
   const write = (commander, commanderImg) => {
-    dbDeck.commander = commander;
-    dbDeck.commanderImg = commanderImg;
+    deck.commander = commander;
+    deck.commanderImg = commanderImg;
     if (entry) { entry.commander = commander; entry.commanderImg = commanderImg; }
     renderPlayers();
-    savePlayerDecks(dbDeck.playerId);
+    savePlayerDecks(deck.playerId);
   };
 
   write(name, null);
@@ -678,29 +685,79 @@ function dbConfirmMoveCard(place) {
 
 // ── Auto-save ─────────────────────────────────────────────────────────────────
 
+/* What the 800 ms timer is going to write: which deck, and what it held when
+ * the change was made. See dbScheduleSave. */
+let _dbPendingSave = null;
+
+/* The deck as it is on the mat, in the shape the save sends — and a copy of
+ * it, card by card, so a later edit to a card cannot reach back into a write
+ * that is already waiting to go. */
+function _dbSaveOf(deck) {
+  return {
+    playerId: deck.playerId,
+    deckId:   deck.id,
+    body: {
+      cards:      dbCards.map((c, i) => ({ ...c, position: i })),
+      categories: dbCats.map((c, i) => ({ ...c, position: i })),
+    },
+  };
+}
+
 /* Say the deck has changed; the write follows in 800 ms.
  *
  * Public, and the whole tab's one way of saying it — the mat, the drawer and
  * the Lands tab all change the deck, and a module that wrote its own save
  * would be a second debounce racing this one. Every caller says it *after* the
- * change is in `dbDeck`, because what is written is whatever the deck holds
- * when the timer fires rather than anything captured here. */
+ * change is in `dbCards`, because what is written is the deck as it is here.
+ *
+ * Captured here — the deck's id and a copy of its cards — rather than read
+ * when the timer fires. The mat can change deck inside those 800 ms, and a
+ * save that read whatever was open when it fired would write one deck's cards
+ * into another. dbSelectDeck flushes this before it switches; capturing is
+ * what makes a write that goes out late still go to the deck it was made on.
+ *
+ * Nothing is written for a deck that is still arriving (dbDeck.loading, see
+ * dbSelectDeck): the mat holds no cards of its own yet, and saving it would
+ * replace the deck's real list with whatever was added in the meantime. */
 function dbScheduleSave() {
   clearTimeout(dbSaveTimer);
+  if (dbDeck?.loading) return;
+  _dbPendingSave = dbDeck && isMyPlayer(dbDeck.playerId) ? _dbSaveOf(dbDeck) : null;
   _dbSetSaveStatus('saving…');
-  dbSaveTimer = setTimeout(_dbSave, 800);
+  dbSaveTimer = setTimeout(_dbFlushSave, 800);
+}
+
+/* The waiting save written now, to the deck it was made on, rather than when
+ * its timer would have fired. For dbSelectDeck, before it puts the deck down;
+ * a resolved promise when nothing is waiting. */
+function _dbFlushSave() {
+  clearTimeout(dbSaveTimer);
+  const pending = _dbPendingSave;
+  _dbPendingSave = null;
+  return pending ? _dbWrite(pending) : Promise.resolve();
+}
+
+/* The waiting save thrown away — for a deck that is being deleted, whose
+ * cards a late write would put back under an id nothing lists any more. */
+function _dbDropPendingSave() {
+  clearTimeout(dbSaveTimer);
+  _dbPendingSave = null;
 }
 
 /* Save now rather than in 800 ms. For the changes too big to leave sitting in
  * a browser that might be closed in the next second — a restore is the whole
- * deck — and for anything that has to know the save landed before it goes on. */
+ * deck — and for anything that has to know the save landed before it goes on.
+ * What is written is the deck on the mat as it is now, which includes anything
+ * the waiting save would have. */
 function _dbSaveNow() {
   clearTimeout(dbSaveTimer);
-  return _dbSave();
+  _dbPendingSave = null;
+  if (!dbDeck || dbDeck.loading || !isMyPlayer(dbDeck.playerId)) return Promise.resolve();
+  return _dbWrite(_dbSaveOf(dbDeck));
 }
 
-async function _dbSave() {
-  if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
+async function _dbWrite({ playerId, deckId, body }) {
+  if (!isMyPlayer(playerId)) return;
   /* A forced snapshot goes out in front of the operation that scheduled this
    * save. It carries its own copy of the deck, so nothing here depends on it
    * having finished — but the History panel would list the two the wrong way
@@ -708,22 +765,29 @@ async function _dbSave() {
   if (_dbSnapshotInFlight) await _dbSnapshotInFlight;
   dbSaving = true;
   try {
-    const body = {
-      cards:      dbCards.map((c, i) => ({ ...c, position: i })),
-      categories: dbCats.map((c, i) => ({ ...c, position: i })),
-    };
     const res = await fetch(
-      `/api/players/${encodeURIComponent(dbDeck.playerId)}/decks/${encodeURIComponent(dbDeck.id)}/cards`,
+      `/api/players/${encodeURIComponent(playerId)}/decks/${encodeURIComponent(deckId)}/cards`,
       { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (res.status === 401 && typeof goToLogin === 'function') return goToLogin();
+    if (!res.ok) {
+      const why = (await res.json().catch(() => ({}))).error;
+      /* The strip says it failed either way. A refusal — a deck that is
+       * somebody else's to write, a card it will not store (routes/decks.js)
+       * — also says why, where every other save that did not take says it:
+       * trying again will not change that answer. */
+      if (why && res.status < 500 && typeof showSaveNotice === 'function') {
+        showSaveNotice(`Couldn’t save the deck: ${why}`);
+      }
+      throw new Error(why || `HTTP ${res.status}`);
+    }
     /* The deck is built now, and the client's copy of that signal says so
      * without waiting for the next refreshState. The server's own answer is
      * SUM(qty) over the rows just written (routes/state.js), so it is computed
      * the same way here — a deck filled and closed inside the polling window
      * would otherwise drop off the Decks grid and the strip's switcher, both
      * of which read deckCardCounts to mean "has cards". */
-    state.deckCardCounts[dbDeck.id] = body.cards.reduce((n, c) => n + (c.qty || 0), 0);
+    state.deckCardCounts[deckId] = body.cards.reduce((n, c) => n + (c.qty || 0), 0);
     _dbSetSaveStatus('Saved ✓');
     setTimeout(() => _dbSetSaveStatus(''), 2000);
   } catch (e) {

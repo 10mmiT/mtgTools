@@ -117,6 +117,8 @@ const catsOf  = deckId => db.prepare(
   'SELECT name FROM deck_categories WHERE deck_id = ? ORDER BY position').all(deckId).map(c => c.name);
 const snapsOf = deckId => db.prepare('SELECT COUNT(*) AS n FROM deck_snapshots WHERE deck_id = ?').get(deckId).n;
 const storedPlayers = () => JSON.parse(db.prepare("SELECT value_json FROM app_state WHERE key = 'state'").get().value_json).players;
+// The version the granular deck save has to name, the way the tab names the one it last synced to.
+const storedVersion = () => db.prepare("SELECT version FROM app_state WHERE key = 'state'").get().version;
 
 /** The whole-state save the tab makes, with `change` applied to what the
  *  requester was sent — exactly as saveToStorage() sends it back. */
@@ -221,7 +223,8 @@ describe('a deck id belongs to one player', () => {
   test('nor through the granular deck save', async () => {
     const res = await request.put(`/api/players/${ALICE}/decks`).set('Cookie', aliceCookie)
       .send({ decks: [{ id: ALICE_DECK, source: 'manual', name: 'Alice’s deck' },
-                      { id: BOB_PRIVATE, source: 'manual', name: 'Mine now' }] });
+                      { id: BOB_PRIVATE, source: 'manual', name: 'Mine now' }],
+              version: storedVersion() });
     assert.equal(res.status, 409);
     assert.deepEqual(playerIn(storedPlayers(), ALICE).decks.map(d => d.id), [ALICE_DECK]);
   });
@@ -251,7 +254,7 @@ describe('a deck id belongs to one player', () => {
         deckUrl: 'https://archidekt.com/decks/20254010/x', name: 'New', nameStatus: 'loaded',
         commander: 'Atraxa', commanderImg: 'https://cards.scryfall.io/art_crop/front/a/b/c.jpg?1',
         cardCount: '100', bracket: 3, folderId: null, private: false },
-    ] });
+    ], version: storedVersion() });
     assert.equal(made.status, 200, made.text);
     const stored = playerIn(storedPlayers(), ALICE).decks.find(d => d.id === id);
     assert.equal(stored.cardCount, 100, 'a count sent as a numeric string is stored as the number');
@@ -420,7 +423,7 @@ describe('what is drawn into markup is refused on the way in', () => {
     assert.equal(bracket.status, 200, bracket.text);
     assert.equal(playerIn(storedPlayers(), ALICE).decks.find(d => d.id === 'd_new_alice').bracket, null);
     const granular = await request.put(`/api/players/${ALICE}/decks`).set('Cookie', aliceCookie)
-      .send({ decks: [{ id: '<b>', source: 'manual', name: 'X' }] });
+      .send({ decks: [{ id: '<b>', source: 'manual', name: 'X' }], version: storedVersion() });
     assert.equal(granular.status, 400);
   });
 

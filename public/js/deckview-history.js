@@ -28,7 +28,7 @@ function _dbSnapshotBody(reason) {
 /* The snapshot a save has to wait behind. A forced snapshot goes out ahead of
  * an operation, and the save that operation schedules must not overtake it —
  * the server reads nothing from the database to build a forced row, but the
- * History panel would still list them out of order. _dbSave() awaits this. */
+ * History panel would still list them out of order. _dbWrite() awaits this. */
 let _dbSnapshotInFlight = null;
 
 /* Capture the deck as it is, before the caller changes it.
@@ -206,7 +206,8 @@ async function dbRestoreSnapshot(id) {
   if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return;
   if (!confirm('Restore the deck to this snapshot? The deck as it is now is saved first, so you can undo this.')) return;
 
-  const { playerId, id: deckId } = dbDeck;
+  const deck = dbDeck;
+  const { playerId, id: deckId } = deck;
   let snap;
   try {
     const res = await fetch(
@@ -218,12 +219,17 @@ async function dbRestoreSnapshot(id) {
     return;
   }
 
+  /* Each wait below is one another deck can be opened in, and this snapshot
+     is not that deck's to be put back into. */
+  if (dbDeck !== deck) return;
   // Awaited, unlike every other forced snapshot: what is about to be
   // overwritten is the whole deck, and the row holding it has to exist before
   // the overwrite rather than alongside it.
   await dbForceSnapshot('restore');
+  if (dbDeck !== deck) return;
 
   await dbFetchCardData([...new Set((snap.cards || []).map(c => c.card_name))]);
+  if (dbDeck !== deck) return;
   _dbApplyRestored(snap.cards || [], snap.categories || []);
 
   dbSelectedCards.clear();

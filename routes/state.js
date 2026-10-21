@@ -38,6 +38,16 @@ function readState() {
   } catch { return { players: [], version: 0 }; }
 }
 
+/* The answer to a write made against a blob that is no longer the stored one.
+ * Marked, because it is not the only 409 a write can get: a deck or a name
+ * that belongs to somebody else is refused with one too (playersWriteProblem),
+ * and the tab has to tell "somebody got there first — reload and redo" from
+ * "this change will never be taken", which reloading would not fix. */
+const STALE_VERSION = Object.freeze({
+  error: 'Conflict: state was modified by another session. Please refresh.',
+  conflict: 'version',
+});
+
 function writeState(data, checkVersion) {
   const { players = [] } = data;
   if (checkVersion !== undefined) {
@@ -495,6 +505,18 @@ router.post('/state', requireAuth, express.json({ limit: '10mb' }), (req, res) =
   const curPlayers = current.players || [];
   const incoming = req.body.players || [];
   if (!Array.isArray(incoming)) return res.status(400).json({ error: 'players must be a list' });
+  /* The version the tab last synced to, and not optional: this is a whole-blob
+   * replace, and one sent without saying what it was made from cannot be told
+   * from one made from a copy an hour old — which would quietly overwrite
+   * everything written since.
+   *
+   * Checked before the permission rules below rather than left to writeState,
+   * because those compare the other players against the stored ones, and a
+   * stale copy fails that comparison too: a tab that was merely behind would
+   * be told Forbidden, which reloading does not sound like it would fix. */
+  const clientVersion = req.body.version;
+  if (typeof clientVersion !== 'number') return res.status(400).json({ error: 'version required' });
+  if (clientVersion !== (current.version || 0)) return res.status(409).json(STALE_VERSION);
   // Admins receive and write the whole blob; a non-admin's write is merged.
   let players = incoming;
   if (sess.role !== 'admin') {
@@ -527,21 +549,26 @@ router.post('/state', requireAuth, express.json({ limit: '10mb' }), (req, res) =
   const refused = playersWriteProblem(curPlayers, players, written, sess);
   if (refused) return res.status(refused.status).json({ error: refused.error });
   try {
-    const clientVersion = typeof req.body.version === 'number' ? req.body.version : undefined;
-    const newVersion    = writeState({ ...current, players }, clientVersion);
+    const newVersion = writeState({ ...current, players }, clientVersion);
     disownGonePlayers(players);
     res.json({ ok: true, version: newVersion });
   } catch (e) {
-    if (e.status === 409) return res.status(409).json({ error: 'Conflict: state was modified by another session. Please refresh.' });
+    if (e.status === 409) return res.status(409).json(STALE_VERSION);
     res.status(500).json({ error: e.message });
   }
 });
 
 // ── PUT /api/players/:playerId/decks ───────────────────────────────────────────
+/* A player's whole deck list, replaced with the tab's copy of it — so it is held
+ * to the version the way the whole-state POST is. A stale tab's list is missing
+ * whatever deck another device added since, and taking it would delete that
+ * deck; the 409 sends the tab off to reload instead. */
 router.put('/players/:playerId/decks', requirePlayerAccess, express.json({ limit: '1mb' }), (req, res) => {
-  const { decks } = req.body || {};
+  const { decks, version: clientVersion } = req.body || {};
   if (!Array.isArray(decks)) return res.status(400).json({ error: 'decks array required' });
+  if (typeof clientVersion !== 'number') return res.status(400).json({ error: 'version required' });
   const appState = readState();
+  if (clientVersion !== (appState.version || 0)) return res.status(409).json(STALE_VERSION);
   const player   = appState.players.find(p => p.id === req.params.playerId);
   if (!player) return res.status(404).json({ error: 'Player not found' });
   const stored   = readState().players || [];
@@ -550,11 +577,26 @@ router.put('/players/:playerId/decks', requirePlayerAccess, express.json({ limit
   // and no deck id another player already lists.
   const refused = playersWriteProblem(stored, appState.players, new Set([player.id]), getSession(req));
   if (refused) return res.status(refused.status).json({ error: refused.error });
-  const version = writeState(appState);
-  res.json({ ok: true, version });
+  try {
+    const version = writeState(appState, clientVersion);
+    res.json({ ok: true, version });
+  } catch (e) {
+    if (e.status === 409) return res.status(409).json(STALE_VERSION);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Want list endpoints ────────────────────────────────────────────────────────
+/* These two are patches made on the server against the stored list rather
+ * than copies sent from the tab, so a tab that is behind cannot lose anything
+ * through them and they ask for no version. What they answer with is the
+ * version after the patch and whether they wrote at all — and the tab only
+ * adopts that version when it is the one after its own (adoptPatchVersion in
+ * public/js/state.js). Anything else means somebody else wrote in between,
+ * and adopting it would let the tab's next whole-state save overwrite them.
+ *
+ * Neither writes when there is nothing to change: a version that moved for no
+ * reason would send every other open tab's next save to a 409. */
 router.post('/players/:playerId/wants', requirePlayerAccess, express.json(), (req, res) => {
   const { cardName } = req.body || {};
   if (!cardName?.trim()) return res.status(400).json({ error: 'cardName required' });
@@ -563,9 +605,10 @@ router.post('/players/:playerId/wants', requirePlayerAccess, express.json(), (re
   if (!player) return res.status(404).json({ error: 'Player not found' });
   if (!player.wantList) player.wantList = [];
   const name = cardName.trim();
+  const changed = !player.wantList.includes(name);
   let version = appState.version || 0;
-  if (!player.wantList.includes(name)) { player.wantList.push(name); version = writeState(appState); }
-  res.json({ ok: true, version });
+  if (changed) { player.wantList.push(name); version = writeState(appState); }
+  res.json({ ok: true, version, changed });
 });
 
 router.delete('/players/:playerId/wants/:cardName', requirePlayerAccess, (req, res) => {
@@ -573,9 +616,12 @@ router.delete('/players/:playerId/wants/:cardName', requirePlayerAccess, (req, r
   const appState = readState();
   const player   = appState.players.find(p => p.id === req.params.playerId);
   if (!player) return res.status(404).json({ error: 'Player not found' });
-  player.wantList = (player.wantList || []).filter(c => c !== name);
-  const version = writeState(appState);
-  res.json({ ok: true, version });
+  const before  = player.wantList || [];
+  const after   = before.filter(c => c !== name);
+  const changed = after.length !== before.length;
+  let version = appState.version || 0;
+  if (changed) { player.wantList = after; version = writeState(appState); }
+  res.json({ ok: true, version, changed });
 });
 
 // ── Collections ────────────────────────────────────────────────────────────────

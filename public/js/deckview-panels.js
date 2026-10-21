@@ -568,6 +568,8 @@ function dbSetLeftTab(tab) {
 }
 
 // ── EDHREC panel ──────────────────────────────────────────────────────────────
+let _dbEdhrecAsk = 0;  // which ask for recommendations is the latest — see dbLoadEdhrec
+
 async function dbLoadEdhrec() {
   /* Off the commander board, and off the deck record when the board is empty —
      the same order this asked in when the commander was a category, with the
@@ -584,9 +586,16 @@ async function dbLoadEdhrec() {
   _dbEdhrecLoaded = true;
   el.innerHTML = `<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Loading EDHREC recommendations for ${esc(names.join(' + '))}…</div>`;
 
+  /* Still the answer anybody is waiting for? Not if another deck has been
+   * opened since (_dbLoadSeq, see dbSelectDeck), and not if this deck has
+   * asked again since — a commander changed — because the older ask can come
+   * back last and would put the last commander's list up under the new one. */
+  const ask = ++_dbEdhrecAsk, opening = _dbLoadSeq;
+  const current = () => ask === _dbEdhrecAsk && opening === _dbLoadSeq;
   try {
     const res  = await fetch(`/api/edhrec/commander/${encodeURIComponent(names.join('|'))}`);
     const data = await res.json();
+    if (!current()) return;
     if (data.error) throw new Error(data.error);
     const cardlists = data?.container?.json_dict?.cardlists || [];
     dbEdhrecData = cardlists;
@@ -594,9 +603,11 @@ async function dbLoadEdhrec() {
     // Fetch Scryfall data for every recommended card so thumbnails can render
     const allNames = [...new Set(cardlists.flatMap(s => (s.cardviews || []).map(c => c.name)))];
     await dbFetchCardData(allNames);
+    if (!current()) return;
 
     _dbRenderEdhrec();
   } catch (e) {
+    if (!current()) return;
     el.innerHTML = `<div class="error-msg" style="margin:var(--space-2) 0">${esc(e.message)}</div>`;
   }
 }

@@ -163,6 +163,7 @@ describe('the revision the poll asks with', () => {
     // The counts are filtered to decks the requester may see, so the deck has
     // to belong to somebody before its cards can be counted.
     await request.post('/api/state').set('Cookie', cookie).send({
+      version: 0,
       players: [{ id: 'p1', name: 'Anna', colorIdx: 0, wantList: [], folders: [],
                   decks: [{ id: 'd1', source: 'manual', name: 'Atraxa' }] }],
     });
@@ -211,6 +212,7 @@ describe('the revision the poll asks with', () => {
      * was asking would answer "unchanged" to somebody whose role had just
      * changed under them, and the decks they had earned would never appear. */
     await request.post('/api/state').set('Cookie', cookie).send({
+      version: 0,
       players: [{ id: 'p1', name: 'Anna', colorIdx: 0, wantList: [], folders: [], decks: [] }],
     });
     await request.post('/api/admin/users').set('Cookie', cookie)

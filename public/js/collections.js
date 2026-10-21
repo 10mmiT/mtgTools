@@ -885,12 +885,32 @@ function reimportAllPrintings() {
 }
 
 function removeCollection(key) {
+  const at  = state.collections.findIndex(c => c.key === key);
+  const col = state.collections[at];
+  const imp = state.imports.find(i => i.key === key);
   state.collections = state.collections.filter(c => c.key !== key);
   state.imports     = state.imports.filter(i => i.key !== key);
   renderCollections();
   renderImports();
   renderResults();
+  /* Refused — a shelf with an owner is its owner's to remove (routes/state.js)
+   * — it is still on the server, so it goes back on the shelf and the reason
+   * is said, rather than the chip vanishing here until the next reload brings
+   * it back unexplained. The same rollback setCollectionOwner does. */
   fetch(`/api/collections/${encodeURIComponent(key)}`, { method: 'DELETE' })
+    .then(async res => {
+      if (res.ok) return;
+      if (res.status === 401) return goToLogin();
+      const body = await res.json().catch(() => ({}));
+      if (col && !state.collections.some(c => c.key === key)) {
+        state.collections.splice(Math.min(at, state.collections.length), 0, col);
+      }
+      if (imp && !state.imports.some(i => i.key === key)) state.imports.push(imp);
+      renderCollections();
+      renderImports();
+      renderResults();
+      showSaveNotice(`Couldn’t remove ${col?.name || 'that collection'}: ${body.error || `HTTP ${res.status}`}`);
+    })
     .catch(e => console.warn('Collection remove failed:', e.message));
 }
 

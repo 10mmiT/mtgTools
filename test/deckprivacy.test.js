@@ -408,8 +408,10 @@ function loadTab({ players = UI_PLAYERS, deckCardCounts = UI_COUNTS, user = AS_T
                  json: async () => ({ players: reload || players, deckCardCounts, version: 9 }) };
       }
       if (serverTakesIt === 'conflict') {
+        // Marked the way routes/state.js marks a stale version, which is what
+        // tells it from a 409 refusing the write itself.
         return url === '/api/state'
-          ? { ok: false, status: 409, json: async () => ({ error: 'conflict' }) }
+          ? { ok: false, status: 409, json: async () => ({ error: 'conflict', conflict: 'version' }) }
           : { ok: false, status: 500, json: async () => ({ error: 'nope' }) };
       }
       return serverTakesIt

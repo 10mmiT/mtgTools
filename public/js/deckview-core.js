@@ -16,6 +16,7 @@ let dbAddAcTimer = null;
 let dbCmdAcTimer = null;
 let dbSaveTimer  = null;
 let dbSaving     = false;
+let _dbLoadSeq   = 0;        // which opening of a deck the mat is on — see dbSelectDeck
 let dbSortMounted = false;
 let _dbSizeSync  = null;     // the shared card-size control, told when the view changes
 let _dbInitDone  = false;
@@ -283,6 +284,17 @@ function _dbPopulateNewDeckPlayers() {
  * forgetting nothing is the right failure; a deck that will not open is not.
  */
 async function dbSelectDeck(value) {
+  /* The deck being put down keeps its last edit. One made inside the
+   * autosave's 800 ms is written now, to that deck — the save carries its own
+   * copy (see dbScheduleSave) — and awaited before the next deck's cards are
+   * asked for, so a deck opened again on top of itself is read back with the
+   * edit in it rather than from before it. */
+  const flushed = _dbFlushSave();
+  /* The recommendations on show are for the deck being put down. Asked for
+   * again once this one's cards are in, the way a changed commander asks
+   * (_dbSyncCommanderRecord) — dropping them alone would leave the last deck's
+   * list on screen under this one. */
+  const showingEdhrec = _dbEdhrecLoaded && dbLeftTab === 'edhrec';
   dbCloseHistoryPanel();  // one deck's history is not another's
   dbCloseOwnedPanel();    // and one deck's missing twelve are not another's
   dbCloseCheckPanel();    // nor is one deck's colour identity another's
@@ -301,6 +313,7 @@ async function dbSelectDeck(value) {
   _dbRenderOwnChips();
 
   if (!value) {
+    ++_dbLoadSeq;  // and a deck still arriving is not wanted any more
     dbDeck = null; dbCards = []; dbCats = []; dbCardData = new Map();
     dbSortMounted = false; dbEdhrecData = null; _dbEdhrecLoaded = false;
     if (typeof _dbLandsForgetDeck === 'function') _dbLandsForgetDeck();
@@ -308,6 +321,7 @@ async function dbSelectDeck(value) {
     _dbRenderBoardToggles();
     _dbHideDeckUI();
     dbPopulateDeckSel();
+    await flushed;
     return;
   }
   const [playerId, deckId] = value.split('|');
@@ -324,8 +338,26 @@ async function dbSelectDeck(value) {
   }
   const stableId = deck.id;  // always use this, not the raw split value
 
+  /* Which opening of a deck this is. Every await below can come back to find
+   * another deck opened in the meantime — a slow load, an Archidekt import, a
+   * card-data fetch — and an answer for a deck that was put down must not land
+   * on the one that was picked up. Taken before the first await, so the newest
+   * call is the one that counts however the awaits come back. */
+  const seq = ++_dbLoadSeq;
+  const current = () => seq === _dbLoadSeq;
+
+  /* `loading` until its cards are here: nothing is saved for a deck in that
+   * state (dbScheduleSave), because the mat holds none of its cards yet and a
+   * save would put whatever was added meanwhile in place of all of them. A
+   * load that fails leaves it that way. */
   dbDeck = { id: stableId, playerId, playerName: player.name,
-             name: deck.name, commander: deck.commander || '', commanderImg: deck.commanderImg || null };
+             name: deck.name, commander: deck.commander || '', commanderImg: deck.commanderImg || null,
+             loading: true };
+  const opening = dbDeck;
+  /* The last deck's cards go now, not when this one's arrive. Left standing
+   * they are what a failed load leaves on the mat, and what the next edit
+   * would save into this deck. */
+  dbCards = []; dbCats = [];
   dbEdhrecData = null; _dbEdhrecLoaded = false;
   if (typeof _dbLandsForgetDeck === 'function') _dbLandsForgetDeck();  // and the last deck's cycles are not either
   dbShownBoards = new Set();      // the last deck's boards are not this one's
@@ -342,14 +374,20 @@ async function dbSelectDeck(value) {
   _dbShowDeckUI();
 
   try {
+    await flushed;
+    if (!current()) return;
     const res  = await fetch(`/api/players/${encodeURIComponent(playerId)}/decks/${encodeURIComponent(stableId)}/cards`);
+    if (!current()) return;
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const data = await res.json();
+    if (!current()) return;
     /* A row that names no board is in the deck. Filled in on the way in rather
      * than everywhere it is read: a card carries its board from here on, so
      * nothing below has to keep asking what a missing one meant. */
     dbCards = (data.cards || []).map(c => ({ ...c, board: c.board || DB_MAIN_BOARD }));
     dbCats  = data.categories?.length ? data.categories : DB_DEFAULT_CATS.map((n, i) => ({ name: n, position: i }));
+    // The deck's own cards are on the mat, so an edit to them is a save.
+    delete opening.loading;
     /* Which boards this deck was left showing — after its cards, because a
      * head board is on by default when it holds something and there is nothing
      * to ask that of until they have arrived. */
@@ -360,11 +398,13 @@ async function dbSelectDeck(value) {
       document.getElementById('dbDeckContent').innerHTML =
         '<div class="empty-state" style="padding:var(--space-6) var(--space-4)">Importing from Archidekt…</div>';
       const imported = await _dbImportArchidekt(deck.deckId);
+      if (!current()) return;
       if (imported.length) {
         dbCards = imported;
         _dbLoadShownBoards(stableId);   // a deck that arrived with a commander shows it
         // Resolve categories that need Scryfall type data
         await dbFetchCardData([...new Set(dbCards.map(c => c.card_name))]);
+        if (!current()) return;
         for (const card of dbCards) {
           if (!card.category) card.category = dbAutoCategory(card.card_name);
         }
@@ -375,20 +415,25 @@ async function dbSelectDeck(value) {
           mountSortControl('dbSortMount', 'deckbuild', DB_SORT_FIELDS, dbRender, { field: 'name', dir: 1 });
           dbSortMounted = true;
         }
+        if (showingEdhrec) dbLoadEdhrec();
         return;
       }
     }
 
     await dbFetchCardData([...new Set(dbCards.map(c => c.card_name))]);
+    if (!current()) return;
     dbRender();
     dbRenderStats();
     if (!dbSortMounted) {
       mountSortControl('dbSortMount', 'deckbuild', DB_SORT_FIELDS, dbRender, { field: 'name', dir: 1 });
       dbSortMounted = true;
     }
+    if (showingEdhrec) dbLoadEdhrec();
   } catch (e) {
+    if (!current()) return;
     document.getElementById('dbDeckContent').innerHTML =
       `<div class="error-msg" style="margin:var(--space-2) 0">${esc(e.message)}</div>`;
+    if (showingEdhrec) dbLoadEdhrec();  // off the record's commander: the last deck's list is not this one's
   }
 }
 
@@ -620,6 +665,10 @@ async function dbDeleteDeck() {
   if (!confirm(`Delete "${dbDeck.name}"? This removes the deck and all its cards. You can re-add it (e.g. from Archidekt) afterwards.`)) return;
 
   const { id: deckId, playerId } = dbDeck;
+  /* An edit still waiting on the autosave is in the snapshot below, and must
+   * not be written after the wipe: it would put the cards back under an id
+   * nothing lists any more. */
+  _dbDropPendingSave();
 
   /* First, and awaited, because the wipe below is what it is protecting
    * against. It also ends this deck's history: rows keyed by a deck nothing
@@ -641,6 +690,7 @@ async function dbDeleteDeck() {
   if (player) player.decks = (player.decks || []).filter(d => d.id !== deckId);
   await saveToStorage();
 
+  ++_dbLoadSeq;  // anything still arriving for the deck is not wanted now
   dbDeck = null; dbCards = []; dbCats = []; dbEdhrecData = null; _dbEdhrecLoaded = false;
   if (typeof _dbLandsForgetDeck === 'function') _dbLandsForgetDeck();
   _dbHideDeckUI();

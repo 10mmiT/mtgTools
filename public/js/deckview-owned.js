@@ -602,13 +602,8 @@ async function dbWantCards(names, btn) {
   try {
     for (const name of names) {
       if ((player.wantList || []).includes(name)) continue;
-      const res = await fetch(`/api/players/${encodeURIComponent(player.id)}/wants`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardName: name }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
-      const json = await res.json().catch(() => ({}));
-      if (typeof json.version === 'number') state.version = json.version;
+      // The write and what its answer means for state.version: js/state.js.
+      if (!await writeWant(player.id, name)) return;
       if (!player.wantList) player.wantList = [];
       player.wantList.push(name);
       added.push(name);

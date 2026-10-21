@@ -304,6 +304,20 @@ document.addEventListener('click', e => {
 // ── State refresh ─────────────────────────────────────────────────────
 let _lastRefresh = 0;
 
+/* Everything that draws from the shared state, drawn again from it — after a
+ * poll has brought a new one, and after a save's conflict has reloaded it
+ * (js/state.js), which used to call this when there was no such function and
+ * leave the refused change on the screen under an alert saying it was gone. */
+function renderAll() {
+  renderPlayers();
+  renderCollections();
+  const activeTab = document.querySelector('.tab-btn.active')?.id?.replace('tab-btn-', '');
+  if (activeTab === 'collections') renderResults();
+  if (activeTab === 'wants')       renderWantList();
+  if (activeTab === 'sets' && currentSet) renderSetCards();
+  if (activeTab === 'deckview')    dbPopulateDeckSel();
+}
+
 /* Three reasons to say no, and they are the whole of why this is not just a
  * fetch. Nobody is reading a hidden tab; a poll that lands while a collection
  * or a deck is still arriving would hydrate over the half of it that is in
@@ -314,28 +328,34 @@ let _lastRefresh = 0;
  * downloading everything and stringifying it to compare — a full serialisation
  * on the server and another here, twice a minute, to learn nothing. The
  * revision fetchStateIfChanged carries answers it for a few bytes, and a poll
- * that finds nothing new never gets as far as this function's body. */
+ * that finds nothing new never gets as far as this function's body.
+ *
+ * The first two are asked again when the answer arrives, because the answer
+ * takes time and a save of ours can leave or land inside it — takePolledState
+ * in js/state.js, which is where that reasoning lives. */
 async function refreshState() {
   if (document.visibilityState === 'hidden') return;
   if (stateIsMidFlight()) return;
   if (Date.now() - _lastRefresh < 15_000) return;
   _lastRefresh = Date.now();
+  const saves = stateSaveSeq;
   try {
     const json = await fetchStateIfChanged();
-    if (!json) return;
+    if (!takePolledState(json, saves)) return;
 
     const deckSummary = (json.players||[]).map(p=>`${p.name}:[${(p.decks||[]).map(d=>d.name).join(',')}]`).join(' ');
     console.log(`[refresh] hydrateState — players: ${deckSummary || '(none)'}`);
-    if (typeof json.version === 'number') state.version = json.version;
-    hydrateState(json);
-    renderPlayers();
-    renderCollections();
-    const activeTab = document.querySelector('.tab-btn.active')?.id?.replace('tab-btn-', '');
-    if (activeTab === 'collections') renderResults();
-    if (activeTab === 'wants')       renderWantList();
-    if (activeTab === 'sets' && currentSet) renderSetCards();
-    if (activeTab === 'deckview')    dbPopulateDeckSel();
+    renderAll();
   } catch {}
+}
+
+/* A poll now rather than when it is next due — for a tab that has just learnt
+ * its copy is behind (stateFellBehind in js/state.js). Only the fifteen-second
+ * spacing is waived; a hidden tab, a save in flight or an open form still
+ * holds it off. */
+function refreshStateNow() {
+  _lastRefresh = 0;
+  return refreshState();
 }
 
 // Poll every 30 seconds while the page is open

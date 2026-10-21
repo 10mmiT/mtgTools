@@ -262,45 +262,134 @@ function cacheStateLocally() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
 }
 
+// ── Saves in flight ───────────────────────────────────────────────────────
+/* Every write this tab makes to the shared state moves this twice: once as it
+ * leaves and once as it lands. The poll (refreshState in main.js) reads it
+ * before it asks and again when the answer arrives, and a number that moved in
+ * between means the answer was cut on one side of a save of ours and is
+ * arriving on the other. Hydrating it would put the screen back to before the
+ * save — and the version with it, so the next save would be refused as stale
+ * by the server it had just been accepted by. That answer is thrown away, and
+ * the next poll asks again.
+ *
+ * The count beside it is the other half: a save that left before the poll
+ * asked and is still out when the answer lands moved the number before the
+ * poll read it, so only "is one still out?" can catch it. */
+let stateSaveSeq       = 0;
+let stateSavesInFlight = 0;
+
+async function _trackStateSave(write) {
+  stateSaveSeq++;
+  stateSavesInFlight++;
+  try { return await write(); }
+  finally { stateSaveSeq++; stateSavesInFlight--; }
+}
+
+// ── When a save does not take ─────────────────────────────────────────────
+/* Said where it can be seen, and without stopping anything. The want toast
+ * (js/auth.js) is the app's one notice that is not a dialog, so this is that
+ * same component in the danger pair — non-blocking because a save that did not
+ * take is something to know rather than something to answer, and the next edit
+ * should not have to get past a dialog first. Its own element rather than the
+ * toast's, so a "✓ Added" a moment later is not drawn in red.
+ *
+ * A save the server refused says the server's reason instead of this: "Deck …
+ * already belongs to another player" is not something reloading will fix. */
+const SAVE_FAILED_NOTICE = 'Couldn’t save — your change is only on this device. Reload to retry.';
+
+function showSaveNotice(text = SAVE_FAILED_NOTICE) {
+  // A notice that cannot be drawn is no reason for the save path to throw.
+  try {
+    if (typeof document === 'undefined' || !document.body) return;
+    let notice = document.getElementById('saveNotice');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.id = 'saveNotice';
+      notice.className = 'want-toast want-toast--error';
+      notice.setAttribute('role', 'alert');
+      document.body.appendChild(notice);
+    }
+    notice.textContent = text;
+    notice.classList.add('visible');
+    clearTimeout(notice._timer);
+    // Longer than the toast's 2.8 s: this is a sentence with an instruction in it.
+    notice._timer = setTimeout(() => notice.classList.remove('visible'), 6000);
+  } catch {}
+}
+
+/* A 401 has nobody to save as: the session ended, by expiring or by signing
+ * out in another tab. The same way out authInit takes. */
+function goToLogin() {
+  if (typeof window !== 'undefined' && window.location) window.location.href = '/login';
+}
+
+/* A save that never reached the server, or one the server could not answer:
+ * kept in the offline cache, and said. */
+function _stateSaveFailed() {
+  cacheStateLocally();
+  showSaveNotice();
+  return false;
+}
+
+/* A save the server answered with something other than yes. Answers false,
+ * for the caller to pass on. */
+async function _stateSaveRefused(status, body = {}) {
+  if (status === 401) { goToLogin(); return false; }
+  if (status === 409 && body.conflict === 'version') {
+    // Conflict: another session wrote state while we were editing.
+    // Re-fetch the latest state and notify the user.
+    console.warn('[save] 409 Conflict — re-fetching latest state');
+    await loadFromStorage();
+    if (typeof renderAll === 'function') renderAll();
+    alert('Your changes could not be saved because another session updated the state at the same time. The page has been refreshed with the latest data — please redo your change.');
+    return false;
+  }
+  if (status === 400 || status === 403 || status === 409) {
+    /* Refused: a deck or a name that is somebody else's, a value it will not
+     * store, a player that is not yours to change. Sending it again sends the
+     * same thing, so the tab is put back to what the server holds and told
+     * why. Left on screen, the refused change would ride along with every
+     * save after it and sink each of them the same way. */
+    console.warn(`[save] ✗ server refused (${status}: ${body.error || 'no reason given'}) — re-fetching`);
+    await loadFromStorage();
+    if (typeof renderAll === 'function') renderAll();
+    showSaveNotice(body.error ? `Couldn’t save: ${body.error}` : SAVE_FAILED_NOTICE);
+    return false;
+  }
+  console.warn(`[save] ✗ server failed (${status}), falling back to localStorage`);
+  return _stateSaveFailed();
+}
+
 /* Save the whole state blob. Answers whether the *server* took it: a caller
  * that changed something on the strength of it (setDeckPrivate) has to be able
  * to put it back, and a write that only reached localStorage is a change the
  * next device will never see. Every caller that just wants the state saved can
- * go on ignoring the answer. */
+ * go on ignoring the answer — a save that did not take says so itself. */
 async function saveToStorage() {
   const data = stateToJSON();
-  // Include the current version for optimistic concurrency check
+  // The version this copy was made from — required, and held to it: see
+  // POST /api/state.
   if (typeof state.version === 'number') data.version = state.version;
   const deckSummary = data.players.map(p => `${p.name}:[${p.decks.map(d => d.name).join(',')}]`).join(' ');
   console.log(`[save] POST /api/state — players: ${deckSummary || '(none)'}`);
-  try {
-    const res = await fetch('/api/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (res.status === 409) {
-      // Conflict: another session wrote state while we were editing.
-      // Re-fetch the latest state and notify the user.
-      console.warn('[save] 409 Conflict — re-fetching latest state');
-      await loadFromStorage();
-      if (typeof window !== 'undefined' && typeof renderAll === 'function') renderAll();
-      alert('Your changes could not be saved because another session updated the state at the same time. The page has been refreshed with the latest data — please redo your change.');
-      return false;
+  return _trackStateSave(async () => {
+    let res, body;
+    try {
+      res = await fetch('/api/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      body = await res.json().catch(() => ({}));
+    } catch (e) {
+      console.warn(`[save] ✗ server unreachable (${e.message}), falling back to localStorage`);
+      return _stateSaveFailed();
     }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
-    const json = await res.json().catch(() => ({}));
-    if (typeof json.version === 'number') state.version = json.version;
+    if (!res.ok) return _stateSaveRefused(res.status, body);
+    if (typeof body.version === 'number') state.version = body.version;
     console.log(`[save] ✓ server accepted (version ${state.version})`);
     return true;
-  } catch (e) {
-    console.warn(`[save] ✗ server rejected (${e.message}), falling back to localStorage`);
-  }
-  cacheStateLocally();
-  return false;
+  });
 }
 
 async function loadFromStorage() {
@@ -332,10 +421,43 @@ async function loadFromStorage() {
  * A server-side import is not one of them. Its cards are nowhere in memory to
  * be hydrated over — they sit in collection_imports until the whole thing
  * lands — so refreshing during one is safe, and refusing to for the four
- * minutes an import takes would freeze every other tab's data. */
+ * minutes an import takes would freeze every other tab's data.
+ *
+ * Two more things are half-arrived in the same sense. A save of ours still in
+ * the air: the poll's answer may have been cut before it landed (see
+ * stateSaveSeq above). And a form somebody is typing into — a deck's Edit, a
+ * player's + Add Deck — which the render a poll ends in would rebuild from
+ * scratch, closing it and taking what was typed with it. The poll waits for
+ * the form to be saved or put away; the save that follows a form that is
+ * stale by then is answered with a 409 and a reload, which is the safe way for
+ * that to fall. */
 function stateIsMidFlight() {
-  return state.collections.some(c => c.status === 'loading' || c.status === 'updating' || c.updating)
-      || state.players.some(p => (p.decks || []).some(d => d.nameStatus === 'loading'));
+  return stateSavesInFlight > 0
+      || state.collections.some(c => c.status === 'loading' || c.status === 'updating' || c.updating)
+      || state.players.some(p => (p.decks || []).some(d => d.nameStatus === 'loading' || d.editing))
+      || (typeof document !== 'undefined' && !!document.querySelector?.('.add-deck-form.open'));
+}
+
+/* A polled payload, taken in — or not. Answers whether it was, so the caller
+ * knows whether there is anything new to draw.
+ *
+ * `saves` is what stateSaveSeq read when the poll asked. If it has moved, a
+ * save of ours left or landed while the answer was on its way, and the answer
+ * may be from before it: thrown away, and the next poll asks again. So is one
+ * that would arrive on top of something half-arrived (stateIsMidFlight), which
+ * may have started since the poll asked.
+ *
+ * And the version is never lowered. A payload older than the version this tab
+ * already holds was cut before something this tab has since seen land, and is
+ * not the newer of the two however it got here. */
+function takePolledState(json, saves) {
+  if (!json || saves !== stateSaveSeq || stateIsMidFlight()) return false;
+  if (typeof json.version === 'number') {
+    if (json.version < state.version) return false;
+    state.version = json.version;
+  }
+  hydrateState(json);
+  return true;
 }
 
 /* The poll's fetch: the whole state, but only when there is a new one.
@@ -456,6 +578,13 @@ async function saveFaqSeen(tab) {
 // ── Granular deck save (3.2) ──────────────────────────────────────────
 // Answers whether the server took it, the way saveToStorage does — the
 // fallback to the whole-state POST carries that answer through.
+//
+// It replaces the player's whole deck list with this tab's copy, so it names
+// the version that copy was made from and the server holds it to it, as it
+// does the whole-state POST: a stale copy is missing whatever deck another
+// device added since, and would delete it. A refusal is the server's answer
+// about this list and is answered here; only a server that could not answer
+// at all is worth the second try down the whole-state path.
 async function savePlayerDecks(playerId) {
   const player = state.players.find(p => p.id === playerId);
   if (!player) return saveToStorage();
@@ -466,25 +595,86 @@ async function savePlayerDecks(playerId) {
     cardCount: d.cardCount || null, bracket: d.bracket || null, deckUrl: d.deckUrl || '',
     folderId: d.folderId || null, private: d.private || false,
   }));
-  try {
-    const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/decks`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decks }),
-    });
-    if (res.ok) {
-      // Server bumps the state version on granular writes — adopt it so the
-      // next whole-state POST doesn't 409 with a stale version.
-      const json = await res.json().catch(() => ({}));
-      if (typeof json.version === 'number') state.version = json.version;
-      console.log(`[save] ✓ PUT /api/players/${playerId}/decks (version ${state.version})`);
-      return true;
+  const version = state.version;
+  const answer = await _trackStateSave(async () => {
+    try {
+      const res = await fetch(`/api/players/${encodeURIComponent(playerId)}/decks`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decks, version }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // The version after this write — one past the version it was held
+        // to, so nothing else is in it and it is ours to adopt.
+        if (typeof body.version === 'number') state.version = body.version;
+        console.log(`[save] ✓ PUT /api/players/${playerId}/decks (version ${state.version})`);
+        return true;
+      }
+      if (res.status < 500 && res.status !== 404) return _stateSaveRefused(res.status, body);
+      console.warn(`[save] granular deck save returned ${res.status}, falling back`);
+    } catch (e) {
+      console.warn('[save] granular deck save failed, falling back:', e.message);
     }
-    console.warn(`[save] granular deck save returned ${res.status}, falling back`);
-  } catch (e) {
-    console.warn('[save] granular deck save failed, falling back:', e.message);
-  }
-  return saveToStorage();
+    return null;
+  });
+  return answer === null ? saveToStorage() : answer;
+}
+
+// ── Want lists ────────────────────────────────────────────────────────────
+/* Whether a want-list patch's version keeps this tab in step — adopting it
+ * when it does.
+ *
+ * The patch was made on the server against whatever was stored, not against
+ * this tab's copy (see the want routes in routes/state.js), so the version it
+ * answers with is only this tab's to adopt when nothing else was written in
+ * between: one past its own when the patch wrote, its own when there was
+ * nothing to write. Anything else is somebody else's write the tab has not
+ * seen, and adopting that number would hand the next whole-state save a
+ * version it never synced to — which the server would accept, and overwrite
+ * them with. */
+function adoptPatchVersion(answer) {
+  const version = answer?.version;
+  if (typeof version !== 'number') return true;
+  if (answer.changed === false) return version === state.version;
+  if (version === state.version + 1) { state.version = version; return true; }
+  return false;
+}
+
+/* The tab has learnt its copy of the state is behind the server's. Asked for
+ * now rather than at the next poll — and through the poll (refreshStateNow in
+ * main.js), so the same rules about saves in flight and open forms decide
+ * whether it may land yet. A tab without it — a test harness — waits for a
+ * poll that never comes, which is the same as the next save's 409. */
+function stateFellBehind() {
+  if (typeof refreshStateNow === 'function') refreshStateNow();
+}
+
+/* A card onto a player's want list, or off it. Every place that does either —
+ * the Want Lists tab, the quick-add beside a card, the deck's "Want all" —
+ * comes through here, because what the answer means for this tab's copy of
+ * the state is one rule (adoptPatchVersion) and four copies of it would be
+ * four chances to adopt a version that was not ours.
+ *
+ * Answers the server's reply, or null when there is no session to write it as
+ * (and the page is on its way to the login). Throws with the server's reason
+ * when it is refused, for the caller to say. */
+async function writeWant(playerId, cardName, remove = false) {
+  const base = `/api/players/${encodeURIComponent(playerId)}/wants`;
+  let behind = false;
+  const answer = await _trackStateSave(async () => {
+    const res = await fetch(remove ? `${base}/${encodeURIComponent(cardName)}` : base, remove
+      ? { method: 'DELETE' }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardName }) });
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 401) { goToLogin(); return null; }
+    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    behind = !adoptPatchVersion(body);
+    return body;
+  });
+  // Once this save has landed, or the refresh would be waiting on it.
+  if (behind) stateFellBehind();
+  return answer;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────

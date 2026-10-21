@@ -267,7 +267,7 @@ describe('Auth middleware: requirePlayerAccess', () => {
     const res = await request
       .put(`/api/players/${playerId}/decks`)
       .set('Cookie', playerCookie)
-      .send({ decks: [] });
+      .send({ decks: [], version: 0 });
     assert.equal(res.status, 200);
   });
 
@@ -275,7 +275,7 @@ describe('Auth middleware: requirePlayerAccess', () => {
     const res = await request
       .put(`/api/players/${playerId}/decks`)
       .set('Cookie', otherCookie)
-      .send({ decks: [] });
+      .send({ decks: [], version: 0 });
     assert.equal(res.status, 403);
   });
 
@@ -284,7 +284,7 @@ describe('Auth middleware: requirePlayerAccess', () => {
     const res = await request
       .put(`/api/players/${playerId}/decks`)
       .set('Cookie', cookie)
-      .send({ decks: [] });
+      .send({ decks: [], version: 0 });
     assert.equal(res.status, 200);
   });
 
@@ -292,7 +292,7 @@ describe('Auth middleware: requirePlayerAccess', () => {
     const r1 = await request
       .put(`/api/players/${playerId}/decks`)
       .set('Cookie', playerCookie)
-      .send({ decks: [{ id: 'd1', name: 'Deck', source: 'manual' }] });
+      .send({ decks: [{ id: 'd1', name: 'Deck', source: 'manual' }], version: 0 });
     assert.equal(r1.status, 200);
     assert.ok(typeof r1.body.version === 'number' && r1.body.version >= 1,
       'PUT /decks should return the new version so clients stay in sync');
