@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db, readCollectionCards, writeCollectionCards, isHttpUrl, isImageUrl } = require('../available-db');
 const { getSession, requireAuth, requirePlayerAccess } = require('../middleware/auth');
 const imports = require('../collection-import');
+const history = require('../deck-history');
 
 const DATA_FILE    = process.env.DATA_FILE || require('path').join(__dirname, '..', 'data', 'state.json');
 // A player's colour is one of eight theme-defined slots (--player-0…7); see
@@ -48,20 +49,38 @@ const STALE_VERSION = Object.freeze({
   conflict: 'version',
 });
 
+/* Every deck id any player lists. A deck that moves from one player to
+ * another in a single write is in both blobs, so it is never "gone". */
+function deckIdsOf(players) {
+  const ids = new Set();
+  for (const p of players || []) for (const d of p?.decks || []) if (d?.id) ids.add(d.id);
+  return ids;
+}
+
+/* The blob is the only record of which decks exist — deck_cards,
+ * deck_categories and deck_snapshots are keyed by an id with no table behind
+ * it. So a deck removed from the blob, or every deck of a removed player,
+ * left all its rows behind for ever. The rows of a deck no player lists any
+ * more go in the same transaction as the write that stopped listing it; the
+ * comparison is with what was stored, so a blob that cannot be read removes
+ * nothing. */
 function writeState(data, checkVersion) {
   const { players = [] } = data;
-  if (checkVersion !== undefined) {
-    const row     = db.prepare('SELECT version FROM app_state WHERE key = ?').get('state');
-    const current = row?.version || 0;
-    if (current !== checkVersion) {
+  return db.transaction(() => {
+    const row = db.prepare('SELECT value_json, version FROM app_state WHERE key = ?').get('state');
+    if (checkVersion !== undefined && (row?.version || 0) !== checkVersion) {
       const err = new Error('Conflict'); err.status = 409; throw err;
     }
-  }
-  db.prepare(`
-    INSERT INTO app_state (key, value_json, version) VALUES ('state', ?, 1)
-    ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, version = version + 1
-  `).run(JSON.stringify({ players }));
-  return (db.prepare('SELECT version FROM app_state WHERE key = ?').get('state')?.version || 1);
+    let before = new Set();
+    try { before = deckIdsOf(JSON.parse(row?.value_json || '{}').players); } catch {}
+    db.prepare(`
+      INSERT INTO app_state (key, value_json, version) VALUES ('state', ?, 1)
+      ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, version = version + 1
+    `).run(JSON.stringify({ players }));
+    const after = deckIdsOf(players);
+    history.forgetDecks([...before].filter(id => !after.has(id)));
+    return (db.prepare('SELECT version FROM app_state WHERE key = ?').get('state')?.version || 1);
+  })();
 }
 
 /* The revision a poll asks with — "is there anything newer than this?".

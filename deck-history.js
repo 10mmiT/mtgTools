@@ -263,6 +263,31 @@ function deckDeleted(deckId, rawState, now = Date.now()) {
   })();
 }
 
+/** Decks that no player lists any more, which a whole-state write has just
+ *  removed — a deck taken off a list, or every deck of a removed player.
+ *
+ *  Their cards and piles go: nothing will read them again, and a deck re-added
+ *  under the same id is saved from scratch. Their history goes too, but for
+ *  the one row deckDeleted() left on purpose — what the deck was as it went,
+ *  for the re-add the delete confirmation invites — while it is younger than
+ *  the age cap. A tombstone is not subject to AGE_FLOOR the way a live deck's
+ *  rows are: nobody is looking at this deck's History panel to keep it. */
+function forgetDecks(deckIds, now = Date.now()) {
+  if (!deckIds.length) return;
+  const cards = db.prepare('DELETE FROM deck_cards WHERE deck_id = ?');
+  const cats  = db.prepare('DELETE FROM deck_categories WHERE deck_id = ?');
+  const snaps = db.prepare(`DELETE FROM deck_snapshots WHERE deck_id = ?
+                              AND NOT (reason = 'deck-delete' AND taken_at >= ?)`);
+  db.transaction(() => {
+    for (const id of deckIds) {
+      cards.run(id);
+      cats.run(id);
+      snaps.run(id, now - MAX_AGE_MS);
+      lastSaveAt.delete(id);
+    }
+  })();
+}
+
 // ── Reading ───────────────────────────────────────────────────────────────
 
 /** What one state has that another does not.
@@ -371,7 +396,7 @@ function init() {
 
 module.exports = {
   BURST_IDLE_MS, MAX_PER_DECK, MAX_AGE_MS, AGE_FLOOR, REASONS,
-  init, noteSave, force, deckDeleted, list, get, prune,
+  init, noteSave, force, deckDeleted, forgetDecks, list, get, prune,
   readDeck, normaliseState, diff,
   /* Tests reach for this to put a deck back in the state of never having been
    * saved; nothing else should. */
