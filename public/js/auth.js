@@ -52,13 +52,11 @@ function openChangePassword() {
   document.getElementById('cpConfirmPw').value  = '';
   const err = document.getElementById('cpError');
   if (err) { err.style.display = 'none'; err.textContent = ''; }
-  modal.style.display = 'flex';
-  setTimeout(() => document.getElementById('cpCurrentPw').focus(), 50);
+  openModal(modal, { onClose: closeChangePassword });
 }
 
 function closeChangePassword() {
-  const modal = document.getElementById('changePwModal');
-  if (modal) modal.style.display = 'none';
+  closeModal('changePwModal');
 }
 
 async function submitChangePassword() {

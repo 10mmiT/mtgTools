@@ -68,7 +68,7 @@ const TURN_HOST   = 'card-turn-host';
 function cardTurnHtml(back) {
   if (!back) return '';
   return `<button type="button" class="card-turn" aria-pressed="false"
-    title="Turn over" data-turn="${esc(back)}"></button>`;
+    title="Turn over" aria-label="Turn over" data-turn="${esc(back)}"></button>`;
 }
 
 /* A card picture and whatever is drawn on it: the control that turns it over,

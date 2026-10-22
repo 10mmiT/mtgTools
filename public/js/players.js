@@ -567,9 +567,9 @@ function deckTileHtml(player, d, canEdit) {
   if (d.editing) {
     return `<div class="deck-tile-edit" data-deck-id="${esc(d.id)}">
       <div class="edit-label">Edit Deck</div>
-      <input type="text" name="edit-name"       value="${esc(d.name)}"      placeholder="Deck name…">
-      <input type="text" name="edit-commander"  value="${esc(d.commander)}" placeholder="Commander name…">
-      <input type="text" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
+      <input type="text" aria-label="Deck name" name="edit-name"       value="${esc(d.name)}"      placeholder="Deck name…">
+      <input type="text" aria-label="Commander" name="edit-commander"  value="${esc(d.commander)}" placeholder="Commander name…">
+      <input type="text" aria-label="Link" name="edit-url"        value="${esc(d.deckUrl)}"   placeholder="Link (any URL, e.g. moxfield.com/decks/…)"
              onkeydown="if(event.key==='Enter')saveEditDeck('${pid}','${did}')">
       <div style="display:flex;gap:var(--space-2);margin-top:var(--space-1)">
         <button class="btn-primary"   style="flex:1;padding:var(--space-1) var(--space-2);font-size:var(--text-sm)" onclick="saveEditDeck('${pid}','${did}')">Save</button>
@@ -814,7 +814,9 @@ function renderEveryone(list) {
     return `<div class="player-section">
       <div class="player-header" style="--pc:${playerColor(player)}" onclick="togglePlayerSection('${player.id}', event)">
         <span class="player-dot"></span>
-        <span class="player-name-lbl">${esc(player.name)}</span>
+        <button type="button" class="player-name-lbl" id="ptg-player-${player.id}"
+                aria-expanded="${pCollapsed ? 'false' : 'true'}" aria-controls="pb-player-${player.id}"
+                onclick="togglePlayerSection('${player.id}')">${esc(player.name)}</button>
         ${canEdit ? `<button class="btn-secondary" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
         ${isAdmin ? kebabMenuHtml([
           { label: 'Remove player', onclick: `removePlayer('${player.id}')`, danger: true },
@@ -822,9 +824,9 @@ function renderEveryone(list) {
         <svg class="chevron ${pCollapsed ? 'closed' : ''}" id="chv-player-${player.id}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       ${canEdit ? `<div class="add-deck-form" id="adf_${player.id}" data-player="${player.id}">
-        <input type="text" name="deckname"  placeholder="Deck name…"              style="flex:1;min-width:130px">
-        <input type="text" name="commander" placeholder="Commander name…"          style="flex:1.2;min-width:160px">
-        <input type="text" name="deckurl"   placeholder="Archidekt URL (optional)" style="flex:1.5;min-width:200px"
+        <input type="text" aria-label="Deck name" name="deckname"  placeholder="Deck name…"              style="flex:1;min-width:130px">
+        <input type="text" aria-label="Commander" name="commander" placeholder="Commander name…"          style="flex:1.2;min-width:160px">
+        <input type="text" aria-label="Archidekt URL" name="deckurl"   placeholder="Archidekt URL (optional)" style="flex:1.5;min-width:200px"
                onkeydown="if(event.key==='Enter')confirmAddDeck('${player.id}')">
         <div class="form-btns">
           <button class="btn-primary"   style="padding:var(--space-1) var(--space-3);font-size:var(--text-sm)" onclick="confirmAddDeck('${player.id}')">Add</button>

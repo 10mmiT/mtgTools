@@ -23,7 +23,8 @@ const WANT_COLUMNS = [
  * exactly when someone reaches for it. */
 function initWantField() {
   wantAc = mountCardAutocomplete('wantCardInput', 'wantAcDrop',
-    name => { document.getElementById('wantCardInput').value = name; });
+    name => { document.getElementById('wantCardInput').value = name; },
+    { onEnter: addWant });
 }
 
 let _wantControlsMounted = false;
@@ -282,7 +283,7 @@ async function renderWantList() {
         const canEdit = isMyPlayer(p.id);
         return `<td style="text-align:center">
           <span class="want-check" style="color:${playerColor(p)}">✓
-            ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${jsAttr(cardName)}')" title="Remove">✕</button>` : ''}
+            ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${jsAttr(cardName)}')" title="Remove" aria-label="Remove">✕</button>` : ''}
           </span>
         </td>`;
       }).join('');
@@ -357,9 +358,13 @@ async function renderWantList() {
       .map(p => {
         const initial = esc(p.name.charAt(0).toUpperCase());
         const canEdit = isMyPlayer(p.id);
-        return `<span class="want-dot" style="background:${playerColor(p)};cursor:${canEdit?'pointer':'default'}" title="${esc(p.name)}"
-          ${canEdit ? `onclick="removeWant('${p.id}','${jsAttr(cardName)}')"` : ''}
-        >${initial}</span>`;
+        /* Your own dot is the button that takes the card off your list;
+           anybody else's is only a mark that they want it too. */
+        return canEdit
+          ? `<button type="button" class="want-dot" style="background:${playerColor(p)}" title="${esc(p.name)}"
+              aria-label="Remove ${esc(cardName)} from ${esc(p.name)}'s want list"
+              onclick="removeWant('${p.id}','${jsAttr(cardName)}')">${initial}</button>`
+          : `<span class="want-dot" style="background:${playerColor(p)}" title="${esc(p.name)}">${initial}</span>`;
       }).join('');
 
     /* And the control that turns it, where the card has another side — the

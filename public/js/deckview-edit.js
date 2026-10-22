@@ -384,17 +384,18 @@ function dbDeleteCategory(name) {
   _dbRenderCategoriesModalList();
 }
 
-function dbShowRenameCat(name) {
+/* `returnFocus` is for the Manage Categories modal, which closes to make way
+   for this one: the focus goes back past it, to what opened that. */
+function dbShowRenameCat(name, returnFocus) {
   _dbRenamingCat = name;
   const input = document.getElementById('dbRenameCatInput');
   if (input) input.value = name;
-  document.getElementById('dbRenameCatOverlay').style.display = 'flex';
-  setTimeout(() => input?.focus(), 50);
+  openModal('dbRenameCatOverlay', { onClose: dbHideRenameCat, returnFocus });
 }
 
 function dbHideRenameCat() {
   _dbRenamingCat = null;
-  document.getElementById('dbRenameCatOverlay').style.display = 'none';
+  closeModal('dbRenameCatOverlay');
   if (_dbCatModalReturnTo === 'categories') {
     _dbCatModalReturnTo = null;
     dbShowCategoriesModal();
@@ -465,11 +466,11 @@ function dbCommitCatName(input) {
 function dbShowCategoriesModal() {
   if (!dbDeck) return;
   _dbRenderCategoriesModalList();
-  document.getElementById('dbCategoriesOverlay').style.display = 'flex';
+  openModal('dbCategoriesOverlay', { onClose: dbHideCategoriesModal });
 }
 
 function dbHideCategoriesModal() {
-  document.getElementById('dbCategoriesOverlay').style.display = 'none';
+  return closeModal('dbCategoriesOverlay');
 }
 
 function _dbRenderCategoriesModalList() {
@@ -482,8 +483,8 @@ function _dbRenderCategoriesModalList() {
       .filter(c => (c.category || dbAutoCategory(c.card_name)) === cat.name)
       .reduce((s, c) => s + (c.qty || 1), 0);
     const actions = canEdit ? `
-      <button class="db-cat-btn" title="Rename" onclick="dbRenameCatFromModal('${jsAttr(cat.name)}')">✎</button>
-      <button class="db-cat-btn db-cat-del" title="Delete" onclick="dbDeleteCategory('${jsAttr(cat.name)}')">×</button>` : '';
+      <button class="db-cat-btn" title="Rename" aria-label="Rename ${esc(cat.name)}" onclick="dbRenameCatFromModal('${jsAttr(cat.name)}')">✎</button>
+      <button class="db-cat-btn db-cat-del" title="Delete" aria-label="Delete ${esc(cat.name)}" onclick="dbDeleteCategory('${jsAttr(cat.name)}')">×</button>` : '';
     return `<div class="db-catmodal-row">
       <span class="db-catmodal-name">${esc(cat.name)}</span>
       <span class="db-catmodal-count">${count}</span>
@@ -501,9 +502,9 @@ function dbAddCategoryFromModal() {
 }
 
 function dbRenameCatFromModal(name) {
-  dbHideCategoriesModal();
+  const back = dbHideCategoriesModal();
   _dbCatModalReturnTo = 'categories';
-  dbShowRenameCat(name);
+  dbShowRenameCat(name, back);
 }
 
 // ── Move card modal ───────────────────────────────────────────────────────────
@@ -544,13 +545,13 @@ function dbShowMoveCard(ref) {
   ).join('');
   const newCatInput = document.getElementById('dbMoveNewCatInput');
   if (newCatInput) newCatInput.value = '';
-  document.getElementById('dbMoveCardOverlay').style.display = 'flex';
+  openModal('dbMoveCardOverlay', { onClose: dbHideMoveCard });
 }
 
 function dbHideMoveCard() {
   _dbMovingCard   = null;
   _dbBulkMoveMode = false;
-  document.getElementById('dbMoveCardOverlay').style.display = 'none';
+  closeModal('dbMoveCardOverlay');
 }
 
 // Create a brand-new category right from the move modal and move the

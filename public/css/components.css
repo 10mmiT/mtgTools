@@ -1409,7 +1409,7 @@ td { padding: var(--space-2) var(--space-3); }
   z-index: 200; max-height: 220px; overflow-y: auto;
 }
 .ac-item { padding: var(--space-2) var(--space-3); font-size: var(--text-base); cursor: pointer; }
-.ac-item:hover { background: var(--surface-2); }
+.ac-item:hover, .ac-item.active { background: var(--surface-2); }
 @media (width < 640px) {
   .autocomplete-wrap { min-width: 0; }
 

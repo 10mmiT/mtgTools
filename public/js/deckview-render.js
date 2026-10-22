@@ -333,9 +333,9 @@ function dbCardMenuItems({ ref, canEdit, isCommander, canPartner, qty }) {
     ${isCommander ? '' : `
     <div class="col-menu-item db-menu-step">
       <button class="db-step-btn" onclick="dbStepQty('${ref}', -1)"
-        title="One fewer — the last one takes the card off the mat">−</button>
+        title="One fewer — the last one takes the card off the mat" aria-label="One fewer — the last one takes the card off the mat">−</button>
       <span class="db-step-count">×${qty || 1}</span>
-      <button class="db-step-btn" onclick="dbStepQty('${ref}', 1)" title="One more">＋</button>
+      <button class="db-step-btn" onclick="dbStepQty('${ref}', 1)" title="One more" aria-label="One more">＋</button>
     </div>`}
     <button class="col-menu-item" onclick="dbCloseCardMenu();dbShowMoveCard('${ref}')">⇄ Move to…</button>
     ${isCommander ? '' :
@@ -494,7 +494,7 @@ function dbBulkMove() {
   ).join('');
   const newCatInput = document.getElementById('dbMoveNewCatInput');
   if (newCatInput) newCatInput.value = '';
-  document.getElementById('dbMoveCardOverlay').style.display = 'flex';
+  openModal('dbMoveCardOverlay', { onClose: dbHideMoveCard });
 }
 
 /* The ghost pile — an empty outline after the last category, faint at rest and
@@ -588,7 +588,7 @@ function _dbRenderSection(catName, cards, canEdit, inDeck = 0) {
   const collapsed = dbView !== 'pile' && dbCollapsedCats.has(catName);
   const catActions = canEdit ? `
     <div class="db-cat-kebab-wrap">
-      <button class="db-cat-btn" title="Category actions" onclick="dbToggleCatMenu(event)">⋯</button>
+      <button class="db-cat-btn" title="Category actions" aria-label="Category actions" onclick="dbToggleCatMenu(event)">⋯</button>
       <div class="col-menu db-cat-menu">
         <button class="col-menu-item" onclick="dbCloseCatMenus();dbSelectCategory('${jsAttr(catName)}')">Select all</button>
         <button class="col-menu-item" onclick="dbCloseCatMenus();dbShowRenameCat('${jsAttr(catName)}')">Rename</button>
@@ -734,16 +734,16 @@ function _dbListRow(card, canEdit) {
   const ref   = dbCardRef(card);
   const r     = jsAttr(ref);
   const selected = dbSelectedCards.has(ref);
-  const infoEl  = `<button class="db-row-btn" title="Card info" onclick="event.stopPropagation();dbInspectCard('${jsAttr(dbCardRef(card))}')">ⓘ</button>`;
+  const infoEl  = `<button class="db-row-btn" title="Card info" aria-label="Card info" onclick="event.stopPropagation();dbInspectCard('${jsAttr(dbCardRef(card))}')">ⓘ</button>`;
   const moveBtn = canEdit
-    ? `<button class="db-row-btn" title="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${r}')">⇄</button>` : '';
+    ? `<button class="db-row-btn" title="Move to…" aria-label="Move to…" onclick="event.stopPropagation();dbShowMoveCard('${r}')">⇄</button>` : '';
   const delBtn = canEdit
-    ? `<button class="db-row-btn db-row-del" title="Remove" onclick="event.stopPropagation();dbRemoveCard('${r}')">×</button>` : '';
+    ? `<button class="db-row-btn db-row-del" title="Remove" aria-label="Remove" onclick="event.stopPropagation();dbRemoveCard('${r}')">×</button>` : '';
   const qtyEl = canEdit
     ? `<span class="db-qty-wrap">
-        <button class="db-qty-btn" onclick="event.stopPropagation();dbChangeQty('${r}',-1)">−</button>
+        <button class="db-qty-btn" aria-label="One fewer" onclick="event.stopPropagation();dbChangeQty('${r}',-1)">−</button>
         <span class="dv-qty">×${card.qty || 1}</span>
-        <button class="db-qty-btn" onclick="event.stopPropagation();dbChangeQty('${r}',1)">+</button>
+        <button class="db-qty-btn" aria-label="One more" onclick="event.stopPropagation();dbChangeQty('${r}',1)">+</button>
        </span>`
     : `<span class="dv-qty">×${card.qty || 1}</span>`;
 

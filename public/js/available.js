@@ -94,9 +94,9 @@ function availRenderWeekView() {
   const lookup = availBuildLookup();
 
   let html = `<div class="cal-header" style="margin-bottom:var(--space-2)">
-    <button class="nav-btn" onclick="availWeekPrev()" ${availWeekOffset === 0 ? 'disabled' : ''}>&#8249;</button>
+    <button class="nav-btn" onclick="availWeekPrev()" aria-label="Previous week" ${availWeekOffset === 0 ? 'disabled' : ''}>&#8249;</button>
     <span class="month-title">${availWeekRangeLabel(days)}</span>
-    <button class="nav-btn" onclick="availWeekNext()">&#8250;</button>
+    <button class="nav-btn" onclick="availWeekNext()" aria-label="Next week">&#8250;</button>
   </div><div class="avail-week-list">`;
 
   for (let i = 0; i < 7; i++) {

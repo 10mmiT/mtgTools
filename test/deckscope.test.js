@@ -114,7 +114,7 @@ function loadTab({ players = PLAYERS, deckCardCounts = COUNTS,
     /** The player sections the tab is drawing. */
     sections() {
       run('renderPlayers()');
-      return [...el('playersList').innerHTML.matchAll(/player-name-lbl">([^<]+)</g)].map(m => m[1]);
+      return [...el('playersList').innerHTML.matchAll(/class="player-name-lbl"[^>]*>([^<]+)</g)].map(m => m[1]);
     },
   };
 }

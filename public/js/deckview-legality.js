@@ -668,7 +668,7 @@ function _dbCheckPanelHtml() {
   return `
     <div class="db-check-hdr">
       <span class="db-check-title">Judged as ${esc(format.label)}</span>
-      <button class="db-check-close" onclick="dbCloseCheckPanel()" title="Close">✕</button>
+      <button class="db-check-close" onclick="dbCloseCheckPanel()" title="Close" aria-label="Close">✕</button>
     </div>
     ${_dbLegalSectionHtml(format, legality)}
     ${bracket ? _dbBracketSectionHtml(bracket) : ''}`;

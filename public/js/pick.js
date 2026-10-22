@@ -236,8 +236,9 @@ function renderPickPool() {
     const decks = p.decks || [];
     if (!decks.length) return '';
     return `<div class="pick-pool-group">
-      <div class="pick-pool-player" style="color:${playerColor(p)};cursor:pointer" title="Toggle all of ${esc(p.name)}'s decks"
-           onclick="pickTogglePlayerDecks('${jsAttr(p.id)}')">${esc(p.name)}</div>
+      <button type="button" class="pick-pool-player" style="color:${playerColor(p)}" title="Toggle all of ${esc(p.name)}'s decks"
+           aria-label="Toggle all of ${esc(p.name)}'s decks"
+           onclick="pickTogglePlayerDecks('${jsAttr(p.id)}')">${esc(p.name)}</button>
       <div class="pick-pool-chips">${decks.map(d => {
         const off = !pickIncludedDeckIds.has(d.id);
         /* A deck that is in the pool and out of tonight's bracket is marked

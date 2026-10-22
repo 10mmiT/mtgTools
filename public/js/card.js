@@ -60,7 +60,7 @@ function _useModal() { return window.innerWidth >= BP_MD; }
 function _openModal(hostId) {
   const overlay = document.getElementById('cardModal');
   if (!overlay) return null;
-  overlay.style.display = 'flex';
+  openModal(overlay, { onClose: closeCardModal, focus: 'cardModalClose' });
   document.body.style.overflow = 'hidden';
   return document.getElementById(hostId);
 }
@@ -68,7 +68,7 @@ function _openModal(hostId) {
 function _closeModal() {
   const overlay = document.getElementById('cardModal');
   if (!overlay) return;
-  overlay.style.display = 'none';
+  closeModal(overlay);
   document.body.style.overflow = '';
 }
 

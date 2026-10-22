@@ -210,7 +210,7 @@
        stacked boxes; the Add form and the collections list were two more.
        What is left above the cards is this row and the chips under it. -->
   <div class="toolbar">
-    <input id="searchInput" type="text" class="search-input" placeholder="Search your cards… (name, or t:creature c:rg mv&lt;=3)" oninput="scheduleRender()">
+    <input id="searchInput" aria-label="Search your cards" type="text" class="search-input" placeholder="Search your cards… (name, or t:creature c:rg mv&lt;=3)" oninput="scheduleRender()">
     <span id="resultInfo" class="result-info"></span>
     <div id="colViewMount"></div>
     <!-- Whose shelf this tab is showing. Hidden by js/collections.js in a
@@ -282,7 +282,7 @@
   <div class="section deck-section" id="deckPanel">
     <div class="deck-hdr">
       <div class="section-title">Deck</div>
-      <button class="drawer-close deck-drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+      <button class="drawer-close deck-drawer-close" onclick="closeDrawers()" title="Close" aria-label="Close">✕</button>
     </div>
     <div id="deckEmpty">
       <button class="deck-upload-btn" onclick="document.getElementById('deckInput').click()">
@@ -296,7 +296,7 @@
           <div class="deck-name" id="deckName"></div>
           <div class="deck-stats" id="deckStats"></div>
         </div>
-        <button class="btn-remove" style="padding:var(--space-1) var(--space-2);font-size:var(--text-2xs);flex-shrink:0" onclick="clearDeck()">✕</button>
+        <button class="btn-remove" style="padding:var(--space-1) var(--space-2);font-size:var(--text-2xs);flex-shrink:0" onclick="clearDeck()" aria-label="Close this deck">✕</button>
       </div>
       <button class="deck-filter-row" id="deckFilterBtn" onclick="toggleDeckFilter()">
         <span>Filter results by deck</span>
@@ -314,12 +314,12 @@
 <div class="drawer" data-drawer id="addColDrawer" role="dialog" aria-modal="true" aria-labelledby="addColTitle">
   <div class="drawer-hdr">
     <span class="drawer-title" id="addColTitle">Add Collection</span>
-    <button class="drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+    <button class="drawer-close" onclick="closeDrawers()" title="Close" aria-label="Close">✕</button>
   </div>
   <div class="drawer-body">
     <div class="add-form">
       <div class="field">
-        <label>Label (person's name)</label>
+        <label for="nameInput">Label (person's name)</label>
         <input id="nameInput" type="text" class="name-input" placeholder="Tim">
       </div>
       <div class="field">
@@ -330,7 +330,7 @@
         <select id="ownerInput" class="name-input"><option value="">The group (no owner)</option></select>
       </div>
       <div class="field">
-        <label>Archidekt URL</label>
+        <label for="urlInput">Archidekt URL</label>
         <input id="urlInput" type="text" class="url-input" placeholder="archidekt.com/collection/v2/…">
       </div>
       <button class="btn-primary" onclick="addFromUrl()">Load from URL</button>
@@ -393,7 +393,7 @@
        in the empty state below, which is what someone who needs it is
        looking at. -->
   <div class="toolbar">
-    <input id="sfInput" type="text" class="search-input"
+    <input id="sfInput" aria-label="Search Scryfall" type="text" class="search-input"
            placeholder="Search Scryfall… (e.g. t:creature c:red cmc=3)"
            onkeydown="if(event.key==='Enter')doScryfallSearch()">
     <button class="btn-primary" onclick="doScryfallSearch()">Search</button>
@@ -426,11 +426,11 @@
      second shape; the filter that narrows the tiles only in the first. -->
 <div id="tab-sets" class="tab-pane" style="display:none" data-set-mode="picker">
   <div class="toolbar">
-    <input id="setSearchInput" type="text" class="search-input sets-when-picker"
+    <input id="setSearchInput" aria-label="Filter sets" type="text" class="search-input sets-when-picker"
            placeholder="Filter sets…" oninput="filterSets()">
     <div class="chip-row sets-when-cards" id="setChipRow"></div>
     <span id="setInfo" class="result-info"></span>
-    <select id="setFilterSel" class="sets-when-cards" title="Filter by ownership" onchange="setSetFilter(this.value)">
+    <select id="setFilterSel" aria-label="Filter by ownership" class="sets-when-cards" title="Filter by ownership" onchange="setSetFilter(this.value)">
       <option value="all">Owned: All</option>
       <option value="owned">Owned only</option>
       <option value="unowned">Unowned only</option>
@@ -454,12 +454,11 @@
        done often, so it stays on the strip rather than going to a drawer the
        way the Collections add form did. -->
   <div class="toolbar">
-    <select id="wantPlayerSel" onchange="wantPlayerSelChange(this)">
+    <select id="wantPlayerSel" aria-label="Player" onchange="wantPlayerSelChange(this)">
       <option value="">Select player…</option>
     </select>
     <div class="autocomplete-wrap want-add-field">
-      <input id="wantCardInput" type="text" style="width:100%" placeholder="Card name…"
-             onkeydown="if(event.key==='Enter')addWant()">
+      <input id="wantCardInput" aria-label="Card to add to the want list" type="text" style="width:100%" placeholder="Card name…">
       <div id="wantAcDrop" class="ac-dropdown"></div>
     </div>
     <button class="btn-primary" onclick="addWant()">+ Add</button>
@@ -469,7 +468,7 @@
     <div id="wantSortMount"></div>
     <div id="wantColumnsMount"></div>
     <div class="col-menu-wrap">
-      <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Import / export want list">⋯</button>
+      <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Import / export want list" aria-label="Import / export want list">⋯</button>
       <div class="col-menu" id="wantExportMenu">
         <div class="db-more-section-label">Import</div>
         <button class="col-menu-item" onclick="document.getElementById('wantExportMenu').classList.remove('open');document.getElementById('wantCsvInput').click()">⬆ Import CSV</button>
@@ -510,9 +509,9 @@
       <div class="section">
         <div class="avail-month-cal">
           <div class="cal-header">
-            <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()">&#8249;</button>
+            <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()" aria-label="Previous month">&#8249;</button>
             <span class="month-title" id="availMonthTitle"></span>
-            <button class="nav-btn" onclick="availNextMonth()">&#8250;</button>
+            <button class="nav-btn" onclick="availNextMonth()" aria-label="Next month">&#8250;</button>
           </div>
           <div class="cal-grid" id="availCalGrid"></div>
         </div>
@@ -567,7 +566,7 @@
         <button class="view-btn land-preset-btn" data-size="100">100 <span class="preset-sub">Commander</span></button>
       </div>
       <div class="lands-field-row">
-        <input type="number" id="landsCustomSize" class="lands-num-input" placeholder="Custom…" min="1" max="500" oninput="landsOnCustomSize(this.value)">
+        <input type="number" id="landsCustomSize" aria-label="Custom deck size" class="lands-num-input" placeholder="Custom…" min="1" max="500" oninput="landsOnCustomSize(this.value)">
         <span class="lands-hint">cards</span>
       </div>
     </div>
@@ -577,7 +576,7 @@
       <div class="section-title">Total Lands</div>
       <p class="lands-sub">Override how many lands to run. Leave blank to use the recommended amount for your deck size.</p>
       <div class="lands-field-row">
-        <input type="number" id="landsCount" class="lands-num-input" placeholder="24" min="0" max="500">
+        <input type="number" id="landsCount" aria-label="Number of lands" class="lands-num-input" placeholder="24" min="0" max="500">
         <span class="lands-hint">lands <span id="landsRecHint" class="lands-rec-hint"></span></span>
       </div>
     </div>
@@ -589,32 +588,32 @@
       <div class="lands-pips-grid">
         <div class="lands-pip-field">
           <i class="ms ms-w ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-w">White</label>
+          <label for="pip-W" class="lands-pip-name mc-w">White</label>
           <input type="number" id="pip-W" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-u ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-u">Blue</label>
+          <label for="pip-U" class="lands-pip-name mc-u">Blue</label>
           <input type="number" id="pip-U" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-b ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-b">Black</label>
+          <label for="pip-B" class="lands-pip-name mc-b">Black</label>
           <input type="number" id="pip-B" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-r ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-r">Red</label>
+          <label for="pip-R" class="lands-pip-name mc-r">Red</label>
           <input type="number" id="pip-R" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-g ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-g">Green</label>
+          <label for="pip-G" class="lands-pip-name mc-g">Green</label>
           <input type="number" id="pip-G" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-c ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-c">Colorless</label>
+          <label for="pip-C" class="lands-pip-name mc-c">Colorless</label>
           <input type="number" id="pip-C" class="lands-num-input" placeholder="0" min="0">
         </div>
       </div>
@@ -626,15 +625,15 @@
       <p class="lands-sub">How many dual lands, fetch lands, or other non-basics are you including? These count toward your land total but are subtracted before basics are calculated.</p>
       <div class="lands-nonbasic-grid">
         <div class="lands-nonbasic-field">
-          <label class="lands-pip-name">Dual lands</label>
+          <label for="nb-dual" class="lands-pip-name">Dual lands</label>
           <input type="number" id="nb-dual" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-nonbasic-field">
-          <label class="lands-pip-name">Fetch lands</label>
+          <label for="nb-fetch" class="lands-pip-name">Fetch lands</label>
           <input type="number" id="nb-fetch" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-nonbasic-field">
-          <label class="lands-pip-name">Other non-basics</label>
+          <label for="nb-other" class="lands-pip-name">Other non-basics</label>
           <input type="number" id="nb-other" class="lands-num-input" placeholder="0" min="0">
         </div>
       </div>
@@ -668,7 +667,7 @@
   <div class="toolbar">
     <button class="btn-secondary" id="pickPoolBtn" onclick="openDrawer('pickPoolDrawer')" title="Choose which decks are in the draw">Deck Pool</button>
     <div class="col-menu-wrap kebab-wrap">
-      <button class="kebab-btn" title="Options" onclick="toggleKebab(event)">⋯</button>
+      <button class="kebab-btn" title="Options" aria-label="Options" onclick="toggleKebab(event)">⋯</button>
       <div class="col-menu">
         <button class="col-menu-item" id="pickExcludeOwnBtn" onclick="event.stopPropagation();pickToggleExcludeOwn()"
                 title="Players won't be assigned their own decks">
@@ -694,7 +693,7 @@
   <div class="drawer" data-drawer id="pickPoolDrawer" role="dialog" aria-modal="true" aria-labelledby="pickPoolTitle">
     <div class="drawer-hdr">
       <span class="drawer-title" id="pickPoolTitle">Deck Pool</span>
-      <button class="drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+      <button class="drawer-close" onclick="closeDrawers()" title="Close" aria-label="Close">✕</button>
     </div>
     <div class="drawer-body">
       <!-- What tonight is for. Above the decks rather than below them, because
@@ -747,22 +746,22 @@
     <div class="section-title">Create user account</div>
     <form onsubmit="adminCreateUser(event)" class="admin-create-form">
       <div class="field">
-        <label>Username</label>
+        <label for="newUsername">Username</label>
         <input type="text" id="newUsername" class="admin-field" autocapitalize="none" placeholder="username" required>
       </div>
       <div class="field">
-        <label>Password</label>
+        <label for="newPassword">Password</label>
         <input type="password" id="newPassword" class="admin-field" placeholder="password" required>
       </div>
       <div class="field">
-        <label>Role</label>
+        <label for="newRole">Role</label>
         <select id="newRole">
           <option value="player">Player</option>
           <option value="admin">Admin</option>
         </select>
       </div>
       <div class="field">
-        <label>Linked player</label>
+        <label for="newPlayerId">Linked player</label>
         <select id="newPlayerId" class="admin-field">
           <option value="">— No linked player —</option>
         </select>
@@ -820,8 +819,7 @@
          stays on the strip rather than going behind the ⋯ — the same call
          §9.4 made for the Want List's add field. -->
     <div class="autocomplete-wrap db-add-field db-when-deck">
-      <input type="text" id="dbAddCardInput" placeholder="Add a card…"
-             oninput="dbAddAcInput()" onkeydown="if(event.key==='Enter'){closeDbAddAc();dbAddCard()}">
+      <input type="text" id="dbAddCardInput" aria-label="Add a card to this deck" placeholder="Add a card…">
       <div id="dbAddAcDrop" class="ac-dropdown" style="display:none"></div>
     </div>
     <button class="btn-primary db-when-deck" onclick="dbAddCard()">Add</button>
@@ -830,7 +828,7 @@
          run against the deck in front of you. A bare word is still a plain
          search of name and rules text, so nothing has to be learned to type
          "goblin". -->
-    <input type="text" id="dbFilterInput" class="search-input db-when-deck"
+    <input type="text" id="dbFilterInput" aria-label="Filter this deck" class="search-input db-when-deck"
            placeholder="Filter this deck… (name, or t:creature c:rg mv&lt;=3)"
            oninput="dbSetFilter(this.value)">
 
@@ -856,7 +854,7 @@
          a card and the way out, so the controls that are always here are one
          cluster at the end of the strip rather than three strays along it. -->
     <button class="btn-secondary db-menu-btn" id="dbMenuBtn" onclick="dbToggleMenu()"
-            aria-expanded="false" aria-controls="dbMenu" title="Deck controls (m)">
+            aria-expanded="false" aria-controls="dbMenu" title="Deck controls (m)" aria-label="Deck controls (m)">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
 
@@ -866,7 +864,7 @@
          no way back is a mat you have to reload the page to leave. Its label is
          written by _dbSyncFold(), because what it does next depends on how much
          is already folded away. -->
-    <button class="btn-secondary db-fold db-when-deck" id="dbFoldBtn" onclick="dbFoldChrome()" title="Hide the controls">
+    <button class="btn-secondary db-fold db-when-deck" id="dbFoldBtn" onclick="dbFoldChrome()" title="Hide the controls" aria-label="Hide the controls">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="18 15 12 9 6 15"/></svg>
     </button>
   </div>
@@ -940,7 +938,7 @@
   <aside id="dbMenu" class="db-menu" aria-label="Deck controls">
     <div class="db-menu-hdr">
       <span class="db-menu-title">Deck controls</span>
-      <button class="db-menu-close" onclick="dbCloseMenu()" title="Close">✕</button>
+      <button class="db-menu-close" onclick="dbCloseMenu()" title="Close" aria-label="Close">✕</button>
     </div>
 
     <!-- What the mat looks like. The three shared controls, mounted by
@@ -1023,7 +1021,7 @@
 
   <!-- Add category row -->
   <div class="db-add-cat-row db-when-deck" id="dbAddCatRow">
-    <input type="text" id="dbNewCatInput" placeholder="New category name…"
+    <input type="text" id="dbNewCatInput" aria-label="New category name" placeholder="New category name…"
            onkeydown="if(event.key==='Enter')dbAddCategory()" style="flex:1">
     <button class="btn-secondary" onclick="dbAddCategory()">+ Category</button>
   </div>
@@ -1101,13 +1099,12 @@
            each of two hundred of them. Written by _dbRenderAddTo() off
            dbAddBoards(), so the list is the boards. -->
       <div id="dbAddToWrap" class="db-add-to-wrap"></div>
-      <button class="db-drawer-close" onclick="dbCloseSearchPanel()" title="Close">✕</button>
+      <button class="db-drawer-close" onclick="dbCloseSearchPanel()" title="Close" aria-label="Close">✕</button>
     </div>
     <div id="db-left-search" class="db-drawer-content">
       <div class="db-search-bar">
         <div class="autocomplete-wrap db-search-field">
-          <input type="text" id="dbSearchInput" placeholder="Scryfall query (Enter to search)…"
-                 oninput="dbAcInput()" onkeydown="if(event.key==='Enter'){closeDbAc();dbSearch()}">
+          <input type="text" id="dbSearchInput" aria-label="Scryfall query" placeholder="Scryfall query (Enter to search)…">
           <div id="dbAcDrop" class="ac-dropdown" style="display:none"></div>
         </div>
         <button class="btn-primary" onclick="dbSearch()">Search</button>
@@ -1160,30 +1157,29 @@
   <div id="dbHistoryPanel" class="db-drawer">
     <div class="db-drawer-hdr">
       <span class="db-drawer-title">History</span>
-      <button class="db-drawer-close" onclick="dbCloseHistoryPanel()" title="Close">✕</button>
+      <button class="db-drawer-close" onclick="dbCloseHistoryPanel()" title="Close" aria-label="Close">✕</button>
     </div>
     <div id="dbHistoryContent" class="db-drawer-content"></div>
   </div>
   <div id="dbHistoryBackdrop" class="db-drawer-backdrop" onclick="dbCloseHistoryPanel()"></div>
 
   <!-- New Deck modal -->
-  <div id="dbNewDeckOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideNewDeck()">
+  <div id="dbNewDeckOverlay" role="dialog" aria-modal="true" aria-labelledby="dbNewDeckTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideNewDeck()">
     <div class="card-modal-box" style="max-width:420px;padding:var(--space-5)">
-      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">New Deck</div>
+      <div id="dbNewDeckTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">New Deck</div>
       <div style="margin-bottom:var(--space-3)">
-        <label class="section-label" style="display:block;margin-bottom:var(--space-1)">Player</label>
+        <label for="dbNewDeckPlayer" class="section-label" style="display:block;margin-bottom:var(--space-1)">Player</label>
         <select id="dbNewDeckPlayer" style="width:100%"></select>
       </div>
       <div style="margin-bottom:var(--space-3)">
-        <label class="section-label" style="display:block;margin-bottom:var(--space-1)">Deck Name</label>
+        <label for="dbNewDeckName" class="section-label" style="display:block;margin-bottom:var(--space-1)">Deck Name</label>
         <input type="text" id="dbNewDeckName" placeholder="My Commander Deck" style="width:100%;box-sizing:border-box"
                onkeydown="if(event.key==='Enter')dbCreateDeck()">
       </div>
       <div style="margin-bottom:var(--space-4)">
-        <label class="section-label" style="display:block;margin-bottom:var(--space-1)">Commander (optional)</label>
+        <label for="dbNewDeckCommander" class="section-label" style="display:block;margin-bottom:var(--space-1)">Commander (optional)</label>
         <div class="autocomplete-wrap" style="position:relative">
-          <input type="text" id="dbNewDeckCommander" placeholder="Commander name…" style="width:100%;box-sizing:border-box"
-                 oninput="dbCmdAcInput()" onkeydown="if(event.key==='Enter')dbCreateDeck()">
+          <input type="text" id="dbNewDeckCommander" placeholder="Commander name…" style="width:100%;box-sizing:border-box">
           <div id="dbCmdAcDrop" class="ac-dropdown" style="display:none"></div>
         </div>
       </div>
@@ -1195,14 +1191,14 @@
   </div>
 
   <!-- Import text modal -->
-  <div id="dbImportTextOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideImportText()">
+  <div id="dbImportTextOverlay" role="dialog" aria-modal="true" aria-labelledby="dbImportTextTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideImportText()">
     <div class="card-modal-box" style="max-width:500px;padding:var(--space-5)">
-      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-2)">Paste Deck List</div>
+      <div id="dbImportTextTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-2)">Paste Deck List</div>
       <div class="section-label" style="margin-bottom:var(--space-3)">
         One card per line. <code>1 Sol Ring</code> or <code>1x Sol Ring</code> or <code>Sol Ring</code>.
         Lines starting with <code>//</code> or <code>#</code> set the category.
       </div>
-      <textarea id="dbImportTextArea" rows="12" style="width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:var(--text-base)"
+      <textarea id="dbImportTextArea" aria-label="Deck list" rows="12" style="width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:var(--text-base)"
                 placeholder="1 Sol Ring&#10;1x Birds of Paradise&#10;// Creatures&#10;1 Avacyn, Angel of Hope"></textarea>
       <div style="display:flex;gap:var(--space-2);margin-top:var(--space-3)">
         <button class="btn-primary" onclick="dbImportText()">Import</button>
@@ -1215,9 +1211,9 @@
        progress bar you can abandon, then the proposal in place, then what
        happened. js/deckview-optimize.js writes the body; the shell is here
        because every other overlay on this tab is. -->
-  <div id="dbOptimizeOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideOptimize()">
+  <div id="dbOptimizeOverlay" role="dialog" aria-modal="true" aria-labelledby="dbOptimizeTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideOptimize()">
     <div class="card-modal-box db-opt-box">
-      <div class="db-opt-title">Optimize printings</div>
+      <div id="dbOptimizeTitle" class="db-opt-title">Optimize printings</div>
       <div class="section-label db-opt-lede">
         Pick a printing for every card in this deck at once. Nothing is written until you press Apply,
         and the whole run lands as one row in History.
@@ -1232,12 +1228,12 @@
   <div id="dbCardMenu" class="col-menu db-card-menu"></div>
 
   <!-- Move card modal -->
-  <div id="dbMoveCardOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
+  <div id="dbMoveCardOverlay" role="dialog" aria-modal="true" aria-labelledby="dbMoveCardTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
     <div class="card-modal-box" style="max-width:460px;padding:var(--space-5)">
       <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)" id="dbMoveCardTitle">Move Card</div>
       <div id="dbMoveCatList" style="display:flex;flex-direction:column;gap:var(--space-1)"></div>
       <div style="display:flex;gap:var(--space-2);margin-top:var(--space-3)">
-        <input type="text" id="dbMoveNewCatInput" placeholder="New category…" style="flex:1;min-width:0;box-sizing:border-box"
+        <input type="text" id="dbMoveNewCatInput" aria-label="New category" placeholder="New category…" style="flex:1;min-width:0;box-sizing:border-box"
                onkeydown="if(event.key==='Enter'){event.preventDefault();dbMoveToNewCategory()}">
         <button class="btn-secondary" style="flex-shrink:0" onclick="dbMoveToNewCategory()">+ Create</button>
       </div>
@@ -1246,10 +1242,10 @@
   </div>
 
   <!-- Rename category modal -->
-  <div id="dbRenameCatOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideRenameCat()">
+  <div id="dbRenameCatOverlay" role="dialog" aria-modal="true" aria-labelledby="dbRenameCatTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideRenameCat()">
     <div class="card-modal-box" style="max-width:360px;padding:var(--space-5)">
-      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Rename Category</div>
-      <input type="text" id="dbRenameCatInput" style="width:100%;box-sizing:border-box;margin-bottom:var(--space-4)"
+      <div id="dbRenameCatTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Rename Category</div>
+      <input type="text" id="dbRenameCatInput" aria-label="Category name" style="width:100%;box-sizing:border-box;margin-bottom:var(--space-4)"
              onkeydown="if(event.key==='Enter')dbConfirmRenameCat()">
       <div style="display:flex;gap:var(--space-2)">
         <button class="btn-primary" onclick="dbConfirmRenameCat()">Rename</button>
@@ -1259,12 +1255,12 @@
   </div>
 
   <!-- Manage Categories modal -->
-  <div id="dbCategoriesOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideCategoriesModal()">
+  <div id="dbCategoriesOverlay" role="dialog" aria-modal="true" aria-labelledby="dbCategoriesTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideCategoriesModal()">
     <div class="card-modal-box" style="max-width:420px;padding:var(--space-5)">
-      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Manage Categories</div>
+      <div id="dbCategoriesTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Manage Categories</div>
       <div id="dbCategoriesModalList" class="db-catmodal-list"></div>
       <div id="dbCategoriesModalAddRow" style="display:flex;gap:var(--space-2);margin-top:var(--space-4)">
-        <input type="text" id="dbModalNewCatInput" placeholder="New category name…" style="flex:1;box-sizing:border-box"
+        <input type="text" id="dbModalNewCatInput" aria-label="New category name" placeholder="New category name…" style="flex:1;box-sizing:border-box"
                onkeydown="if(event.key==='Enter')dbAddCategoryFromModal()">
         <button class="btn-secondary" style="flex-shrink:0" onclick="dbAddCategoryFromModal()">+ Add</button>
       </div>
@@ -1282,19 +1278,19 @@
 </div><!-- /site-main -->
 
 <!-- Change Password modal -->
-<div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--scrim);align-items:center;justify-content:center">
+<div id="changePwModal" role="dialog" aria-modal="true" aria-labelledby="cpTitle" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--scrim);align-items:center;justify-content:center">
   <div style="background:var(--surface-1);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);width:calc(100% - 2rem);max-width:340px;box-shadow:var(--shadow-modal)">
-    <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Change Password</div>
+    <div id="cpTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Change Password</div>
     <div style="margin-bottom:var(--space-3)">
-      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Current password</label>
+      <label for="cpCurrentPw" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Current password</label>
       <input type="password" id="cpCurrentPw" style="width:100%;box-sizing:border-box" placeholder="Current password">
     </div>
     <div style="margin-bottom:var(--space-3)">
-      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">New password</label>
+      <label for="cpNewPw" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">New password</label>
       <input type="password" id="cpNewPw" style="width:100%;box-sizing:border-box" placeholder="New password (min 6 chars)">
     </div>
     <div style="margin-bottom:var(--space-4)">
-      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Confirm new password</label>
+      <label for="cpConfirmPw" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Confirm new password</label>
       <input type="password" id="cpConfirmPw" style="width:100%;box-sizing:border-box" placeholder="Confirm new password"
              onkeydown="if(event.key==='Enter')submitChangePassword()">
     </div>
@@ -1337,7 +1333,7 @@
   <div class="db-more-section-label">Playmat</div>
   <div class="playmat-current" id="playmatCurrent">None — the page keeps its plain background.</div>
   <div class="autocomplete-wrap playmat-field">
-    <input id="playmatCardInput" type="text" placeholder="Card name…">
+    <input id="playmatCardInput" aria-label="Playmat card name" type="text" placeholder="Card name…">
     <div id="playmatAcDrop" class="ac-dropdown"></div>
   </div>
   <!-- Bring your own image (§10.4). The file input is hidden because a bare
@@ -1390,8 +1386,8 @@
 <div id="rssPanel" class="rss-panel">
   <div class="rss-panel-hdr">
     <span class="rss-panel-hdr-title">RSS Feeds</span>
-    <button onclick="loadRss()" title="Refresh">↺</button>
-    <button onclick="toggleRssPanel()" title="Close">✕</button>
+    <button onclick="loadRss()" title="Refresh" aria-label="Refresh">↺</button>
+    <button onclick="toggleRssPanel()" title="Close" aria-label="Close">✕</button>
   </div>
   <div id="rssFeedList" class="rss-feed-list">
     <div class="rss-status">Loading…</div>
@@ -1399,6 +1395,7 @@
 </div>
 
 <script src="js/state.js"></script>
+<script src="js/modal.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/scryfall.js"></script>
 <script src="js/sortui.js"></script>

@@ -527,7 +527,7 @@ function _dbOtherPrintingRowHtml(entry) {
 }
 
 function _dbOwnedCloseHtml() {
-  return `<button class="db-owned-close" onclick="dbCloseOwnedPanel()" title="Close">✕</button>`;
+  return `<button class="db-owned-close" onclick="dbCloseOwnedPanel()" title="Close" aria-label="Close">✕</button>`;
 }
 
 function _dbOwnedRowHtml(entry) {

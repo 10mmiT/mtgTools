@@ -536,7 +536,7 @@ function loadTab({ deck = DECK, cards = CARDS, shelves = [], user = AS_TIM, deck
   sandbox.setTimeout = fn => { sandbox.saves++; return 1; };
   sandbox.dbFetchCardData = async () => {};
   vm.createContext(sandbox);
-  for (const file of ['state.js', 'sortui.js', 'cardstack.js', 'cardquery.js',
+  for (const file of ['state.js', 'modal.js', 'sortui.js', 'cardstack.js', 'cardquery.js',
                       'auth.js', 'collections.js', 'card.js',
                       'deckview-boards.js', 'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',

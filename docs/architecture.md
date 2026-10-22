@@ -85,6 +85,7 @@ mtgtools/
 │       ├── playmat.js     # Loaded in <head>: paints the background before first paint, and its picker
 │       ├── motion.js      # Loaded in <head>: resolves the card-motion preference against the OS
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
+│       ├── modal.js       # Every centred dialog's open/close: focus in, Tab kept inside, Escape, focus back
 │       ├── sortui.js      # The sort model — a chain of criteria, what each field is worth, what a
 │       │                  # field seeds, what is stored — plus the shared controls: the sort button
 │       │                  # and its popover, columns menu, view toggle, card-size control, "⋯" kebab menus
