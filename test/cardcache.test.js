@@ -394,3 +394,119 @@ describe('a row written by an older build', () => {
     assert.deepEqual(getCard('Counterspell').legalities, { commander: 'legal' });
   });
 });
+
+// ── What the latest import no longer lists ────────────────────────────────
+/* The refresh is an upsert, so a row only ever left the table by being
+ * overwritten. A card Scryfall stopped listing, and every token an older build
+ * imported before they were kept out, stayed — ~2,900 of them in production,
+ * where autocomplete offered "Sol Ring // Sol Ring" for "sol r". A complete
+ * import now removes what it did not write; an incomplete one removes
+ * nothing. */
+describe('a row the latest import did not write', () => {
+  const STALE = [
+    { name: 'Sol Ring // Sol Ring', layout: 'art_series', type_line: 'Card // Card' },
+    { name: 'Goblin', layout: 'token', type_line: 'Token Creature — Goblin' },
+  ];
+  const plantStale = () => {
+    const ins = db.prepare('INSERT INTO cards (name, front_name, type_line, json) VALUES (?, ?, ?, ?)');
+    for (const c of STALE) ins.run(c.name, null, c.type_line, JSON.stringify(c));
+  };
+  const names = () => db.prepare('SELECT name FROM cards ORDER BY name').all().map(r => r.name);
+
+  test('is gone once an import has finished', async () => {
+    plantStale();
+    stubScryfall();
+    const r = await refreshBulk();
+    assert.equal(r.pruned, STALE.length);
+    assert.deepEqual(names(), BULK.map(c => c.name).sort());
+    assert.deepEqual(scrydb.autocomplete('sol r'), ['Sol Ring']);
+  });
+
+  test('and from one refresh to the next, a card no longer listed goes too', async () => {
+    stubScryfall();
+    await refreshBulk();
+    stubScryfall({ updatedAt: '2026-08-08T00:00:00+00:00', cards: BULK.filter(c => c !== ISLAND) });
+    await refreshBulk();
+    assert.equal(getCard('Island'), null);
+    assert.equal(getCard('Sol Ring').name, 'Sol Ring');
+  });
+
+  test('stays when the import did not finish', async () => {
+    plantStale();
+    stubScryfall();
+    // A download that dies partway, after its first card is in.
+    global.fetch = async (url) => {
+      if (String(url).includes('api.scryfall.com/bulk-data')) {
+        return { ok: true, json: async () => ({ data: [{ type: 'oracle_cards', updated_at: UPDATED_AT,
+          jsonl_download_uri: 'https://data.scryfall.test/oracle-cards.jsonl' }] }) };
+      }
+      async function* broken() {
+        yield Buffer.from(JSON.stringify(SOL_RING) + '\n');
+        throw new Error('connection reset');
+      }
+      return { ok: true, body: Readable.toWeb(Readable.from(broken())) };
+    };
+    const r = await refreshBulk();
+    assert.ok(r.error, 'sanity: the refresh failed');
+    assert.ok(names().includes('Goblin'), 'a failed import pruned the table');
+  });
+
+  test('stays when the file is far smaller than the table', async () => {
+    stubScryfall();
+    await refreshBulk();
+    stubScryfall({ updatedAt: '2026-08-08T00:00:00+00:00', cards: [SOL_RING] });
+    const r = await refreshBulk();
+    assert.equal(r.pruned, 0);
+    assert.equal(getCard('Island').name, 'Island', 'one card in a file is not the rest leaving Magic');
+  });
+});
+
+// ── An empty cache that cannot reach Scryfall ─────────────────────────────
+describe('a refresh that fails', () => {
+  after(() => scrydb.stopRetrying());
+
+  const failing = () => { let n = 0; global.fetch = async () => { n++; throw new Error('offline'); }; return () => n; };
+  const until = async (cond, ms = 2000) => {
+    const end = Date.now() + ms;
+    while (!cond() && Date.now() < end) await new Promise(r => setTimeout(r, 5));
+  };
+
+  test('with nothing cached, is tried again soon rather than tomorrow', async () => {
+    const calls = failing();
+    await scrydb.refreshUntilReady({ delay: 10, max: 20 });
+    assert.equal(calls(), 1);
+    const download = stubScryfall();
+    await until(() => scrydb.isReady());
+    assert.ok(scrydb.isReady(), 'the retry never came');
+    assert.equal(download.download, 1);
+  });
+
+  test('with a cache to serve, waits for the daily refresh', async () => {
+    stubScryfall();
+    await refreshBulk();
+    const calls = failing();
+    await scrydb.refreshUntilReady({ delay: 10, max: 20 });
+    await new Promise(r => setTimeout(r, 60));
+    assert.equal(calls(), 1, 'a cache that is serving was refreshed again straight away');
+  });
+});
+
+// ── Commander autocomplete ────────────────────────────────────────────────
+describe('commander autocomplete', () => {
+  test('reads an index of the legendary creatures rather than every row', () => {
+    const plan = db.prepare(`EXPLAIN QUERY PLAN
+      SELECT name FROM cards WHERE name LIKE ? ESCAPE '\\' AND name NOT LIKE ? ESCAPE '\\'
+        AND type_line LIKE '%Legendary%' AND type_line LIKE '%Creature%'
+      ORDER BY length(name) LIMIT ?`).all('%a%', 'a%', 5).map(r => r.detail).join('; ');
+    assert.match(plan, /idx_cards_commander/, plan);
+  });
+
+  test('still finds them', async () => {
+    const ATRAXA = { ...SOL_RING, id: 'x', name: 'Atraxa, Praetors’ Voice',
+      type_line: 'Legendary Creature — Phyrexian Angel Horror' };
+    stubScryfall({ cards: [...BULK, ATRAXA] });
+    await refreshBulk();
+    assert.deepEqual(scrydb.autocomplete('atr', { commander: true }), [ATRAXA.name]);
+    assert.deepEqual(scrydb.autocomplete('sol', { commander: true }), []);
+  });
+});

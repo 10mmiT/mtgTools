@@ -32,11 +32,27 @@ db.exec(`
     key   TEXT PRIMARY KEY,
     value TEXT
   );
+  -- Commander autocomplete asks for legendary creatures by name, and without
+  -- this it reads every row of the table — json and all — to find the few
+  -- thousand that are. The WHERE is the autocomplete's own, word for word,
+  -- which is what lets SQLite use a partial index for it at all.
+  CREATE INDEX IF NOT EXISTS idx_cards_commander ON cards(name)
+    WHERE type_line LIKE '%Legendary%' AND type_line LIKE '%Creature%';
 `);
+// Which import last wrote each row. Added after the table shipped, so a
+// database made before it gains it here, every old row at generation 0.
+if (!db.prepare('PRAGMA table_info(cards)').all().some(c => c.name === 'gen')) {
+  db.exec('ALTER TABLE cards ADD COLUMN gen INTEGER NOT NULL DEFAULT 0');
+}
 
 const BULK_INDEX_URL = 'https://api.scryfall.com/bulk-data';
 const BULK_TYPE      = 'oracle_cards';
 const REFRESH_MS     = 24 * 60 * 60 * 1000;
+// While the cache is empty a failed refresh is tried again soon rather than
+// tomorrow: an install whose first download fails would otherwise send every
+// card lookup to live Scryfall for a day. A minute, doubling, at most an hour.
+const EMPTY_RETRY_MIN_MS = 60 * 1000;
+const EMPTY_RETRY_MAX_MS = 60 * 60 * 1000;
 
 // ── The shape of a cached card ────────────────────────────────────────────────
 // Bump SHAPE_VERSION whenever trimCard's output changes. The refresh below
@@ -124,10 +140,11 @@ function trimCard(c) {
 }
 
 const _upsert = db.prepare(`
-  INSERT INTO cards (name, front_name, type_line, json) VALUES (?, ?, ?, ?)
+  INSERT INTO cards (name, front_name, type_line, json, gen) VALUES (?, ?, ?, ?, ?)
   ON CONFLICT(name) DO UPDATE SET front_name = excluded.front_name,
-    type_line = excluded.type_line, json = excluded.json
+    type_line = excluded.type_line, json = excluded.json, gen = excluded.gen
 `);
+const _prune = db.prepare('DELETE FROM cards WHERE gen <> ?');
 const _setMeta = db.prepare(`
   INSERT INTO meta (key, value) VALUES (?, ?)
   ON CONFLICT(key) DO UPDATE SET value = excluded.value
@@ -198,6 +215,16 @@ async function refreshBulk(force = false) {
       input = input.pipe(gunzip);
     }
 
+    // Every row this import writes is stamped with its generation, so that
+    // once it is complete what it did not write can go: the refresh is an
+    // upsert, and a card Scryfall no longer lists — or a token an older build
+    // imported before tokens were kept out — would otherwise be served for
+    // ever. The production cache held ~2,900 of them, and autocomplete
+    // offered "Sol Ring // Sol Ring" for "sol r". The generation is only
+    // advanced by an import that finished, so one that dies halfway is
+    // simply run again under the same number.
+    const prevCount = cardCount();
+    const gen = Number(getMeta('generation') || 0) + 1;
     const rl = readline.createInterface({ input, crlfDelay: Infinity });
     let batch = [], imported = 0, failed = 0;
     const insertBatch = db.transaction(rows => { for (const r of rows) _upsert.run(...r); });
@@ -210,7 +237,7 @@ async function refreshBulk(force = false) {
       try { card = JSON.parse(line); } catch { failed++; continue; }
       if (!card?.name || !isCard(card)) continue;
       const front = card.card_faces?.[0]?.name || null;
-      batch.push([card.name, front !== card.name ? front : null, card.type_line || '', JSON.stringify(trimCard(card))]);
+      batch.push([card.name, front !== card.name ? front : null, card.type_line || '', JSON.stringify(trimCard(card)), gen]);
       if (batch.length >= 1000) { insertBatch(batch); imported += batch.length; batch = []; }
     }
     if (batch.length) { insertBatch(batch); imported += batch.length; }
@@ -219,11 +246,25 @@ async function refreshBulk(force = false) {
     // Written only once the last batch is in, so a run that dies halfway leaves
     // the old version behind and the next start re-imports rather than
     // believing a half-converted table.
-    _setMeta.run('updated_at', entry.updated_at);
-    _setMeta.run('imported_at', new Date().toISOString());
-    _setMeta.run('shape_version', String(SHAPE_VERSION));
-    console.log(`[scryfall-db] imported ${imported.toLocaleString()} cards${failed ? ` (${failed} lines skipped)` : ''}`);
-    return { imported, failed };
+    //
+    // The prune is held back where the file is far smaller than the table it
+    // would prune: that is a file that went wrong somewhere upstream rather
+    // than thirty thousand cards leaving Magic, and the stale rows are the
+    // lesser harm. Every row it did write is current either way.
+    const prune = imported >= prevCount / 2;
+    let pruned = 0;
+    db.transaction(() => {
+      if (prune) {
+        pruned = _prune.run(gen).changes;
+        _setMeta.run('generation', String(gen));
+      }
+      _setMeta.run('updated_at', entry.updated_at);
+      _setMeta.run('imported_at', new Date().toISOString());
+      _setMeta.run('shape_version', String(SHAPE_VERSION));
+    })();
+    if (!prune) console.warn(`[scryfall-db] imported ${imported} cards into a table of ${prevCount}; not pruning`);
+    console.log(`[scryfall-db] imported ${imported.toLocaleString()} cards${failed ? ` (${failed} lines skipped)` : ''}${pruned ? `, removed ${pruned.toLocaleString()} no longer listed` : ''}`);
+    return { imported, failed, pruned };
   } catch (e) {
     console.error(`[scryfall-db] refresh failed: ${e.message}`);
     return { error: e.message };
@@ -335,16 +376,39 @@ function autocomplete(q, { commander = false, limit = 12 } = {}) {
 }
 
 // ── Scheduling ────────────────────────────────────────────────────────────────
+let _emptyRetry = null;
+
+/* A refresh, and — while it leaves the cache empty — another one after a
+ * wait that doubles each time. A cache with cards in it is left to the daily
+ * timer: it is serving, and a day-old copy of Scryfall is fine. Returns the
+ * first refresh's result; the retries look after themselves. */
+async function refreshUntilReady({ delay = EMPTY_RETRY_MIN_MS, max = EMPTY_RETRY_MAX_MS } = {}) {
+  const r = await refreshBulk();
+  if (r.error && !isReady() && !_emptyRetry) {
+    console.log(`[scryfall-db] cache is empty — trying again in ${Math.round(delay / 1000)}s`);
+    _emptyRetry = setTimeout(() => {
+      _emptyRetry = null;
+      refreshUntilReady({ delay: Math.min(delay * 2, max), max }).catch(() => {});
+    }, delay);
+    _emptyRetry.unref();
+  }
+  return r;
+}
+
+function stopRetrying() {
+  if (_emptyRetry) { clearTimeout(_emptyRetry); _emptyRetry = null; }
+}
+
 function init() {
   const n = cardCount();
   console.log(`[scryfall-db] SQLite database: ${dbPath} (${n.toLocaleString()} cards cached)`);
   // Refresh in the background — never block server startup
-  refreshBulk().catch(() => {});
-  setInterval(() => refreshBulk().catch(() => {}), REFRESH_MS).unref();
+  refreshUntilReady().catch(() => {});
+  setInterval(() => refreshUntilReady().catch(() => {}), REFRESH_MS).unref();
 }
 
 module.exports = {
-  db, init, refreshBulk, isReady, cardCount, getCard, getCollection, autocomplete,
+  db, init, refreshBulk, refreshUntilReady, stopRetrying, isReady, cardCount, getCard, getCollection, autocomplete,
   // For the tests, which weigh the trimmed shape and the version that guards it.
   trimCard, SHAPE_VERSION,
 };
