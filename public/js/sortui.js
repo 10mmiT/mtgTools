@@ -1366,7 +1366,7 @@ function kebabMenuHtml(items, opts = {}) {
       onclick="event.stopPropagation();closeAllKebabs();${it.onclick}">${it.label}</button>`;
   }).join('');
   return `<div class="col-menu-wrap kebab-wrap">
-    <button class="kebab-btn${opts.btnClass ? ' ' + opts.btnClass : ''}" title="${opts.title || 'More actions'}"
+    <button class="kebab-btn${opts.btnClass ? ' ' + opts.btnClass : ''}" title="${opts.title || 'More actions'}" aria-label="${opts.title || 'More actions'}"
       onclick="toggleKebab(event)">⋯</button>
     <div class="col-menu">${inner}</div>
   </div>`;

@@ -282,7 +282,7 @@ async function renderWantList() {
         const canEdit = isMyPlayer(p.id);
         return `<td style="text-align:center">
           <span class="want-check" style="color:${playerColor(p)}">✓
-            ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${jsAttr(cardName)}')" title="Remove">✕</button>` : ''}
+            ${canEdit ? `<button class="want-rm" onclick="removeWant('${p.id}','${jsAttr(cardName)}')" title="Remove" aria-label="Remove">✕</button>` : ''}
           </span>
         </td>`;
       }).join('');

@@ -187,7 +187,7 @@ function renderSetChip() {
     <span class="chip">
       <span class="chip-code">${esc(currentSet.code.toUpperCase())}</span>
       <span class="chip-label">${esc(currentSet.name)}</span>
-      <button class="chip-close" onclick="clearSet()" title="Back to all sets">✕</button>
+      <button class="chip-close" onclick="clearSet()" title="Back to all sets" aria-label="Back to all sets">✕</button>
     </span>` : '';
 }
 

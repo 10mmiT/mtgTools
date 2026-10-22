@@ -282,7 +282,7 @@
   <div class="section deck-section" id="deckPanel">
     <div class="deck-hdr">
       <div class="section-title">Deck</div>
-      <button class="drawer-close deck-drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+      <button class="drawer-close deck-drawer-close" onclick="closeDrawers()" title="Close" aria-label="Close">✕</button>
     </div>
     <div id="deckEmpty">
       <button class="deck-upload-btn" onclick="document.getElementById('deckInput').click()">
@@ -296,7 +296,7 @@
           <div class="deck-name" id="deckName"></div>
           <div class="deck-stats" id="deckStats"></div>
         </div>
-        <button class="btn-remove" style="padding:var(--space-1) var(--space-2);font-size:var(--text-2xs);flex-shrink:0" onclick="clearDeck()">✕</button>
+        <button class="btn-remove" style="padding:var(--space-1) var(--space-2);font-size:var(--text-2xs);flex-shrink:0" onclick="clearDeck()" aria-label="Close this deck">✕</button>
       </div>
       <button class="deck-filter-row" id="deckFilterBtn" onclick="toggleDeckFilter()">
         <span>Filter results by deck</span>
@@ -314,7 +314,7 @@
 <div class="drawer" data-drawer id="addColDrawer" role="dialog" aria-modal="true" aria-labelledby="addColTitle">
   <div class="drawer-hdr">
     <span class="drawer-title" id="addColTitle">Add Collection</span>
-    <button class="drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+    <button class="drawer-close" onclick="closeDrawers()" title="Close" aria-label="Close">✕</button>
   </div>
   <div class="drawer-body">
     <div class="add-form">
@@ -469,7 +469,7 @@
     <div id="wantSortMount"></div>
     <div id="wantColumnsMount"></div>
     <div class="col-menu-wrap">
-      <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Import / export want list">⋯</button>
+      <button class="col-menu-btn" onclick="toggleWantExportMenu(event)" title="Import / export want list" aria-label="Import / export want list">⋯</button>
       <div class="col-menu" id="wantExportMenu">
         <div class="db-more-section-label">Import</div>
         <button class="col-menu-item" onclick="document.getElementById('wantExportMenu').classList.remove('open');document.getElementById('wantCsvInput').click()">⬆ Import CSV</button>
@@ -510,9 +510,9 @@
       <div class="section">
         <div class="avail-month-cal">
           <div class="cal-header">
-            <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()">&#8249;</button>
+            <button class="nav-btn" id="availPrevBtn" onclick="availPrevMonth()" aria-label="Previous month">&#8249;</button>
             <span class="month-title" id="availMonthTitle"></span>
-            <button class="nav-btn" onclick="availNextMonth()">&#8250;</button>
+            <button class="nav-btn" onclick="availNextMonth()" aria-label="Next month">&#8250;</button>
           </div>
           <div class="cal-grid" id="availCalGrid"></div>
         </div>
@@ -668,7 +668,7 @@
   <div class="toolbar">
     <button class="btn-secondary" id="pickPoolBtn" onclick="openDrawer('pickPoolDrawer')" title="Choose which decks are in the draw">Deck Pool</button>
     <div class="col-menu-wrap kebab-wrap">
-      <button class="kebab-btn" title="Options" onclick="toggleKebab(event)">⋯</button>
+      <button class="kebab-btn" title="Options" aria-label="Options" onclick="toggleKebab(event)">⋯</button>
       <div class="col-menu">
         <button class="col-menu-item" id="pickExcludeOwnBtn" onclick="event.stopPropagation();pickToggleExcludeOwn()"
                 title="Players won't be assigned their own decks">
@@ -694,7 +694,7 @@
   <div class="drawer" data-drawer id="pickPoolDrawer" role="dialog" aria-modal="true" aria-labelledby="pickPoolTitle">
     <div class="drawer-hdr">
       <span class="drawer-title" id="pickPoolTitle">Deck Pool</span>
-      <button class="drawer-close" onclick="closeDrawers()" title="Close">✕</button>
+      <button class="drawer-close" onclick="closeDrawers()" title="Close" aria-label="Close">✕</button>
     </div>
     <div class="drawer-body">
       <!-- What tonight is for. Above the decks rather than below them, because
@@ -856,7 +856,7 @@
          a card and the way out, so the controls that are always here are one
          cluster at the end of the strip rather than three strays along it. -->
     <button class="btn-secondary db-menu-btn" id="dbMenuBtn" onclick="dbToggleMenu()"
-            aria-expanded="false" aria-controls="dbMenu" title="Deck controls (m)">
+            aria-expanded="false" aria-controls="dbMenu" title="Deck controls (m)" aria-label="Deck controls (m)">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
 
@@ -866,7 +866,7 @@
          no way back is a mat you have to reload the page to leave. Its label is
          written by _dbSyncFold(), because what it does next depends on how much
          is already folded away. -->
-    <button class="btn-secondary db-fold db-when-deck" id="dbFoldBtn" onclick="dbFoldChrome()" title="Hide the controls">
+    <button class="btn-secondary db-fold db-when-deck" id="dbFoldBtn" onclick="dbFoldChrome()" title="Hide the controls" aria-label="Hide the controls">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="18 15 12 9 6 15"/></svg>
     </button>
   </div>
@@ -940,7 +940,7 @@
   <aside id="dbMenu" class="db-menu" aria-label="Deck controls">
     <div class="db-menu-hdr">
       <span class="db-menu-title">Deck controls</span>
-      <button class="db-menu-close" onclick="dbCloseMenu()" title="Close">✕</button>
+      <button class="db-menu-close" onclick="dbCloseMenu()" title="Close" aria-label="Close">✕</button>
     </div>
 
     <!-- What the mat looks like. The three shared controls, mounted by
@@ -1101,7 +1101,7 @@
            each of two hundred of them. Written by _dbRenderAddTo() off
            dbAddBoards(), so the list is the boards. -->
       <div id="dbAddToWrap" class="db-add-to-wrap"></div>
-      <button class="db-drawer-close" onclick="dbCloseSearchPanel()" title="Close">✕</button>
+      <button class="db-drawer-close" onclick="dbCloseSearchPanel()" title="Close" aria-label="Close">✕</button>
     </div>
     <div id="db-left-search" class="db-drawer-content">
       <div class="db-search-bar">
@@ -1160,7 +1160,7 @@
   <div id="dbHistoryPanel" class="db-drawer">
     <div class="db-drawer-hdr">
       <span class="db-drawer-title">History</span>
-      <button class="db-drawer-close" onclick="dbCloseHistoryPanel()" title="Close">✕</button>
+      <button class="db-drawer-close" onclick="dbCloseHistoryPanel()" title="Close" aria-label="Close">✕</button>
     </div>
     <div id="dbHistoryContent" class="db-drawer-content"></div>
   </div>
@@ -1390,8 +1390,8 @@
 <div id="rssPanel" class="rss-panel">
   <div class="rss-panel-hdr">
     <span class="rss-panel-hdr-title">RSS Feeds</span>
-    <button onclick="loadRss()" title="Refresh">↺</button>
-    <button onclick="toggleRssPanel()" title="Close">✕</button>
+    <button onclick="loadRss()" title="Refresh" aria-label="Refresh">↺</button>
+    <button onclick="toggleRssPanel()" title="Close" aria-label="Close">✕</button>
   </div>
   <div id="rssFeedList" class="rss-feed-list">
     <div class="rss-status">Loading…</div>

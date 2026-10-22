@@ -483,8 +483,8 @@ function _dbRenderCategoriesModalList() {
       .filter(c => (c.category || dbAutoCategory(c.card_name)) === cat.name)
       .reduce((s, c) => s + (c.qty || 1), 0);
     const actions = canEdit ? `
-      <button class="db-cat-btn" title="Rename" onclick="dbRenameCatFromModal('${jsAttr(cat.name)}')">✎</button>
-      <button class="db-cat-btn db-cat-del" title="Delete" onclick="dbDeleteCategory('${jsAttr(cat.name)}')">×</button>` : '';
+      <button class="db-cat-btn" title="Rename" aria-label="Rename ${esc(cat.name)}" onclick="dbRenameCatFromModal('${jsAttr(cat.name)}')">✎</button>
+      <button class="db-cat-btn db-cat-del" title="Delete" aria-label="Delete ${esc(cat.name)}" onclick="dbDeleteCategory('${jsAttr(cat.name)}')">×</button>` : '';
     return `<div class="db-catmodal-row">
       <span class="db-catmodal-name">${esc(cat.name)}</span>
       <span class="db-catmodal-count">${count}</span>

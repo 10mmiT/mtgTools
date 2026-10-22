@@ -250,10 +250,11 @@ function forgetGonePiles(settled, groups) {
  *
  * The button is empty because the arrow inside it is a shape components.css
  * draws rather than a character typed here — see .pile-toggle for why. Its
- * name comes from the title, which every one of these carries. */
+ * name is the title, which every one of these carries, said again as an
+ * aria-label because a title alone is a tooltip first and a name second. */
 function pileToggleHtml(open, { title = '', attrs = '' } = {}) {
   return `<button class="pile-toggle" aria-expanded="${open ? 'true' : 'false'}"
-    title="${esc(title)}" ${attrs}></button>`;
+    title="${esc(title)}" aria-label="${esc(title)}" ${attrs}></button>`;
 }
 
 /* One card in a fanned pile: the picture, its one number, and the click every
