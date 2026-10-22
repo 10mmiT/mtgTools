@@ -46,12 +46,19 @@ const _running = new Map();
 const nowIso = () => new Date().toISOString();
 
 // ── Rows ──────────────────────────────────────────────────────────────────
+// Every column but cards_json. The two readers below are the poll's and the
+// routes', and neither wants the card blob — which is megabytes for a large
+// shelf, read on every two-second poll while an import runs. The loop, which
+// does want it, reads the row itself.
+const ROW_COLUMNS = `key, name, source, col_id, color, owner_player_id, status, next_page,
+  entries, total, error, started_by, started_at, updated_at`;
+
 function getImport(key) {
-  return db.prepare('SELECT * FROM collection_imports WHERE key = ?').get(key) || null;
+  return db.prepare(`SELECT ${ROW_COLUMNS} FROM collection_imports WHERE key = ?`).get(key) || null;
 }
 
 function listImports() {
-  return db.prepare('SELECT * FROM collection_imports ORDER BY started_at').all().map(r => ({
+  return db.prepare(`SELECT ${ROW_COLUMNS} FROM collection_imports ORDER BY started_at`).all().map(r => ({
     key:       r.key,
     name:      r.name,
     source:    r.source,
@@ -190,7 +197,7 @@ function startImport(meta, startedBy) {
   const { key, name, source, id, color, owner } = meta;
   if (_running.has(key)) return { started: false, reason: 'already running' };
 
-  const prior = getImport(key);
+  const prior = db.prepare('SELECT * FROM collection_imports WHERE key = ?').get(key);
   // Only a stopped import is picked up where it left off. A fresh start, or
   // one the caller asked to redo, begins at page 1 with nothing gathered —
   // otherwise a Refresh would merge the new collection into the stale one and
@@ -224,6 +231,7 @@ function startImport(meta, startedBy) {
   // immediately, and the loop reports itself through the table from here on.
   const done = _run(key, handle).catch(e => {
     console.error(`[import] ${key} died: ${e.message}`);
+    if (!owns(key, handle)) return;
     _running.delete(key);
     try { touch(key, { status: 'interrupted', error: e.message }); } catch {}
   });
@@ -232,10 +240,22 @@ function startImport(meta, startedBy) {
   return { started: true, resumed: resume, done };
 }
 
-/** Stop an import. The pages already gathered stay, so it can be resumed. */
-function cancelImport(key) {
+/* Whether this loop is still the one the key belongs to. A cancel hands the
+ * key back at once rather than when the loop next wakes — it may be parked on
+ * a page for seconds, and a Resume or a Refresh pressed in that time has to
+ * start a run, not be told one is already going. So a loop that wakes to find
+ * the key gone or someone else's writes nothing more. */
+const owns = (key, handle) => !handle.cancelled && _running.get(key) === handle;
+
+function release(key) {
   const handle = _running.get(key);
   if (handle) handle.cancelled = true;
+  _running.delete(key);
+}
+
+/** Stop an import. The pages already gathered stay, so it can be resumed. */
+function cancelImport(key) {
+  release(key);
   const row = getImport(key);
   if (!row) return false;
   // 'interrupted' and not a 'cancelled' of its own: the two are the same thing
@@ -247,15 +267,14 @@ function cancelImport(key) {
 
 /** Forget a stopped import, including the pages it had gathered. */
 function clearImport(key) {
-  const handle = _running.get(key);
-  if (handle) handle.cancelled = true;
+  release(key);
   const { changes } = db.prepare('DELETE FROM collection_imports WHERE key = ?').run(key);
   return changes > 0;
 }
 
 // ── The loop ──────────────────────────────────────────────────────────────
 async function _run(key, handle) {
-  const row    = getImport(key);
+  const row    = db.prepare('SELECT * FROM collection_imports WHERE key = ?').get(key);
   const cards  = new Map(Object.entries(JSON.parse(row.cards_json || '{}')));
   let page     = row.next_page;
   let entries  = row.entries;
@@ -266,10 +285,20 @@ async function _run(key, handle) {
     cards_json: JSON.stringify(Object.fromEntries(cards)),
   });
 
+  // A loop that was cancelled keeps the pages it gathered since its last
+  // checkpoint — but only into a row that is still the stopped one it left. A
+  // cleared import has no row to write into, and one restarted since belongs
+  // to the run that restarted it.
+  const stopped = () => {
+    if (_running.has(key)) return;
+    if (getImport(key)?.status === 'interrupted') checkpoint('interrupted');
+  };
+
   while (true) {
-    if (handle.cancelled) { checkpoint('interrupted'); _running.delete(key); return; }
+    if (!owns(key, handle)) return stopped();
 
     const res = await archidektFetch(pageUrl(row.col_id, page));
+    if (!owns(key, handle)) return stopped();
 
     if (!res.ok) {
       const detail = res.status === 429
@@ -285,6 +314,7 @@ async function _run(key, handle) {
     }
 
     const data = await res.json();
+    if (!owns(key, handle)) return stopped();
     if (total === null) total = totalOf(data);
 
     for (const item of itemsOf(data)) {
@@ -311,31 +341,46 @@ async function _run(key, handle) {
     if (finished) break;
   }
 
-  _finish(key, row, cards, entries, total);
+  _finish(key, cards, entries, total);
   _running.delete(key);
 }
 
 /* The finished collection, moved into the table the rest of the app reads.
  * One transaction: the import row must not disappear before the collection it
- * became exists, or a refresh landing in between shows neither. */
-function _finish(key, row, cards, entries, total) {
-  db.transaction(() => {
+ * became exists, or a refresh landing in between shows neither.
+ *
+ * The import row is read again in here rather than trusted from when the loop
+ * began. It is what says the run is still wanted: a collection deleted while
+ * the last page was in flight took this row with it, and writing the shelf
+ * regardless would put back the collection somebody had just thrown away.
+ *
+ * Whose shelf it is is not the import's to say once the shelf exists. The
+ * owner can be changed while the pages arrive, and a removed player is
+ * cleared from it, so the collection's own owner is kept; the import's only
+ * names the owner of a collection that is new. */
+function _finish(key, cards, entries, total) {
+  const landed = db.transaction(() => {
+    const row = getImport(key);
+    if (!row || row.status !== 'running') return false;
+    const existing = db.prepare('SELECT owner_player_id FROM collections WHERE key = ?').get(key);
     db.prepare(`
       INSERT INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at, owner_player_id)
       VALUES (@key, @name, @source, @id, @color, @cards, @entries, @total, @savedAt, @owner)
       ON CONFLICT(key) DO UPDATE SET
         name = excluded.name, source = excluded.source, col_id = excluded.col_id,
         color = excluded.color, cards_json = excluded.cards_json,
-        entries = excluded.entries, total = excluded.total, saved_at = excluded.saved_at,
-        owner_player_id = excluded.owner_player_id
+        entries = excluded.entries, total = excluded.total, saved_at = excluded.saved_at
     `).run({
       key, name: row.name, source: row.source, id: row.col_id, color: row.color,
       cards: writeCollectionCards(Object.fromEntries(cards)),
-      entries, total, savedAt: nowIso(), owner: row.owner_player_id || null,
+      entries, total, savedAt: nowIso(),
+      owner: existing ? existing.owner_player_id : (row.owner_player_id || null),
     });
     db.prepare('DELETE FROM collection_imports WHERE key = ?').run(key);
+    return true;
   })();
-  console.log(`[import] ${key} finished: ${entries} rows`);
+  console.log(landed ? `[import] ${key} finished: ${entries} rows`
+                     : `[import] ${key} finished after it was stopped; nothing written`);
 }
 
 module.exports = { startImport, cancelImport, clearImport, listImports, getImport, _running };

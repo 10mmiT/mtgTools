@@ -192,6 +192,17 @@ describe('the column', () => {
     assert.equal((await collection(cookie, 'csv:old')).owner, ANNA.id,
       'somebody else’s collection was disowned too');
   });
+
+  /* An import names the owner of a collection that does not exist yet, and
+   * lands minutes later — long enough for the player to have gone. */
+  test('and an import still arriving for them lands as the group’s', async () => {
+    db.prepare(`INSERT INTO collection_imports (key, name, source, col_id, color, owner_player_id, status)
+                VALUES ('archidekt:9', 'Tim’s', 'archidekt', '9', '#a855f7', ?, 'interrupted')`).run(TIM.id);
+    await setPlayers(cookie, [ANNA]);
+    assert.equal(db.prepare("SELECT owner_player_id FROM collection_imports WHERE key = 'archidekt:9'")
+      .get().owner_player_id, null, 'the import would land the shelf under a player who is gone');
+    db.prepare("DELETE FROM collection_imports WHERE key = 'archidekt:9'").run();
+  });
 });
 
 // ── The tab ───────────────────────────────────────────────────────────────

@@ -283,6 +283,115 @@ describe('An import that stops', () => {
   });
 });
 
+/* What happens to the shelf while the last page is still on its way. The loop
+ * spends nearly all its time parked in a fetch, so anything a person does to
+ * an import happens while it is parked — and what it finds when it wakes has
+ * to be what they did, not what it remembered from before. */
+describe('An import changed under it while a page is in flight', () => {
+  test('a collection deleted during the last page stays deleted', async () => {
+    stubArchidekt(50);                         // 2 pages
+    holdAt = 2;
+    const { done } = start();
+    await reachHold();
+
+    // DELETE /api/collections/:key, as the route does it.
+    imports.clearImport(KEY);
+    db.prepare('DELETE FROM collections WHERE key = ?').run(KEY);
+    held();
+    await done;
+
+    assert.equal(shelf(), undefined, 'the finished pages must not put the collection back');
+    assert.equal(row(), undefined, 'nor the import row');
+  });
+
+  /* archidekt-queue.js sends one request at a time, so the new run's first
+   * page waits behind the parked one — the old loop always wakes first, and
+   * what it does then is what these two are about. */
+  test('a cleared import restarted while the old run is parked starts a run', async () => {
+    stubArchidekt(50);
+    holdAt = 2;
+    const first = start();
+    await reachHold();
+    const parked = held;
+
+    imports.clearImport(KEY);
+    holdAt = null;
+    const second = start({ ...META, restart: true });
+    assert.equal(second.started, true, `the restart was refused: ${second.reason}`);
+
+    // The old loop wakes to a key that is not its own any more, and writes
+    // nothing: no shelf, and not its own place over the new run's.
+    parked();
+    await first.done;
+    assert.equal(shelf(), undefined, 'the stale run landed a collection');
+    assert.equal(row().next_page, 1, 'the stale run wrote its place over the new one');
+
+    await second.done;
+    assert.equal(shelf().entries, 50, 'the restart ran to the end');
+  });
+
+  test('a cancelled run that wakes after a resume leaves the resumed one alone', async () => {
+    stubArchidekt(500);
+    holdAt = 12;
+    const first = start();
+    await reachHold();
+    const parked = held;
+
+    imports.cancelImport(KEY);
+    assert.equal(imports.listImports()[0].live, false, 'a cancel hands the key back at once');
+    holdAt = null;
+    const second = start();
+    assert.equal(second.started, true);
+    assert.equal(second.resumed, true);
+
+    parked();
+    await first.done;
+    assert.equal(row().status, 'running', 'the stale run marked the live one stopped');
+
+    await second.done;
+    assert.equal(shelf().entries, 500, 'every card once, from the run that is live');
+  });
+
+  test('an owner changed while it runs is the owner the shelf ends up with', async () => {
+    db.prepare(`INSERT INTO collections (key, name, source, col_id, color, owner_player_id)
+                VALUES (?, 'Tim’s shelf', 'archidekt', '702530', '#a855f7', 'p-tim')`).run(KEY);
+    stubArchidekt(50);
+    holdAt = 2;
+    const { done } = start({ ...META, owner: 'p-tim', restart: true });
+    await reachHold();
+
+    // PUT /api/collections/:key/owner, as the route does it.
+    db.prepare('UPDATE collections SET owner_player_id = ? WHERE key = ?').run('p-sam', KEY);
+    held();
+    await done;
+
+    assert.equal(shelf().owner_player_id, 'p-sam');
+    assert.equal(shelf().entries, 50, 'sanity: the import did land');
+  });
+
+  test('an owner cleared while it runs is not put back', async () => {
+    db.prepare(`INSERT INTO collections (key, name, source, col_id, color, owner_player_id)
+                VALUES (?, 'Tim’s shelf', 'archidekt', '702530', '#a855f7', 'p-gone')`).run(KEY);
+    stubArchidekt(50);
+    holdAt = 2;
+    const { done } = start({ ...META, owner: 'p-gone', restart: true });
+    await reachHold();
+
+    // What disownGonePlayers does when the player is removed.
+    db.prepare('UPDATE collections SET owner_player_id = NULL WHERE key = ?').run(KEY);
+    held();
+    await done;
+
+    assert.equal(shelf().owner_player_id, null);
+  });
+
+  test('a new collection takes the owner its import was started with', async () => {
+    stubArchidekt(25);
+    await start({ ...META, owner: 'p-tim' }).done;
+    assert.equal(shelf().owner_player_id, 'p-tim');
+  });
+});
+
 describe('A server that restarts mid-import', () => {
   test('leaves the import marked interrupted rather than running forever', () => {
     // The row a killed process leaves behind, and the sweep available-db.js
@@ -320,6 +429,9 @@ describe('listImports', () => {
     // half-built card list with it would be megabytes a minute.
     assert.ok(!('cards' in imp) && !('cards_json' in imp),
       `the poll payload should carry counters, not cards: ${Object.keys(imp)}`);
+    // Nor read off the disk to be thrown away: the row the routes look at
+    // leaves the blob where it is.
+    assert.ok(!('cards_json' in imports.getImport(KEY)), 'getImport read the card blob');
 
     held();
     await done;

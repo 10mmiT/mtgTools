@@ -413,9 +413,13 @@ function createLinkedPlayer(username) {
  * there is no delete-player endpoint to hang this off. */
 function disownGonePlayers(players) {
   const ids = new Set((players || []).map(p => p.id).filter(Boolean));
-  const owned = db.prepare('SELECT key, owner_player_id FROM collections WHERE owner_player_id IS NOT NULL').all();
-  const clear = db.prepare('UPDATE collections SET owner_player_id = NULL WHERE key = ?');
-  for (const row of owned) if (!ids.has(row.owner_player_id)) clear.run(row.key);
+  // Imports in flight too: one that lands a new collection names its owner
+  // from its own row, and a player removed while it ran is not that owner.
+  for (const table of ['collections', 'collection_imports']) {
+    const owned = db.prepare(`SELECT key, owner_player_id FROM ${table} WHERE owner_player_id IS NOT NULL`).all();
+    const clear = db.prepare(`UPDATE ${table} SET owner_player_id = NULL WHERE key = ?`);
+    for (const row of owned) if (!ids.has(row.owner_player_id)) clear.run(row.key);
+  }
 }
 
 // ── GET /api/state ─────────────────────────────────────────────────────────────
@@ -785,6 +789,10 @@ router.post('/collections/:key/import', requireAuth, express.json(), (req, res) 
   if (owner === false) return res.status(400).json({ error: 'Unknown player' });
   if (given && !actsFor(sess, owner)) return res.status(403).json({ error: FORBIDDEN_OWNER });
 
+  // An owner named here is a change made now, not when the last page lands:
+  // the finished import keeps whatever owner the shelf has by then, so that
+  // one changed while it ran is not put back.
+  if (given) db.prepare('UPDATE collections SET owner_player_id = ? WHERE key = ?').run(owner, key);
   const started = imports.startImport({ key, name, source, id, color, owner, restart: !!restart },
     sess?.username || null);
   res.json({ ok: true, ...started, done: undefined, imports: imports.listImports() });
