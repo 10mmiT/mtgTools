@@ -23,7 +23,8 @@ const WANT_COLUMNS = [
  * exactly when someone reaches for it. */
 function initWantField() {
   wantAc = mountCardAutocomplete('wantCardInput', 'wantAcDrop',
-    name => { document.getElementById('wantCardInput').value = name; });
+    name => { document.getElementById('wantCardInput').value = name; },
+    { onEnter: addWant });
 }
 
 let _wantControlsMounted = false;

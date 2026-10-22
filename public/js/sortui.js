@@ -1276,14 +1276,47 @@ function saveShownBoards(deckId, boards) {
 // empty .ac-dropdown, which is what the existing styles expect. Returns a
 // handle so a caller can close the dropdown from elsewhere (the Want List
 // closes it when a card is added by pressing Enter).
+//
+// It is a combobox to a screen reader and to a keyboard: the arrows walk the
+// suggestions, Enter takes the one walked to, Escape closes the list without
+// closing whatever dialog the field is in. Enter with nothing walked to is the
+// field's own — `onEnter`, which is why a field mounted here keeps no
+// onkeydown of its own: an inline handler runs first and could not know that
+// this Enter was a pick.
 function mountCardAutocomplete(inputId, dropId, onPick, opts = {}) {
   const input = document.getElementById(inputId);
   const drop  = document.getElementById(dropId);
   if (!input || !drop) return null;
-  const { minChars = 2, delay = 280, limit = 8, commander = false } = opts;
+  const { minChars = 2, delay = 280, limit = 8, commander = false, onEnter = null } = opts;
+
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-expanded', 'false');
+  input.setAttribute('aria-controls', dropId);
+  drop.setAttribute('role', 'listbox');
 
   let timer = null;
-  const close = () => { drop.style.display = 'none'; };
+  let active = -1;
+  const items = () => [...drop.children];
+  const isOpen = () => drop.style.display === 'block';
+  const close = () => {
+    drop.style.display = 'none';
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    active = -1;
+  };
+  const walkTo = i => {
+    const list = items();
+    if (!list.length) return;
+    active = (i + list.length) % list.length;
+    list.forEach((el, n) => {
+      el.classList.toggle('active', n === active);
+      el.setAttribute('aria-selected', n === active ? 'true' : 'false');
+    });
+    input.setAttribute('aria-activedescendant', list[active].id);
+    list[active].scrollIntoView?.({ block: 'nearest' });
+  };
+  const pick = name => { close(); onPick(name); };
 
   input.addEventListener('input', () => {
     clearTimeout(timer);
@@ -1302,20 +1335,54 @@ function mountCardAutocomplete(inputId, dropId, onPick, opts = {}) {
         // onclick, which is the only reason the old version reached for
         // jsAttr() — and Urza's Saga is not an edge case here.
         drop.innerHTML = '';
-        for (const name of names) {
+        active = -1;
+        input.removeAttribute('aria-activedescendant');
+        names.forEach((name, i) => {
           const item = document.createElement('div');
           item.className   = 'ac-item';
+          item.id          = `${dropId}-${i}`;
           item.textContent = name;
-          item.addEventListener('click', () => { close(); onPick(name); });
+          item.setAttribute('role', 'option');
+          item.setAttribute('aria-selected', 'false');
+          item.addEventListener('click', () => pick(name));
           drop.appendChild(item);
-        }
+        });
         drop.style.display = 'block';
+        input.setAttribute('aria-expanded', 'true');
       } catch { close(); }
     }, delay);
   });
 
+  input.addEventListener('keydown', e => {
+    const open = isOpen();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!open) return;
+      e.preventDefault();
+      walkTo(active < 0 && e.key === 'ArrowUp' ? -1 : active + (e.key === 'ArrowDown' ? 1 : -1));
+    } else if (e.key === 'Enter') {
+      if (open && active >= 0) {
+        e.preventDefault();
+        pick(items()[active].textContent);
+        return;
+      }
+      close();
+      onEnter?.(e);
+    } else if (e.key === 'Escape') {
+      if (!open) return;
+      // The list is the thing in front; the dialog it may sit in is next.
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    } else if (e.key === 'Tab') {
+      close();
+    }
+  });
+
+  // A click anywhere but this field and its list closes it — another card
+  // field's list included.
+  const wrap = input.closest?.('.autocomplete-wrap');
   document.addEventListener('click', e => {
-    if (!e.target.closest('.autocomplete-wrap')) close();
+    if (wrap ? !wrap.contains(e.target) : !e.target.closest('.autocomplete-wrap')) close();
   });
 
   return { close };

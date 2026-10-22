@@ -678,6 +678,7 @@ initSideNav();
 initPlaymatPicker();  // the mat itself was applied in <head>; this is its picker
 initCardMotionControl();  // likewise: motion was resolved in <head>, this is its switch
 initWantField();      // the other card field in static markup; see mountCardAutocomplete
+initDeckCardFields(); // and the Deck Builder's three
 authInit().then(() => {
   syncPrefs();   // not awaited: appearance is already painted, this only corrects it
   loadFromStorage().then(() => {

@@ -3,98 +3,30 @@
 // one global scope (classic scripts), so state declared in deckview-core.js is
 // visible here and functions stay global for inline onclick handlers.
 
-// ── Autocomplete: add-card input ──────────────────────────────────────────────
-function dbAddAcInput() {
-  clearTimeout(dbAddAcTimer);
-  const q = document.getElementById('dbAddCardInput')?.value.trim();
-  if (q.length < 2) { closeDbAddAc(); return; }
-  dbAddAcTimer = setTimeout(async () => {
-    try {
-      const names = (await cardAutocomplete(q)).slice(0, 8);
-      const drop  = document.getElementById('dbAddAcDrop');
-      if (!names.length || !drop) { closeDbAddAc(); return; }
-      drop.innerHTML = names.map(n =>
-        `<div class="ac-item" onclick="pickDbAddAc('${jsAttr(n)}')">${esc(n)}</div>`).join('');
-      drop.style.display = 'block';
-    } catch { closeDbAddAc(); }
-  }, 280);
+// ── Autocomplete ──────────────────────────────────────────────────────────────
+// The tab's three card fields, mounted through mountCardAutocomplete() in
+// sortui.js like every other card field: they used to be three hand-written
+// copies of it, without its check that an answer is still for what is in the
+// box. Mounted from js/main.js's init, after the markup and every script.
+let _dbAddAc = null, _dbSearchAc = null, _dbCmdAc = null;
+
+function initDeckCardFields() {
+  _dbAddAc = mountCardAutocomplete('dbAddCardInput', 'dbAddAcDrop', name => {
+    const input = document.getElementById('dbAddCardInput');
+    input.value = name;
+    input.focus();
+  }, { onEnter: () => dbAddCard() });
+  _dbSearchAc = mountCardAutocomplete('dbSearchInput', 'dbAcDrop', name => {
+    document.getElementById('dbSearchInput').value = name;
+    dbSearch();
+  }, { onEnter: () => dbSearch() });
+  _dbCmdAc = mountCardAutocomplete('dbNewDeckCommander', 'dbCmdAcDrop', name => {
+    document.getElementById('dbNewDeckCommander').value = name;
+  }, { commander: true, onEnter: () => dbCreateDeck() });
 }
 
-function pickDbAddAc(name) {
-  const input = document.getElementById('dbAddCardInput');
-  if (input) input.value = name;
-  closeDbAddAc();
-  input?.focus();
-}
-
-function closeDbAddAc() {
-  const d = document.getElementById('dbAddAcDrop');
-  if (d) d.style.display = 'none';
-}
-
-// ── Autocomplete: search input ────────────────────────────────────────────────
-function dbAcInput() {
-  clearTimeout(dbAcTimer);
-  const q = document.getElementById('dbSearchInput')?.value.trim();
-  if (q.length < 2) { closeDbAc(); return; }
-  dbAcTimer = setTimeout(async () => {
-    try {
-      const names = (await cardAutocomplete(q)).slice(0, 8);
-      const drop  = document.getElementById('dbAcDrop');
-      if (!names.length || !drop) { closeDbAc(); return; }
-      drop.innerHTML = names.map(n =>
-        `<div class="ac-item" onclick="pickDbAc('${jsAttr(n)}')">${esc(n)}</div>`).join('');
-      drop.style.display = 'block';
-    } catch { closeDbAc(); }
-  }, 280);
-}
-
-function pickDbAc(name) {
-  const input = document.getElementById('dbSearchInput');
-  if (input) input.value = name;
-  closeDbAc();
-  dbSearch();
-}
-
-function closeDbAc() {
-  const d = document.getElementById('dbAcDrop');
-  if (d) d.style.display = 'none';
-}
-
-// ── Autocomplete: commander input (in new deck modal) ─────────────────────────
-function dbCmdAcInput() {
-  clearTimeout(dbCmdAcTimer);
-  const q = document.getElementById('dbNewDeckCommander')?.value.trim();
-  if (q.length < 2) { _closeDbCmdAc(); return; }
-  dbCmdAcTimer = setTimeout(async () => {
-    try {
-      const names = (await cardAutocomplete(q, { commander: true })).slice(0, 8);
-      const drop  = document.getElementById('dbCmdAcDrop');
-      if (!names.length || !drop) { _closeDbCmdAc(); return; }
-      drop.innerHTML = names.map(n =>
-        `<div class="ac-item" onclick="pickDbCmdAc('${jsAttr(n)}')">${esc(n)}</div>`).join('');
-      drop.style.display = 'block';
-    } catch { _closeDbCmdAc(); }
-  }, 280);
-}
-
-function pickDbCmdAc(name) {
-  const input = document.getElementById('dbNewDeckCommander');
-  if (input) input.value = name;
-  _closeDbCmdAc();
-}
-
-function _closeDbCmdAc() {
-  const d = document.getElementById('dbCmdAcDrop');
-  if (d) d.style.display = 'none';
-}
-
-// Close all autocompletes when clicking outside
-document.addEventListener('click', e => {
-  if (!e.target.closest('#dbAddCardInput') && !e.target.closest('#dbAddAcDrop')) closeDbAddAc();
-  if (!e.target.closest('#dbSearchInput') && !e.target.closest('#dbAcDrop')) closeDbAc();
-  if (!e.target.closest('#dbNewDeckCommander') && !e.target.closest('#dbCmdAcDrop')) _closeDbCmdAc();
-});
+function closeDbAddAc()  { _dbAddAc?.close(); }
+function _closeDbCmdAc() { _dbCmdAc?.close(); }
 
 // ── Where the drawer puts things ──────────────────────────────────────────
 // The drawer is two ways of finding a card and one way of taking it: Search

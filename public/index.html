@@ -458,8 +458,7 @@
       <option value="">Select player…</option>
     </select>
     <div class="autocomplete-wrap want-add-field">
-      <input id="wantCardInput" aria-label="Card to add to the want list" type="text" style="width:100%" placeholder="Card name…"
-             onkeydown="if(event.key==='Enter')addWant()">
+      <input id="wantCardInput" aria-label="Card to add to the want list" type="text" style="width:100%" placeholder="Card name…">
       <div id="wantAcDrop" class="ac-dropdown"></div>
     </div>
     <button class="btn-primary" onclick="addWant()">+ Add</button>
@@ -820,8 +819,7 @@
          stays on the strip rather than going behind the ⋯ — the same call
          §9.4 made for the Want List's add field. -->
     <div class="autocomplete-wrap db-add-field db-when-deck">
-      <input type="text" id="dbAddCardInput" aria-label="Add a card to this deck" placeholder="Add a card…"
-             oninput="dbAddAcInput()" onkeydown="if(event.key==='Enter'){closeDbAddAc();dbAddCard()}">
+      <input type="text" id="dbAddCardInput" aria-label="Add a card to this deck" placeholder="Add a card…">
       <div id="dbAddAcDrop" class="ac-dropdown" style="display:none"></div>
     </div>
     <button class="btn-primary db-when-deck" onclick="dbAddCard()">Add</button>
@@ -1106,8 +1104,7 @@
     <div id="db-left-search" class="db-drawer-content">
       <div class="db-search-bar">
         <div class="autocomplete-wrap db-search-field">
-          <input type="text" id="dbSearchInput" aria-label="Scryfall query" placeholder="Scryfall query (Enter to search)…"
-                 oninput="dbAcInput()" onkeydown="if(event.key==='Enter'){closeDbAc();dbSearch()}">
+          <input type="text" id="dbSearchInput" aria-label="Scryfall query" placeholder="Scryfall query (Enter to search)…">
           <div id="dbAcDrop" class="ac-dropdown" style="display:none"></div>
         </div>
         <button class="btn-primary" onclick="dbSearch()">Search</button>
@@ -1182,8 +1179,7 @@
       <div style="margin-bottom:var(--space-4)">
         <label for="dbNewDeckCommander" class="section-label" style="display:block;margin-bottom:var(--space-1)">Commander (optional)</label>
         <div class="autocomplete-wrap" style="position:relative">
-          <input type="text" id="dbNewDeckCommander" placeholder="Commander name…" style="width:100%;box-sizing:border-box"
-                 oninput="dbCmdAcInput()" onkeydown="if(event.key==='Enter')dbCreateDeck()">
+          <input type="text" id="dbNewDeckCommander" placeholder="Commander name…" style="width:100%;box-sizing:border-box">
           <div id="dbCmdAcDrop" class="ac-dropdown" style="display:none"></div>
         </div>
       </div>
