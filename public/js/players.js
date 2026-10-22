@@ -814,7 +814,9 @@ function renderEveryone(list) {
     return `<div class="player-section">
       <div class="player-header" style="--pc:${playerColor(player)}" onclick="togglePlayerSection('${player.id}', event)">
         <span class="player-dot"></span>
-        <span class="player-name-lbl">${esc(player.name)}</span>
+        <button type="button" class="player-name-lbl" id="ptg-player-${player.id}"
+                aria-expanded="${pCollapsed ? 'false' : 'true'}" aria-controls="pb-player-${player.id}"
+                onclick="togglePlayerSection('${player.id}')">${esc(player.name)}</button>
         ${canEdit ? `<button class="btn-secondary" onclick="openAddDeck('${player.id}')">+ Add Deck</button>` : ''}
         ${isAdmin ? kebabMenuHtml([
           { label: 'Remove player', onclick: `removePlayer('${player.id}')`, danger: true },

@@ -9,9 +9,12 @@
 // shelf and is worth folding away.
 const collapseState = JSON.parse(localStorage.getItem('mtgtools_collapse') || '{}');
 
+/* Called by the name, which is the row's button, and by a click anywhere
+   else on the row — which is the mouse's larger target for the same thing.
+   A click on any button in the row is that button's, the name included: it
+   has already done the toggling by the time the row hears it. */
 function togglePlayerSection(playerId, event) {
-  // Don't collapse when clicking the action buttons
-  if (event.target.closest('button')) return;
+  if (event?.target.closest('button')) return;
   const id  = `player-${playerId}`;
   collapseState[id] = !collapseState[id];
   localStorage.setItem('mtgtools_collapse', JSON.stringify(collapseState));
@@ -20,6 +23,7 @@ function togglePlayerSection(playerId, event) {
   const closed = !!collapseState[id];
   if (body) body.style.display = closed ? 'none' : '';
   if (chv)  chv.classList.toggle('closed', closed);
+  document.getElementById(`ptg-${id}`)?.setAttribute('aria-expanded', closed ? 'false' : 'true');
 }
 
 // ── Sidebar nav ───────────────────────────────────────────────────────
