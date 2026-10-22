@@ -1167,9 +1167,9 @@
   <div id="dbHistoryBackdrop" class="db-drawer-backdrop" onclick="dbCloseHistoryPanel()"></div>
 
   <!-- New Deck modal -->
-  <div id="dbNewDeckOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideNewDeck()">
+  <div id="dbNewDeckOverlay" role="dialog" aria-modal="true" aria-labelledby="dbNewDeckTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideNewDeck()">
     <div class="card-modal-box" style="max-width:420px;padding:var(--space-5)">
-      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">New Deck</div>
+      <div id="dbNewDeckTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">New Deck</div>
       <div style="margin-bottom:var(--space-3)">
         <label class="section-label" style="display:block;margin-bottom:var(--space-1)">Player</label>
         <select id="dbNewDeckPlayer" style="width:100%"></select>
@@ -1195,9 +1195,9 @@
   </div>
 
   <!-- Import text modal -->
-  <div id="dbImportTextOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideImportText()">
+  <div id="dbImportTextOverlay" role="dialog" aria-modal="true" aria-labelledby="dbImportTextTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideImportText()">
     <div class="card-modal-box" style="max-width:500px;padding:var(--space-5)">
-      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-2)">Paste Deck List</div>
+      <div id="dbImportTextTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-2)">Paste Deck List</div>
       <div class="section-label" style="margin-bottom:var(--space-3)">
         One card per line. <code>1 Sol Ring</code> or <code>1x Sol Ring</code> or <code>Sol Ring</code>.
         Lines starting with <code>//</code> or <code>#</code> set the category.
@@ -1215,9 +1215,9 @@
        progress bar you can abandon, then the proposal in place, then what
        happened. js/deckview-optimize.js writes the body; the shell is here
        because every other overlay on this tab is. -->
-  <div id="dbOptimizeOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideOptimize()">
+  <div id="dbOptimizeOverlay" role="dialog" aria-modal="true" aria-labelledby="dbOptimizeTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideOptimize()">
     <div class="card-modal-box db-opt-box">
-      <div class="db-opt-title">Optimize printings</div>
+      <div id="dbOptimizeTitle" class="db-opt-title">Optimize printings</div>
       <div class="section-label db-opt-lede">
         Pick a printing for every card in this deck at once. Nothing is written until you press Apply,
         and the whole run lands as one row in History.
@@ -1232,7 +1232,7 @@
   <div id="dbCardMenu" class="col-menu db-card-menu"></div>
 
   <!-- Move card modal -->
-  <div id="dbMoveCardOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
+  <div id="dbMoveCardOverlay" role="dialog" aria-modal="true" aria-labelledby="dbMoveCardTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideMoveCard()">
     <div class="card-modal-box" style="max-width:460px;padding:var(--space-5)">
       <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)" id="dbMoveCardTitle">Move Card</div>
       <div id="dbMoveCatList" style="display:flex;flex-direction:column;gap:var(--space-1)"></div>
@@ -1246,9 +1246,9 @@
   </div>
 
   <!-- Rename category modal -->
-  <div id="dbRenameCatOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideRenameCat()">
+  <div id="dbRenameCatOverlay" role="dialog" aria-modal="true" aria-labelledby="dbRenameCatTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideRenameCat()">
     <div class="card-modal-box" style="max-width:360px;padding:var(--space-5)">
-      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Rename Category</div>
+      <div id="dbRenameCatTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Rename Category</div>
       <input type="text" id="dbRenameCatInput" style="width:100%;box-sizing:border-box;margin-bottom:var(--space-4)"
              onkeydown="if(event.key==='Enter')dbConfirmRenameCat()">
       <div style="display:flex;gap:var(--space-2)">
@@ -1259,9 +1259,9 @@
   </div>
 
   <!-- Manage Categories modal -->
-  <div id="dbCategoriesOverlay" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideCategoriesModal()">
+  <div id="dbCategoriesOverlay" role="dialog" aria-modal="true" aria-labelledby="dbCategoriesTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideCategoriesModal()">
     <div class="card-modal-box" style="max-width:420px;padding:var(--space-5)">
-      <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Manage Categories</div>
+      <div id="dbCategoriesTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Manage Categories</div>
       <div id="dbCategoriesModalList" class="db-catmodal-list"></div>
       <div id="dbCategoriesModalAddRow" style="display:flex;gap:var(--space-2);margin-top:var(--space-4)">
         <input type="text" id="dbModalNewCatInput" placeholder="New category name…" style="flex:1;box-sizing:border-box"
@@ -1282,9 +1282,9 @@
 </div><!-- /site-main -->
 
 <!-- Change Password modal -->
-<div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--scrim);align-items:center;justify-content:center">
+<div id="changePwModal" role="dialog" aria-modal="true" aria-labelledby="cpTitle" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--scrim);align-items:center;justify-content:center">
   <div style="background:var(--surface-1);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);width:calc(100% - 2rem);max-width:340px;box-shadow:var(--shadow-modal)">
-    <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Change Password</div>
+    <div id="cpTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Change Password</div>
     <div style="margin-bottom:var(--space-3)">
       <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Current password</label>
       <input type="password" id="cpCurrentPw" style="width:100%;box-sizing:border-box" placeholder="Current password">
@@ -1399,6 +1399,7 @@
 </div>
 
 <script src="js/state.js"></script>
+<script src="js/modal.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/scryfall.js"></script>
 <script src="js/sortui.js"></script>

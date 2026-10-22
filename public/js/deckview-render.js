@@ -494,7 +494,7 @@ function dbBulkMove() {
   ).join('');
   const newCatInput = document.getElementById('dbMoveNewCatInput');
   if (newCatInput) newCatInput.value = '';
-  document.getElementById('dbMoveCardOverlay').style.display = 'flex';
+  openModal('dbMoveCardOverlay', { onClose: dbHideMoveCard });
 }
 
 /* The ghost pile — an empty outline after the last category, faint at rest and

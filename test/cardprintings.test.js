@@ -152,6 +152,7 @@ function loadGallery({ runs = null, accept = true } = {}) {
     },
   };
   vm.createContext(sandbox);
+  vm.runInContext(read('public/js/modal.js'), sandbox);
   vm.runInContext(read('public/js/card.js'), sandbox);
 
   const run    = expr => vm.runInContext(expr, sandbox);
@@ -538,7 +539,7 @@ function loadTab({ playerId = 'p1' } = {}) {
      side is scryfallBackFace()'s and is stubbed above: the printings under
      test are Sol Ring's, which has one side, and the real file would replace
      this sandbox's scryfallFetch with the queue it stands in for. */
-  for (const file of ['cardturn.js',
+  for (const file of ['modal.js', 'cardturn.js',
                       'sortui.js', 'cardstack.js', 'card.js', 'owned.js', 'deckview-boards.js',
                       'deckview-core.js', 'deckview-render.js',
                       'deckview-edit.js', 'deckview-panels.js', 'deckview-history.js',

@@ -679,12 +679,11 @@ function dbShowNewDeck() {
   document.getElementById('dbNewDeckName').value      = '';
   document.getElementById('dbNewDeckCommander').value = '';
   _closeDbCmdAc();
-  document.getElementById('dbNewDeckOverlay').style.display = 'flex';
-  setTimeout(() => document.getElementById('dbNewDeckName').focus(), 50);
+  openModal('dbNewDeckOverlay', { onClose: dbHideNewDeck, focus: 'dbNewDeckName' });
 }
 
 function dbHideNewDeck() {
-  document.getElementById('dbNewDeckOverlay').style.display = 'none';
+  closeModal('dbNewDeckOverlay');
 }
 
 async function dbCreateDeck() {
@@ -744,12 +743,11 @@ async function _dbHandleCsvImport(e) {
 function dbShowImportText() {
   if (!dbDeck) { alert('Select a deck first.'); return; }
   document.getElementById('dbImportTextArea').value = '';
-  document.getElementById('dbImportTextOverlay').style.display = 'flex';
-  setTimeout(() => document.getElementById('dbImportTextArea').focus(), 50);
+  openModal('dbImportTextOverlay', { onClose: dbHideImportText });
 }
 
 function dbHideImportText() {
-  document.getElementById('dbImportTextOverlay').style.display = 'none';
+  closeModal('dbImportTextOverlay');
 }
 
 async function dbImportText() {

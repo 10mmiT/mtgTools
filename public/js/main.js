@@ -415,8 +415,7 @@ window.addEventListener('popstate', e => {
     // Navigating back into a modal state — re-open it
     const host = document.getElementById('cardModalDetail');
     if (host && window.innerWidth >= BP_MD) {
-      document.getElementById('cardModal').style.display = 'flex';
-      document.body.style.overflow = 'hidden';
+      _openModal('cardModalDetail');
       if (s.cardName)    loadCard({ name: s.cardName }, 'cardModalDetail');
       else if (s.cardId) loadCard({ id: s.cardId }, 'cardModalDetail');
     } else {
@@ -429,15 +428,13 @@ window.addEventListener('popstate', e => {
     }
   } else if (s.view === 'card') {
     // Close modal if open
-    const overlay = document.getElementById('cardModal');
-    if (overlay) { overlay.style.display = 'none'; document.body.style.overflow = ''; }
+    _closeModal();
     setTab('card', false);
     if (s.cardName)    loadCard({ name: s.cardName }, 'cardDetail');
     else if (s.cardId) loadCard({ id: s.cardId }, 'cardDetail');
   } else if (s.view === 'tab') {
     // Close modal if open when navigating to a different tab
-    const overlay = document.getElementById('cardModal');
-    if (overlay) { overlay.style.display = 'none'; document.body.style.overflow = ''; }
+    _closeModal();
     setTab(s.tab, false);
   }
 });
@@ -663,10 +660,7 @@ function initCardModal() {
   overlay.addEventListener('click', e => {
     if (e.target === overlay) close();
   });
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && overlay.style.display !== 'none') close();
-  });
+  // Escape is js/modal.js's, which _openModal() registers closeCardModal with.
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initCardModal);

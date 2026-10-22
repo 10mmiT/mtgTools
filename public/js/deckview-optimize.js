@@ -306,9 +306,8 @@ let _dbOptToken = 0;
 function dbShowOptimize() {
   if (!dbDeck || !isMyPlayer(dbDeck.playerId)) return false;
   _dbOptRun = { phase: 'pick', mode: '', done: 0, total: 0, plan: null, token: ++_dbOptToken };
-  const overlay = document.getElementById('dbOptimizeOverlay');
-  if (overlay) overlay.style.display = 'flex';
   _dbOptPaint();
+  openModal('dbOptimizeOverlay', { onClose: dbHideOptimize });
   return true;
 }
 
@@ -317,8 +316,7 @@ function dbHideOptimize() {
      that is not the current one and stops there. */
   _dbOptToken++;
   _dbOptRun = null;
-  const overlay = document.getElementById('dbOptimizeOverlay');
-  if (overlay) overlay.style.display = 'none';
+  closeModal('dbOptimizeOverlay');
 }
 
 // ── Asking Scryfall ───────────────────────────────────────────────────────
