@@ -48,10 +48,17 @@ Without `ADMIN_PASSWORD` the app runs in **open mode** — no login required, ev
 | Data path (inside container) | `/app/data` |
 | `ADMIN_PASSWORD` | Required to enable auth; omit for open mode |
 | `RSS_FEEDS` | Optional comma-separated RSS/Atom feed URLs for the RSS panel |
-| `MTGTOOLS_NO_BACKGROUND` | Set to `1` to skip both Scryfall background jobs — the daily bulk download and the set-index sweep. For tests and offline runs; the app then serves whatever those two last cached |
+| `MTGTOOLS_NO_BACKGROUND` | Set to `1` to skip the background jobs — the two Scryfall ones (the daily bulk download and the set-index sweep) and the daily backup. For tests and offline runs; the app then serves whatever the Scryfall jobs last cached, and takes no backups |
+| `MTGTOOLS_BACKUP_DAYS` | How many daily backups of `available.db` to keep (default `7`); `0` turns the backup off |
 | `COOKIE_SECURE` | Set to `1` to add the `Secure` flag to session cookies — recommended when running behind HTTPS |
 | `TRUST_PROXY` | Set when running behind a reverse proxy, so the rate limits see each client's address instead of the proxy's. Takes Express's `trust proxy` values: a hop count (`1`), `true`, or names and subnets (`loopback`, `10.0.0.0/8`, comma-separated). Leave unset when the app is reached directly — trusting `X-Forwarded-For` from clients lets them choose their own address |
 | `AUTH_RATE_LIMIT_MAX` | Override the login rate-limit window max (default: 30 requests per 15 min per IP) |
 | `UPLOAD_RATE_LIMIT_MAX` | Override the playmat-upload rate-limit window max (default: 20 uploads per 15 min per IP) |
 
 Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/mtgtools` on Unraid) so all data survives container restarts. All app data — collections, players, decks, want lists, availability, and user accounts — is stored in `available.db` (SQLite). Uploaded playmat backgrounds are the one thing kept outside it, as files under `data/playmats/` — one per user, at most 5 MB each, deleted when the user replaces the image or the account goes. A second database, `scryfall.db`, holds the local Scryfall bulk-data cache: on first startup the server downloads Scryfall's `oracle_cards` file (~24 MB gzipped, ~38k cards) in the background and refreshes it daily — watch for `[scryfall-db] imported … cards` in the log. It costs about 95 MB on disk. The app works during/without the download; card lookups just fall back to live (proxied) Scryfall until it completes. An upgrade that changes what the cache keeps per card re-downloads the file once even though Scryfall has published nothing new — `[scryfall-db] cached card shape is v… — re-importing` in the log is that, and it needs nothing from you. Set `ADMIN_PASSWORD` as an environment variable directly in your container manager if you're not using `docker compose`.
+
+### Backups
+
+Once a day the server copies `available.db` to `data/backups/available-YYYY-MM-DD.db` and deletes all but the newest seven (`MTGTOOLS_BACKUP_DAYS` changes the count). It uses SQLite's online backup, so the copy is consistent while the app is serving, and it is taken at startup and checked hourly after that — a server restarted several times a day still makes one a day. `scryfall.db` is not backed up; it is a cache that the next refresh rebuilds. Playmat images under `data/playmats/` aren't backed up either.
+
+To restore one, stop the container, replace `data/available.db` with the backup (and delete any `available.db-wal` and `available.db-shm` beside it), then start the container again. These copies sit on the same disk as the database, so they don't protect you if the disk fails: include `data/backups/` in whatever backs up the host.

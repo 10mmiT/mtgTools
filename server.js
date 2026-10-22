@@ -155,11 +155,15 @@ app.use('/api', require('./routes/scryfall-proxy'));
 // file is how the tests get an app, and neither job has anything to do with
 // what they assert — without the switch every `npm test` starts a 24MB
 // download it then abandons.
+//
+// The daily backup of available.db (backup.js) is a background job too, and
+// the same switch skips it: a test suite has no data worth a copy.
 const scrydb   = require('./scryfall-db');
 const setIndex = require('./set-index');
 if (process.env.MTGTOOLS_NO_BACKGROUND !== '1') {
   scrydb.init();
   setIndex.init();
+  require('./backup').init();
 }
 
 // ── Available@ calendar routes ─────────────────────────────────────────────────
