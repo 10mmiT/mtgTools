@@ -370,37 +370,49 @@ function createLinkedPlayer(username) {
 }
 
 // ── One-time migrations ────────────────────────────────────────────────────────
-(function migrateCollections() {
-  const count = db.prepare('SELECT COUNT(*) AS n FROM collections').get().n;
-  if (count > 0) return;
-  try {
-    if (!fs.existsSync(DATA_FILE)) return;
-    const raw  = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    const cols = Array.isArray(raw) ? raw : (raw.collections || []);
-    if (!cols.length) return;
-    const insert = db.prepare(`
-      INSERT OR IGNORE INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const c of cols)
-      insert.run(c.key, c.name, c.source, c.id || null, c.color || '#a855f7',
-        JSON.stringify(c.cards || {}), c.entries || 0, c.total || null, c.savedAt || null);
-    console.log(`Migrated ${cols.length} collection(s) from state.json to SQLite`);
-  } catch (e) { console.warn('Collection migration skipped:', e.message); }
-})();
+/* state.json, from before SQLite, read into the two tables once.
+ *
+ * Once, and kept to once by a marker row. It used to be guarded by the tables
+ * being empty, which is also what deleting every collection looks like — so
+ * the next restart found an empty shelf beside the old file and put the
+ * shelf from years ago back. The file is left where it is, as the backup it
+ * has become.
+ *
+ * An install that already has a players row has been running on SQLite since
+ * before the marker existed, and imported the file back then: it is marked
+ * without being read. */
+const LEGACY_MIGRATION = 'migration:state-json';
 
-(function migrateStateJson() {
-  const row = db.prepare('SELECT value_json FROM app_state WHERE key = ?').get('state');
-  if (row) return;
-  try {
-    if (!fs.existsSync(DATA_FILE)) return;
-    const raw     = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+(function migrateLegacyStateJson() {
+  if (db.prepare('SELECT 1 FROM app_state WHERE key = ?').get(LEGACY_MIGRATION)) return;
+  const mark = () => db.prepare('INSERT OR IGNORE INTO app_state (key, value_json, version) VALUES (?, ?, 0)')
+    .run(LEGACY_MIGRATION, JSON.stringify({ at: Date.now() }));
+  if (!fs.existsSync(DATA_FILE)) return;
+  if (db.prepare("SELECT 1 FROM app_state WHERE key = 'state'").get()) return mark();
+  let raw;
+  try { raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
+  catch (e) { console.warn('state.json migration skipped:', e.message); return; }
+
+  db.transaction(() => {
+    const cols = Array.isArray(raw) ? raw : (raw.collections || []);
+    if (cols.length && db.prepare('SELECT COUNT(*) AS n FROM collections').get().n === 0) {
+      const insert = db.prepare(`
+        INSERT OR IGNORE INTO collections (key, name, source, col_id, color, cards_json, entries, total, saved_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const c of cols)
+        insert.run(c.key, c.name, c.source, c.id || null, c.color || '#a855f7',
+          JSON.stringify(c.cards || {}), c.entries || 0, c.total || null, c.savedAt || null);
+      console.log(`Migrated ${cols.length} collection(s) from state.json to SQLite`);
+    }
     const players = Array.isArray(raw) ? [] : (raw.players || []);
-    if (!players.length) return;
-    db.prepare(`INSERT OR IGNORE INTO app_state (key, value_json) VALUES ('state', ?)`)
-      .run(JSON.stringify({ players }));
-    console.log(`Migrated ${players.length} player(s) from state.json to SQLite`);
-  } catch (e) { console.warn('State migration skipped:', e.message); }
+    if (players.length) {
+      db.prepare(`INSERT OR IGNORE INTO app_state (key, value_json) VALUES ('state', ?)`)
+        .run(JSON.stringify({ players }));
+      console.log(`Migrated ${players.length} player(s) from state.json to SQLite`);
+    }
+    mark();
+  })();
 })();
 
 /* Removing a player does not remove their shelf. The cards are still in the
