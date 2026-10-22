@@ -210,7 +210,7 @@
        stacked boxes; the Add form and the collections list were two more.
        What is left above the cards is this row and the chips under it. -->
   <div class="toolbar">
-    <input id="searchInput" type="text" class="search-input" placeholder="Search your cards… (name, or t:creature c:rg mv&lt;=3)" oninput="scheduleRender()">
+    <input id="searchInput" aria-label="Search your cards" type="text" class="search-input" placeholder="Search your cards… (name, or t:creature c:rg mv&lt;=3)" oninput="scheduleRender()">
     <span id="resultInfo" class="result-info"></span>
     <div id="colViewMount"></div>
     <!-- Whose shelf this tab is showing. Hidden by js/collections.js in a
@@ -319,7 +319,7 @@
   <div class="drawer-body">
     <div class="add-form">
       <div class="field">
-        <label>Label (person's name)</label>
+        <label for="nameInput">Label (person's name)</label>
         <input id="nameInput" type="text" class="name-input" placeholder="Tim">
       </div>
       <div class="field">
@@ -330,7 +330,7 @@
         <select id="ownerInput" class="name-input"><option value="">The group (no owner)</option></select>
       </div>
       <div class="field">
-        <label>Archidekt URL</label>
+        <label for="urlInput">Archidekt URL</label>
         <input id="urlInput" type="text" class="url-input" placeholder="archidekt.com/collection/v2/…">
       </div>
       <button class="btn-primary" onclick="addFromUrl()">Load from URL</button>
@@ -393,7 +393,7 @@
        in the empty state below, which is what someone who needs it is
        looking at. -->
   <div class="toolbar">
-    <input id="sfInput" type="text" class="search-input"
+    <input id="sfInput" aria-label="Search Scryfall" type="text" class="search-input"
            placeholder="Search Scryfall… (e.g. t:creature c:red cmc=3)"
            onkeydown="if(event.key==='Enter')doScryfallSearch()">
     <button class="btn-primary" onclick="doScryfallSearch()">Search</button>
@@ -426,11 +426,11 @@
      second shape; the filter that narrows the tiles only in the first. -->
 <div id="tab-sets" class="tab-pane" style="display:none" data-set-mode="picker">
   <div class="toolbar">
-    <input id="setSearchInput" type="text" class="search-input sets-when-picker"
+    <input id="setSearchInput" aria-label="Filter sets" type="text" class="search-input sets-when-picker"
            placeholder="Filter sets…" oninput="filterSets()">
     <div class="chip-row sets-when-cards" id="setChipRow"></div>
     <span id="setInfo" class="result-info"></span>
-    <select id="setFilterSel" class="sets-when-cards" title="Filter by ownership" onchange="setSetFilter(this.value)">
+    <select id="setFilterSel" aria-label="Filter by ownership" class="sets-when-cards" title="Filter by ownership" onchange="setSetFilter(this.value)">
       <option value="all">Owned: All</option>
       <option value="owned">Owned only</option>
       <option value="unowned">Unowned only</option>
@@ -454,11 +454,11 @@
        done often, so it stays on the strip rather than going to a drawer the
        way the Collections add form did. -->
   <div class="toolbar">
-    <select id="wantPlayerSel" onchange="wantPlayerSelChange(this)">
+    <select id="wantPlayerSel" aria-label="Player" onchange="wantPlayerSelChange(this)">
       <option value="">Select player…</option>
     </select>
     <div class="autocomplete-wrap want-add-field">
-      <input id="wantCardInput" type="text" style="width:100%" placeholder="Card name…"
+      <input id="wantCardInput" aria-label="Card to add to the want list" type="text" style="width:100%" placeholder="Card name…"
              onkeydown="if(event.key==='Enter')addWant()">
       <div id="wantAcDrop" class="ac-dropdown"></div>
     </div>
@@ -567,7 +567,7 @@
         <button class="view-btn land-preset-btn" data-size="100">100 <span class="preset-sub">Commander</span></button>
       </div>
       <div class="lands-field-row">
-        <input type="number" id="landsCustomSize" class="lands-num-input" placeholder="Custom…" min="1" max="500" oninput="landsOnCustomSize(this.value)">
+        <input type="number" id="landsCustomSize" aria-label="Custom deck size" class="lands-num-input" placeholder="Custom…" min="1" max="500" oninput="landsOnCustomSize(this.value)">
         <span class="lands-hint">cards</span>
       </div>
     </div>
@@ -577,7 +577,7 @@
       <div class="section-title">Total Lands</div>
       <p class="lands-sub">Override how many lands to run. Leave blank to use the recommended amount for your deck size.</p>
       <div class="lands-field-row">
-        <input type="number" id="landsCount" class="lands-num-input" placeholder="24" min="0" max="500">
+        <input type="number" id="landsCount" aria-label="Number of lands" class="lands-num-input" placeholder="24" min="0" max="500">
         <span class="lands-hint">lands <span id="landsRecHint" class="lands-rec-hint"></span></span>
       </div>
     </div>
@@ -589,32 +589,32 @@
       <div class="lands-pips-grid">
         <div class="lands-pip-field">
           <i class="ms ms-w ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-w">White</label>
+          <label for="pip-W" class="lands-pip-name mc-w">White</label>
           <input type="number" id="pip-W" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-u ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-u">Blue</label>
+          <label for="pip-U" class="lands-pip-name mc-u">Blue</label>
           <input type="number" id="pip-U" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-b ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-b">Black</label>
+          <label for="pip-B" class="lands-pip-name mc-b">Black</label>
           <input type="number" id="pip-B" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-r ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-r">Red</label>
+          <label for="pip-R" class="lands-pip-name mc-r">Red</label>
           <input type="number" id="pip-R" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-g ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-g">Green</label>
+          <label for="pip-G" class="lands-pip-name mc-g">Green</label>
           <input type="number" id="pip-G" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-pip-field">
           <i class="ms ms-c ms-cost ms-shadow ms-2x"></i>
-          <label class="lands-pip-name mc-c">Colorless</label>
+          <label for="pip-C" class="lands-pip-name mc-c">Colorless</label>
           <input type="number" id="pip-C" class="lands-num-input" placeholder="0" min="0">
         </div>
       </div>
@@ -626,15 +626,15 @@
       <p class="lands-sub">How many dual lands, fetch lands, or other non-basics are you including? These count toward your land total but are subtracted before basics are calculated.</p>
       <div class="lands-nonbasic-grid">
         <div class="lands-nonbasic-field">
-          <label class="lands-pip-name">Dual lands</label>
+          <label for="nb-dual" class="lands-pip-name">Dual lands</label>
           <input type="number" id="nb-dual" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-nonbasic-field">
-          <label class="lands-pip-name">Fetch lands</label>
+          <label for="nb-fetch" class="lands-pip-name">Fetch lands</label>
           <input type="number" id="nb-fetch" class="lands-num-input" placeholder="0" min="0">
         </div>
         <div class="lands-nonbasic-field">
-          <label class="lands-pip-name">Other non-basics</label>
+          <label for="nb-other" class="lands-pip-name">Other non-basics</label>
           <input type="number" id="nb-other" class="lands-num-input" placeholder="0" min="0">
         </div>
       </div>
@@ -747,22 +747,22 @@
     <div class="section-title">Create user account</div>
     <form onsubmit="adminCreateUser(event)" class="admin-create-form">
       <div class="field">
-        <label>Username</label>
+        <label for="newUsername">Username</label>
         <input type="text" id="newUsername" class="admin-field" autocapitalize="none" placeholder="username" required>
       </div>
       <div class="field">
-        <label>Password</label>
+        <label for="newPassword">Password</label>
         <input type="password" id="newPassword" class="admin-field" placeholder="password" required>
       </div>
       <div class="field">
-        <label>Role</label>
+        <label for="newRole">Role</label>
         <select id="newRole">
           <option value="player">Player</option>
           <option value="admin">Admin</option>
         </select>
       </div>
       <div class="field">
-        <label>Linked player</label>
+        <label for="newPlayerId">Linked player</label>
         <select id="newPlayerId" class="admin-field">
           <option value="">— No linked player —</option>
         </select>
@@ -820,7 +820,7 @@
          stays on the strip rather than going behind the ⋯ — the same call
          §9.4 made for the Want List's add field. -->
     <div class="autocomplete-wrap db-add-field db-when-deck">
-      <input type="text" id="dbAddCardInput" placeholder="Add a card…"
+      <input type="text" id="dbAddCardInput" aria-label="Add a card to this deck" placeholder="Add a card…"
              oninput="dbAddAcInput()" onkeydown="if(event.key==='Enter'){closeDbAddAc();dbAddCard()}">
       <div id="dbAddAcDrop" class="ac-dropdown" style="display:none"></div>
     </div>
@@ -830,7 +830,7 @@
          run against the deck in front of you. A bare word is still a plain
          search of name and rules text, so nothing has to be learned to type
          "goblin". -->
-    <input type="text" id="dbFilterInput" class="search-input db-when-deck"
+    <input type="text" id="dbFilterInput" aria-label="Filter this deck" class="search-input db-when-deck"
            placeholder="Filter this deck… (name, or t:creature c:rg mv&lt;=3)"
            oninput="dbSetFilter(this.value)">
 
@@ -1023,7 +1023,7 @@
 
   <!-- Add category row -->
   <div class="db-add-cat-row db-when-deck" id="dbAddCatRow">
-    <input type="text" id="dbNewCatInput" placeholder="New category name…"
+    <input type="text" id="dbNewCatInput" aria-label="New category name" placeholder="New category name…"
            onkeydown="if(event.key==='Enter')dbAddCategory()" style="flex:1">
     <button class="btn-secondary" onclick="dbAddCategory()">+ Category</button>
   </div>
@@ -1106,7 +1106,7 @@
     <div id="db-left-search" class="db-drawer-content">
       <div class="db-search-bar">
         <div class="autocomplete-wrap db-search-field">
-          <input type="text" id="dbSearchInput" placeholder="Scryfall query (Enter to search)…"
+          <input type="text" id="dbSearchInput" aria-label="Scryfall query" placeholder="Scryfall query (Enter to search)…"
                  oninput="dbAcInput()" onkeydown="if(event.key==='Enter'){closeDbAc();dbSearch()}">
           <div id="dbAcDrop" class="ac-dropdown" style="display:none"></div>
         </div>
@@ -1171,16 +1171,16 @@
     <div class="card-modal-box" style="max-width:420px;padding:var(--space-5)">
       <div id="dbNewDeckTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">New Deck</div>
       <div style="margin-bottom:var(--space-3)">
-        <label class="section-label" style="display:block;margin-bottom:var(--space-1)">Player</label>
+        <label for="dbNewDeckPlayer" class="section-label" style="display:block;margin-bottom:var(--space-1)">Player</label>
         <select id="dbNewDeckPlayer" style="width:100%"></select>
       </div>
       <div style="margin-bottom:var(--space-3)">
-        <label class="section-label" style="display:block;margin-bottom:var(--space-1)">Deck Name</label>
+        <label for="dbNewDeckName" class="section-label" style="display:block;margin-bottom:var(--space-1)">Deck Name</label>
         <input type="text" id="dbNewDeckName" placeholder="My Commander Deck" style="width:100%;box-sizing:border-box"
                onkeydown="if(event.key==='Enter')dbCreateDeck()">
       </div>
       <div style="margin-bottom:var(--space-4)">
-        <label class="section-label" style="display:block;margin-bottom:var(--space-1)">Commander (optional)</label>
+        <label for="dbNewDeckCommander" class="section-label" style="display:block;margin-bottom:var(--space-1)">Commander (optional)</label>
         <div class="autocomplete-wrap" style="position:relative">
           <input type="text" id="dbNewDeckCommander" placeholder="Commander name…" style="width:100%;box-sizing:border-box"
                  oninput="dbCmdAcInput()" onkeydown="if(event.key==='Enter')dbCreateDeck()">
@@ -1202,7 +1202,7 @@
         One card per line. <code>1 Sol Ring</code> or <code>1x Sol Ring</code> or <code>Sol Ring</code>.
         Lines starting with <code>//</code> or <code>#</code> set the category.
       </div>
-      <textarea id="dbImportTextArea" rows="12" style="width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:var(--text-base)"
+      <textarea id="dbImportTextArea" aria-label="Deck list" rows="12" style="width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:var(--text-base)"
                 placeholder="1 Sol Ring&#10;1x Birds of Paradise&#10;// Creatures&#10;1 Avacyn, Angel of Hope"></textarea>
       <div style="display:flex;gap:var(--space-2);margin-top:var(--space-3)">
         <button class="btn-primary" onclick="dbImportText()">Import</button>
@@ -1237,7 +1237,7 @@
       <div style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)" id="dbMoveCardTitle">Move Card</div>
       <div id="dbMoveCatList" style="display:flex;flex-direction:column;gap:var(--space-1)"></div>
       <div style="display:flex;gap:var(--space-2);margin-top:var(--space-3)">
-        <input type="text" id="dbMoveNewCatInput" placeholder="New category…" style="flex:1;min-width:0;box-sizing:border-box"
+        <input type="text" id="dbMoveNewCatInput" aria-label="New category" placeholder="New category…" style="flex:1;min-width:0;box-sizing:border-box"
                onkeydown="if(event.key==='Enter'){event.preventDefault();dbMoveToNewCategory()}">
         <button class="btn-secondary" style="flex-shrink:0" onclick="dbMoveToNewCategory()">+ Create</button>
       </div>
@@ -1249,7 +1249,7 @@
   <div id="dbRenameCatOverlay" role="dialog" aria-modal="true" aria-labelledby="dbRenameCatTitle" class="card-modal-overlay" style="display:none" onclick="if(event.target===this)dbHideRenameCat()">
     <div class="card-modal-box" style="max-width:360px;padding:var(--space-5)">
       <div id="dbRenameCatTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Rename Category</div>
-      <input type="text" id="dbRenameCatInput" style="width:100%;box-sizing:border-box;margin-bottom:var(--space-4)"
+      <input type="text" id="dbRenameCatInput" aria-label="Category name" style="width:100%;box-sizing:border-box;margin-bottom:var(--space-4)"
              onkeydown="if(event.key==='Enter')dbConfirmRenameCat()">
       <div style="display:flex;gap:var(--space-2)">
         <button class="btn-primary" onclick="dbConfirmRenameCat()">Rename</button>
@@ -1264,7 +1264,7 @@
       <div id="dbCategoriesTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Manage Categories</div>
       <div id="dbCategoriesModalList" class="db-catmodal-list"></div>
       <div id="dbCategoriesModalAddRow" style="display:flex;gap:var(--space-2);margin-top:var(--space-4)">
-        <input type="text" id="dbModalNewCatInput" placeholder="New category name…" style="flex:1;box-sizing:border-box"
+        <input type="text" id="dbModalNewCatInput" aria-label="New category name" placeholder="New category name…" style="flex:1;box-sizing:border-box"
                onkeydown="if(event.key==='Enter')dbAddCategoryFromModal()">
         <button class="btn-secondary" style="flex-shrink:0" onclick="dbAddCategoryFromModal()">+ Add</button>
       </div>
@@ -1286,15 +1286,15 @@
   <div style="background:var(--surface-1);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);width:calc(100% - 2rem);max-width:340px;box-shadow:var(--shadow-modal)">
     <div id="cpTitle" style="font-size:var(--text-md);font-weight:700;margin-bottom:var(--space-4)">Change Password</div>
     <div style="margin-bottom:var(--space-3)">
-      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Current password</label>
+      <label for="cpCurrentPw" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Current password</label>
       <input type="password" id="cpCurrentPw" style="width:100%;box-sizing:border-box" placeholder="Current password">
     </div>
     <div style="margin-bottom:var(--space-3)">
-      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">New password</label>
+      <label for="cpNewPw" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">New password</label>
       <input type="password" id="cpNewPw" style="width:100%;box-sizing:border-box" placeholder="New password (min 6 chars)">
     </div>
     <div style="margin-bottom:var(--space-4)">
-      <label style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Confirm new password</label>
+      <label for="cpConfirmPw" style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-1);display:block">Confirm new password</label>
       <input type="password" id="cpConfirmPw" style="width:100%;box-sizing:border-box" placeholder="Confirm new password"
              onkeydown="if(event.key==='Enter')submitChangePassword()">
     </div>
@@ -1337,7 +1337,7 @@
   <div class="db-more-section-label">Playmat</div>
   <div class="playmat-current" id="playmatCurrent">None — the page keeps its plain background.</div>
   <div class="autocomplete-wrap playmat-field">
-    <input id="playmatCardInput" type="text" placeholder="Card name…">
+    <input id="playmatCardInput" aria-label="Playmat card name" type="text" placeholder="Card name…">
     <div id="playmatAcDrop" class="ac-dropdown"></div>
   </div>
   <!-- Bring your own image (§10.4). The file input is hidden because a bare

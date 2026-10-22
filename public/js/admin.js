@@ -48,11 +48,11 @@ function adminExpandApprove(id, username) {
     <td class="td-name">${esc(username)}</td>
     <td colspan="2">
       <div class="admin-inline-form">
-        <select id="req-role-${id}" class="admin-inline-ctl">
+        <select id="req-role-${id}" class="admin-inline-ctl" aria-label="Role">
           <option value="player">Player</option>
           <option value="admin">Admin</option>
         </select>
-        <select id="req-player-${id}" class="admin-inline-ctl">
+        <select id="req-player-${id}" class="admin-inline-ctl" aria-label="Linked player">
           ${playerOpts}
         </select>
         <button class="btn-update" onclick="adminConfirmApprove(${id})">Confirm</button>
@@ -149,17 +149,17 @@ function adminEditUser(username) {
   row.innerHTML = `
     <td class="td-name">${esc(username)}</td>
     <td>
-      <select id="edit-role-${esc(username)}" class="admin-inline-ctl">
+      <select id="edit-role-${esc(username)}" class="admin-inline-ctl" aria-label="Role">
         ${roleOpts}
       </select>
     </td>
     <td>
-      <select id="edit-player-${esc(username)}" class="admin-inline-ctl">
+      <select id="edit-player-${esc(username)}" class="admin-inline-ctl" aria-label="Linked player">
         ${playerOpts}
       </select>
     </td>
     <td class="admin-actions admin-actions-edit">
-      <input type="password" id="edit-pw-${esc(username)}" class="admin-inline-ctl admin-inline-pw" placeholder="New password (optional)">
+      <input type="password" id="edit-pw-${esc(username)}" class="admin-inline-ctl admin-inline-pw" placeholder="New password (optional)" aria-label="New password">
       <button class="btn-update" onclick="adminSaveUser('${jsAttr(username)}')">Save</button>
       <button class="btn-secondary btn-sm" onclick="adminLoadUsers()">Cancel</button>
     </td>`;
