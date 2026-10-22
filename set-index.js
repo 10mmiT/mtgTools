@@ -34,7 +34,21 @@ const SET_TYPES = ['expansion', 'core', 'masters', 'draft_innovation',
 const SETS_URL     = 'https://api.scryfall.com/sets';
 const REFRESH_MS   = 24 * 60 * 60 * 1000;
 const FILL_PAUSE   = 200;   // ms between sets — the sweep is never in a hurry
-const MAX_ATTEMPTS = 3;     // give up on a set that keeps failing
+
+// A set that fails waits before it is tried again: an hour after the first
+// failure, doubling each time, never more than a day. There used to be a cap
+// of three attempts instead, and three transient failures in a row — a bad
+// evening on Scryfall's side — took a set out of the index for good; the
+// production database had `pcy` stuck at attempts = 3. The daily refresh
+// clears the count, so the worst a set can do now is wait a day.
+const RETRY_BASE_MS = 60 * 60 * 1000;
+const RETRY_MAX_MS  = REFRESH_MS;
+
+// A failure that is not the set's — the network refused, or Scryfall is
+// rate-limiting us — ends the sweep without marking anything, and the sweep
+// runs again this long after. Counting it against the set would back off the
+// one set that happened to be in flight for a fault that was everybody's.
+const OFFLINE_RETRY_MS = 15 * 60 * 1000;
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS sets (
@@ -55,6 +69,10 @@ db.exec(`
   ) WITHOUT ROWID;
   CREATE INDEX IF NOT EXISTS idx_set_cards_name ON set_cards(name);
 `);
+// Added after the table shipped, so a database made before it gains it here.
+if (!db.prepare('PRAGMA table_info(sets)').all().some(c => c.name === 'last_attempt_at')) {
+  db.exec('ALTER TABLE sets ADD COLUMN last_attempt_at INTEGER');   // epoch ms
+}
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -72,6 +90,9 @@ const _upsertSet = db.prepare(`
     attempts    = CASE WHEN excluded.card_count <> sets.card_count THEN 0 ELSE sets.attempts END,
     card_count  = excluded.card_count
 `);
+// Every set gets a clean slate with the daily list: whatever went wrong
+// yesterday is tried again today rather than waiting out its backoff.
+const _resetAttempts = db.prepare('UPDATE sets SET attempts = 0, last_attempt_at = NULL WHERE attempts > 0');
 
 async function refreshSets() {
   const res  = await queuedFetch(SETS_URL, { headers: SF_HEADERS });
@@ -84,23 +105,45 @@ async function refreshSets() {
       set_type: s.set_type, card_count: s.card_count || 0,
     }));
   if (!rows.length) throw new Error('sets list came back empty');
-  db.transaction(rs => { for (const r of rs) _upsertSet.run(r); })(rows);
+  db.transaction(rs => {
+    for (const r of rs) _upsertSet.run(r);
+    _resetAttempts.run();
+  })(rows);
   return rows.length;
 }
 
 // ── Filling one set ───────────────────────────────────────────────────────────
+// Due: never failed, or failed long enough ago — RETRY_BASE_MS doubled per
+// failure after the first, held at RETRY_MAX_MS. The shift is clamped so a
+// long run of failures cannot overflow it.
 const _nextToFill = db.prepare(`
   SELECT code, card_count FROM sets
-  WHERE attempts < ? AND (indexed IS NULL OR indexed_of IS NOT card_count)
+  WHERE (indexed IS NULL OR indexed_of IS NOT card_count)
+    AND (attempts = 0 OR last_attempt_at IS NULL
+         OR last_attempt_at + MIN(@base * (1 << MIN(attempts - 1, 20)), @max) <= @now)
   ORDER BY released_at DESC LIMIT 1
 `);
 const _clearSet  = db.prepare('DELETE FROM set_cards WHERE code = ?');
 const _addCard   = db.prepare('INSERT OR IGNORE INTO set_cards (code, name) VALUES (?, ?)');
 const _markDone  = db.prepare(`
-  UPDATE sets SET indexed = ?, indexed_of = ?, indexed_at = datetime('now'), attempts = 0
+  UPDATE sets SET indexed = ?, indexed_of = ?, indexed_at = datetime('now'), attempts = 0,
+    last_attempt_at = NULL
   WHERE code = ?
 `);
-const _markFail  = db.prepare('UPDATE sets SET attempts = attempts + 1 WHERE code = ?');
+const _markFail  = db.prepare('UPDATE sets SET attempts = attempts + 1, last_attempt_at = ? WHERE code = ?');
+
+/* A failure that says nothing about the set: the request never got an
+ * answer, or the answer was Scryfall's rate limit (the queue has already
+ * waited one out and been told the same again). */
+class Offline extends Error {}
+
+async function fetchPage(url) {
+  let res;
+  try { res = await queuedFetch(url, { headers: SF_HEADERS }); }
+  catch (e) { throw new Offline(e.message); }
+  if (res.status === 429) throw new Offline('search HTTP 429');
+  return res;
+}
 
 /* One set, however many pages it takes. `unique=cards` is the Set Browser's
  * own query, so the count stored here is the count the tab will show.
@@ -112,7 +155,7 @@ async function fillSet(code, cardCount) {
   let url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`set:${code}`)}&unique=cards&order=collector_number`;
   const names = [];
   while (url) {
-    const res  = await queuedFetch(url, { headers: SF_HEADERS });
+    const res  = await fetchPage(url);
     const body = await res.text();
     // 404 on the first page is Scryfall's "no cards match", which for a set
     // is an answer. On a later page it is a broken pagination and has to be
@@ -133,6 +176,7 @@ async function fillSet(code, cardCount) {
 
 let _sweeping = false;
 let _stopped  = false;
+let _retry    = null;
 
 /* The sweep. Sequential on purpose: one request in the shared queue at a
  * time, so a search someone is waiting for is never behind more than the job
@@ -143,7 +187,7 @@ async function sweep() {
   try {
     let filled = 0;
     while (!_stopped) {
-      const next = _nextToFill.get(MAX_ATTEMPTS);
+      const next = _nextToFill.get({ base: RETRY_BASE_MS, max: RETRY_MAX_MS, now: Date.now() });
       if (!next) break;
       try {
         const n = await fillSet(next.code, next.card_count);
@@ -154,7 +198,15 @@ async function sweep() {
         }
         if (n === 0) console.log(`[set-index] ${next.code}: no cards yet`);
       } catch (e) {
-        _markFail.run(next.code);
+        if (e instanceof Offline) {
+          console.warn(`[set-index] ${next.code}: ${e.message} — pausing the sweep`);
+          if (!_stopped && !_retry) {
+            _retry = setTimeout(() => { _retry = null; sweep().catch(() => {}); }, OFFLINE_RETRY_MS);
+            _retry.unref();
+          }
+          break;
+        }
+        _markFail.run(Date.now(), next.code);
         console.warn(`[set-index] ${next.code}: ${e.message}`);
       }
       await sleep(FILL_PAUSE);
@@ -237,6 +289,9 @@ function init() {
   setInterval(() => refreshAndSweep().catch(() => {}), REFRESH_MS).unref();
 }
 
-function stop() { _stopped = true; }
+function stop() {
+  _stopped = true;
+  if (_retry) { clearTimeout(_retry); _retry = null; }
+}
 
 module.exports = { init, stop, list, status, refreshSets, sweep, fillSet, SET_TYPES };
