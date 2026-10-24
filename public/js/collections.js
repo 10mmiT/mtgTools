@@ -521,13 +521,22 @@ function renderImports() {
 
 /* Pull the collections back from the server after an import lands. A whole
  * /api/state read rather than a narrower one, because hydrateState is what
- * knows how to turn the payload into the shape the tab renders from. */
+ * knows how to turn the payload into the shape the tab renders from.
+ *
+ * Taken in the way the poll takes its answer (takePolledState in js/state.js),
+ * because it is the same whole-state read with the same ways to go wrong: an
+ * answer cut before a save of ours that lands after it would put the screen
+ * back to before the save, and an older version would make the next save a
+ * false 409. One it may not take is not lost — the import moved the revision,
+ * so the poll, asked now rather than in thirty seconds, fetches it again once
+ * nothing is in its way, and draws everything when it does. */
 async function reloadCollections() {
+  const saves = stateSaveSeq;
   try {
     const res = await fetch('/api/state');
     if (!res.ok) return;
-    hydrateState(await res.json());
-    renderResults();
+    if (takePolledState(await res.json(), saves)) renderResults();
+    else if (typeof refreshStateNow === 'function') await refreshStateNow();
   } catch {}
 }
 

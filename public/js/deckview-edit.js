@@ -56,8 +56,17 @@ async function dbAddCard(nameOverride, board) {
   // Fetch card data if we don't have it yet
   if (!dbCardData.has(name)) {
     const deck = dbDeck;
+    /* The card is in this deck already, so it is saved now, before the wait:
+       the save carries this deck's id and a copy of its cards (dbScheduleSave),
+       and a switch inside the wait flushes it to this deck. Scheduled only
+       after the wait, a switch left nothing to flush and the card was lost
+       with the mat it was put on. The finished add below schedules again, and
+       the debounce makes the two one write. */
+    dbScheduleSave();
     await dbFetchCardData([name]);
-    // Another deck opened meanwhile, and the card below would be its card.
+    /* Another deck opened meanwhile. The card went to this one with the save
+       above, under the category it was guessed into before its type was
+       known; the mat is the other deck's now, and nothing more is done to it. */
     if (dbDeck !== deck) return;
     // Re-check category now that we have type data
     if (existing === undefined) {

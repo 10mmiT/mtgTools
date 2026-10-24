@@ -125,7 +125,7 @@ function loadBuilder() {
   const answer = expr => JSON.parse(run(`JSON.stringify(${expr})`));
 
   return {
-    run, answer, mat, el, calls,
+    run, answer, mat, el, calls, sandbox,
     /** Hold the next request for `url` until the test answers it. */
     hold(url) { const d = deferred(); held.set(url, d); return d; },
     /** The autosave's 800 ms, passed: every write still waiting goes. */
@@ -261,4 +261,47 @@ test('recommendations asked for one deck are not put up on the next', async () =
   assert.strictEqual(tab.run('dbEdhrecData'), null, 'the last deck’s recommendations are this one’s now');
   assert.doesNotMatch(tab.el('dbEdhrecContent').innerHTML, /Goblin Chieftain/,
     'the last deck’s recommendations were drawn over this one');
+});
+
+// ── Adding a card ─────────────────────────────────────────────────────────
+
+test('a card added just before a switch is saved to the deck it was added to', async () => {
+  /* dbAddCard puts the card on the mat and then waits for its card data. A
+   * switch inside that wait used to drop it: nothing had been scheduled yet,
+   * so the switch had no save to flush, and the add gave up on finding
+   * another deck open. */
+  const tab = loadBuilder();
+  await tab.run(`dbSelectDeck('p-tim|d-a')`);
+  const lookup = deferred();
+  tab.sandbox.lookup = lookup.promise;
+  // The added card's Scryfall lookup, held; the next deck's own is not.
+  tab.run(`dbFetchCardData = names => (names.includes('Lightning Bolt') ? lookup : Promise.resolve())`);
+
+  const adding = tab.run(`dbAddCard('Lightning Bolt')`);
+  await settle();
+  await tab.run(`dbSelectDeck('p-tim|d-b')`);
+  lookup.resolve();
+  await adding;
+  await tab.elapse();
+
+  const toA = tab.puts().filter(p => p.url === CARDS_OF('d-a'));
+  const toB = tab.puts().filter(p => p.url === CARDS_OF('d-b'));
+  assert.ok(toA.length >= 1, 'the card was saved nowhere');
+  assert.ok(toA.at(-1).body.cards.some(c => c.card_name === 'Lightning Bolt'),
+    'what was written to the deck it was added to does not have it');
+  assert.ok(!toB.some(p => p.body.cards.some(c => c.card_name === 'Lightning Bolt')),
+    'the card was written into the deck opened after it');
+  assert.deepStrictEqual(tab.onMat(), ['Forest'], 'the card is on the new deck’s mat');
+});
+
+test('a card added with no switch is saved once, with its category settled', async () => {
+  const tab = loadBuilder();
+  await tab.run(`dbSelectDeck('p-tim|d-a')`);
+  tab.run('dbFetchCardData = async () => {}');
+  tab.run('dbRender = () => {}; dbRenderStats = () => {}');  // the drawing is not under test
+  await tab.run(`dbAddCard('Lightning Bolt')`);
+  await tab.elapse();
+  const puts = tab.puts();
+  assert.deepStrictEqual(puts.map(p => p.url), [CARDS_OF('d-a')]);
+  assert.deepStrictEqual(puts[0].body.cards.map(c => c.card_name), ['Sol Ring', 'Lightning Bolt']);
 });
