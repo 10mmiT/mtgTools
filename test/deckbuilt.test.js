@@ -135,7 +135,6 @@ after((_, done) => {
   function finish() {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     done();
-    setImmediate(() => process.exit(0));
   }
   if (srv && srv.listening) srv.close(finish); else finish();
 });

@@ -124,8 +124,11 @@ describe('GET /api/archidekt/collection/:id', () => {
   process.env.MTGTOOLS_NO_BACKGROUND = '1';
 
   const supertest = require('supertest');
-  const { app }   = require('../server');
+  const { app, server: getServer } = require('../server');
   const request   = supertest(app);
+
+  // Requiring the server starts it listening; close it so the run ends by itself.
+  after(() => new Promise(done => getServer().close(() => done())));
 
   async function cookie() {
     const res = await request.post('/api/auth/login')

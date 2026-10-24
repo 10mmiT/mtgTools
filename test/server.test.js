@@ -1574,8 +1574,6 @@ after((_, done) => {
   function finish() {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     done();
-    // Force-exit: better-sqlite3 keeps event loop alive; tests are done.
-    setImmediate(() => process.exit(0));
   }
   if (srv && srv.listening) {
     srv.close(finish);

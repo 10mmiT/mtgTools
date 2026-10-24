@@ -26,7 +26,7 @@
 
 'use strict';
 
-const { test, describe, before } = require('node:test');
+const { test, describe, before, after } = require('node:test');
 const assert    = require('node:assert/strict');
 const supertest = require('supertest');
 const fs        = require('node:fs');
@@ -76,9 +76,12 @@ process.env.PORT                   = '0';
 process.env.AUTH_RATE_LIMIT_MAX    = '1000';
 process.env.MTGTOOLS_NO_BACKGROUND = '1';
 
-const { app } = require('../server');
+const { app, server: getServer } = require('../server');
 const { db }  = require('../available-db');
 const request = supertest(app);
+
+// Requiring the server starts it listening; close it so the run ends by itself.
+after(() => new Promise(done => getServer().close(() => done())));
 
 async function adminCookie() {
   const res = await request.post('/api/auth/login')

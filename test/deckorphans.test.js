@@ -11,7 +11,7 @@
 
 'use strict';
 
-const { test, beforeEach } = require('node:test');
+const { test, beforeEach, after } = require('node:test');
 const assert   = require('node:assert/strict');
 const fs       = require('node:fs');
 const os       = require('node:os');
@@ -24,7 +24,11 @@ process.env.PORT                   = '0';
 process.env.AUTH_RATE_LIMIT_MAX    = '1000';
 process.env.MTGTOOLS_NO_BACKGROUND = '1';
 
-const request = require('supertest')(require('../server').app);
+const { app, server: getServer } = require('../server');
+const request = require('supertest')(app);
+
+// Requiring the server starts it listening; close it so the run ends by itself.
+after(() => new Promise(done => getServer().close(() => done())));
 const { db }  = require('../available-db');
 
 const deck = id => ({ id, name: id });
