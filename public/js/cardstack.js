@@ -37,14 +37,6 @@ const STACK_LAYERS_MAX = 10;
  * pile put down by hand, not a spread. */
 const STACK_JITTER_MAX = 2.5;
 
-/* How thick one card is, as a fraction of the card's own width. A Magic card
- * is about 0.3mm on a 63mm width, which would be invisible; this is a stack
- * seen from slightly in front, where the edges show. It tracks the width
- * rather than being a fixed pixel count so that the card-size control makes
- * thick stacks thicker and thin ones thinner, instead of making big cards
- * look like they are printed on tissue. */
-const STACK_CARD_EDGE = 0.0125;
-
 /* A stable number from a card's name — FNV-1a, which is short, has no
  * dependencies and spreads names that differ by one letter. What matters here
  * is only that it is a pure function of the string: the same name has to give

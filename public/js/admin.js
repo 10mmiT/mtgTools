@@ -131,12 +131,6 @@ async function adminDeleteUser(username) {
 function adminEditUser(username) {
   const row = document.getElementById(`admin-user-row-${username}`);
   if (!row) return;
-  const user        = { username };
-  const linkedPlayer = state.players.find(p => {
-    const allUsers = Array.from(document.querySelectorAll('#adminUsersBody tr')).map(r => r.id.replace('admin-user-row-', ''));
-    return false; // We'll read from the API data instead via inline form
-  });
-
   const playerOpts = [
     `<option value="">— No linked player —</option>`,
     ...state.players.map(p => `<option value="${p.id}">${esc(p.name)}</option>`),
