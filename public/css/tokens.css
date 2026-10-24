@@ -1,5 +1,5 @@
 /* Design tokens — theme variables and the per-tab accent colours.
-   File 1 of 5 in load order; later files may override earlier ones.
+   File 1 of 6 in load order; later files may override earlier ones.
 
    Raw colour values (#hex, rgb(), rgba(), hsl()) are permitted in THIS FILE
    ONLY. Everywhere else colour comes from a var(--token). Two exemptions,
@@ -414,6 +414,15 @@
   --scrim: rgb(14 16 19 / .86);
   --mat:   #171b20;             /* Deck Builder felt surface */
 
+  /* The wood of table mode's table (css/table.css): the board, and the
+     darker band round its edge and round the mat set into it. Table mode is
+     the one thing in the app drawn as furniture, so it is the one place a
+     theme says what its furniture is made of — dark, oiled walnut in a dim
+     room here, the grain drawn from the two of them. Neither carries text:
+     the tabs standing on the rim are surfaces of their own. */
+  --table-wood:      #2e241d;
+  --table-wood-edge: #1b1511;
+
   /* Overlay shadows. Flat surfaces get a hairline instead — there is
      deliberately no --shadow-raised. */
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
@@ -496,6 +505,8 @@ html[data-theme="dusk"] {
 
   --scrim: rgb(18 16 16 / .86);
   --mat:   #1c1815;
+  --table-wood:      #33261c;
+  --table-wood-edge: #1f1710;
 
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
@@ -564,6 +575,10 @@ html[data-theme="light"] {
 
   --scrim: rgb(245 246 248 / .92);
   --mat:   #e9ecf1;
+  /* A lit room's table: a lighter oak, so the board is a step below the page
+     rather than a hole in it. */
+  --table-wood:      #a8835f;
+  --table-wood-edge: #7b5c40;
 
   /* Light themes carry roughly half the shadow alpha. */
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .14), 0 1px 3px rgb(0 0 0 / .08);
@@ -636,6 +651,8 @@ html[data-theme="sepia"] {
 
   --scrim: rgb(247 243 236 / .92);
   --mat:   #ece4d6;
+  --table-wood:      #a27b55;
+  --table-wood-edge: #785739;
 
   /* Half alpha like the other light theme, warmed to match the paper. */
   --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
@@ -713,6 +730,11 @@ html[data-theme="contrast"] {
      than their page, so it is dark art that costs them, and it costs more. */
   --scrim: rgb(0 0 0 / .90);
   --mat:   #0f0f0f;
+  /* The edge is lighter than the board here, not darker: a dark band round a
+     dark table on a black page is no edge at all, and this theme is the one
+     where the table's outline has to be seen rather than inferred. */
+  --table-wood:      #3f2f21;
+  --table-wood-edge: #9a7a58;
 
   /* Each of these leads with a hairline ring, which no other palette needs.
      An overlay carries a shadow and no border (§4.5), and that works because
