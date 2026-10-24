@@ -743,13 +743,22 @@ function jsAttr(s) {
 }
 
 // ── Relative time ─────────────────────────────────────────────────────────
-function relTime(iso) {
-  if (!iso) return '';
-  const s = (Date.now() - new Date(iso)) / 1000;
-  if (s < 60)    return 'just now';
-  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return new Date(iso).toLocaleDateString();
+/* How long ago, at the resolution the answer is useful at. Four minutes ago
+ * is "4m ago"; March is a date, because "148d ago" is a number nobody
+ * converts — and a date with the month in words, which no reader can take for
+ * the American order. Takes an ISO string, a millisecond count or a Date.
+ * Something that is not a time is '' for the caller to decide about; a time a
+ * clock running fast put in the future is "just now". */
+function timeAgo(when, now = Date.now()) {
+  if (when == null || when === '') return '';
+  const d = new Date(when);
+  if (isNaN(d)) return '';
+  const diff = Math.max(0, now - d.getTime());
+  if (diff < 60_000)      return 'just now';
+  if (diff < 3_600_000)   return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000)  return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 // ── Normalise URL ─────────────────────────────────────────────────────────

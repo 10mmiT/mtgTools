@@ -996,7 +996,7 @@ function chipHtml(col, imp, onShelf) {
     : col.status === 'error' ? col.error
     : [sourceLabel(source),
        owner ? `${owner.name}’s` : 'the group’s',
-       col.savedAt ? `updated ${relTime(col.savedAt)}` : '',
+       col.savedAt ? `updated ${timeAgo(col.savedAt)}` : '',
        off ? 'not on the shelf you are looking at' : ''].filter(Boolean).join(' · ');
 
   const busy = running || (col && col.updating);

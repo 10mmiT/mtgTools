@@ -140,18 +140,6 @@ function _dbChangeDetail(changes) {
   return lines.join('\n');
 }
 
-/* How long ago, at the resolution the answer is useful at. A snapshot from
- * four minutes ago is "4 min ago"; one from March is a date, because "148
- * days ago" is a number nobody converts. */
-function dbHistoryWhen(takenAt, now = Date.now()) {
-  const diff = Math.max(0, now - takenAt);
-  if (diff < 60_000)      return 'just now';
-  if (diff < 3_600_000)   return `${Math.floor(diff / 60_000)} min ago`;
-  if (diff < 86_400_000)  return `${Math.floor(diff / 3_600_000)}h ago`;
-  if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d ago`;
-  return new Date(takenAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function _dbHistoryHtml(data, canEdit) {
   const rows = [];
 
@@ -169,7 +157,7 @@ function _dbHistoryHtml(data, canEdit) {
     </div>`);
 
   for (const snap of data.snapshots) {
-    const when   = dbHistoryWhen(snap.taken_at);
+    const when   = timeAgo(snap.taken_at);
     const exact  = new Date(snap.taken_at).toLocaleString();
     const reason = DB_HISTORY_REASON[snap.reason] || 'Snapshot';
     rows.push(`
