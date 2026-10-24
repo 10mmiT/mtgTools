@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test --test-force-exit \"test/*.test.js\"",
+    "test": "node --test \"test/*.test.js\"",
     "lint:tokens": "node scripts/lint-tokens.js",
     "check:contrast": "node scripts/check-contrast.js",
     "measure:layout": "node scripts/measure-layout.js",
