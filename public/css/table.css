@@ -205,6 +205,10 @@ html[data-playmat] .table-mat {
 .table-card-img {
   width: 100%;
   height: 100%;
+  /* A card's picture is a card's shape already; a deck's commander art on the
+     Decks tab is a landscape crop, and is cut to the card rather than squashed
+     into it. */
+  object-fit: cover;
   pointer-events: none;
 }
 /* In hand: the deeper shadow of something held above the table rather than
@@ -235,34 +239,55 @@ html[data-playmat] .table-mat {
 
 /* ── A card picked up to be looked at ──────────────────────────────────
    Above the table and anything floating over it, below the app's own dialogs
-   and the card preview. The whole window is the button that puts it back.
-   It draws no ring of its own round the window: the card is what has the
-   focus, so the card is what wears it. */
+   and the card preview. Behind the card, the whole window is the button that
+   puts it back; under it, Details. The window's button draws no ring of its
+   own round the window: the card is what it is about, so the card is what
+   wears its focus. */
 .table-look {
   position: fixed;
   inset: 0;
   z-index: 40;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-3);
+}
+.table-look[hidden] { display: none; }
+.table-look-back {
+  position: absolute;
+  inset: 0;
   padding: 0;
+  border: 0;
   background: transparent;
   cursor: zoom-out;
 }
-.table-look[hidden] { display: none; }
-.table-look:focus-visible { outline: none; }
-.table-look:focus-visible .table-look-card {
+.table-look-back:focus-visible { outline: none; }
+.table-look-back:focus-visible ~ .table-look-card {
   outline: 2px solid var(--accent, var(--primary));
   outline-offset: 4px;
 }
+/* Shorter than the window by Details and the gap above it. */
 .table-look-card {
-  height: min(82vh, 84vw);
+  position: relative;
+  height: min(74vh, 84vw);
   width: auto;
   aspect-ratio: 63 / 88;
   pointer-events: none;
   filter: var(--card-shadow-raised);
   transition: transform var(--dur-card) var(--ease-tint);
 }
+/* Positioned, so it lies over the window's button rather than under it; and
+   come in once the card is on its way up, rather than waiting under an empty
+   window for it. */
+.table-look-details {
+  position: relative;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  opacity: 0;
+  transition: opacity var(--dur-card) var(--ease-tint);
+}
+.table-look.is-up .table-look-details { opacity: 1; }
 
 /* ── Panels ────────────────────────────────────────────────────────────
    One host for a tab's page, in one of two kinds — see js/tablemode.js. The
@@ -280,6 +305,31 @@ html[data-playmat] .table-mat {
   overflow: auto;
   padding: var(--space-4);
 }
+
+/* The header's title is a button that works only while the panel is tucked
+   (js/tablemode.js) — the rest of the time it is the drawer's title and looks
+   nothing like a control. "Show table" is offered only by a tab with cards. */
+.table-panel-title {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+/* Not base.css's half-faded, not-allowed button: switched off here is not
+   unavailable, it is a title. */
+.table-panel-title:disabled { opacity: 1; cursor: default; }
+.table-panel-tuck {
+  display: none;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.table-panel[data-cards] .table-panel-tuck { display: inline-flex; }
 
 /* Floating: lifted off the table and facing the viewer, so a modal's shadow
    and no border. It is absolute rather than fixed and carries no transform at
@@ -311,6 +361,22 @@ html[data-playmat] .table-mat {
 }
 .table-panel[data-kind="float"].is-open { opacity: 1; translate: none; }
 
+/* Tucked: slid down until its header is all that is left in the window, at
+   the foot of it — the script hands over how far as --table-tuck-y — with the
+   table undimmed above it. The page under the header is still laid out at the
+   panel's size, so nothing in it reflows, and it is made invisible once the
+   slide is over, so the keyboard cannot reach into what nobody can see. The
+   header is the way back: all of it is pressable. */
+.table-panel[data-kind="float"].is-open.is-tucked { translate: 0 var(--table-tuck-y, 0px); }
+.table-panel.is-tucked .table-panel-hdr,
+.table-panel.is-tucked .table-panel-title { cursor: pointer; }
+.table-panel.is-tucked .table-panel-tuck { display: none; }
+.table-panel .table-panel-body { transition: visibility 0s; }
+.table-panel.is-tucked .table-panel-body {
+  visibility: hidden;
+  transition: visibility 0s var(--dur-panel);
+}
+
 /* Growing: a sheet lying on the mat, in the table's plane, unfolding out of
    the edge whose tab opened it. Flat, because it is lying down: a hairline
    and a surface, and no shadow. It lies just above every card on the mat, at
@@ -318,6 +384,9 @@ html[data-playmat] .table-mat {
 .table-panel[data-kind="grow"] {
   position: absolute;
   inset: var(--space-3);
+  /* Short of the lane the Card tab's card lies in beside it, when one does
+     (--table-sheet-lane, written by the script; nothing otherwise). */
+  right: calc(var(--space-3) + var(--table-sheet-lane, 0px));
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

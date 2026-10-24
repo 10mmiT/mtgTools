@@ -97,17 +97,70 @@
 // is only taken when nothing else on the page wanted it: a dialog, a drawer, a
 // menu or the RSS panel open at the time of the key press each keep it.
 //
+// ── Tucking a panel away ──────────────────────────────────────────────────
+// A tab with cards (TABLE_CARD_TABS) floats its controls — the search box, the
+// sort, the deck picker — over the very table its cards are laid on, so its
+// panel can be tucked: "Show table" in its header slides it down until only
+// that header shows, flat at the foot of the window and between the side
+// tabs, and the table is undimmed. Pressing the header brings it back. Moved
+// with `translate`, so the pane keeps the box it was laid out in and nothing
+// in it reflows; what is out of sight is made invisible too, so the keyboard
+// cannot Tab into it.
+//
+// It tucks itself in two cases, and only for a tab with cards: when cards are
+// laid because of something the user did in the pane — a search finished, a
+// sort chosen, a deck picked (tableShouldAutoTuck) — and when a tab with cards
+// is opened straight from another one while the last thing the user chose was
+// to tuck (tableTuckOnOpen). That choice is kept for the session and in
+// memory only. A tab without cards never tucks on its own.
+//
 // ── Cards ─────────────────────────────────────────────────────────────────
 // tableMode.layCards() lays a list of cards flat on the mat in tidy fanned
 // piles (tableLayout). Press and drag one and it comes up off the felt, leans
 // towards you and follows the pointer in the table's plane; let go and it
 // settles where it was put down. Press without moving (tableIsDrag: under 5px)
 // and it is picked up to be looked at: it rises to face you, large, over the
-// table, and a click or Escape puts it back. Where a hand put a card is kept
-// for the session and for nothing longer.
+// table, and a click or Escape puts it back — unless the card stands for
+// something to open, a deck on the Decks tab, when the click opens it. Where a
+// hand put a card is kept for the session and for nothing longer.
 //
-// Until the next half of this work gives each tab its own cards, entering the
-// mode lays the first cards of the first collection there is, as a stand-in.
+// The Card tab's one card is laid on its own, large, in a lane down the mat's
+// right-hand side, and the sheet the tab lies on draws itself short of that
+// lane (--table-sheet-lane) so the two lie side by side.
+//
+// While a card is being looked at, a small "Details" under it opens the Card
+// tab on it (openCardPage, js/card.js) — as the sheet lying on the mat, which
+// is what the tab is here, rather than the modal the app opens at this width.
+//
+// ── Each tab's cards ──────────────────────────────────────────────────────
+// A tab with cards lays them on the mat when it is opened, and again whenever
+// its pane is redrawn while it is open — a sort, a filter, a search, a deck
+// edit — noticed by watching the pane rather than by asking every renderer to
+// call out. What is laid is what the tab is showing, read from the renderer's
+// own result through a small getter beside it, never fetched or worked out a
+// second time (TABLE_SOURCES):
+//
+//   collections  colShownPiles()     js/collections.js  the rows on show, in the
+//                                                       stack view's piles
+//   deckview     dbShownPiles()      js/deckview-render.js  a pile per category
+//   players      decksShown()        js/players.js      a card per deck, in its
+//                                                       folder (Mine) or under
+//                                                       its player (Everyone);
+//                                                       clicking one opens it
+//                                                       in the Deck Builder
+//   scryfall     sfShownCards()      js/search.js       the results, in order
+//   sets         setShownPiles()     js/sets.js         the open set, piled
+//   wants        wantShownLists()    js/wants.js        a pile per want list
+//   card         cardDetailShown()   js/card.js         the card, large, beside
+//                                                       the sheet
+//
+// A pile is a group; sixty cards are shared out across the piles fairly
+// (tableFairShare), so a deep first pile does not leave the rest of the table
+// empty. Every other tab leaves the mat as it is. A redraw that changes
+// nothing about which cards lie where — the pictures arriving, a poll that
+// found the same state — puts the pictures in and moves nothing; one that
+// does lays the cards again, and a card a hand moved stays where it was put
+// (tableMoved, keyed by tab and card).
 //
 // ── For the next half: the API ────────────────────────────────────────────
 //
@@ -120,10 +173,17 @@
 //   tableMode.closePanel()                   → puts the pane home
 //   tableMode.panel()                        → { tab, kind } | null
 //   tableMode.kindFor(tab)                   → 'float' | 'grow'
-//   tableMode.layCards(cards, { hint })      → how many were laid (≤ 60).
+//   tableMode.layCards(cards, { hint, scope, feature })
+//                                            → how many were laid (≤ 60).
 //                                              cards: [{ name, imageUrl, id?,
-//                                              group? }]; hint: what the mat says
-//                                              when the list is empty
+//                                              group?, open? }] — open(), where
+//                                              given, is what a click does
+//                                              instead of picking the card up;
+//                                              hint: what the mat says when the
+//                                              list is empty; scope: whose cards
+//                                              these are, so one tab's moved card
+//                                              is not another's; feature: one
+//                                              card, laid large beside the sheet
 //   tableMode.cards()                        → [{ key, name, x, y, turn }],
 //                                              x/y as fractions of the mat
 //
@@ -140,7 +200,8 @@
 // The decisions are written as functions of their inputs and asserted in
 // test/tablemode.test.js: the panel kind per tab, the drag threshold, the
 // pointer-to-view mapping and its easing, the screen-to-mat mapping, the
-// floating panel's box and the layout.
+// floating panel's box, the layout, what each tab lays and how it is piled,
+// where a re-laid card goes, and when a panel tucks.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -230,6 +291,35 @@ const TABLE_HINT = 'Choose a tab from the rim';
 
 /* Which kind of panel a tab opens. Anything not named floats. */
 const TABLE_PANEL_KINDS = Object.freeze({ card: 'grow' });
+
+/* The tabs that lay cards on the mat — each has a source in TABLE_SOURCES —
+ * and so the tabs whose panel can be tucked out of the way of them. */
+const TABLE_CARD_TABS = Object.freeze(['collections', 'players', 'deckview', 'scryfall', 'sets', 'wants', 'card']);
+
+/* What the mat says when a tab with cards has none to lay. */
+const TABLE_EMPTY_HINT = 'No cards to show';
+
+/* The one card the Card tab lays, large, in a lane down the mat's right-hand
+ * side that the sheet leaves free: as tall as this share of the mat, but no
+ * wider than TABLE_FEATURE_MAX of it, so a wide sheet is left to read in; and
+ * the lane is the card and TABLE_FEATURE_PAD of its width either side. */
+const TABLE_FEATURE_SHARE = 0.78;
+const TABLE_FEATURE_MAX   = 0.3;
+const TABLE_FEATURE_PAD   = 0.12;
+
+/* How long after something done in a pane the cards it lays still count as
+ * its answer, for tucking the panel out of their way: long enough for a
+ * search to come back from Scryfall, short enough that a state poll half a
+ * minute later is not mistaken for one. */
+const TABLE_TUCK_WINDOW = 20000;
+
+/* How long a pane is left to finish redrawing before its cards are read —
+ * a render often lands in a few writes (the piles, then their layout, then
+ * the pictures) — and the longest it is left, for a pane that keeps writing:
+ * the Deck Builder's readout and its card data arrive in a stream while a deck
+ * opens, and a wait that restarted on every write would never end. */
+const TABLE_RELAY_MS     = 60;
+const TABLE_RELAY_MAX_MS = 400;
 
 /* The tabs on the rim, edge by edge, in the order they stand. A tab entry is a
  * pane setTab() can show; an `act` entry does something else. Each names the
@@ -546,6 +636,132 @@ function tableLayout(cards, width, height) {
   return { width: w, height: h, spots };
 }
 
+/* The size of the one card the Card tab lays, on a mat of the given size, and
+ * the width of the lane it lies in down the mat's right-hand side. */
+function tableFeatureSize(matWidth, matHeight) {
+  const width = Math.max(0, Number(matWidth) || 0), height = Math.max(0, Number(matHeight) || 0);
+  const w = Math.round(Math.min(height * TABLE_FEATURE_SHARE / TABLE_CARD_RATIO, width * TABLE_FEATURE_MAX));
+  return { w, h: w * TABLE_CARD_RATIO, lane: Math.round(w * (1 + 2 * TABLE_FEATURE_PAD)) };
+}
+
+/* tableLayout's answer for that card: in the middle of its lane, at the angle
+ * its name gives it. More than one card would lie on top of it; nothing lays
+ * more. */
+function tableFeatureLayout(cards, width, height) {
+  const list = (cards || []).slice(0, TABLE_CARDS_MAX);
+  const size = tableFeatureSize(width, height);
+  const room = width > 0 && height > 0;
+  const x = room ? Math.min(1, Math.max(0, (width - size.lane / 2) / width)) : 0.5;
+  return {
+    width: size.w, height: size.h, lane: room ? size.lane : 0,
+    spots: list.map(card => ({
+      x, y: 0.5,
+      turn: room && typeof stackJitter === 'function' ? Math.round(stackJitter(card.name) * 10) / 10 || 0 : 0,
+    })),
+  };
+}
+
+/* How many cards of each pile are laid, for piles of the given sizes, when no
+ * more than `max` can be: the same share each, a pile smaller than its share
+ * giving back what it does not use to the piles after it — so a hundred cards
+ * of one kind and three of another lay the three and fifty-seven, not sixty of
+ * the first. Each pile's cards are taken from its front, in the tab's order. */
+function tableFairShare(sizes, max = TABLE_CARDS_MAX) {
+  const want = (sizes || []).map(n => Math.max(0, Math.floor(Number(n) || 0)));
+  const take = want.map(() => 0);
+  let left = Math.max(0, Math.floor(Number(max) || 0));
+  for (;;) {
+    const open = want.map((n, i) => (take[i] < n ? i : -1)).filter(i => i >= 0);
+    if (!left || !open.length) return take;
+    const share = Math.max(1, Math.floor(left / open.length));
+    for (const i of open) {
+      const more = Math.min(share, want[i] - take[i], left);
+      take[i] += more;
+      left -= more;
+      if (!left) break;
+    }
+  }
+}
+
+/* A tab's piles, [{ key?, label, cards }], as the flat list the mat lays: each
+ * card through `cardOf(card, pile)` — which says what it is called, what it
+ * looks like and what it is known by — carrying its pile as its group, and no
+ * more of each pile than tableFairShare gives it. A pile with nothing in it is
+ * no pile. */
+function tableFromPiles(piles, cardOf, max = TABLE_CARDS_MAX) {
+  const list = (piles || []).filter(pile => pile && Array.isArray(pile.cards) && pile.cards.length);
+  const counts = tableFairShare(list.map(pile => pile.cards.length), max);
+  const out = [];
+  list.forEach((pile, p) => {
+    const group = pile.key ?? pile.label ?? p;
+    for (const card of pile.cards.slice(0, counts[p])) {
+      const laid = cardOf(card, pile);
+      if (laid && laid.name) out.push({ ...laid, group: String(group) });
+    }
+  });
+  return out;
+}
+
+/* The cards as the mat holds them: at most TABLE_CARDS_MAX, the nameless
+ * dropped, each known by a key that is the same whenever the same card is laid
+ * by the same tab — its scope, its id or else its name, and how many times
+ * that has come up already in the list, for the second copy of a card. */
+function tableKeyCards(list, scope = '') {
+  const seen = new Map();
+  const prefix = scope ? `${scope}:` : '';
+  return (Array.isArray(list) ? list : [])
+    .filter(card => card && card.name)
+    .slice(0, TABLE_CARDS_MAX)
+    .map(card => {
+      const base = prefix + String(card.id ?? card.name);
+      const n = (seen.get(base) || 0) + 1;
+      seen.set(base, n);
+      return {
+        key: `${base}#${n}`, name: String(card.name), imageUrl: card.imageUrl || '',
+        group: card.group ?? null, open: typeof card.open === 'function' ? card.open : null,
+      };
+    });
+}
+
+/* What a list of cards is to the mat, as one string: which cards lie in which
+ * piles, in what order, laid by whom and how. Two lists that answer the same
+ * are laid the same way, so only their pictures can differ — which is what
+ * lets a redraw that only brought pictures leave every card where it lies. */
+function tableListSig(list, scope = '', feature = false) {
+  return JSON.stringify([scope, !!feature,
+    tableKeyCards(list, scope).map(card => [card.key, card.group])]);
+}
+
+/* Where each card lies once laid: where a hand last put it this session, if
+ * one did — `moved` is keyed as tableKeyCards keys — and otherwise where the
+ * layout puts it. */
+function tablePlaceCards(cards, spots, moved) {
+  return cards.map((card, i) => ({ ...(moved.get(card.key) || spots[i] || { x: 0.5, y: 0.5, turn: 0 }) }));
+}
+
+/* Whether a tab is one that lays cards. */
+function tableIsCardTab(tab) {
+  return TABLE_CARD_TABS.includes(tab);
+}
+
+/* Whether a panel opens tucked: a floating one, for a tab with cards, opened
+ * straight from another tab with cards, when the last thing the user chose to
+ * do with a panel was tuck it. `from` is the tab whose panel was open just
+ * before, or null. */
+function tableTuckOnOpen({ kind, from, to, kept }) {
+  return kind === 'float' && !!kept && tableIsCardTab(from) && tableIsCardTab(to);
+}
+
+/* Whether cards just laid tuck the panel out of their way: a floating panel,
+ * for a tab with cards, not already tucked, and something done in its pane
+ * no more than TABLE_TUCK_WINDOW ago — `actedAgo`, in milliseconds, Infinity
+ * when nothing has been. Typing does not count as done: a filter applied
+ * letter by letter would tuck the box being typed in. */
+function tableShouldAutoTuck({ kind, tab, tucked, actedAgo }) {
+  return kind === 'float' && tableIsCardTab(tab) && !tucked
+      && Number(actedAgo) >= 0 && Number(actedAgo) <= TABLE_TUCK_WINDOW;
+}
+
 // ── The switch ────────────────────────────────────────────────────────────
 
 /* Desktop only: the app's desktop breakpoint, and a pointer that hovers — the
@@ -614,10 +830,19 @@ let tableScrollY  = 0;       // where the page was scrolled to before the table
 let tableEscTaken = false;   // whether this Escape was somebody else's
 let tablePanel    = null;    // { tab, kind, pane, mark } — the pane in the panel
 
-let tableCards    = [];      // [{ key, name, imageUrl, group, x, y, turn, rank, el }]
+let tableCards    = [];      // [{ key, name, imageUrl, group, open, x, y, turn, rank, el }]
 let tableCardSize = { w: TABLE_CARD_MIN_W, h: TABLE_CARD_MIN_W * TABLE_CARD_RATIO };
 let tablePlaced   = false;   // whether anything has laid cards yet
 let tableHintText = TABLE_HINT;
+let tableFeature  = false;   // whether the mat holds the Card tab's one large card
+let tableLaid     = null;    // { tab, sig } — which tab laid what is on the mat
+const tableAsked  = new Set();   // names whose pictures have been asked for
+let tablePaneWatch = null;   // the observer on the pane of a tab with cards
+let tableRelayId  = 0;
+let tableRelaySince = 0;     // when the pane's current run of writes began
+let tableActedAt  = 0;       // when something was last done in the pane, or 0
+let tableTucked   = false;   // whether the panel is tucked away now
+let tableTuckKept = false;   // whether the user's last choice was to tuck it
 const tableMoved  = new Map();   // card key → { x, y, turn }: where a hand put it
 let tableHold     = null;    // the card under a pressed pointer
 let tableSwallow  = false;   // the click a drag ends with is not a click
@@ -686,23 +911,33 @@ function tableBuild() {
   panel.hidden = true;
   panel.tabIndex = -1;
   panel.setAttribute('aria-labelledby', 'tablePanelTitle');
+  /* The title is a button that only works while the panel is tucked — it is
+     then all of the panel there is to press. "Show table" is offered by a tab
+     with cards (data-cards, table.css). */
   panel.innerHTML = `
-    <div class="drawer-hdr">
-      <span class="drawer-title" id="tablePanelTitle"></span>
+    <div class="drawer-hdr table-panel-hdr">
+      <button type="button" class="table-panel-title" data-table-untuck disabled>
+        <span class="drawer-title" id="tablePanelTitle"></span>
+      </button>
+      <button type="button" class="btn-secondary table-panel-tuck" data-table-tuck>Show table</button>
       <button type="button" class="drawer-close" data-table-close title="Close" aria-label="Close">✕</button>
     </div>
     <div class="table-panel-body"></div>`;
 
-  /* A button the size of the window: whatever is clicked while a card is
-     being looked at puts it back, and Enter does from the keyboard. The image
-     is the app's .card-img, so it wears a card's corner, edge and shadow — and
-     takes no pointer of its own, so js/cardlift.js never finds it to lift. */
-  const look = document.createElement('button');
-  look.type = 'button';
+  /* Behind the card, a button the size of the window: whatever is clicked
+     while a card is being looked at puts it back, and Enter does from the
+     keyboard. The image is the app's .card-img, so it wears a card's corner,
+     edge and shadow — and takes no pointer of its own, so js/cardlift.js never
+     finds it to lift and a click on it is the button's. Under it, Details,
+     which is the one thing on the window that is not "put it back". */
+  const look = document.createElement('div');
   look.className = 'table-look';
   look.id = 'tableLook';
   look.hidden = true;
-  look.innerHTML = '<img class="card-img table-look-card" alt="" draggable="false">';
+  look.innerHTML = `
+    <button type="button" class="table-look-back"></button>
+    <img class="card-img table-look-card" alt="" draggable="false">
+    <button type="button" class="btn-secondary table-look-details">Details</button>`;
 
   /* Straight after the page shell rather than at the end of the body, so the
      table comes first in the keyboard's order: what follows the shell is
@@ -720,9 +955,13 @@ function tableBuild() {
     plane:      scene.querySelector('#tablePlane'),
     mat:        scene.querySelector('#tableMat'),
     hint:       scene.querySelector('#tableHint'),
+    panelHdr:   panel.querySelector('.table-panel-hdr'),
     panelTitle: panel.querySelector('#tablePanelTitle'),
+    panelUntuck: panel.querySelector('[data-table-untuck]'),
     panelBody:  panel.querySelector('.table-panel-body'),
+    lookBack:   look.querySelector('.table-look-back'),
     lookImg:    look.querySelector('img'),
+    lookDetails: look.querySelector('.table-look-details'),
   };
 
   /* Listeners on the elements go with them when the scene is taken down. */
@@ -730,7 +969,26 @@ function tableBuild() {
   tableEls.mat.addEventListener('pointerdown', tableOnCardDown);
   tableEls.mat.addEventListener('dragstart', e => e.preventDefault());
   panel.querySelector('[data-table-close]').addEventListener('click', () => tableClosePanel());
-  look.addEventListener('click', () => tableLookAway());
+  panel.querySelector('[data-table-tuck]').addEventListener('click', () => tableTuckPanel(true, { byUser: true }));
+  /* Tucked, the whole title bar is the way back, bar the ✕ on it — and bar
+     "Show table", whose own click is still on its way up through here having
+     just tucked the panel. */
+  tableEls.panelHdr.addEventListener('click', e => {
+    if (!tableTucked || e.target.closest('[data-table-close], [data-table-tuck]')) return;
+    tableTuckPanel(false, { byUser: true });
+  });
+  /* What counts as the user doing something in the pane: a click, a choice
+     made, Enter. Typing does not, and clears what came before it — see
+     tableShouldAutoTuck. A select says `input` just before `change`, so a
+     choice made from one still counts. */
+  const { panelBody } = tableEls;
+  const acted = () => { tableActedAt = Date.now(); };
+  panelBody.addEventListener('click', acted);
+  panelBody.addEventListener('change', acted);
+  panelBody.addEventListener('keydown', e => { if (e.key === 'Enter') acted(); });
+  panelBody.addEventListener('input', () => { tableActedAt = 0; });
+  tableEls.lookBack.addEventListener('click', () => tableLookAway());
+  tableEls.lookDetails.addEventListener('click', () => tableOpenDetails());
 }
 
 /* The geometry the screen-to-mat mapping needs, read off the laid-out boxes
@@ -918,7 +1176,7 @@ function tableModeEnter() {
   tableListen(true);
   tableWatchRim();
   tableRimSync();
-  if (!tablePlaced) tablePlaceholder();
+  if (!tablePlaced) tableLayFor(tablePageTab());
   document.dispatchEvent(new CustomEvent('tablemode:change', { detail: { on: true } }));
 }
 
@@ -936,7 +1194,8 @@ function tableModeLeave() {
   tableWatch = null;
   cancelAnimationFrame(tableFrameId);
   cancelAnimationFrame(tableResizeId);
-  tableFrameId = tableResizeId = tableFrameAt = 0;
+  clearTimeout(tableRelayId);
+  tableFrameId = tableResizeId = tableFrameAt = tableRelayId = 0;
   for (const card of tableCards) card.el = null;
   for (const el of [tableEls.scene, tableEls.dim, tableEls.panel, tableEls.look]) el.remove();
   tableEls = null;
@@ -999,11 +1258,15 @@ function tableShowPane(tab, kind = tablePanelKind(tab)) {
   const pane = document.getElementById(`tab-${tab}`);
   if (!pane) return false;
   if (tablePanel && tablePanel.tab === tab && tablePanel.kind === kind) return true;
+  const from = tablePanel?.tab ?? null;
   tablePutPaneBack();
+  tableUntuck();
+  tableActedAt = 0;
 
   const { panel, panelTitle, panelBody, mat, dim } = tableEls;
   panel.dataset.kind = kind;
   panel.dataset.edge = tableRimEntry(tab)?.edge || 'far';
+  panel.toggleAttribute('data-cards', kind === 'float' && tableIsCardTab(tab));
   panel.setAttribute('role', kind === 'float' ? 'dialog' : 'region');
   if (kind === 'grow') {
     /* Lying on the mat, above every card on it. */
@@ -1021,10 +1284,14 @@ function tableShowPane(tab, kind = tablePanelKind(tab)) {
   panelBody.append(pane);
   panelBody.scrollTop = 0;
   tablePanel = { tab, kind, pane, mark };
-  tableFitPanel();
-
+  /* Shown before it is fitted, still closed and so still invisible: the
+     tucked panel's place is measured from its header, which a hidden panel
+     has no height for. */
   panel.classList.remove('is-open');
   panel.hidden = false;
+  tableFitPanel();
+  tableSyncLane();
+
   /* Read once so the closed state is drawn before the open one is asked for,
      or the browser would go straight to the end of the transition. */
   void panel.offsetWidth;
@@ -1032,11 +1299,14 @@ function tableShowPane(tab, kind = tablePanelKind(tab)) {
   dim.classList.toggle('is-on', kind === 'float');
   panel.focus({ preventScroll: true });
   tableRimSync();
+  tableWatchPane(pane, tab);
+  if (tableTuckOnOpen({ kind, from, to: tab, kept: tableTuckKept })) tableTuckPanel(true);
   return true;
 }
 
 function tablePutPaneBack() {
   if (!tablePanel) return;
+  tableUnwatchPane();
   const { pane, mark } = tablePanel;
   if (mark.parentNode) {
     mark.parentNode.insertBefore(pane, mark);
@@ -1075,6 +1345,14 @@ function tableFitPanel() {
   panel.style.height = `${box.height.toFixed(1)}px`;
   panel.style.right  = 'auto';
   panel.style.marginInline = '0';
+  /* Tucked, it slides down until its header is all that shows, a gap above
+     the window's foot — the near edge, where no tabs stand — and between the
+     side tabs, where it already is. */
+  const header = tableEls.panelHdr.offsetHeight;
+  if (header) {
+    panel.style.setProperty('--table-tuck-y',
+      `${Math.max(0, view.height - TABLE_PANEL_GAP - header - box.top).toFixed(1)}px`);
+  }
 }
 
 /* Open a tab: its pane into a panel, then setTab(), which draws it — into a
@@ -1095,12 +1373,227 @@ function tableClosePanel({ quiet = false } = {}) {
   const tab = tablePanel.tab;
   if (typeof closeDrawers === 'function') closeDrawers();
   tablePutPaneBack();
+  tableUntuck();
   const { panel, dim, plane } = tableEls;
   panel.hidden = true;
   panel.classList.remove('is-open');
   dim.classList.remove('is-on');
+  tableSyncLane();
   tableRimSync();
   if (!quiet) plane.querySelector(`.table-tab[data-tab="${tab}"]`)?.focus({ preventScroll: true });
+}
+
+/* Tuck the panel down to its header, or bring it back up. Only a floating
+ * panel tucks. `byUser` is the user's own choice — the header's two controls —
+ * which is what a panel opened next remembers (tableTuckOnOpen); the panel
+ * tucking itself is not a choice of theirs. A drawer open from the pane is
+ * closed first: it would be left standing over a page nobody can see. */
+function tableTuckPanel(on, { byUser = false } = {}) {
+  if (!tablePanel || !tableEls || tablePanel.kind !== 'float') return;
+  if (byUser) tableTuckKept = !!on;
+  if (!!on === tableTucked) return;
+  const { panel, dim, panelUntuck } = tableEls;
+  if (on) {
+    if (typeof closeDrawers === 'function') closeDrawers();
+    tableTucked = true;
+    panel.classList.add('is-tucked');
+    dim.classList.remove('is-on');
+    panelUntuck.disabled = false;
+    panelUntuck.title = 'Bring the panel back';
+    /* Focus left in the page that has just gone out of sight goes to the
+       title bar, which is what is left of it. */
+    if (panel.contains(document.activeElement)) panelUntuck.focus({ preventScroll: true });
+  } else {
+    tableUntuck();
+    dim.classList.add('is-on');
+    panel.focus({ preventScroll: true });
+  }
+}
+
+/* The panel's tucked state put back to "not", with nothing else said — for
+ * a panel being swapped or closed, which decides the rest itself. */
+function tableUntuck() {
+  tableTucked = false;
+  if (!tableEls) return;
+  const { panel, panelUntuck } = tableEls;
+  panel.classList.remove('is-tucked');
+  panelUntuck.disabled = true;
+  panelUntuck.removeAttribute('title');
+}
+
+// ── Each tab's cards ──────────────────────────────────────────────────────
+
+/* A picture the app already has for a card by name, or nothing. */
+function tableImageOf(name) {
+  return (typeof scryfallCache !== 'undefined' && scryfallCache.get(name)) || '';
+}
+
+/* A Scryfall card's picture: its own, or its front face's. */
+function tableScryfallImage(card) {
+  return card?.image_uris?.normal || card?.card_faces?.[0]?.image_uris?.normal || '';
+}
+
+/* What each tab with cards lays, read from what its renderer last drew — see
+ * the header. Each answers { cards, hint, fetch?, feature? }: the cards as
+ * layCards takes them, what the mat says if there are none, whether the
+ * pictures the tab lacks should be asked for by name (the tabs whose own
+ * views draw no pictures, or only some), and whether the one card is laid
+ * large. The Card tab answers null while it has shown no card, which leaves
+ * the mat as it is. */
+const TABLE_SOURCES = Object.freeze({
+  collections() {
+    const piles = typeof colShownPiles === 'function' ? colShownPiles() : null;
+    return {
+      cards: tableFromPiles(piles, row => ({ name: row.name, imageUrl: tableImageOf(row.name) })),
+      hint: TABLE_EMPTY_HINT, fetch: true,
+    };
+  },
+  deckview() {
+    const piles = typeof dbShownPiles === 'function' ? dbShownPiles() : null;
+    if (!piles) return { cards: [], hint: 'Open a deck from Decks' };
+    return {
+      cards: tableFromPiles(piles, card => ({ name: card.name, imageUrl: card.image || tableImageOf(card.name) })),
+      hint: TABLE_EMPTY_HINT, fetch: true,
+    };
+  },
+  players() {
+    const piles = (typeof decksShown === 'function' && decksShown()) || [];
+    return {
+      cards: tableFromPiles(piles.map(pile => ({
+        key: pile.key, label: pile.label,
+        cards: (pile.decks || []).map(deck => ({ deck, playerId: pile.playerId })),
+      })), ({ deck, playerId }) => ({
+        name: deck.name || 'Untitled deck',
+        id: `${playerId}|${deck.id}`,
+        imageUrl: deck.commanderImg || '',
+        /* The deck's Build button, pressed: the Deck Builder, on it. */
+        open: () => { if (typeof openInDeckView === 'function') openInDeckView(playerId, deck.id); },
+      })),
+      hint: 'No decks to show',
+    };
+  },
+  scryfall() {
+    const results = (typeof sfShownCards === 'function' && sfShownCards()) || [];
+    return {
+      cards: results.map(card => ({ name: card.name, id: card.id, imageUrl: tableScryfallImage(card) })),
+      hint: 'Search Scryfall to lay the results here',
+    };
+  },
+  sets() {
+    const piles = typeof setShownPiles === 'function' ? setShownPiles() : null;
+    if (!piles) return { cards: [], hint: 'Open a set to lay its cards here' };
+    return {
+      cards: tableFromPiles(piles, card => ({ name: card.name, id: card.id, imageUrl: tableScryfallImage(card) })),
+      hint: TABLE_EMPTY_HINT,
+    };
+  },
+  wants() {
+    const lists = (typeof wantShownLists === 'function' && wantShownLists()) || [];
+    const known = name => (typeof wantCardData !== 'undefined' ? wantCardData.get(name) : null);
+    return {
+      cards: tableFromPiles(lists, (name, list) => ({
+        name, id: `${list.key}:${name}`,
+        imageUrl: tableScryfallImage(known(name)) || tableImageOf(name),
+      })),
+      hint: 'No want lists yet', fetch: true,
+    };
+  },
+  card() {
+    const shown = typeof cardDetailShown === 'function' ? cardDetailShown() : null;
+    if (!shown) return null;
+    return { cards: [{ name: shown.name, id: shown.id, imageUrl: shown.imageUrl }], feature: true };
+  },
+});
+
+/* What a tab lays, or null for a tab that lays nothing. */
+function tableSourceFor(tab) {
+  return Object.prototype.hasOwnProperty.call(TABLE_SOURCES, tab) ? TABLE_SOURCES[tab]() : null;
+}
+
+/* The tab the page itself is showing, which is what the table lays when it
+ * comes up with no panel open. */
+function tablePageTab() {
+  return document.querySelector?.('.tab-btn.active')?.id?.replace(/^tab-btn-/, '') || null;
+}
+
+/* Lay what a tab is showing. A list the mat already holds, from the same tab
+ * and in the same piles, is not laid again — only its pictures are brought up
+ * to date — so nothing moves when nothing changed. Returns whether cards were
+ * laid; a tab that lays nothing returns false and leaves the mat alone. */
+function tableLayFor(tab) {
+  const source = tableSourceFor(tab);
+  if (!source) return false;
+  const sig = tableListSig(source.cards, tab, source.feature);
+  if (tableLaid && tableLaid.tab === tab && tableLaid.sig === sig) {
+    tablePatchImages(source.cards, tab);
+    return false;
+  }
+  tableLayCards(source.cards, { hint: source.hint, scope: tab, feature: source.feature });
+  tableLaid = { tab, sig };
+  if (source.fetch) tableFetchImages(tab);
+  return true;
+}
+
+/* Pictures for the cards on the mat that have none, asked for by name — once
+ * each per session, so a name Scryfall has no picture for is not asked about
+ * on every redraw — and put on the cards when they come, if the same tab's
+ * cards are still the ones lying there. */
+function tableFetchImages(tab) {
+  if (typeof ensureScryfallImages !== 'function') return;
+  const names = [...new Set(tableCards.filter(card => !card.imageUrl).map(card => card.name))]
+    .filter(name => !tableAsked.has(name));
+  if (!names.length) return;
+  for (const name of names) tableAsked.add(name);
+  Promise.resolve(ensureScryfallImages(names))
+    .catch(() => {})
+    .then(() => { if (tableOn && tableLaid?.tab === tab) tableLayFor(tab); });
+}
+
+/* The same cards as are lying on the mat, some of them with a picture now. */
+function tablePatchImages(list, scope) {
+  const fresh = new Map(tableKeyCards(list, scope).map(card => [card.key, card.imageUrl]));
+  for (const card of tableCards) {
+    const url = fresh.get(card.key);
+    if (!url || url === card.imageUrl) continue;
+    card.imageUrl = url;
+    if (card.el) card.el.innerHTML = tableCardFace(card);
+  }
+}
+
+/* Watch a tab's pane while it is open in a panel, so that its cards are laid
+ * again whenever it is redrawn. What the pane holds is what is watched, not
+ * its attributes: a redraw writes markup, and a hover or a focus ring only
+ * writes attributes. */
+function tableWatchPane(pane, tab) {
+  tableUnwatchPane();
+  if (!tableIsCardTab(tab) || typeof MutationObserver !== 'function') return;
+  tablePaneWatch = new MutationObserver(() => tableQueueRelay(tab));
+  tablePaneWatch.observe(pane, { childList: true, subtree: true, characterData: true });
+}
+
+function tableUnwatchPane() {
+  tablePaneWatch?.disconnect();
+  tablePaneWatch = null;
+  clearTimeout(tableRelayId);
+  tableRelayId = 0;
+}
+
+/* Once the pane has finished redrawing: its cards laid again, and the panel
+ * tucked out of their way if they came of something the user did in it. */
+function tableQueueRelay(tab) {
+  const now = Date.now();
+  if (tableRelayId && now - tableRelaySince >= TABLE_RELAY_MAX_MS) return;   // it is coming
+  if (!tableRelayId) tableRelaySince = now;
+  clearTimeout(tableRelayId);
+  const wait = Math.min(TABLE_RELAY_MS, Math.max(0, tableRelaySince + TABLE_RELAY_MAX_MS - now));
+  tableRelayId = setTimeout(() => {
+    tableRelayId = 0;
+    if (!tableOn || tablePanel?.tab !== tab) return;
+    if (!tableLayFor(tab)) return;
+    const actedAgo = tableActedAt ? Date.now() - tableActedAt : Infinity;
+    if (tableShouldAutoTuck({ kind: tablePanel.kind, tab, tucked: tableTucked, actedAgo })) tableTuckPanel(true);
+    tableActedAt = 0;
+  }, wait);
 }
 
 // ── Cards ─────────────────────────────────────────────────────────────────
@@ -1110,48 +1603,17 @@ function tableClosePanel({ quiet = false } = {}) {
  * its id, or its name where it has none, numbered by how often that has come
  * up — so a card a hand moved earlier in the session lies where it was put
  * when the same list is laid again. */
-function tableLayCards(list, { hint } = {}) {
+function tableLayCards(list, { hint, scope = '', feature = false } = {}) {
   tablePlaced = true;
+  tableLaid = null;   // whoever called, it is not a tab's list until tableLayFor says so
   if (tableHold) tableRelease({ pointerId: tableHold.id });
   tableLookAway(true);
-  const seen = new Map();
-  tableCards = (Array.isArray(list) ? list : [])
-    .filter(card => card && card.name)
-    .slice(0, TABLE_CARDS_MAX)
-    .map((card, i) => {
-      const base = String(card.id ?? card.name);
-      const n = (seen.get(base) || 0) + 1;
-      seen.set(base, n);
-      return {
-        key: `${base}#${n}`, name: String(card.name), imageUrl: card.imageUrl || '',
-        group: card.group ?? null, x: 0.5, y: 0.5, turn: 0, rank: i, el: null,
-      };
-    });
+  tableCards = tableKeyCards(list, scope)
+    .map((card, i) => ({ ...card, x: 0.5, y: 0.5, turn: 0, rank: i, el: null }));
+  tableFeature = !!feature && tableCards.length > 0;
   tableHintText = hint || TABLE_HINT;
   if (tableOn) tableDrawCards();
   return tableCards.length;
-}
-
-/* The stand-in until each tab lays its own cards: the first cards of the first
- * collection with any, in piles by what kind of card they are. A deck's cards
- * are not in `state` — they are fetched per deck — so a collection it is. */
-async function tablePlaceholder() {
-  if (typeof state === 'undefined') return;
-  const shelf = state.collections.find(c => c.status === 'loaded' && c.cards && c.cards.size);
-  if (!shelf) return;
-  const names = [...shelf.cards.keys()].slice(0, TABLE_CARDS_MAX);
-  try { await ensureScryfallImages(names); } catch { /* laid without pictures, then */ }
-  if (!tableOn || tablePlaced) return;
-  tableLayCards(names.map(name => ({
-    name, imageUrl: scryfallCache.get(name) || '', group: tableCardKind(name),
-  })));
-}
-
-/* The first of a card's types that a table would sort it by. */
-function tableCardKind(name) {
-  const type = (typeof scryfallMetaCache !== 'undefined' && scryfallMetaCache.get(name)?.type) || '';
-  const kinds = ['Creature', 'Planeswalker', 'Battle', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Land'];
-  return kinds.find(kind => type.includes(kind)) || 'Other';
 }
 
 function tableCardZ(card) {
@@ -1172,14 +1634,18 @@ function tableWriteCard(card, lift = 0, lean = 0) {
 
 /* A card that has no picture is not drawn as one: it keeps a surface and its
  * name, as the stacks' blank does. */
+function tableCardFace(card) {
+  return card.imageUrl
+    ? `<img class="card-img table-card-img" src="${esc(card.imageUrl)}" alt="" draggable="false">`
+    : `<span class="table-card-blank">${esc(card.name)}</span>`;
+}
+
 function tableCardEl(card) {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'table-card';
-  el.setAttribute('aria-label', card.name);
-  el.innerHTML = card.imageUrl
-    ? `<img class="card-img table-card-img" src="${esc(card.imageUrl)}" alt="" draggable="false">`
-    : `<span class="table-card-blank">${esc(card.name)}</span>`;
+  el.setAttribute('aria-label', card.open ? `Open ${card.name}` : card.name);
+  el.innerHTML = tableCardFace(card);
   el.addEventListener('click', tableOnCardClick);
   return el;
 }
@@ -1188,11 +1654,13 @@ function tableDrawCards() {
   if (!tableEls || !tableGeom) return;
   const { mat, hint } = tableEls;
   for (const old of mat.querySelectorAll('.table-card')) old.remove();
-  const layout = tableLayout(tableCards, tableGeom.mat.width, tableGeom.mat.height);
+  const { width, height } = tableGeom.mat;
+  const layout = tableFeature ? tableFeatureLayout(tableCards, width, height) : tableLayout(tableCards, width, height);
   tableCardSize = { w: layout.width, h: layout.height };
+  const places = tablePlaceCards(tableCards, layout.spots, tableMoved);
   const cards = document.createDocumentFragment();
   tableCards.forEach((card, i) => {
-    Object.assign(card, tableMoved.get(card.key) || layout.spots[i]);
+    Object.assign(card, places[i]);
     card.el = tableCardEl(card);
     card.el.style.width  = `${tableCardSize.w}px`;
     card.el.style.height = `${tableCardSize.h.toFixed(2)}px`;
@@ -1202,11 +1670,26 @@ function tableDrawCards() {
   for (const card of tableCards) tableWriteCard(card);
   hint.textContent = tableHintText;
   hint.hidden = tableCards.length > 0;
+  tableSyncLane();
+}
+
+/* The lane the Card tab's sheet leaves free down the mat's right-hand side
+ * for its card — there while the sheet is open with the card lying beside it,
+ * and nowhere else — handed to table.css as --table-sheet-lane. */
+function tableSyncLane() {
+  if (!tableEls) return;
+  const lane = tablePanel?.kind === 'grow' && tableFeature && tableGeom
+    ? tableFeatureSize(tableGeom.mat.width, tableGeom.mat.height).lane : 0;
+  if (lane) tableEls.panel.style.setProperty('--table-sheet-lane', `${lane}px`);
+  else tableEls.panel.style.removeProperty('--table-sheet-lane');
 }
 
 /* The mat changed size: the cards keep their places, which are fractions of
  * it, and take the card size the new mat wants. */
 function tableResizeCards() {
+  /* The large card's place is worked out from the lane, which a new mat
+     width moves, so it is laid again rather than resized where it was. */
+  if (tableFeature) { tableDrawCards(); return; }
   const w = tableCardWidth(tableGeom.mat.width);
   tableCardSize = { w, h: w * TABLE_CARD_RATIO };
   for (const card of tableCards) {
@@ -1301,7 +1784,9 @@ function tableRelease(e) {
 function tableOnCardClick(e) {
   if (tableSwallow) { tableSwallow = false; return; }
   const card = tableCards.find(c => c.el === e.currentTarget);
-  if (card) tableLookAt(card);
+  if (!card) return;
+  if (card.open) card.open();
+  else tableLookAt(card);
 }
 
 /* The transform that puts the large card where the small one lies on the
@@ -1344,8 +1829,11 @@ function tableLookAt(card) {
      ending is this sequence number's to check, and it is no longer current. */
   tableLookSeq++;
   tableLooked = card;
+  const { lookBack, lookDetails } = tableEls;
   lookImg.src = card.imageUrl;
-  look.setAttribute('aria-label', `Put ${card.name} back`);
+  lookBack.setAttribute('aria-label', `Put ${card.name} back`);
+  lookDetails.title = `Open ${card.name} on the Card tab`;
+  look.classList.remove('is-up');
   look.hidden = false;
   /* Drawn first where the card lies, with no transition, then let go: the
      transition carries it from there to its place in the middle. */
@@ -1354,8 +1842,9 @@ function tableLookAt(card) {
   void lookImg.offsetWidth;
   lookImg.style.removeProperty('transition');
   lookImg.style.removeProperty('transform');
+  look.classList.add('is-up');
   card.el.classList.add('is-looked');
-  look.focus({ preventScroll: true });
+  lookBack.focus({ preventScroll: true });
 }
 
 /* And put it back, to wherever its place on the table now is — the view may
@@ -1366,6 +1855,7 @@ function tableLookAway(instant = false) {
   if (!card || !tableEls) return;
   tableLooked = null;
   const { look, lookImg } = tableEls;
+  look.classList.remove('is-up');
   const seq = ++tableLookSeq;
   const done = () => {
     if (seq !== tableLookSeq) return;
@@ -1379,6 +1869,16 @@ function tableLookAway(instant = false) {
   tableAfter(lookImg, done);
 }
 
+/* Details: the card being looked at put down, and opened on the Card tab —
+ * which here is the sheet lying on the mat, with the card laid large beside
+ * it once the tab has drawn it. */
+function tableOpenDetails() {
+  const card = tableLooked;
+  if (!card) return;
+  tableLookAway(true);
+  if (typeof openCardPage === 'function') openCardPage(card.name);
+}
+
 // ── What main.js tells the table ─────────────────────────────────────────
 
 /* Called first thing in setTab(): a tab opened from anywhere while the table
@@ -1387,10 +1887,12 @@ function tableModeBeforeTab(tab) {
   if (tableOn && tablePanel?.tab !== tab) tableShowPane(tab);
 }
 
-/* Called last thing in setTab(): the hook the next half of this work hangs
- * each tab's cards on. */
+/* Called last thing in setTab(): the tab's cards on the mat, if it has any —
+ * what it showed the last time it drew; a redraw the open brings on lays them
+ * again (tableWatchPane) — and the news for anyone else listening. */
 function tableModeAfterTab(tab) {
   if (!tableOn) return;
+  tableLayFor(tab);
   document.dispatchEvent(new CustomEvent('tablemode:tab', {
     detail: { tab, kind: tablePanel?.tab === tab ? tablePanel.kind : null },
   }));
@@ -1399,7 +1901,7 @@ function tableModeAfterTab(tab) {
 /* Called once the first state has arrived — on a load with the mode already
  * on, the table was set before there was anything to put on it. */
 function tableModeStateLoaded() {
-  if (tableOn && !tablePlaced) tablePlaceholder();
+  if (tableOn && !tablePlaced) tableLayFor(tablePageTab());
 }
 
 window.tableMode = Object.freeze({
