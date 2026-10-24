@@ -30,11 +30,15 @@
 //
 // ── The scene ─────────────────────────────────────────────────────────────
 //
-//   .table-scene   fixed, full-viewport, the perspective (table.css: 1400px)
-//     .table-plane the table: wood, a grid of rim / mat / rim, preserve-3d.
-//                  Its transform is written here, every frame it moves.
-//       .table-rim   the four edges; the tabs stand on three of them
-//       .table-mat   the playmat (or the theme's felt), where cards lie
+//   .table-scene   fixed, full-viewport, the room the table stands in
+//     .table-camera  the eye: the perspective (table.css: 1400px), and the
+//                    pan and zoom — its transform is written here, every
+//                    frame the camera moves
+//       .table-plane the table: wood, a grid of rim / mat / rim, preserve-3d,
+//                    tilted away by TABLE_TILT_REST and fitted to the window
+//                    here (tableFitSize)
+//         .table-rim   the four edges; the tabs stand on three of them
+//         .table-mat   the playmat (or the theme's felt), where cards lie
 //   .table-dim     the slight veil over the table while a panel floats
 //   .table-panel   the panel host — see "Panels" below
 //   .table-look    a card picked up to be looked at, facing the viewer
@@ -50,15 +54,35 @@
 // rest, which makes it neither, so a drawer opened from inside it still lands
 // on the window's right edge above its scrim, as it does in the page.
 //
-// ── Looking around ───────────────────────────────────────────────────────
-// Where the pointer is over the window moves the view a little — a few degrees
-// of tilt and turn and a small sideways shift, as if leaning your head. The
-// pointer only sets where the view is *going* (tableLookTarget); a frame loop
-// eases the view towards it (tableLookStep) and stops itself when it arrives,
-// so a pointer resting still costs nothing. No CSS transition is involved: a
+// ── The table, fitted ─────────────────────────────────────────────────────
+// At rest the table fills the window: its near corners close to the window's
+// bottom corners and its far edge — with the tabs standing on it — close to
+// the top. A perspective makes that a question with an answer rather than a
+// percentage to tune: tableFitSize works out the plane's laid-out size and
+// place that land those edges there at the rest tilt, and tableFitTable hands
+// them to table.css, measuring the far tabs to leave them their room. Again
+// on every resize.
+//
+// ── Panning and zooming ──────────────────────────────────────────────────
+// The table never changes its angle. What moves is the camera over it: the
+// picture of the table slides and zooms, the way a camera on a rail with a
+// zoom lens would see it. Where the pointer is over the window is where the
+// camera pans to (tablePanTarget, tableCamera) — at zoom 1 only a little, as
+// if leaning your head; zoomed in, far enough that the pointer at an edge or
+// a corner of the window brings that edge or corner of the table into view.
+// The wheel over the table zooms, from the whole table to TABLE_ZOOM_MAX of
+// it, and so do + − and 0 on the keyboard; the zoom is about the point under
+// the pointer, which the pan's one rule holds still by itself (tableCamera).
+// The zoom is the session's, in memory, and starts at 1 each time.
+//
+// The pointer and the wheel only set where the camera is *going*; a frame
+// loop eases it there (tableCameraStep) and stops itself when it arrives, so
+// a pointer resting still costs nothing. No CSS transition is involved: a
 // transition restarted on every pointer move never gets to finish. When cards
 // may not move — the "Cards move" switch, or an operating system asking for
-// less motion, both answered by cardMotionOn() — the table holds its rest tilt.
+// less motion, both answered by cardMotionOn() — the camera jumps rather
+// than eases, and the lean at rest goes: zoomed in, it still pans to follow
+// the pointer, because that is the only way round a zoomed table.
 //
 // ── From the screen to the mat ───────────────────────────────────────────
 // A card is dragged in the table's plane, not the screen's: it has to stay
@@ -66,17 +90,17 @@
 // the pointer's screen point is mapped back onto the mat.
 //
 // tablePlaneMatrix() composes the 4×4 matrix the browser itself composes for a
-// point on the mat — the scene's perspective about its origin, the plane's
-// place and its transform about its own origin, the mat's place in the plane —
-// from the untransformed geometry (offsetLeft and friends, which no transform
-// touches) and the view's current angles. For points on a plane at height z in
+// point on the mat — the camera's pan and zoom, its perspective about its
+// origin, the plane's place and its tilt about its own origin, the mat's place
+// in the plane — from the untransformed geometry (offsetLeft and friends,
+// which no transform touches) and the camera as it is. For points on a plane at height z in
 // the mat's own coordinates, dropping that matrix's third column (folded into
 // the fourth at z) and its third row leaves a 3×3 homography from mat to
 // screen; tableUnproject() inverts it. That is the ray–plane intersection in
 // closed form, exact under perspective, and the same for a card lying on the
-// mat (z ≈ 0) as for one held 60px above it — which is what keeps a lifted
+// mat (z ≈ 0) as for one held 96px above it — which is what keeps a lifted
 // card under the pointer rather than under where the pointer would be on the
-// felt.
+// felt, and under it still while the camera pans and zooms beneath it.
 //
 // ── Panels ────────────────────────────────────────────────────────────────
 // One host, two kinds, chosen per tab by TABLE_PANEL_KINDS:
@@ -116,13 +140,14 @@
 //
 // ── Cards ─────────────────────────────────────────────────────────────────
 // tableMode.layCards() lays a list of cards flat on the mat in tidy fanned
-// piles (tableLayout). Press and drag one and it comes up off the felt, leans
-// towards you and follows the pointer in the table's plane; let go and it
-// settles where it was put down. Press without moving (tableIsDrag: under 5px)
-// and it is picked up to be looked at: it rises to face you, large, over the
-// table, and a click or Escape puts it back — unless the card stands for
-// something to open, a deck on the Decks tab, when the click opens it. Where a
-// hand put a card is kept for the session and for nothing longer.
+// piles (tableLayout). Press one and it comes up off the felt at once, quickly
+// (TABLE_LIFT_MS), and leans towards you; drag it and it follows the pointer
+// in the table's plane; let go and it settles where it was put down. Let go
+// without having moved (tableIsDrag: under 5px) and it is picked up to be
+// looked at: it goes on rising from the hand to face you, large, over the
+// table, and a click or Escape puts it back where it lay — unless the card
+// stands for something to open, a deck on the Decks tab, when the click opens
+// it. Where a hand put a card is kept for the session and for nothing longer.
 //
 // The Card tab's one card is laid on its own, large, in a lane down the mat's
 // right-hand side, and the sheet the tab lies on draws itself short of that
@@ -199,9 +224,10 @@
 //
 // The decisions are written as functions of their inputs and asserted in
 // test/tablemode.test.js: the panel kind per tab, the drag threshold, the
-// pointer-to-view mapping and its easing, the screen-to-mat mapping, the
-// floating panel's box, the layout, what each tab lays and how it is piled,
-// where a re-laid card goes, and when a panel tucks.
+// table's fit to the window, the pointer-to-pan mapping, the wheel's zoom and
+// the camera's easing, the lift, the screen-to-mat mapping through the
+// camera, the floating panel's box, the layout, what each tab lays and how it
+// is piled, where a re-laid card goes, and when a panel tucks.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -213,26 +239,46 @@ const TABLE_MODE_KEY = 'mtgtools_tablemode';
  * square to the eye by the same number. */
 const TABLE_TILT_REST = 24;
 
-/* How far looking around may move the view: degrees of tilt (rotateX) either
- * side of rest, degrees of turn (rotateY), and the sideways and up-and-down
- * shift as a fraction of the window — under the 2% that still reads as a head
- * moving rather than the table sliding. */
-const TABLE_LOOK_TILT  = 3;
-const TABLE_LOOK_TURN  = 4;
-const TABLE_LOOK_SHIFT = 0.015;
+/* How the table is fitted to the window at rest (tableFitSize): its near
+ * corners this many pixels in from the window's bottom corners, and its far
+ * edge — or the tops of the tabs standing on it, whichever is higher — the
+ * same gutter below the window's top, plus room for the pan at rest to carry
+ * the table down by TABLE_PAN_REST without a far tab leaving the window. */
+const TABLE_FIT_GUTTER = 8;
 
-/* How much of the way to the target the view closes in a sixtieth of a
+/* How far the camera slides at zoom 1 with the pointer at an edge of the
+ * window, as a fraction of the window — 2%, which reads as a head leaning
+ * rather than the table sliding. Zoomed in, the slide grows by itself until
+ * the pointer at an edge of the window brings that edge of the table into
+ * view (tableCamera). */
+const TABLE_PAN_REST = 0.02;
+
+/* How far the camera zooms: from the whole table (1) to two and a half times
+ * it. A wheel zooms by TABLE_ZOOM_PER_PX for every pixel it turns — a mouse's
+ * notch, a hundred-odd pixels, is about a fifth more — with a line counted as
+ * TABLE_WHEEL_LINE_PX (Firefox turns a notch as three lines) and no one event
+ * allowed more than TABLE_WHEEL_MAX_PX, so a wheel that reports in pages
+ * cannot leap the whole range at once. A key zooms by TABLE_ZOOM_KEY a press. */
+const TABLE_ZOOM_MIN      = 1;
+const TABLE_ZOOM_MAX      = 2.5;
+const TABLE_ZOOM_PER_PX   = Math.log(1.2) / 100;
+const TABLE_WHEEL_LINE_PX = 40;
+const TABLE_WHEEL_MAX_PX  = 300;
+const TABLE_ZOOM_KEY      = 1.25;
+
+/* How much of the way to the target the camera closes in a sixtieth of a
  * second — a frame on an ordinary screen; a faster screen closes less per
- * frame and a slower one more, by tableEaseFor(), so the view takes the same
- * time to arrive at any refresh rate. And how near counts as there: under a
- * hundredth of a degree and a tenth of a pixel the frame loop has nothing
- * left to draw and stops. */
-const TABLE_FRAME_MS     = 1000 / 60;
-const TABLE_LOOK_EASE    = 0.12;
-const TABLE_SETTLED_DEG  = 0.01;
-const TABLE_SETTLED_PX   = 0.1;
-const TABLE_LOOK_KEYS    = ['rx', 'ry', 'tx', 'ty'];
-const TABLE_REST = Object.freeze({ rx: TABLE_TILT_REST, ry: 0, tx: 0, ty: 0 });
+ * frame and a slower one more, by tableEaseFor(), so the camera takes the same
+ * time to arrive at any refresh rate. And how near counts as there: a pan
+ * within a ten-thousandth of its range and a zoom within a ten-thousandth of
+ * a step — each under a fifth of a pixel on any desktop window, zoomed all
+ * the way in — leave the frame loop nothing to draw, and it stops. */
+const TABLE_FRAME_MS       = 1000 / 60;
+const TABLE_CAMERA_EASE    = 0.12;
+const TABLE_SETTLED_PAN    = 0.0001;
+const TABLE_SETTLED_ZOOM   = 0.0001;
+const TABLE_CAMERA_KEYS    = ['zoom', 'panX', 'panY'];
+const TABLE_CAMERA_REST    = Object.freeze({ zoom: 1, panX: 0, panY: 0 });
 
 /* A press that moves less than this, in screen pixels, is a click: the card is
  * picked up to look at rather than carried. Five is what a hand wobbles by. */
@@ -240,10 +286,13 @@ const TABLE_DRAG_START = 5;
 
 /* A card in hand: how high it comes off the felt, in the mat's own pixels; how
  * far it leans back towards the viewer once it is there, in degrees; and how
- * much of the way up it gets in a sixtieth of a second. */
-const TABLE_CARD_LIFT  = 60;
+ * long it takes to get all the way up, in milliseconds, on an ease-out curve
+ * (tableLiftHeight). Quick, because it starts the moment the button goes down
+ * and a hand should feel the card come up with it; table.css grows the held
+ * shadow over the same time. */
+const TABLE_CARD_LIFT  = 96;
 const TABLE_CARD_LEAN  = 12;
-const TABLE_LIFT_EASE  = 0.25;
+const TABLE_LIFT_MS    = 110;
 
 /* How far apart, in z, two cards lying on each other are. Cards share one
  * plane, and coplanar faces in a 3D scene are a coin toss for which is drawn on
@@ -365,45 +414,130 @@ function tableIsDrag(dx, dy, threshold = TABLE_DRAG_START) {
   return Math.hypot(Number(dx) || 0, Number(dy) || 0) >= threshold;
 }
 
-/* Where the view wants to be for a pointer at (x, y) in a window of the given
- * size: rx the tilt and ry the turn, in degrees, tx/ty the shift in pixels.
- *
- * The pointer's place is a fraction running -1 to 1 across and down the
- * window, clamped, so the answer is bounded whatever it is asked. Pointing to
- * the right is leaning to the right: you see the table from further round that
- * way, so its right side comes towards you (a negative rotateY) and the whole
- * of it slides the other way. Pointing up is leaning over the table and
- * looking down onto it, which tilts it less; pointing down is sitting back. */
-function tableLookTarget(x, y, width, height) {
+/* Where the camera's pan wants to be for a pointer at (x, y) in a window of
+ * the given size: panX and panY, the pointer's place as a fraction running -1
+ * to 1 across and down the window, clamped, so the answer is bounded whatever
+ * it is asked. What a pan of that much does to the picture is tableCamera's. */
+function tablePanTarget(x, y, width, height) {
   const fraction = (along, size) =>
     (size > 0 ? Math.min(1, Math.max(-1, (Number(along) || 0) / size * 2 - 1)) : 0);
-  const across = fraction(x, width);
-  const down   = fraction(y, height);
   /* `|| 0` is the sign of nothing: the middle of the window would otherwise
    * answer -0, the same place written as a different number. */
-  return {
-    rx: TABLE_TILT_REST + down * TABLE_LOOK_TILT,
-    ry: -across * TABLE_LOOK_TURN || 0,
-    tx: (width  > 0 ? -across * TABLE_LOOK_SHIFT * width  : 0) || 0,
-    ty: (height > 0 ? -down   * TABLE_LOOK_SHIFT * height : 0) || 0,
-  };
+  return { panX: fraction(x, width) || 0, panY: fraction(y, height) || 0 };
 }
 
-/* One frame of the view easing towards its target: each of the four closes the
- * same fraction of its gap, and one already within reach of its target snaps
- * to it. `settled` is true when all four have arrived, which is what stops the
- * frame loop. */
-function tableLookStep(at, to, ease = TABLE_LOOK_EASE) {
+/* The camera, as what it does to the picture of the table: { zoom, tx, ty },
+ * the picture scaled by `zoom` about the window's top-left corner and then
+ * moved by tx/ty pixels — a 2D move of the whole picture after the
+ * perspective, which is what a camera sliding over a table and zooming its
+ * lens does, and why the table's angle never changes while it pans.
+ *
+ * `view` is { zoom, panX, panY } (tableCameraStep eases it), `lean` the slide
+ * at zoom 1 with the pointer at an edge, as a fraction of the window.
+ *
+ * The pan is built from one rule: the pointer at a fraction f of the way
+ * across the window is over the point of the rest picture that far across a
+ * band reaching `lean` of the window past each side — at every zoom. So:
+ *
+ *   at zoom 1 the picture slides `lean` of the window the other way from the
+ *   pointer, as if you leant your head that way;
+ *   zoomed in, the slide grows with the zoom, and the pointer at an edge of
+ *   the window brings that edge of the band — and the table inside it — into
+ *   view, the corners reaching the table's corners;
+ *   and zooming with the pointer still never moves the point under it, since
+ *   which point that is does not depend on the zoom: zoom about the pointer
+ *   is not a second rule but this one, held.
+ *
+ * With the band's half-width H = size · (½ + lean), the rest point under the
+ * pointer is size/2 + f·H, so the picture moves by
+ *   t = (1 − zoom) · size/2 − f · (zoom · H − size/2). */
+function tableCamera({ zoom = 1, panX = 0, panY = 0 } = {}, width = 0, height = 0, lean = TABLE_PAN_REST) {
+  const z = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(zoom) || 1));
+  const shift = (f, size) => {
+    if (!(size > 0)) return 0;
+    const half = size * (0.5 + Math.max(0, Number(lean) || 0));
+    return (1 - z) * size / 2 - (Number(f) || 0) * (z * half - size / 2) || 0;
+  };
+  return { zoom: z, tx: shift(panX, width), ty: shift(panY, height) };
+}
+
+/* One frame of the camera easing towards its target: each of the three closes
+ * the same fraction of its gap, and one already within reach of its target
+ * snaps to it. `settled` is true when all three have arrived, which is what
+ * stops the frame loop. */
+function tableCameraStep(at, to, ease = TABLE_CAMERA_EASE) {
   const next = {};
   let settled = true;
-  for (const key of TABLE_LOOK_KEYS) {
+  for (const key of TABLE_CAMERA_KEYS) {
     const gap   = to[key] - at[key];
-    const reach = key === 'tx' || key === 'ty' ? TABLE_SETTLED_PX : TABLE_SETTLED_DEG;
+    const reach = key === 'zoom' ? TABLE_SETTLED_ZOOM : TABLE_SETTLED_PAN;
     if (Math.abs(gap) <= reach) { next[key] = to[key]; continue; }
     next[key] = at[key] + gap * ease;
     settled = false;
   }
   return { at: next, settled };
+}
+
+/* A zoom moved by `factor`, held inside the range. */
+function tableZoomBy(zoom, factor) {
+  const next = (Number(zoom) || 1) * (Number(factor) > 0 ? Number(factor) : 1);
+  return Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, next));
+}
+
+/* A zoom after one wheel event: deltaY in its deltaMode — pixels (0), lines
+ * (1) or pages (2, a page being `page` pixels) — counted in pixels, held to
+ * TABLE_WHEEL_MAX_PX either way, and turned into a factor by the exponential,
+ * so a trackpad's fifty small events zoom exactly as far as a mouse's one big
+ * one of the same total, and a turn away undoes a turn towards. Turning the
+ * wheel towards you (a positive deltaY) zooms out, as maps do. */
+function tableWheelZoom(zoom, deltaY, deltaMode = 0, page = 800) {
+  const unit = deltaMode === 1 ? TABLE_WHEEL_LINE_PX : deltaMode === 2 ? (Number(page) || 0) : 1;
+  const px = Math.min(TABLE_WHEEL_MAX_PX, Math.max(-TABLE_WHEEL_MAX_PX, (Number(deltaY) || 0) * unit));
+  return tableZoomBy(zoom, Math.exp(-px * TABLE_ZOOM_PER_PX));
+}
+
+/* How high a card in hand is, `ms` after the button went down: all the way
+ * up at TABLE_LIFT_MS, on a cubic ease-out — fast off the felt, slowing into
+ * the hand — and not at all when cards may not move. */
+function tableLiftHeight(ms, motion = true) {
+  if (!motion) return 0;
+  const t = Math.min(1, Math.max(0, (Number(ms) || 0) / TABLE_LIFT_MS));
+  return TABLE_CARD_LIFT * (1 - (1 - t) ** 3);
+}
+
+/* How big the table is drawn, and where, so that at rest it fills a window
+ * of `view` = { width, height }: its near corners `gutter` in from the
+ * window's bottom corners and its far edge `top` below the window's top.
+ *
+ * Seen through a perspective of `perspective` about the window's centre and
+ * tilted away by `tilt` about its own centre, a point s from the table's
+ * centre along its depth lands at (oy + s·cos) · d / (d − s·sin) from the
+ * window's centre, where oy is how far below the centre the table is laid.
+ * Asking that of the near edge (s = +a) and the far one (s = −a) gives two
+ * equations in a and oy, and they are linear in a:
+ *
+ *   a = (A + B) / (2·cos + (A − B)·sin / d)
+ *   A = height/2 − gutter,  B = height/2 − top
+ *
+ * The width is then whatever puts the near corners where they are asked to
+ * be, at the near edge's magnification. Returns the plane's laid-out box —
+ * { left, top, width, height } in window pixels, before its tilt — or null
+ * for a window or a perspective it cannot fit. */
+function tableFitSize(view, { perspective, tilt = TABLE_TILT_REST, gutter = TABLE_FIT_GUTTER, top = gutter } = {}) {
+  const width = Number(view?.width) || 0, height = Number(view?.height) || 0;
+  const d = Number(perspective);
+  if (!(width > 0) || !(height > 0)) return null;
+  const sin = Math.sin(tilt * TABLE_RAD), cos = Math.cos(tilt * TABLE_RAD);
+  const A = height / 2 - gutter, B = height / 2 - top;
+  const flat = !(d > 0) || !Number.isFinite(d);
+  const a = (A + B) / (2 * cos + (flat ? 0 : (A - B) * sin / d));
+  /* The near edge's magnification, d / (d − a·sin); none without a
+     perspective, and nothing at all with the near edge at or behind the eye. */
+  const near = flat ? 1 : d / (d - a * sin);
+  if (!(a > 0) || !(near > 0) || !Number.isFinite(near)) return null;
+  const oy = A / near - a * cos;
+  const w = (width - 2 * gutter) / near;
+  return { left: (width - w) / 2, top: height / 2 + oy - a, width: w, height: 2 * a };
 }
 
 /* The share of the gap to close in a frame `dt` milliseconds long, for an
@@ -465,9 +599,9 @@ function tableRotateX(deg) {
   return [1, 0, 0, 0,  0, c, -s, 0,  0, s, c, 0,  0, 0, 0, 1];
 }
 
-function tableRotateY(deg) {
-  const c = Math.cos(deg * TABLE_RAD), s = Math.sin(deg * TABLE_RAD);
-  return [c, 0, s, 0,  0, 1, 0, 0,  -s, 0, c, 0,  0, 0, 0, 1];
+/* CSS's scale(k) — a 2D one: x and y, never z. */
+function tableScale(k) {
+  return [k, 0, 0, 0,  0, k, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1];
 }
 
 /* CSS's perspective(d). An infinite distance is no perspective at all. */
@@ -480,40 +614,50 @@ function tablePerspective(d) {
  * top-left inner corner — to the window, composed the way the browser composes
  * it for the mat's children:
  *
- *   the scene's perspective, about the scene's perspective-origin
- *   · the plane's place in the scene, and its transform about its own origin
+ *   the camera's transform, about the window's corner — the picture moved
+ *     and zoomed, after everything below has been drawn into it
+ *   · the camera's perspective, about its perspective-origin
+ *   · the plane's place in the camera, and its tilt about its own origin
  *   · the mat's place in the plane
  *
  *   geometry = {
- *     perspective,              the scene's, in px (Infinity for none)
- *     origin:  { x, y },        the scene's perspective-origin, px
- *     plane:   { left, top,     the plane's untransformed box in the scene
+ *     perspective,              the camera's, in px (Infinity for none)
+ *     origin:  { x, y },        the camera's perspective-origin, px
+ *     plane:   { left, top,     the plane's untransformed box in the camera
  *                origin: {x,y} } and its transform-origin within it
  *     mat:     { left, top },   the mat's content box within the plane's box
- *     look:    { rx, ry, tx, ty } the plane's transform, as tablePlaneTransform
+ *     tilt,                     the plane's rotateX, in degrees
+ *     camera:  { zoom, tx, ty } the camera's transform, as tableCamera answers
  *   }
  *
- * The scene is fixed at the window's corner, so the scene's pixels are the
- * window's. */
-function tablePlaneMatrix({ perspective, origin, plane, mat, look }) {
+ * The camera fills the scene, which is fixed at the window's corner, so the
+ * camera's pixels are the window's. Its transform comes first — outermost —
+ * because it is the camera element's own, applied to the flat picture its
+ * perspective has already made of the plane: a scale and a move of x and y
+ * against the projected w, which tableUnproject inverts with everything else
+ * in the same closed form, so a point on the mat is found under the pointer
+ * however far the camera has panned or zoomed. */
+function tablePlaneMatrix({ perspective, origin, plane, mat, tilt = TABLE_TILT_REST, camera = { zoom: 1, tx: 0, ty: 0 } }) {
   return [
+    tableTranslate(camera.tx, camera.ty),
+    tableScale(camera.zoom),
     tableTranslate(origin.x, origin.y),
     tablePerspective(perspective),
     tableTranslate(-origin.x, -origin.y),
     tableTranslate(plane.left + plane.origin.x, plane.top + plane.origin.y),
-    tableTranslate(look.tx, look.ty),
-    tableRotateY(look.ry),
-    tableRotateX(look.rx),
+    tableRotateX(tilt),
     tableTranslate(-plane.origin.x, -plane.origin.y),
     tableTranslate(mat.left, mat.top),
   ].reduce(tableMul);
 }
 
-/* The CSS for the same transform, written in the same order — so the matrix
- * above and what the browser draws are one statement read two ways. */
-function tablePlaneTransform({ rx, ry, tx, ty }) {
-  return `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) ` +
-         `rotateY(${ry.toFixed(3)}deg) rotateX(${rx.toFixed(3)}deg)`;
+/* The CSS for the camera's part, written in the order the matrix composes it
+ * — so the matrix above and what the browser draws are one statement read two
+ * ways — and read about the camera's corner (transform-origin: 0 0, in
+ * table.css). The plane's tilt is the stylesheet's own rotateX(--table-tilt),
+ * which tableBuild sets from TABLE_TILT_REST, the number the matrix tilts by. */
+function tableCameraTransform({ zoom, tx, ty }) {
+  return `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${zoom.toFixed(5)})`;
 }
 
 /* Where a point (u, v) on the mat, z pixels above it, lands in the window.
@@ -841,8 +985,8 @@ function setTableMode(on) {
 let tableOn       = false;
 let tableEls      = null;    // the elements this file put into the page
 let tableGeom     = null;    // their untransformed geometry, see tableMeasure()
-let tableAt       = { ...TABLE_REST };   // where the view is
-let tableTo       = { ...TABLE_REST };   // where it is going
+let tableAt       = { ...TABLE_CAMERA_REST };   // where the camera is
+let tableTo       = { ...TABLE_CAMERA_REST };   // where it is going
 let tableFrameId  = 0;
 let tableFrameAt  = 0;       // when the last frame ran, while frames are running
 let tableResizeId = 0;
@@ -867,6 +1011,7 @@ let tableTuckKept = false;   // whether the user's last choice was to tuck it
 const tableMoved  = new Map();   // card key → { x, y, turn }: where a hand put it
 let tableHold     = null;    // the card under a pressed pointer
 let tableSwallow  = false;   // the click a drag ends with is not a click
+let tableLifted   = null;    // { card, box }: a pressed card, as it was drawn held
 let tableLooked   = null;    // the card picked up to be looked at
 let tableLookSeq  = 0;
 
@@ -910,6 +1055,7 @@ function tableBuild() {
   scene.id = 'tableScene';
   scene.style.setProperty('--table-tilt', `${TABLE_TILT_REST}deg`);
   scene.innerHTML = `
+    <div class="table-camera" id="tableCamera">
     <div class="table-plane" id="tablePlane">
       <div class="table-rim table-rim--far" role="group" aria-label="Tabs on the far edge">${tableRimHtml('far')}</div>
       <div class="table-rim table-rim--left" role="group" aria-label="Tabs on the left edge">${tableRimHtml('left')}</div>
@@ -918,6 +1064,7 @@ function tableBuild() {
       </div>
       <div class="table-rim table-rim--right" role="group" aria-label="Tabs on the right edge">${tableRimHtml('right')}</div>
       <div class="table-rim table-rim--near"></div>
+    </div>
     </div>`;
 
   const dim = document.createElement('div');
@@ -973,6 +1120,7 @@ function tableBuild() {
 
   tableEls = {
     scene, dim, panel, look,
+    camera:     scene.querySelector('#tableCamera'),
     plane:      scene.querySelector('#tablePlane'),
     mat:        scene.querySelector('#tableMat'),
     hint:       scene.querySelector('#tableHint'),
@@ -987,6 +1135,7 @@ function tableBuild() {
 
   /* Listeners on the elements go with them when the scene is taken down. */
   tableEls.plane.addEventListener('click', tableOnPlaneClick);
+  scene.addEventListener('wheel', tableOnWheel, { passive: false });
   tableEls.mat.addEventListener('pointerdown', tableOnCardDown);
   tableEls.mat.addEventListener('dragstart', e => e.preventDefault());
   panel.querySelector('[data-table-close]').addEventListener('click', () => tableClosePanel());
@@ -1012,19 +1161,60 @@ function tableBuild() {
   tableEls.lookDetails.addEventListener('click', () => tableOpenDetails());
 }
 
+/* The table fitted to the window: its box worked out by tableFitSize and
+ * handed to table.css as --table-x/-y/-w/-h on the scene. The far edge is
+ * asked to sit a gutter below the window's top, plus the pan at rest's reach,
+ * so a lean towards you never carries a far tab out of the window — and the
+ * tabs standing on that edge, which rise above it a little or not at all
+ * depending on their font and the rim's height, are then measured and the
+ * room made bigger by whatever they still reach past it. Twice, since a
+ * taller table stands its tabs a hair differently; the second pass is a
+ * fraction of a pixel. Measured with the camera at rest, and put back. */
+function tableFitTable() {
+  const { scene, camera, plane } = tableEls;
+  const view = { width: scene.clientWidth, height: scene.clientHeight };
+  const depth = parseFloat(getComputedStyle(camera).perspective);
+  const want = TABLE_FIT_GUTTER + TABLE_PAN_REST * view.height;
+  const write = top => {
+    const box = tableFitSize(view, { perspective: depth > 0 ? depth : Infinity, top });
+    if (!box) return false;
+    scene.style.setProperty('--table-x', `${box.left.toFixed(2)}px`);
+    scene.style.setProperty('--table-y', `${box.top.toFixed(2)}px`);
+    scene.style.setProperty('--table-w', `${box.width.toFixed(2)}px`);
+    scene.style.setProperty('--table-h', `${box.height.toFixed(2)}px`);
+    return true;
+  };
+  let top = want;
+  if (!write(top)) return;
+  const was = camera.style.transform;
+  camera.style.transform = 'none';
+  for (let pass = 0; pass < 2; pass++) {
+    let highest = Infinity;
+    for (const btn of plane.querySelectorAll('.table-rim--far .table-tab')) {
+      if (!btn.hidden) highest = Math.min(highest, btn.getBoundingClientRect().top);
+    }
+    if (!(highest < want - 0.25)) break;
+    top += want - highest;
+    write(top);
+  }
+  camera.style.transform = was;
+}
+
 /* The geometry the screen-to-mat mapping needs, read off the laid-out boxes
  * rather than the drawn ones: offsetLeft and its siblings are layout, which no
  * transform touches, so they say where the plane is before it is tilted. The
  * mat's content box is where its cards are placed from, so the plane's border
- * and the mat's own are counted in. */
+ * and the mat's own are counted in. The perspective is the camera's, and so
+ * is the window size the pan is worked out against. */
 function tableMeasure() {
-  const { scene, plane, mat } = tableEls;
-  const sceneStyle = getComputedStyle(scene);
+  const { camera, plane, mat } = tableEls;
+  const cameraStyle = getComputedStyle(camera);
   const planeStyle = getComputedStyle(plane);
-  const depth = parseFloat(sceneStyle.perspective);
+  const depth = parseFloat(cameraStyle.perspective);
   tableGeom = {
     perspective: depth > 0 ? depth : Infinity,
-    origin: tableParseOrigin(sceneStyle.perspectiveOrigin, scene.clientWidth, scene.clientHeight),
+    origin: tableParseOrigin(cameraStyle.perspectiveOrigin, camera.clientWidth, camera.clientHeight),
+    view: { width: camera.clientWidth, height: camera.clientHeight },
     plane: {
       left: plane.offsetLeft,
       top:  plane.offsetTop,
@@ -1039,17 +1229,26 @@ function tableMeasure() {
   };
 }
 
+/* The camera's transform for where it is now. The lean at rest is a motion of
+ * its own, so it goes when cards may not move; the pan that reaches the edges
+ * of a zoomed table is how the table is got round, and stays. */
+function tableCam() {
+  const { width, height } = tableGeom.view;
+  return tableCamera(tableAt, width, height, cardMotionOn() ? TABLE_PAN_REST : 0);
+}
+
 function tableMatrix() {
-  return tablePlaneMatrix({ ...tableGeom, look: tableAt });
+  return tablePlaneMatrix({ ...tableGeom, tilt: TABLE_TILT_REST, camera: tableCam() });
 }
 
 function tableKick() {
   if (!tableFrameId) tableFrameId = requestAnimationFrame(tableFrame);
 }
 
-/* One frame: the view closes on its target, and a card in hand is put back
- * under the pointer for wherever the view now is. The loop asks for another
- * frame only while something is still on its way. */
+/* One frame: the camera closes on its target — or jumps there, when cards may
+ * not move — and a card in hand is put back under the pointer for wherever
+ * the camera now is, at the height it has risen to. The loop asks for
+ * another frame only while something is still on its way. */
 function tableFrame(now) {
   tableFrameId = 0;
   if (!tableOn) return;
@@ -1059,52 +1258,96 @@ function tableFrame(now) {
   tableFrameAt = now;
   let more = false;
   if (cardMotionOn()) {
-    const step = tableLookStep(tableAt, tableTo, tableEaseFor(dt, TABLE_LOOK_EASE));
+    const step = tableCameraStep(tableAt, tableTo, tableEaseFor(dt, TABLE_CAMERA_EASE));
     tableAt = step.at;
     more = !step.settled;
   } else {
-    tableAt = { ...TABLE_REST };
-    tableTo = { ...TABLE_REST };
+    tableAt = { ...tableTo };
   }
-  tableEls.plane.style.transform = tablePlaneTransform(tableAt);
-  if (tableHold?.dragging && tableCarry(dt)) more = true;
+  tableEls.camera.style.transform = tableCameraTransform(tableCam());
+  if (tableHold && tableCarry(now)) more = true;
   if (more) tableKick();
   else tableFrameAt = 0;
 }
 
-/* The pointer, anywhere over the window: where the view is going, and where a
- * card in hand is. Read on every move rather than once, because "Cards move"
- * can be unticked while the table is up. */
+/* The pointer, anywhere over the window: where the camera is panning to, and
+ * where a card in hand is. */
 function tableOnPointerMove(e) {
   if (e.pointerType === 'touch') return;
-  tableTo = cardMotionOn()
-    ? tableLookTarget(e.clientX, e.clientY, window.innerWidth, window.innerHeight)
-    : { ...TABLE_REST };
+  tableAim(e.clientX, e.clientY);
 
   const hold = tableHold;
   if (hold && e.pointerId === hold.id) {
     hold.pointer = { x: e.clientX, y: e.clientY };
-    if (!hold.dragging && tableIsDrag(e.clientX - hold.start.x, e.clientY - hold.start.y)) tableBeginCarry();
+    if (!hold.dragging && tableIsDrag(e.clientX - hold.start.x, e.clientY - hold.start.y)) hold.dragging = true;
   }
   tableKick();
 }
 
-/* The pointer leaving the window altogether: sit back up. */
+/* The pan aimed at a window point, the zoom left as it is. */
+function tableAim(x, y) {
+  const { width, height } = tableGeom.view;
+  tableTo = { ...tableTo, ...tablePanTarget(x, y, width, height) };
+}
+
+/* The pointer leaving the window altogether: the camera comes back to the
+ * middle, at whatever zoom it is. */
 function tableOnPointerOut(e) {
   if (e.relatedTarget) return;
-  tableTo = { ...TABLE_REST };
+  tableTo = { ...tableTo, panX: 0, panY: 0 };
   tableKick();
 }
 
-/* A resize changes every size the scene is drawn in, so the geometry is read
- * again and the cards are redrawn from where they lie — their places are
- * fractions of the mat, so they keep them. Once per frame however many resize
- * events the window sends. */
+/* The wheel over the table zooms the camera, about the point under the
+ * pointer (see tableCamera: the pan aimed at the pointer is what holds that
+ * point still). Only over the table — the scene is where this listens, and the
+ * floating panel, its tucked bar and the card being looked at are not in it —
+ * and not over the Card tab's sheet, which lies on the mat but is a page that
+ * scrolls. The wheel's own default is taken: there is nothing behind the
+ * table to scroll, and a sideways swipe would otherwise go back a page. A
+ * held Ctrl is the browser's own zoom, and is left to it. */
+function tableOnWheel(e) {
+  if (e.ctrlKey || e.target.closest?.('.table-panel')) return;
+  e.preventDefault();
+  tableAim(e.clientX, e.clientY);
+  tableTo.zoom = tableWheelZoom(tableTo.zoom, e.deltaY, e.deltaMode, tableGeom.view.height);
+  tableKick();
+}
+
+/* A field being typed in keeps its keys: + − 0 are characters there. */
+function tableIsTyping(el) {
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (tag !== 'INPUT') return false;
+  return !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']
+    .includes(String(el.type).toLowerCase());
+}
+
+/* + and = zoom in, − zooms out and 0 goes back to the whole table, about
+ * wherever the camera is aimed. Not while a dialog is up, nor with a modifier
+ * held — Ctrl with any of them is the browser's own zoom. */
+function tableZoomKey(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey || tableIsTyping(e.target)) return false;
+  const factor = { '+': TABLE_ZOOM_KEY, '=': TABLE_ZOOM_KEY, '-': 1 / TABLE_ZOOM_KEY }[e.key];
+  if (!factor && e.key !== '0') return false;
+  if ((typeof modalIsOpen === 'function' && modalIsOpen()) || (typeof faqIsOpen === 'function' && faqIsOpen())) return false;
+  tableTo.zoom = factor ? tableZoomBy(tableTo.zoom, factor) : TABLE_ZOOM_MIN;
+  tableKick();
+  return true;
+}
+
+/* A resize changes every size the scene is drawn in, so the table is fitted
+ * to the new window, the geometry is read again and the cards are redrawn
+ * from where they lie — their places are fractions of the mat, so they keep
+ * them. Once per frame however many resize events the window sends. */
 function tableOnResize() {
   if (tableResizeId) return;
   tableResizeId = requestAnimationFrame(() => {
     tableResizeId = 0;
     if (!tableOn) return;
+    tableFitTable();
     tableMeasure();
     tableResizeCards();
     tableFitPanel();
@@ -1127,7 +1370,9 @@ function tableOnKeyCapture(e) {
 }
 
 function tableOnKey(e) {
-  if (e.key !== 'Escape' || e.defaultPrevented || tableEscTaken) return;
+  if (e.defaultPrevented) return;
+  if (e.key !== 'Escape') { tableZoomKey(e); return; }
+  if (tableEscTaken) return;
   if (tableLooked) { tableLookAway(); return; }
   if (tablePanel) tableClosePanel();
 }
@@ -1188,11 +1433,12 @@ function tableModeEnter() {
   tableOn = true;
   tableScrollY = window.scrollY || 0;
   document.documentElement.dataset.tablemode = '';
-  tableAt = { ...TABLE_REST };
-  tableTo = { ...TABLE_REST };
+  tableAt = { ...TABLE_CAMERA_REST };
+  tableTo = { ...TABLE_CAMERA_REST };
   tableBuild();
-  tableEls.plane.style.transform = tablePlaneTransform(tableAt);
+  tableFitTable();
   tableMeasure();
+  tableEls.camera.style.transform = tableCameraTransform(tableCam());
   tableDrawCards();
   tableListen(true);
   tableWatchRim();
@@ -1338,18 +1584,20 @@ function tablePutPaneBack() {
 
 /* The box a floating panel is drawn in, written over the stylesheet's
  * default (top 10vh, min(900px, 70vw) by 80vh, centred) once the rim can be
- * measured — see tableFloatBox(). The tabs are measured with the table at
- * rest and the gap widened by how far looking around can carry them, so no
+ * measured — see tableFloatBox(). The tabs are measured with the camera at
+ * rest and the gap widened by how far the pan at rest can carry them, so no
  * lean of the head walks a tab in under the panel. Put back in the same task,
- * so the rest pose is never drawn. */
+ * so the rest pose is never drawn. A camera zoomed in has carried the tabs
+ * elsewhere, and the panel is still fitted to where they stand at rest. */
 const TABLE_FLOAT_PROPS = ['left', 'top', 'width', 'height', 'right', 'margin-inline'];
 
 function tableFitPanel() {
   if (!tablePanel || tablePanel.kind !== 'float' || !tableEls) return;
-  const { plane, panel } = tableEls;
+  const { camera, plane, panel } = tableEls;
   const view = { width: window.innerWidth, height: window.innerHeight };
   const clear = { top: 0, left: 0, right: view.width };
-  plane.style.transform = tablePlaneTransform(TABLE_REST);
+  const was = camera.style.transform;
+  camera.style.transform = 'none';
   for (const btn of plane.querySelectorAll('.table-tab')) {
     if (btn.hidden) continue;
     const at = btn.getBoundingClientRect();
@@ -1358,8 +1606,8 @@ function tableFitPanel() {
     else if (edge === 'left') clear.left  = Math.max(clear.left, at.right);
     else if (edge === 'right') clear.right = Math.min(clear.right, at.left);
   }
-  plane.style.transform = tablePlaneTransform(tableAt);
-  const box = tableFloatBox(view, clear, TABLE_PANEL_GAP + TABLE_LOOK_SHIFT * view.width);
+  camera.style.transform = was;
+  const box = tableFloatBox(view, clear, TABLE_PANEL_GAP + TABLE_PAN_REST * view.width);
   panel.style.left   = `${box.left.toFixed(1)}px`;
   panel.style.top    = `${box.top.toFixed(1)}px`;
   panel.style.width  = `${box.width.toFixed(1)}px`;
@@ -1731,9 +1979,13 @@ function tableRaise(card) {
   for (const c of tableCards) if (c !== card) tableWriteCard(c);
 }
 
+/* A press on a card picks it up at once: it is raised above every other card
+ * and starts to rise off the felt on the frame loop (tableCarry), before the
+ * pointer has moved at all. Whether it is then carried or looked at is
+ * decided later — by the pointer travelling TABLE_DRAG_START, or not. */
 function tableOnCardDown(e) {
   tableSwallow = false;
-  if (e.button !== 0 || e.pointerType === 'touch' || tableLooked) return;
+  if (e.button !== 0 || e.pointerType === 'touch' || tableLooked || tableHold) return;
   const el = e.target.closest?.('.table-card');
   const card = el && tableCards.find(c => c.el === el);
   if (!card) return;
@@ -1742,35 +1994,37 @@ function tableOnCardDown(e) {
   const { width, height } = tableGeom.mat;
   tableHold = {
     card, id: e.pointerId, dragging: false, lift: 0,
+    since:   performance.now(),
     start:   { x: e.clientX, y: e.clientY },
     pointer: { x: e.clientX, y: e.clientY },
+    /* Where it lay, for a press that turns out to be a click: the card rises
+       keeping the hand's point under the pointer, which moves it a little
+       across the mat, and a card only looked at is put back where it was. */
+    from:    { x: card.x, y: card.y },
     /* Where on the card the hand closed, in the mat's pixels: the card is kept
        with that point under the pointer for the rest of the journey. */
     grab: { u: hit.u - card.x * width, v: hit.v - card.y * height },
   };
   try { el.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
-}
-
-function tableBeginCarry() {
-  const hold = tableHold;
-  hold.dragging = true;
-  tableRaise(hold.card);
-  hold.card.el.classList.remove('is-settling');
-  hold.card.el.classList.add('is-held');
+  tableRaise(card);
+  el.classList.remove('is-settling');
+  el.classList.add('is-held');
   tableKick();
 }
 
-/* One frame of a card in hand. It rises towards its lifted height — none when
- * cards may not move: then it is held, not lifted, and still follows the hand
- * — and is placed so that the point the hand closed on is where the pointer's
- * ray meets the plane at the card's current height. Returns whether it is
- * still rising, which is what asks for another frame. */
-function tableCarry(dt) {
+/* One frame of a card in hand. It rises to its lifted height in
+ * TABLE_LIFT_MS from the press (tableLiftHeight) — none when cards may not
+ * move: then it is held, not lifted, and still follows the hand — and is
+ * placed so that the point the hand closed on is where the pointer's ray meets
+ * the plane at the card's current height, through the camera as it is this
+ * frame, so a card in hand stays under the pointer while the table pans or
+ * zooms beneath it. Returns whether it is still rising, which is what asks
+ * for another frame. */
+function tableCarry(now) {
   const hold = tableHold;
   const card = hold.card;
-  const target = cardMotionOn() ? TABLE_CARD_LIFT : 0;
-  const gap = target - hold.lift;
-  hold.lift = Math.abs(gap) < 0.5 ? target : hold.lift + gap * tableEaseFor(dt, TABLE_LIFT_EASE);
+  const motion = cardMotionOn();
+  hold.lift = tableLiftHeight(now - hold.since, motion);
 
   const hit = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, tableCardZ(card) + hold.lift);
   if (hit) {
@@ -1780,42 +2034,57 @@ function tableCarry(dt) {
   }
   const lean = TABLE_CARD_LIFT ? -TABLE_CARD_LEAN * hold.lift / TABLE_CARD_LIFT : 0;
   tableWriteCard(card, hold.lift, lean);
-  return hold.lift !== target;
+  return hold.lift !== tableLiftHeight(Infinity, motion);
 }
 
-/* Let go. A press that never became a drag is left to the card's own click,
- * which picks it up to look at; a drag puts the card down where it is, in the
- * card layer's own time (table.css, .is-settling). */
+/* Let go. A drag puts the card down where it is, in the card layer's own
+ * time (table.css, .is-settling). A press that never became a drag is left to
+ * the card's own click, which comes straight after this: the card goes back
+ * to where it lay, and — if the click will pick it up to look at it — the
+ * box it is drawn in up here is kept for tableLookAt to rise from, so it goes
+ * on up to face the viewer from where the hand had it rather than dropping
+ * first. Nothing is drawn between a pointerup and its click, so the card put
+ * back at rest under the picture never shows. A card the click opens, or
+ * one with no picture to look at, settles back down instead. */
 function tableRelease(e) {
   const hold = tableHold;
   if (!hold || (e && e.pointerId !== hold.id)) return;
   tableHold = null;
-  if (!hold.dragging) return;
-  tableSwallow = true;
   const card = hold.card;
-  tableMoved.set(card.key, { x: card.x, y: card.y, turn: card.turn });
+  if (hold.dragging) {
+    tableSwallow = true;
+    tableMoved.set(card.key, { x: card.x, y: card.y, turn: card.turn });
+  } else {
+    card.x = hold.from.x;
+    card.y = hold.from.y;
+  }
   if (!card.el) return;
   const el = card.el;
+  const looks = !hold.dragging && !card.open && !!card.imageUrl && e?.type === 'pointerup';
+  if (looks) tableLifted = { card, box: el.getBoundingClientRect() };
   el.classList.remove('is-held');
-  el.classList.add('is-settling');
+  if (!looks) el.classList.add('is-settling');
   tableWriteCard(card);
-  tableAfter(el, () => el.classList.remove('is-settling'));
+  if (!looks) tableAfter(el, () => el.classList.remove('is-settling'));
 }
 
 function tableOnCardClick(e) {
+  const lifted = tableLifted;
+  tableLifted = null;
   if (tableSwallow) { tableSwallow = false; return; }
   const card = tableCards.find(c => c.el === e.currentTarget);
   if (!card) return;
   if (card.open) card.open();
-  else tableLookAt(card);
+  else tableLookAt(card, lifted?.card === card ? lifted.box : null);
 }
 
 /* The transform that puts the large card where the small one lies on the
  * table: the same centre, the same angle, the size it is drawn at there. The
  * box the table card is measured by is its drawn box, foreshortened and
- * turned, which is what the eye sees it as. */
-function tableFlipFrom(fromEl, toEl, turn) {
-  const from = fromEl.getBoundingClientRect();
+ * turned, which is what the eye sees it as — or `box`, a box it was drawn in
+ * a moment ago, for a card just let go of in the hand. */
+function tableFlipFrom(fromEl, toEl, turn, box = null) {
+  const from = box || fromEl.getBoundingClientRect();
   const to   = toEl.getBoundingClientRect();
   if (!to.width || !to.height) return '';
   const scale = Math.min(from.width / to.width, from.height / to.height);
@@ -1841,9 +2110,11 @@ function tableAfter(el, done) {
 }
 
 /* Pick a card up to look at it: it rises off the table, turning to face you,
- * and comes to rest large in the middle of the window. The card on the mat is
- * hidden rather than moved, so its place is kept for it. */
-function tableLookAt(card) {
+ * and comes to rest large in the middle of the window — from `from`, the box
+ * it was drawn in held in the hand, when a press has just lifted it, and
+ * otherwise from where it lies. The card on the mat is hidden rather than
+ * moved, so its place is kept for it. */
+function tableLookAt(card, from = null) {
   if (!card.imageUrl || !card.el || tableLooked) return;
   const { look, lookImg } = tableEls;
   /* A card still on its way back down from the last look is overtaken: its
@@ -1859,7 +2130,7 @@ function tableLookAt(card) {
   /* Drawn first where the card lies, with no transition, then let go: the
      transition carries it from there to its place in the middle. */
   lookImg.style.transition = 'none';
-  lookImg.style.transform = tableFlipFrom(card.el, lookImg, card.turn);
+  lookImg.style.transform = tableFlipFrom(card.el, lookImg, card.turn, from);
   void lookImg.offsetWidth;
   lookImg.style.removeProperty('transition');
   lookImg.style.removeProperty('transform');

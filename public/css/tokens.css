@@ -157,6 +157,10 @@
      than when it is being held above it. */
   --card-shadow-rest:   drop-shadow(0 3px 6px var(--card-cast));
   --card-shadow-raised: drop-shadow(0 8px 16px var(--card-cast));
+  /* Held high off the table mode's mat (js/tablemode.js lifts a card in hand
+     96px, where the grid's lift is a few): the same light, from further up,
+     so the shadow falls further and spreads wider. */
+  --card-shadow-held:   drop-shadow(0 14px 26px var(--card-cast));
 
   /* How far a card comes off the table when it is picked up, and how much
      bigger it looks for being nearer the eye. Both are small: a card in a

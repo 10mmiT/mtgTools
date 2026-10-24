@@ -7,12 +7,13 @@
    which js/tablemode.js sets and clears, so with the mode off none of this
    matches anything and the app is exactly what it was.
 
-   What is here is the geometry and the look. What moves is not: the table's
-   tilt and the view's lean are written by the script every frame they change,
-   cards are placed by it, and the decisions behind both are in that file. The
-   one number the two share is the rest tilt, which the script hands over as
-   --table-tilt so that the tabs standing on the rim can be stood square to the
-   eye by the same angle the table leans away by.
+   What is here is the geometry and the look. What moves is not: the camera's
+   pan and zoom are written by the script every frame they change, cards are
+   placed by it, and the decisions behind both are in that file. So is the
+   table's size: the script fits it to the window and hands the box over as
+   --table-x/-y/-w/-h. The one number the two share is the rest tilt, which
+   the script hands over as --table-tilt so that the tabs standing on the rim
+   can be stood square to the eye by the same angle the table leans away by.
 
    Nothing in a 3D scene may flatten what it holds by accident. overflow,
    opacity under 1 and filter each turn an element into a flat picture of its
@@ -41,30 +42,44 @@ html[data-tablemode] body::before,
 html[data-tablemode] body::after { display: none; }
 
 /* ── The scene ─────────────────────────────────────────────────────────
-   The room the table stands in, and the eye: a perspective at 1400px is a
-   seat at arm's length from the near edge, which keeps the far edge readable
-   at a 24° lean. js/tablemode.js reads both values back off the computed
-   style rather than repeating them, so this is the one place they are said. */
+   The room the table stands in: the window, in the page's own background,
+   clipping whatever a zoomed camera carries past its edges. */
 .table-scene {
   position: fixed;
   inset: 0;
   overflow: hidden;
   background: var(--bg);
+  user-select: none;
+}
+
+/* The eye. A perspective at 1400px is a seat at arm's length from the near
+   edge, which keeps the far edge readable at a 24° lean; js/tablemode.js
+   reads both values back off the computed style rather than repeating them,
+   so this is the one place they are said. Its own transform is the camera's
+   pan and zoom, written by the script about its top-left corner: being the
+   element's own and not the plane's, it moves and scales the flat picture
+   the perspective has made, so the table slides and grows without its angle
+   changing. Not preserve-3d, for the same reason. */
+.table-camera {
+  position: absolute;
+  inset: 0;
   perspective: 1400px;
   perspective-origin: 50% 50%;
-  user-select: none;
+  transform-origin: 0 0;
 }
 
 /* The table: a grid of rim, mat and rim, in wood. The border is the table's
    outer edge, a darker band round the board; the faint lines across it are
    the grain, drawn in the same wood token mixed towards that edge so a theme
-   that repaints the wood repaints its grain with it. */
+   that repaints the wood repaints its grain with it. Its box is the one the
+   script fits to the window; the fallback is only ever drawn by a script
+   that has not run. */
 .table-plane {
   position: absolute;
-  inset: 0;
-  margin: auto;
-  width: min(88vw, 1600px);
-  height: 76vh;
+  left: var(--table-x, 6vw);
+  top: var(--table-y, 12vh);
+  width: var(--table-w, 88vw);
+  height: var(--table-h, 76vh);
   display: grid;
   grid-template-columns: 12rem minmax(0, 1fr) 12rem;
   grid-template-rows: 4.25rem minmax(0, 1fr) 2.25rem;
@@ -101,9 +116,9 @@ html[data-tablemode] body::after { display: none; }
 .table-rim--near  { grid-area: near; }
 
 /* A tab standing on the rim. It is hinged at its foot and stood up by exactly
-   the angle the table leans away by, so at rest it faces the eye squarely and
-   reads like the sidebar button it stands for; leaning to look round the
-   table leans it with everything else.
+   the angle the table leans away by, so it faces the eye squarely and reads
+   like the sidebar button it stands for — wherever the camera pans, since the
+   camera never turns the table.
 
    Flat at rest, like the sidebar's buttons: a hairline and a surface. The
    accent marks the open one and nothing else — its tab's own, which it gets
@@ -211,10 +226,15 @@ html[data-playmat] .table-mat {
   object-fit: cover;
   pointer-events: none;
 }
-/* In hand: the deeper shadow of something held above the table rather than
-   lying on it — which the card has whether or not it is allowed to rise. */
+/* In hand: the deeper shadow of something held well above the table rather
+   than lying on it — which the card has whether or not it is allowed to rise.
+   It grows in the time the card takes to rise (TABLE_LIFT_MS, 110ms, in
+   js/tablemode.js), from the press. */
 .table-card.is-held { cursor: grabbing; }
-.table-card.is-held .table-card-img { filter: var(--card-shadow-raised); }
+.table-card.is-held .table-card-img {
+  filter: var(--card-shadow-held);
+  transition: filter calc(var(--motion) * .11s) var(--ease-tint);
+}
 .table-card.is-settling { transition: transform var(--dur-card) var(--ease-tint); }
 /* Picked up to be looked at: its place on the table is kept for it. */
 .table-card.is-looked { visibility: hidden; }
