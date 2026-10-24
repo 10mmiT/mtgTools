@@ -113,6 +113,7 @@ function loadTab(cards = DECK, cats = CATS, data = CARDS) {
     esc: s => String(s),
     jsAttr: s => String(s),
     renderMana: () => '', renderPrice: () => '', sfCardOwnership: () => '',
+    formatEur: v => (v ? `€${v}` : ''), scryfallSearchUrl: name => `#${name}`,
     /* What js/deckview-owned.js reaches outside the tab for: the collections,
        whose each of them is, and who you are. None of these decks is owned by
        anybody here — that is test/deckowned.test.js's subject — so the shelf is

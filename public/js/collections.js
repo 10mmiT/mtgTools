@@ -1472,11 +1472,11 @@ function renderListView(rows, MAX) {
     if (cols.type)   metaCells += `<td class="td-meta">${esc(colType(m))}</td>`;
     if (cols.rarity) metaCells += `<td class="td-meta">${colRarity(m)}</td>`;
     if (cols.pt)     metaCells += `<td class="td-meta">${colPT(m)}</td>`;
-    if (cols.price)  metaCells += `<td class="td-meta">${m.eur != null ? '€' + m.eur : '—'}</td>`;
+    if (cols.price)  metaCells += `<td class="td-meta">${formatEur(m.eur) || '—'}</td>`;
     const qtyCells = r.qtys.map(q =>
       `<td class="td-qty ${q ? 'qty-some' : 'qty-zero'}">${q || '—'}</td>`
     ).join('');
-    const href = `https://scryfall.com/search?q=!%22${encodeURIComponent(r.name)}%22`;
+    const href = scryfallSearchUrl(r.name);
     return `<tr>
       <td class="td-name"><a class="card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(r.name)}">${esc(r.name)}</a></td>
       ${metaCells}
@@ -1623,7 +1623,7 @@ function _colStackCard(row) {
        turn control. */
     back:  scryfallFacesCache.get(row.name)?.[1] || '',
     badge: `×${total}`,
-    href:  `https://scryfall.com/search?q=!%22${encodeURIComponent(row.name)}%22`,
+    href:  scryfallSearchUrl(row.name),
   };
 }
 
@@ -1714,7 +1714,7 @@ async function renderGridView(rows, MAX) {
 
   function buildGridHTML(withImages) {
     return displayed.map(r => {
-      const href = `https://scryfall.com/search?q=!%22${encodeURIComponent(r.name)}%22`;
+      const href = scryfallSearchUrl(r.name);
       const imgUri = scryfallCache.get(r.name);
       const imgHtml = imgUri
         ? `<img class="card-img" src="${imgUri}" alt="${esc(r.name)}" onerror="this.style.display='none';this.parentNode.classList.add('img-failed')">`

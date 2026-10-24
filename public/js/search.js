@@ -130,7 +130,7 @@ function renderSfCardSmall(card) {
   const imgUrl = card.image_uris?.small || face?.image_uris?.small || '';
   const mana   = card.mana_cost         || face?.mana_cost         || '';
   const sfUrl  = card.scryfall_uri || `https://scryfall.com/card/${card.id}`;
-  const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
+  const href   = scryfallSearchUrl(card.name);
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   return `<div class="sf-card">
@@ -154,7 +154,7 @@ function renderSfCardLarge(card) {
   const face   = card.card_faces?.[0];
   const imgUrl = card.image_uris?.normal || face?.image_uris?.normal || '';
   const sfUrl  = card.scryfall_uri || `https://scryfall.com/card/${card.id}`;
-  const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
+  const href   = scryfallSearchUrl(card.name);
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   const link = `<a href="${sfUrl}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">

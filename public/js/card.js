@@ -208,7 +208,7 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
   const setLine = `${esc(card.set_name)} (${(card.set || '').toUpperCase()}) · #${esc(card.collector_number || '')} · ${esc((card.rarity || '').replace(/^./, c => c.toUpperCase()))}`;
   const eur = card.prices?.eur, usd = card.prices?.usd;
   const priceBits = [];
-  if (eur) priceBits.push(`<span class="card-price">€${eur}</span>`);
+  if (eur) priceBits.push(`<span class="card-price">${formatEur(eur)}</span>`);
   if (usd) priceBits.push(`<span class="card-price card-price-usd">$${usd}</span>`);
 
   const cmUrl = card.purchase_uris?.cardmarket;
@@ -534,7 +534,7 @@ function cardPrintsHtml(prints, { currentId = '', currentFinish = '', forDeck = 
       return `<button class="card-print-tile${isCurrent ? ' current' : ''}" onclick="${press}" title="${title}">
       ${img ? `<img class="card-img" loading="lazy" src="${img}" alt="${esc(p.set_name)}">` : `<div class="card-print-ph"></div>`}
       <span class="card-print-set">${(p.set || '').toUpperCase()} · #${esc(p.collector_number || '')}${cardFinishMark(finish)}</span>
-      ${forDeck ? `<span class="card-print-price">${price ? `€${esc(price)}` : '—'}</span>` : ''}
+      ${forDeck ? `<span class="card-print-price">${formatEur(price) || '—'}</span>` : ''}
     </button>`;
     });
   }).join('');

@@ -680,11 +680,26 @@ async function writeWant(playerId, cardName, remove = false) {
 // ── Helpers ───────────────────────────────────────────────────────────────
 function showError(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 
+/* A price in euros, to the cent: "€1.50". Takes Scryfall's string ("1.5") or
+ * a number the app summed itself; anything that is not a price is '' for the
+ * caller to put its own blank in. The result is digits and a sign, so it
+ * needs no escaping. */
+function formatEur(value) {
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? `€${n.toFixed(2)}` : '';
+}
+
 // Render a Cardmarket (EUR) price from a Scryfall card object.
 function renderPrice(card) {
   const eur = card?.prices?.eur;
   if (!eur) return '';
-  return `<span class="card-price">€${parseFloat(eur).toFixed(2)}</span>`;
+  return `<span class="card-price">${formatEur(eur)}</span>`;
+}
+
+/* Scryfall's page for a card by its exact name — the `!"…"` search, which
+ * lands on the card itself rather than on everything whose name contains it. */
+function scryfallSearchUrl(name) {
+  return `https://scryfall.com/search?q=!%22${encodeURIComponent(name)}%22`;
 }
 
 // Render a Scryfall mana cost string like "{2}{W}{B}" as mana-font icons.
