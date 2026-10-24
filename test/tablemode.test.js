@@ -4,7 +4,9 @@
  * view leans for a pointer, which point of the mat is under a point of the
  * screen, and where cards lie — each is written in public/js/tablemode.js as a
  * function of its inputs so that it can be asserted here rather than eyeballed
- * in a browser. What is not asserted is what the table looks like, nor the
+ * in a browser — and so is what each tab lays on the mat, through the
+ * renderers' getters stubbed into the sandbox, and when a panel tucks itself
+ * away. What is not asserted is what the table looks like, nor the
  * listeners and the markup that wire those answers to the page: those are the
  * eye's and the smoke harness's, for the reason test/cardlift.test.js gives.
  *
@@ -435,6 +437,240 @@ test('a mat with nothing to lay, or no size, lays nothing out of place', () => {
   assert.deepStrictEqual(layout(cards(2), 0, 0).spots, [{ x: 0.5, y: 0.5, turn: 0 }, { x: 0.5, y: 0.5, turn: 0 }]);
   const one = layout(cards(1));
   assert.ok(near(one.spots[0].x, 0.5, 0.01) && near(one.spots[0].y, 0.5, 0.01), 'one card lies in the middle');
+});
+
+// ── Each tab's cards ──────────────────────────────────────────────────────
+
+/* A tab's source, asked with the renderer's getters stubbed into the sandbox
+ * as the page's would be — each named global the sources look for, put there
+ * for the one question and taken away again. */
+function ask(tab, globals = {}) {
+  const sandbox = app.sandbox;
+  const before = new Map(Object.keys(globals).map(k => [k, Object.getOwnPropertyDescriptor(sandbox, k)]));
+  Object.assign(sandbox, globals);
+  try {
+    return sandbox.tableSourceFor(tab);
+  } finally {
+    for (const [k, d] of before) { if (d) Object.defineProperty(sandbox, k, d); else delete sandbox[k]; }
+  }
+}
+const plain = value => JSON.parse(JSON.stringify(value));
+
+test('sixty cards are shared out fairly across the piles a tab has', () => {
+  const share = (sizes, max) => app.call('tableFairShare', sizes, max);
+  assert.deepStrictEqual(share([100, 3], 60), [57, 3], 'a small pile is laid whole, and the rest goes to the deep one');
+  assert.deepStrictEqual(share([10, 10, 10], 60), [10, 10, 10], 'what fits is laid whole');
+  assert.deepStrictEqual(share([80], 60), [60]);
+  assert.deepStrictEqual(share([], 60), []);
+  assert.deepStrictEqual(share([5, 0, 5], 4), [2, 0, 2], 'an empty pile takes nothing');
+  const many = share(Array(26).fill(9), 60);
+  assert.strictEqual(many.reduce((s, n) => s + n, 0), 60);
+  assert.ok(many.every(n => n >= 2 && n <= 3), `every pile of the 26 is on the table: ${many}`);
+  assert.ok(share([1, 2], 1).reduce((s, n) => s + n, 0) === 1, 'never more than the cap');
+});
+
+test('a tab’s piles become one list, each card carrying its pile as its group', () => {
+  const piles = [
+    { label: 'Creature', cards: [{ n: 'Llanowar Elves' }, { n: 'Elvish Mystic' }] },
+    { label: 'Land', cards: [] },
+    { key: 'p2', label: 'Ann', cards: [{ n: 'Forest' }, { n: '' }] },
+  ];
+  const laid = plain(app.sandbox.tableFromPiles(piles, card => ({ name: card.n })));
+  assert.deepStrictEqual(laid, [
+    { name: 'Llanowar Elves', group: 'Creature' },
+    { name: 'Elvish Mystic', group: 'Creature' },
+    { name: 'Forest', group: 'p2' },
+  ], 'an empty pile is no pile, a card with no name is not laid, and a key outranks a label');
+  assert.deepStrictEqual(plain(app.sandbox.tableFromPiles(null, c => c)), []);
+});
+
+test('every tab with cards has a source, and no other tab does', () => {
+  const tabs = app.copy(app.evaluate('TABLE_CARD_TABS'));
+  assert.deepStrictEqual([...tabs].sort(), app.copy(app.evaluate('Object.keys(TABLE_SOURCES)')).sort());
+  for (const tab of APP_TABS.filter(t => !tabs.includes(t))) {
+    assert.strictEqual(ask(tab), null, `${tab} would lay cards over the ones on the mat`);
+  }
+  assert.strictEqual(ask('toString'), null, 'nothing inherited is a source');
+});
+
+test('Collections lays the rows on show, in the stack view’s piles, at most sixty', () => {
+  const rows = n => Array.from({ length: n }, (_, i) => ({ name: `Card ${i}` }));
+  const src = ask('collections', {
+    colShownPiles: () => [{ label: 'Creature', cards: rows(70) }, { label: 'Land', cards: [{ name: 'Forest' }] }],
+    scryfallCache: new Map([['Forest', 'forest.jpg']]),
+  });
+  assert.strictEqual(src.cards.length, 60);
+  assert.deepStrictEqual(plain(src.cards.at(-1)), { name: 'Forest', imageUrl: 'forest.jpg', group: 'Land' },
+    'the one land is laid even behind seventy creatures');
+  assert.strictEqual(src.cards[0].imageUrl, '', 'a card with no picture yet is laid without one…');
+  assert.strictEqual(src.fetch, true, '…and its picture is asked for');
+  const none = ask('collections', { colShownPiles: () => null });
+  assert.deepStrictEqual(plain(none.cards), []);
+  assert.ok(none.hint);
+});
+
+test('the Deck Builder lays a pile per category, or asks for a deck', () => {
+  const none = ask('deckview', { dbShownPiles: () => null });
+  assert.deepStrictEqual(plain(none.cards), []);
+  assert.strictEqual(none.hint, 'Open a deck from Decks');
+  const src = ask('deckview', {
+    dbShownPiles: () => [
+      { label: 'Ramp', cards: [{ name: 'Sol Ring', image: 'printing.jpg' }, { name: 'Arcane Signet', image: '' }] },
+      { label: 'Lands', cards: [{ name: 'Command Tower', image: '' }] },
+    ],
+    scryfallCache: new Map([['Arcane Signet', 'signet.jpg']]),
+  });
+  assert.deepStrictEqual(plain(src.cards), [
+    { name: 'Sol Ring', imageUrl: 'printing.jpg', group: 'Ramp' },
+    { name: 'Arcane Signet', imageUrl: 'signet.jpg', group: 'Ramp' },
+    { name: 'Command Tower', imageUrl: '', group: 'Lands' },
+  ], 'the deck’s own printing first, the oracle picture where it has none');
+});
+
+test('Decks lays one card per deck, and pressing one opens it in the Deck Builder', () => {
+  const opened = [];
+  const src = ask('players', {
+    decksShown: () => [
+      { key: '', label: '', playerId: 'p1', decks: [{ id: 'd1', name: 'Elves', commanderImg: 'art.jpg' }] },
+      { key: 'f1', label: 'Cube', playerId: 'p1', decks: [{ id: 'd2', name: '', commanderImg: null }] },
+    ],
+    openInDeckView: (player, deck) => opened.push([player, deck]),
+  });
+  assert.deepStrictEqual(plain(src.cards.map(c => [c.name, c.id, c.imageUrl, c.group])), [
+    ['Elves', 'p1|d1', 'art.jpg', ''],
+    ['Untitled deck', 'p1|d2', '', 'f1'],
+  ]);
+  assert.ok(!src.fetch, 'a deck’s name is not a card’s, so no picture is asked for by it');
+  const laid = app.sandbox.tableKeyCards(src.cards, 'players');
+  assert.strictEqual(typeof laid[0].open, 'function', 'the open is kept on the card the mat holds');
+  /* The stub has gone back out of the sandbox by now, as it would never have
+     been there in the page; put it in for the press. */
+  app.sandbox.openInDeckView = (player, deck) => opened.push([player, deck]);
+  try { laid[1].open(); } finally { delete app.sandbox.openInDeckView; }
+  assert.deepStrictEqual(opened, [['p1', 'd2']]);
+});
+
+test('Scryfall Search lays its results in their order, a two-faced card by its front', () => {
+  const src = ask('scryfall', {
+    sfShownCards: () => [
+      { id: 'a', name: 'Shivan Dragon', image_uris: { normal: 'shivan.jpg' } },
+      { id: 'b', name: 'Delver of Secrets // Insectile Aberration', card_faces: [{ image_uris: { normal: 'delver.jpg' } }, {}] },
+    ],
+  });
+  assert.deepStrictEqual(plain(src.cards.map(c => [c.name, c.id, c.imageUrl])), [
+    ['Shivan Dragon', 'a', 'shivan.jpg'],
+    ['Delver of Secrets // Insectile Aberration', 'b', 'delver.jpg'],
+  ]);
+  assert.deepStrictEqual(plain(ask('scryfall', { sfShownCards: () => [] }).cards), []);
+});
+
+test('the Set Browser lays the open set in its piles, or asks for a set', () => {
+  assert.deepStrictEqual(plain(ask('sets', { setShownPiles: () => null }).cards), []);
+  assert.ok(ask('sets', { setShownPiles: () => null }).hint);
+  const src = ask('sets', {
+    setShownPiles: () => [{ label: 'Rare', cards: [{ id: 'r', name: 'Rare One', image_uris: { normal: 'r.jpg' } }] }],
+  });
+  assert.deepStrictEqual(plain(src.cards), [{ name: 'Rare One', id: 'r', imageUrl: 'r.jpg', group: 'Rare' }]);
+});
+
+test('Want Lists lays a pile per list, and a card two people want is on both', () => {
+  const src = ask('wants', {
+    wantShownLists: () => [
+      { key: 'p1', label: 'Ann', cards: ['Sol Ring', 'Mox Opal'] },
+      { key: 'p2', label: 'Bo', cards: ['Sol Ring'] },
+    ],
+    wantCardData: new Map([['Sol Ring', { image_uris: { normal: 'sol.jpg' } }]]),
+  });
+  assert.deepStrictEqual(plain(src.cards.map(c => [c.name, c.id, c.group, c.imageUrl])), [
+    ['Sol Ring', 'p1:Sol Ring', 'p1', 'sol.jpg'],
+    ['Mox Opal', 'p1:Mox Opal', 'p1', ''],
+    ['Sol Ring', 'p2:Sol Ring', 'p2', 'sol.jpg'],
+  ]);
+  const keys = app.sandbox.tableKeyCards(src.cards, 'wants').map(c => c.key);
+  assert.strictEqual(new Set(keys).size, 3, 'the two copies are two cards, each with its own place');
+});
+
+test('the Card tab lays its card large, and leaves the mat alone with no card', () => {
+  assert.strictEqual(ask('card', { cardDetailShown: () => null }), null);
+  const src = ask('card', { cardDetailShown: () => ({ name: 'Sol Ring', id: 'x', imageUrl: 'sol.jpg' }) });
+  assert.deepStrictEqual(plain(src), { cards: [{ name: 'Sol Ring', id: 'x', imageUrl: 'sol.jpg' }], feature: true });
+});
+
+test('the Card tab’s card lies in a lane down the mat’s right, clear of the sheet', () => {
+  const laid = app.copy(app.evaluate(`tableFeatureLayout([{ name: 'Sol Ring' }], ${MAT.width}, ${MAT.height})`));
+  assert.ok(near(laid.height / laid.width, 88 / 63, 0.01));
+  assert.ok(laid.height <= MAT.height * 0.78 + 1, 'it fits the mat’s height');
+  assert.ok(laid.width <= MAT.width * 0.3 + 1, 'and leaves the sheet most of the width');
+  assert.ok(laid.lane > laid.width && laid.lane < MAT.width / 2);
+  const [spot] = laid.spots;
+  const left = spot.x * MAT.width - laid.width / 2, right = spot.x * MAT.width + laid.width / 2;
+  assert.ok(left > MAT.width - laid.lane, 'its left edge is inside the lane the sheet keeps clear of');
+  assert.ok(right < MAT.width, 'and its right edge is on the mat');
+  assert.ok(near(spot.y, 0.5));
+  assert.deepStrictEqual(app.copy(app.evaluate('tableFeatureLayout([{ name: "A" }], 0, 0)')).spots, [{ x: 0.5, y: 0.5, turn: 0 }]);
+});
+
+test('a card is known by its tab, its id or name, and which copy it is', () => {
+  const keys = (list, scope) => app.sandbox.tableKeyCards(list, scope).map(c => c.key);
+  assert.deepStrictEqual(keys([{ name: 'Forest' }, { name: 'Forest' }, { name: 'Sol Ring', id: 'abc' }], 'collections'),
+    ['collections:Forest#1', 'collections:Forest#2', 'collections:abc#1']);
+  assert.deepStrictEqual(keys([{ name: 'Forest' }]), ['Forest#1'], 'a list laid through the API with no tab keeps the old keys');
+  assert.deepStrictEqual(keys([{ name: 'B' }, { name: 'A' }], 'x'), ['x:B#1', 'x:A#1'],
+    'a key follows its card, not its place in the list');
+  assert.notDeepStrictEqual(keys([{ name: 'Sol Ring' }], 'collections'), keys([{ name: 'Sol Ring' }], 'deckview'),
+    'the same card on two tabs is two cards: moving one does not move the other');
+});
+
+test('a card a hand moved keeps its place when the tab lays its cards again', () => {
+  const sb = app.sandbox;
+  const first = sb.tableKeyCards([{ name: 'A' }, { name: 'B' }, { name: 'C' }], 'collections');
+  const moved = new Map([[first[1].key, { x: 0.9, y: 0.1, turn: 3 }]]);
+  /* Sorted the other way, one card gone and one new: B is still where it was put. */
+  const again = sb.tableKeyCards([{ name: 'D' }, { name: 'C' }, { name: 'B' }], 'collections');
+  const spots = [{ x: 0.2, y: 0.2, turn: 0 }, { x: 0.4, y: 0.4, turn: 1 }, { x: 0.6, y: 0.6, turn: 2 }];
+  const places = plain(sb.tablePlaceCards(again, spots, moved));
+  assert.deepStrictEqual(places[2], { x: 0.9, y: 0.1, turn: 3 }, 'B lies where the hand put it');
+  assert.deepStrictEqual(places[0], spots[0], 'a card no hand moved takes its place in the new layout');
+  assert.deepStrictEqual(places[1], spots[1]);
+  const elsewhere = sb.tableKeyCards([{ name: 'B' }], 'wants');
+  assert.deepStrictEqual(plain(sb.tablePlaceCards(elsewhere, spots, moved))[0], spots[0],
+    'and the same name laid by another tab is not taken for it');
+});
+
+test('a redraw that only brought pictures is not a new layout', () => {
+  const sig = (list, scope = 'collections', feature = false) => app.sandbox.tableListSig(list, scope, feature);
+  const list = [{ name: 'A', group: 'x' }, { name: 'B', group: 'y' }];
+  assert.strictEqual(sig(list), sig(list.map(c => ({ ...c, imageUrl: `${c.name}.jpg` }))));
+  assert.notStrictEqual(sig(list), sig([...list].reverse()), 'a new order is a new layout');
+  assert.notStrictEqual(sig(list), sig(list.map(c => ({ ...c, group: 'z' }))), 'and so are new piles');
+  assert.notStrictEqual(sig(list), sig(list, 'sets'), 'and another tab’s cards');
+  assert.notStrictEqual(sig(list), sig(list, 'collections', true), 'and the same card laid large');
+});
+
+test('a panel opens tucked only between tabs with cards, after the user tucked one', () => {
+  const open = o => app.sandbox.tableTuckOnOpen(o);
+  assert.strictEqual(open({ kind: 'float', from: 'collections', to: 'scryfall', kept: true }), true);
+  assert.strictEqual(open({ kind: 'float', from: 'collections', to: 'scryfall', kept: false }), false,
+    'the user brought the last one back up');
+  assert.strictEqual(open({ kind: 'float', from: 'collections', to: 'lands', kept: true }), false,
+    'a tab without cards never tucks on its own');
+  assert.strictEqual(open({ kind: 'float', from: 'lands', to: 'collections', kept: true }), false,
+    'nor does one opened from a tab without cards');
+  assert.strictEqual(open({ kind: 'float', from: null, to: 'collections', kept: true }), false,
+    'nor one opened onto a bare table');
+  assert.strictEqual(open({ kind: 'grow', from: 'collections', to: 'card', kept: true }), false,
+    'the Card tab’s sheet lies on the table and never tucks');
+});
+
+test('cards laid by something done in the pane tuck the panel; typing and polls do not', () => {
+  const auto = o => app.sandbox.tableShouldAutoTuck({ kind: 'float', tab: 'scryfall', tucked: false, ...o });
+  assert.strictEqual(auto({ actedAgo: 1500 }), true, 'a search came back');
+  assert.strictEqual(auto({ actedAgo: Infinity }), false, 'nothing was done: a poll, the pictures, typing');
+  assert.strictEqual(auto({ actedAgo: 60000 }), false, 'too long ago to be its answer');
+  assert.strictEqual(auto({ actedAgo: 1500, tucked: true }), false, 'already tucked');
+  assert.strictEqual(auto({ actedAgo: 1500, tab: 'admin' }), false, 'a tab without cards');
+  assert.strictEqual(auto({ actedAgo: 1500, tab: 'card', kind: 'grow' }), false, 'a sheet on the mat');
+  assert.strictEqual(auto({ actedAgo: -5 }), false, 'a clock that went backwards is not an action');
 });
 
 // ── The switch ────────────────────────────────────────────────────────────
