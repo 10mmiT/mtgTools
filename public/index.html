@@ -21,6 +21,11 @@
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/tabs.css">
+  <!-- Table mode, the experimental table (js/tablemode.js). After the tabs,
+       because it carries the few rules that let a tab's pane lie in a panel
+       instead of in the page. With the mode off nothing in it matches but the
+       switch's own row in the Appearance popover. -->
+  <link rel="stylesheet" href="css/table.css">
   <!-- The Magic symbol font, served by this app rather than a CDN: this is
        self-hosted software and it must render with the network unplugged.
        See vendor/README.md. Last, so app rules win over its class rules. -->
@@ -1380,6 +1385,15 @@
     Your system asks for reduced motion, so cards stay still here whatever
     this says.
   </p>
+  <!-- Kept per browser, not per person: a 3D table is a statement about this
+       machine. Shown only at the desktop width with a pointer that hovers,
+       by a media query in css/table.css — the same question js/tablemode.js
+       asks before honouring it. -->
+  <label class="col-menu-item table-mode-row">
+    <input type="checkbox" id="tableModeToggle"
+           onchange="setTableMode(this.checked)">
+    <span>Table mode (experimental)</span>
+  </label>
 </div>
 
 <!-- RSS Panel -->
@@ -1435,6 +1449,9 @@
 <script src="js/rss.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/faq.js"></script>
+<!-- Before main.js, which calls it from setTab(): the rim reads its labels
+     from the sidebar above, and nothing else here is needed until a click. -->
+<script src="js/tablemode.js"></script>
 <script src="js/main.js"></script>
 
 <!-- Card detail modal (desktop overlay, Phase 5.1) -->

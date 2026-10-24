@@ -1,0 +1,378 @@
+/* Table mode — the experimental table the whole app becomes, seen from a seat.
+   File 6 of 6 in load order; later files may override earlier ones.
+
+   Its own file rather than a block in tabs.css, because it is not a tab's: it
+   is a second way of holding all of them. Every rule here is either the
+   switch's row in the Appearance popover or hangs off html[data-tablemode],
+   which js/tablemode.js sets and clears, so with the mode off none of this
+   matches anything and the app is exactly what it was.
+
+   What is here is the geometry and the look. What moves is not: the table's
+   tilt and the view's lean are written by the script every frame they change,
+   cards are placed by it, and the decisions behind both are in that file. The
+   one number the two share is the rest tilt, which the script hands over as
+   --table-tilt so that the tabs standing on the rim can be stood square to the
+   eye by the same angle the table leans away by.
+
+   Nothing in a 3D scene may flatten what it holds by accident. overflow,
+   opacity under 1 and filter each turn an element into a flat picture of its
+   children, so none of them is set on the plane, the rim or the mat — only on
+   leaves, where there is nothing left to flatten. */
+
+/* ── The switch ────────────────────────────────────────────────────────
+   Offered only where it can be honoured: the desktop width, and a pointer
+   that hovers. The same query as tableModeQuery() in js/tablemode.js, which
+   ignores the stored answer everywhere this hides the row. */
+.table-mode-row { display: none; }
+@media (width >= 900px) and (hover: hover) {
+  .table-mode-row { display: flex; }
+}
+
+/* ── The page, put away ────────────────────────────────────────────────
+   Not shown as a page while the table is up: the sidebar and the shell that
+   holds the panes. The panes are not removed — the one being read is carried
+   into a panel and back — and the rest are where they always were, hidden as
+   they always are. The page's own playmat layers go too: the table is drawn
+   over the whole window, and its mat carries the art itself. */
+html[data-tablemode] .tab-bar,
+html[data-tablemode] .site-main { display: none; }
+html[data-tablemode] body { overflow: hidden; }
+html[data-tablemode] body::before,
+html[data-tablemode] body::after { display: none; }
+
+/* ── The scene ─────────────────────────────────────────────────────────
+   The room the table stands in, and the eye: a perspective at 1400px is a
+   seat at arm's length from the near edge, which keeps the far edge readable
+   at a 24° lean. js/tablemode.js reads both values back off the computed
+   style rather than repeating them, so this is the one place they are said. */
+.table-scene {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  perspective: 1400px;
+  perspective-origin: 50% 50%;
+  user-select: none;
+}
+
+/* The table: a grid of rim, mat and rim, in wood. The border is the table's
+   outer edge, a darker band round the board; the faint lines across it are
+   the grain, drawn in the same wood token mixed towards that edge so a theme
+   that repaints the wood repaints its grain with it. */
+.table-plane {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: min(88vw, 1600px);
+  height: 76vh;
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr) 12rem;
+  grid-template-rows: 4.25rem minmax(0, 1fr) 2.25rem;
+  grid-template-areas:
+    "far  far  far"
+    "left mat  right"
+    "near near near";
+  border: 6px solid var(--table-wood-edge);
+  border-radius: var(--radius-md);
+  background-color: var(--table-wood);
+  background-image: repeating-linear-gradient(94deg,
+    transparent 0 22px,
+    color-mix(in srgb, var(--table-wood-edge) 28%, transparent) 22px 23px,
+    transparent 23px 41px);
+  transform-style: preserve-3d;
+  transform: rotateX(var(--table-tilt, 24deg));
+}
+
+/* ── The rim ───────────────────────────────────────────────────────────
+   The three edges with tabs on them and the near one without. Each edge is
+   part of the 3D scene rather than a flat picture of it, which is what lets a
+   tab on it stand up off the wood. */
+.table-rim {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  transform-style: preserve-3d;
+}
+.table-rim--far   { grid-area: far; justify-content: center; align-items: center; }
+.table-rim--left,
+.table-rim--right { flex-direction: column; justify-content: flex-start; align-items: stretch; }
+.table-rim--left  { grid-area: left; }
+.table-rim--right { grid-area: right; }
+.table-rim--near  { grid-area: near; }
+
+/* A tab standing on the rim. It is hinged at its foot and stood up by exactly
+   the angle the table leans away by, so at rest it faces the eye squarely and
+   reads like the sidebar button it stands for; leaning to look round the
+   table leans it with everything else.
+
+   Flat at rest, like the sidebar's buttons: a hairline and a surface. The
+   accent marks the open one and nothing else — its tab's own, which it gets
+   from data-tab through the same per-tab rules the sidebar's buttons do. */
+.table-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transform-origin: 50% 100%;
+  transform: rotateX(calc(-1 * var(--table-tilt, 24deg)));
+  transition: color        var(--dur-tint) var(--ease-tint),
+              border-color var(--dur-tint) var(--ease-tint);
+}
+.table-tab:hover { color: var(--text); }
+.table-tab[aria-expanded="true"] {
+  color: var(--accent, var(--primary));
+  border-bottom-color: var(--accent, var(--primary));
+}
+.table-tab[hidden] { display: none; }
+.table-tab svg { flex-shrink: 0; }
+.table-tab span { overflow: hidden; text-overflow: ellipsis; }
+
+/* ── The mat ───────────────────────────────────────────────────────────
+   The playmat, when there is one — the same --playmat-src the page's own
+   background layers paint, switched by the same data-playmat — and otherwise
+   the theme's felt, the colour the Deck Builder's mat is. Unveiled, unlike the
+   page's: the page veils the art because text runs over it, and on the table
+   what lies on the art is cards. The one line of text that can, the hint
+   below, carries its own surface instead. */
+.table-mat {
+  grid-area: mat;
+  position: relative;
+  transform-style: preserve-3d;
+  border: 1px solid var(--table-wood-edge);
+  border-radius: var(--radius-md);
+  background: var(--mat);
+}
+html[data-playmat] .table-mat {
+  background-image: var(--playmat-src, none);
+  background-size: cover;
+  background-position: center;
+}
+/* Asked for less data, given less — the same answer the page's layers give. */
+@media (prefers-reduced-data: reduce) {
+  html[data-playmat] .table-mat { background-image: none; }
+}
+
+/* What the mat says when nothing is lying on it. A quiet chip rather than a
+   heading: it is a hint, and the rim around it is where the answer is. */
+.table-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.table-hint[hidden] { display: none; }
+
+/* ── Cards on the mat ──────────────────────────────────────────────────
+   A card is a button, so a keyboard can pick one up to look at, and its
+   picture is the app's own .card-img — the card's corner, its lit and shaded
+   edges and its shadow, from components.css, the same as everywhere else. The
+   picture takes no pointer: js/cardlift.js lifts whatever .card-img is under
+   the pointer, and on the table the hand does the lifting.
+
+   Where a card lies is its transform, written by the script. It moves with no
+   transition while it is in hand, because it is following a hand; let go, it
+   comes down in the card layer's own time on plain deceleration — the curve
+   the lift and the travel use. Not --ease-land, the one with the ring in it:
+   that is the sound of a dropped card landing in a pile, and the app keeps
+   exactly one rule allowed to make it (test/tokens.test.js). */
+.table-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 0;
+  background: none;
+  border-radius: var(--radius-card);
+  cursor: grab;
+  touch-action: none;
+  transition: none;
+}
+.table-card-img {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* In hand: the deeper shadow of something held above the table rather than
+   lying on it — which the card has whether or not it is allowed to rise. */
+.table-card.is-held { cursor: grabbing; }
+.table-card.is-held .table-card-img { filter: var(--card-shadow-raised); }
+.table-card.is-settling { transition: transform var(--dur-card) var(--ease-tint); }
+/* Picked up to be looked at: its place on the table is kept for it. */
+.table-card.is-looked { visibility: hidden; }
+
+/* A card with no picture is a surface with its name on it, as the stacks'
+   blank is — not a card pretending to be one. */
+.table-card-blank {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-tight);
+  text-align: left;
+  overflow: hidden;
+}
+
+/* ── A card picked up to be looked at ──────────────────────────────────
+   Above the table and anything floating over it, below the app's own dialogs
+   and the card preview. The whole window is the button that puts it back.
+   It draws no ring of its own round the window: the card is what has the
+   focus, so the card is what wears it. */
+.table-look {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  cursor: zoom-out;
+}
+.table-look[hidden] { display: none; }
+.table-look:focus-visible { outline: none; }
+.table-look:focus-visible .table-look-card {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 4px;
+}
+.table-look-card {
+  height: min(82vh, 84vw);
+  width: auto;
+  aspect-ratio: 63 / 88;
+  pointer-events: none;
+  filter: var(--card-shadow-raised);
+  transition: transform var(--dur-card) var(--ease-tint);
+}
+
+/* ── Panels ────────────────────────────────────────────────────────────
+   One host for a tab's page, in one of two kinds — see js/tablemode.js. The
+   header is the drawer's own (.drawer-hdr), and the body scrolls, holding the
+   pane with the padding the page's shell gives it. */
+.table-panel {
+  display: flex;
+  flex-direction: column;
+  user-select: text;
+}
+.table-panel[hidden] { display: none; }
+.table-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4);
+}
+
+/* Floating: lifted off the table and facing the viewer, so a modal's shadow
+   and no border. It is absolute rather than fixed and carries no transform at
+   rest, which leaves it neither a stacking context nor a containing block:
+   a drawer opened from the pane inside it is pinned to the window and stacked
+   over its scrim, as it is in the page. The rise into place is `translate`,
+   and it ends at none for the same reason.
+
+   The box below is the default. Once the rim can be measured the script
+   writes its own over it — the same ceiling, but hung below the far edge's
+   tabs and between the side ones, so every tab stays in reach while a page
+   floats (tableFloatBox in js/tablemode.js). */
+.table-panel[data-kind="float"] {
+  position: absolute;
+  top: 10vh;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(900px, 70vw);
+  height: 80vh;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+  opacity: 0;
+  translate: 0 var(--space-4);
+  transition: opacity   var(--dur-panel) var(--ease-tint),
+              translate var(--dur-panel) var(--ease-panel);
+}
+.table-panel[data-kind="float"].is-open { opacity: 1; translate: none; }
+
+/* Growing: a sheet lying on the mat, in the table's plane, unfolding out of
+   the edge whose tab opened it. Flat, because it is lying down: a hairline
+   and a surface, and no shadow. It lies just above every card on the mat, at
+   the height the script hands over as --table-sheet-z. */
+.table-panel[data-kind="grow"] {
+  position: absolute;
+  inset: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transform-origin: 50% 0;
+  transform: translateZ(var(--table-sheet-z, 0px)) scale(.04);
+  opacity: 0;
+  transition: transform var(--dur-panel) var(--ease-panel),
+              opacity   var(--dur-tint)  var(--ease-tint);
+}
+.table-panel[data-kind="grow"][data-edge="left"]  { transform-origin: 0 50%; }
+.table-panel[data-kind="grow"][data-edge="right"] { transform-origin: 100% 50%; }
+.table-panel[data-kind="grow"].is-open {
+  transform: translateZ(var(--table-sheet-z, 0px)) scale(1);
+  opacity: 1;
+}
+
+/* The table behind a floating panel, dimmed a little. It takes no pointer,
+   so the rim stays in reach: another tab can be pressed straight from here,
+   and the open one pressed again to put its page down. */
+.table-dim {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-panel) var(--ease-tint), visibility 0s var(--dur-panel);
+}
+.table-dim.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--dur-panel) var(--ease-tint), visibility 0s;
+}
+
+/* ── Panes in a panel ──────────────────────────────────────────────────
+   The few page rules that assume a pane is the page. Each is answered here,
+   and only for a pane in a panel.
+
+   The Deck Builder's readout is pinned to the foot of the window in the page,
+   clear of the sidebar; in a panel it is pinned to the foot of the panel.
+   Sticky needs its own left and right let go, or the sidebar's width would be
+   read as how far to keep it from the panel's edge. */
+html[data-tablemode] .table-panel .db-stats-bar {
+  position: sticky;
+  left: auto;
+  right: auto;
+  bottom: 0;
+}
+
+/* The Deck Builder's control column pushes the mat aside on a wide window and
+   goes above it on a narrow one (tabs.css, .db-body), because below 900px
+   there is nothing left to push into. A panel is never wider than 900px, so a
+   pane in one is always on the narrow side of that line however wide the
+   window is: it takes the narrow answer. Pushed aside instead, the mat is left
+   too thin for the list view's fixed columns and the card names go to nothing. */
+html[data-tablemode] .table-panel .db-body { flex-direction: column; }
+html[data-tablemode] .table-panel .db-menu { order: -1; flex: 0 0 auto; align-self: stretch; }

@@ -373,6 +373,11 @@ function setTab(tab, push = true) {
   // hiding the pane would leave the veil over the next tab with nothing
   // under it to dismiss.
   closeDrawers();
+  /* Table mode (js/tablemode.js) holds a tab's pane in a panel over the table
+     rather than in the page. It is told first, so that a tab opened from
+     anywhere is already in its panel — and so measurable — when the init
+     below draws into it. With the mode off this does nothing. */
+  tableModeBeforeTab(tab);
   document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
   document.getElementById(`tab-${tab}`).style.display = '';
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -409,6 +414,8 @@ function setTab(tab, push = true) {
       history.pushState({ view: 'tab', tab }, '', '#' + tab);
     }
   }
+  // And told last, for whatever the table lays out for the tab it now shows.
+  tableModeAfterTab(tab);
 }
 
 // ── Browser back/forward (History API) ────────────────────────────────
@@ -685,6 +692,7 @@ authInit().then(() => {
     _lastRefresh = Date.now(); // don't re-fetch immediately after the initial load
     renderPlayers();
     renderCollections();
+    tableModeStateLoaded();  // a table set before there was anything to lay on it
     /* An import started before this tab existed — from a phone, or from a
      * session that has since been closed — is still running on the server,
      * and /api/state has just told us so. Start watching it. */
