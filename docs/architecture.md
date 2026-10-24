@@ -41,8 +41,9 @@ mtgtools/
 │   ├── deck*.test.js        # The Decks tab and the builder — boards, folders, privacy, history,
 │   │                        # ownership, legality, mana, lands, printings, the optimizer, export
 │   ├── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
-│   └── tablemode.test.js    # Table mode — panel kinds, click or drag, the lean, the
-│                            # screen-to-mat mapping, the floating panel's box, the layout,
+│   └── tablemode.test.js    # Table mode — panel kinds, click or drag, the table's fit, the
+│                            # pan and the wheel's zoom, the lift, the screen-to-mat mapping
+│                            # through the camera, the floating panel's box, the layout,
 │                            # what each tab lays and in which piles, where a re-laid card
 │                            # goes, when a panel tucks
 ├── scripts/
@@ -113,8 +114,9 @@ mtgtools/
 │       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       ├── tablemode.js   # Table mode (experimental): the app as a 3D table seen from a seat — the
-│       │                  # switch, the rim of tabs, panes lifted into panels and put back, the
-│       │                  # lean, cards picked up off the mat, each tab's own cards laid there
+│       │                  # switch, the table fitted to the window, the rim of tabs, panes lifted
+│       │                  # into panels and put back, the camera panning and zooming over it,
+│       │                  # cards picked up off the mat, each tab's own cards laid there
 │       │                  # (read through a small getter beside each tab's renderer) with its
 │       │                  # panel tucked out of their way; window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
