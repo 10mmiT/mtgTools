@@ -457,7 +457,12 @@ function dbToggleCatMenu(e) {
   const menu = wrap?.querySelector('.db-cat-menu');
   const wasOpen = menu?.classList.contains('open');
   dbCloseCatMenus();
-  if (menu && !wasOpen) menu.classList.add('open');
+  if (!menu || wasOpen) return;
+  menu.classList.add('open');
+  /* A category's header can sit at the left of a narrow column, or of the
+     panel table mode lends the builder to; the menu hangs left from its button
+     and is moved in only where that would put it out of sight (js/sortui.js). */
+  keepPopoverInView(menu);
 }
 
 function dbCloseCatMenus() {
