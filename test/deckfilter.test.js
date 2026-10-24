@@ -79,16 +79,22 @@ function loadTab(cards = DECK, cats = CATS, data = CARDS) {
   const store = new Map();
   const mat   = { innerHTML: '', classList: { toggle() {} } };
   const els   = {};
-  const el = id => (els[id] ||= {
-    innerHTML: '', textContent: '', title: '', value: '', style: {}, attrs: {},
-    setAttribute(k, v) { this.attrs[k] = v; },
-    classes: new Set(),
-    classList: {
-      toggle(name, on) { on ? els[id].classes.add(name) : els[id].classes.delete(name); },
-      add(name) { els[id].classes.add(name); },
-      remove(name) { els[id].classes.delete(name); },
-    },
-  });
+  const make = () => {
+    const node = {
+      innerHTML: '', textContent: '', title: '', value: '', style: {}, attrs: {},
+      setAttribute(k, v) { this.attrs[k] = v; },
+      children: [],
+      appendChild(child) { this.children.push(child); return child; },
+      classes: new Set(),
+    };
+    node.classList = {
+      toggle(name, on) { on ? node.classes.add(name) : node.classes.delete(name); },
+      add(name) { node.classes.add(name); },
+      remove(name) { node.classes.delete(name); },
+    };
+    return node;
+  };
+  const el = id => (els[id] ||= make());
 
   const sandbox = {
     localStorage: {
@@ -97,7 +103,7 @@ function loadTab(cards = DECK, cats = CATS, data = CARDS) {
       removeItem: key => store.delete(key),
     },
     document: {
-      addEventListener() {}, querySelectorAll: () => [], createElement: () => el('made'),
+      addEventListener() {}, querySelectorAll: () => [], createElement: () => make(),
       getElementById: id => (id === 'dbDeckContent' ? mat : el(id)),
       body: { appendChild() {}, style: {} },
       scrollingElement: { scrollTop: 0 },
@@ -327,13 +333,16 @@ test('a deck with nothing in it still says it has nothing in it', () => {
 });
 
 // ── Another deck's search is not this one's ───────────────────────────────
-test('putting a deck down clears the filter with it', () => {
+test('putting a deck down clears the filter with it', async () => {
   const tab = loadTab();
   tab.filter('t:creature');
   tab.run(`state = { players: [] }; currentUser = null`);
-  tab.run(`dbSelectDeck('')`);
+  await tab.run(`dbSelectDeck('')`);
   assert.strictEqual(tab.run('dbFilterText'), '', 'the next deck opens under the last one’s search');
   assert.strictEqual(tab.box().value, '', 'the box still reads what was typed over another deck');
+  assert.strictEqual(tab.run('dbDeck'), null, 'the deck was not put down');
+  assert.deepStrictEqual(tab.el('dbDeckSel').children.map(o => o.textContent), ['— Close deck —'],
+    'the deck picker still offers the deck that was put down');
 });
 
 // ── The frame ─────────────────────────────────────────────────────────────

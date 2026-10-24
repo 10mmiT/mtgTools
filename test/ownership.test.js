@@ -21,7 +21,7 @@
  * database written before the refusal may still hold.
  */
 'use strict';
-const { test, describe, before, beforeEach } = require('node:test');
+const { test, describe, before, beforeEach, after } = require('node:test');
 const assert    = require('node:assert/strict');
 const supertest = require('supertest');
 const fs        = require('node:fs');
@@ -37,8 +37,11 @@ process.env.AUTH_RATE_LIMIT_MAX = '1000';
 process.env.MTGTOOLS_NO_BACKGROUND = '1';
 
 const dbModule = require('../available-db');
-const { app }  = require('../server');
+const { app, server: getServer } = require('../server');
 const request  = supertest(app);
+
+// Requiring the server starts it listening; close it so the run ends by itself.
+after(() => new Promise(done => getServer().close(() => done())));
 const db       = dbModule.db;
 
 async function loginAs(username, password) {

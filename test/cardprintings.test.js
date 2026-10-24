@@ -123,6 +123,22 @@ const pictures = html => [...html.matchAll(/<img[^>]*\bsrc="([^"]*)"/g)].map(m =
 // deck existing, and asserting it without one is what keeps the gallery a
 // function of what it was handed.
 
+/* The card a door goes and fetches — by name, or by a printing's id — as the
+ * detail's heading needs it. No picture, so js/cardturn.js stays out of this
+ * harness, and no printings link, so the gallery under it stays shut: what a
+ * door is asked about here is which card it opens, not what that card shows. */
+function fetchedCard(url) {
+  const named = url.match(/\/cards\/named\?exact=(.*)$/);
+  if (named) return { id: 'by-name', name: decodeURIComponent(named[1]) };
+  const byId = url.match(/\/cards\/([0-9a-f-]+)$/);
+  const print = byId && PRINTS.find(p => p.id === byId[1]);
+  if (print) {
+    const { id, set, set_name, collector_number } = print;
+    return { id, name: 'Sol Ring', set, set_name, collector_number };
+  }
+  return null;
+}
+
 function loadGallery({ runs = null, accept = true } = {}) {
   const els = {};
   const el = id => (els[id] ||= { innerHTML: '', style: {} });
@@ -142,7 +158,9 @@ function loadGallery({ runs = null, accept = true } = {}) {
     // js/state.js's, which is not loaded here; these prices are already to the cent.
     formatEur: v => (v ? `€${v}` : ''),
     setTab() {},
-    scryfallFetch: async () => ({ ok: true, json: async () => ({ data: PRINTS }) }),
+    scryfallFetch: async url => ({ ok: true, json: async () => fetchedCard(url) || { data: PRINTS } }),
+    // Nobody's collection has loaded, so the detail has no shelf to draw.
+    state: { collections: [] },
     // The deck, as the gallery sees it: it can be asked what it runs, and told.
     dbPrintingFor: () => runs,
     /* Copied out of the sandbox rather than kept as it arrives: an object made
@@ -170,6 +188,13 @@ function loadGallery({ runs = null, accept = true } = {}) {
       return el('prints').innerHTML;
     },
     section_: () => el('prints').innerHTML,
+    /** The card detail once a door's fetch has come back and been drawn. Every
+     *  stub here answers in promises alone, so one turn of the event loop is
+     *  the whole of the asynchronous half. */
+    opened: async () => {
+      await new Promise(resolve => setImmediate(resolve));
+      return el('cardModalDetail').innerHTML;
+    },
   };
 }
 
@@ -293,7 +318,7 @@ test('and the section says nothing about any deck', async () => {
   assert.doesNotMatch(html, /€/, 'a price appeared on a gallery nobody is choosing from');
 });
 
-test('opening a card by name with nothing behind it clears a deck left over', () => {
+test('opening a card by name with nothing behind it clears a deck left over', async () => {
   /* The context is a property of the opening and not of the tab. A card opened
    * from the Scryfall tab after one opened from a deck must not still be
    * choosing for that deck — which is what would happen if the field were only
@@ -302,19 +327,26 @@ test('opening a card by name with nothing behind it clears a deck left over', ()
   app.run(`_cardForDeck = ${JSON.stringify(CTX)}`);
   app.run(`openCardByName('Arcane Signet')`);
   assert.strictEqual(app.answer('_cardForDeck'), null);
+  assert.match(await app.opened(), /card-detail-name">Arcane Signet/, 'the card asked for is not the one drawn');
+  assert.strictEqual(app.answer('_cardForDeck'), null, 'and drawing it brought the deck back');
 });
 
-test('and so does going to look at a printing by its id', () => {
+test('and so does going to look at a printing by its id', async () => {
   const app = loadGallery();
   app.run(`_cardForDeck = ${JSON.stringify(CTX)}`);
   app.run(`openCardById('${RAV.id}')`);
   assert.strictEqual(app.answer('_cardForDeck'), null);
+  assert.match(await app.opened(), /Ravnica: City of Guilds \(RAV\) · #266/,
+    'the printing asked for is not the one drawn');
+  assert.strictEqual(app.answer('_cardForDeck'), null, 'and drawing it brought the deck back');
 });
 
-test('an Inspect that carries a deck is the one thing that sets it', () => {
+test('an Inspect that carries a deck is the one thing that sets it', async () => {
   const app = loadGallery();
   app.run(`openCardByName('Sol Ring', ${JSON.stringify(CTX)})`);
   assert.deepStrictEqual(app.answer('_cardForDeck'), CTX);
+  assert.match(await app.opened(), /card-detail-name">Sol Ring/);
+  assert.deepStrictEqual(app.answer('_cardForDeck'), CTX, 'drawing the card let go of the deck');
 });
 
 // ── Opened from a deck ────────────────────────────────────────────────────

@@ -445,8 +445,11 @@ describe('Import routes', () => {
   process.env.AUTH_RATE_LIMIT_MAX = '1000';
 
   const supertest = require('supertest');
-  const { app }   = require('../server');
+  const { app, server: getServer } = require('../server');
   const request   = supertest(app);
+
+  // Requiring the server starts it listening; close it so the run ends by itself.
+  after(() => new Promise(done => getServer().close(() => done())));
 
   async function cookie() {
     const res = await request.post('/api/auth/login')

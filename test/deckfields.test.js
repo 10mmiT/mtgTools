@@ -120,7 +120,7 @@ test('savePlayerDecks sends folderId and private in its whitelist', async () => 
 // whitelist is that flipping it on another player's record is refused, and the
 // proof it round-trips is a real save-then-reload.
 
-const { test: stest, describe, beforeEach } = require('node:test');
+const { test: stest, describe, beforeEach, after } = require('node:test');
 const supertest = require('supertest');
 const Database  = require('better-sqlite3');
 const os        = require('node:os');
@@ -133,8 +133,11 @@ process.env.AUTH_RATE_LIMIT_MAX = '1000';
 process.env.MTGTOOLS_NO_BACKGROUND = '1';
 
 const dbModule = require('../available-db');
-const { app }  = require('../server');
+const { app, server: getServer } = require('../server');
 const request  = supertest(app);
+
+// Requiring the server starts it listening; close it so the run ends by itself.
+after(() => new Promise(done => getServer().close(() => done())));
 
 function resetDb() {
   const db = dbModule.db;
