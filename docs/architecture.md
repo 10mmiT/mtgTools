@@ -40,7 +40,9 @@ mtgtools/
 │   ├── collection*.test.js  # Collections — imports, CSVs, owners, which printings are held
 │   ├── deck*.test.js        # The Decks tab and the builder — boards, folders, privacy, history,
 │   │                        # ownership, legality, mana, lands, printings, the optimizer, export
-│   └── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
+│   ├── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
+│   └── tablemode.test.js    # Table mode — panel kinds, click or drag, the lean, the
+│                            # screen-to-mat mapping, the floating panel's box, the layout
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -61,7 +63,11 @@ mtgtools/
 │   │   ├── base.css       # Element defaults and shared text utilities
 │   │   ├── layout.css     # Page shell, header, navigation, sections, the wide width
 │   │   ├── components.css # Controls and widgets shared across tabs
-│   │   └── tabs.css       # Rules owned by a single tab
+│   │   ├── tabs.css       # Rules owned by a single tab
+│   │   └── table.css      # Table mode (experimental): the switch's row, and the
+│   │                      # scene, rim, mat, panels and cards — all behind
+│   │                      # html[data-tablemode]. Last, so a pane lying in a
+│   │                      # panel can be told what the page used to tell it
 │   └── js/
 │       ├── playmat.js     # Loaded in <head>: paints the background before first paint, and its picker
 │       ├── motion.js      # Loaded in <head>: resolves the card-motion preference against the OS
@@ -104,6 +110,9 @@ mtgtools/
 │       ├── deckview-optimize.js # Deck Builder: picking a printing for every card at once — the three modes, the admissible pool, the preview and the bulk apply
 │       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
+│       ├── tablemode.js   # Table mode (experimental): the app as a 3D table seen from a seat — the
+│       │                  # switch, the rim of tabs, panes lifted into panels and put back, the
+│       │                  # lean, cards picked up off the mat; window.tableMode for what lays them
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
 │   ├── design/          # What was planned — briefs and PRDs, kept as context
