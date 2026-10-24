@@ -42,7 +42,9 @@ mtgtools/
 │   │                        # ownership, legality, mana, lands, printings, the optimizer, export
 │   ├── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
 │   └── tablemode.test.js    # Table mode — panel kinds, click or drag, the lean, the
-│                            # screen-to-mat mapping, the floating panel's box, the layout
+│                            # screen-to-mat mapping, the floating panel's box, the layout,
+│                            # what each tab lays and in which piles, where a re-laid card
+│                            # goes, when a panel tucks
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -112,7 +114,9 @@ mtgtools/
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       ├── tablemode.js   # Table mode (experimental): the app as a 3D table seen from a seat — the
 │       │                  # switch, the rim of tabs, panes lifted into panels and put back, the
-│       │                  # lean, cards picked up off the mat; window.tableMode for what lays them
+│       │                  # lean, cards picked up off the mat, each tab's own cards laid there
+│       │                  # (read through a small getter beside each tab's renderer) with its
+│       │                  # panel tucked out of their way; window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
 │   ├── design/          # What was planned — briefs and PRDs, kept as context
