@@ -84,6 +84,11 @@
 // than eases, and the lean at rest goes: zoomed in, it still pans to follow
 // the pointer, because that is the only way round a zoomed table.
 //
+// Zoomed in, the cards are drawn larger than the pictures the browser would
+// decode for them, so they are laid out larger and scaled back to keep them
+// sharp, and drawn from Scryfall's large pictures where the normal ones would
+// be stretched (tableSharpen, and TABLE_DECODE_STEP for why).
+//
 // ── From the screen to the mat ───────────────────────────────────────────
 // A card is dragged in the table's plane, not the screen's: it has to stay
 // under the pointer while the table is tilted, foreshortened and moving. So
@@ -225,9 +230,10 @@
 // The decisions are written as functions of their inputs and asserted in
 // test/tablemode.test.js: the panel kind per tab, the drag threshold, the
 // table's fit to the window, the pointer-to-pan mapping, the wheel's zoom and
-// the camera's easing, the lift, the screen-to-mat mapping through the
-// camera, the floating panel's box, the layout, what each tab lays and how it
-// is piled, where a re-laid card goes, and when a panel tucks.
+// the camera's easing, how large a card's picture is laid out and which file
+// it comes from, the lift, the screen-to-mat mapping through the camera, the
+// floating panel's box, the layout, what each tab lays and how it is piled,
+// where a re-laid card goes, and when a panel tucks.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -303,6 +309,45 @@ const TABLE_DRAG_START = 5;
 const TABLE_CARD_LIFT  = 96;
 const TABLE_CARD_LEAN  = 12;
 const TABLE_LIFT_MS    = 110;
+
+/* How sharp a card's picture is drawn on a zoomed table.
+ *
+ * Firefox decodes an image at the size it is laid out at, times the scale of
+ * the transforms it can see between the image and the window. It cannot see
+ * through the table: a picture inside the tilted plane is decoded for its
+ * laid-out size as if the camera's zoom were not there. Zoomed in two and a
+ * half times, a card is drawn from a picture decoded for a card two and a
+ * half times smaller, and the blur is that magnification. Measured in
+ * headless Firefox, a card at zoom 2.5 came out as sharp as its zoom-1
+ * picture blown up, and a fifth as sharp as the same picture drawn flat at
+ * the same size. Text on the same card was crisp, so the layers themselves
+ * are drawn at the zoomed scale; it is the decode alone. Nor does it count
+ * the screen's device pixels there: on a hi-dpi screen the picture is
+ * decoded for half the pixels it is drawn in, even at rest.
+ *
+ * So the picture is laid out larger than the card, by --table-card-k, and
+ * scaled back down to it by a transform of its own. The scale-down is one
+ * Firefox can see, and would count against the size it decodes for, except
+ * that the card is a 3D context of its own (table.css): the picture is then a
+ * face in the scene, and a face is decoded for its own box. The factor is the
+ * zoom times the device pixel ratio, rounded up to the next TABLE_DECODE_STEP
+ * so that a wheel crossing every small step does not set sixty pictures
+ * decoding again each time — 1 at rest on a screen at 1x, where the picture
+ * is decoded exactly as it always was. A decode is never larger than the
+ * file, so the factor costs nothing past the picture's own size.
+ *
+ * And from a larger file, when the decode needs one. Scryfall's `normal`
+ * picture is TABLE_IMG_NORMAL_W pixels wide; a card drawn wider than that in
+ * device pixels — a big card, a hi-dpi screen, a deep zoom — is drawn from
+ * `large` instead, the same picture at 672. TABLE_NEAR_GROWTH is how much
+ * larger than its laid-out width a card at the mat's near edge is drawn, by
+ * the perspective (about 1.15 at the fitted tilt), so that the nearest card
+ * is the one asked about. Only when needed, because sixty large pictures are
+ * about twice the download of sixty normal ones, and a screen at 1x never
+ * needs them: the widest card zoomed all the way in is 450 pixels there. */
+const TABLE_DECODE_STEP   = 0.5;
+const TABLE_IMG_NORMAL_W  = 488;
+const TABLE_NEAR_GROWTH   = 1.2;
 
 /* How far apart, in z, two cards lying on each other are. Cards share one
  * plane, and coplanar faces in a 3D scene are a coin toss for which is drawn on
@@ -505,6 +550,32 @@ function tableWheelZoom(zoom, deltaY, deltaMode = 0, page = 800) {
   const unit = deltaMode === 1 ? TABLE_WHEEL_LINE_PX : deltaMode === 2 ? (Number(page) || 0) : 1;
   const px = Math.min(TABLE_WHEEL_MAX_PX, Math.max(-TABLE_WHEEL_MAX_PX, (Number(deltaY) || 0) * unit));
   return tableZoomBy(zoom, Math.exp(-px * TABLE_ZOOM_PER_PX));
+}
+
+/* How many times larger than the card its picture is laid out, for a camera
+ * at `zoom` on a screen of `dpr` device pixels to the pixel — see
+ * TABLE_DECODE_STEP. The zoom is held inside the camera's range and neither
+ * is counted below 1, so a screen at 1x at rest answers exactly 1. */
+function tableDecodeScale(zoom, dpr = 1) {
+  const z = Math.min(TABLE_ZOOM_MAX, Math.max(1, Number(zoom) || 1));
+  const k = z * Math.max(1, Number(dpr) || 1);
+  return Math.ceil(k / TABLE_DECODE_STEP - 1e-9) * TABLE_DECODE_STEP;
+}
+
+/* Whether a card `width` pixels wide on the mat, under a camera at `zoom` on
+ * a screen of `dpr` device pixels to the pixel, is drawn wider at the mat's
+ * near edge than Scryfall's normal picture is. */
+function tableNeedsLarge(width, zoom, dpr = 1) {
+  const drawn = (Number(width) || 0) * (Number(zoom) || 1) * (Number(dpr) || 1) * TABLE_NEAR_GROWTH;
+  return drawn > TABLE_IMG_NORMAL_W;
+}
+
+/* Scryfall's large picture for a normal one: the same path on the same host,
+ * with /large/ for /normal/. Anything else — a picture from elsewhere, an
+ * art crop, a size already large — is its own answer. */
+function tableLargeImage(url) {
+  const text = String(url || '');
+  return /^https:\/\/cards\.scryfall\.io\/normal\//.test(text) ? text.replace('/normal/', '/large/') : text;
 }
 
 /* How high a card in hand is, `ms` after the button went down: all the way
@@ -1024,6 +1095,8 @@ let tableHold     = null;    // the card under a pressed pointer
 let tableSwallow  = false;   // the click a drag ends with is not a click
 let tableLifted   = null;    // { card, box }: a pressed card, as it was drawn held
 let tableLooked   = null;    // the card picked up to be looked at
+let tableDecodeK  = 1;       // how much larger than its card a picture is laid out
+let tableHiRes    = false;   // whether the cards are drawn from Scryfall's large pictures
 let tableLookSeq  = 0;
 
 /* The sidebar button a rim entry stands for. */
@@ -1277,6 +1350,7 @@ function tableFrame(now) {
     tableAt = { ...tableTo };
   }
   tableEls.camera.style.transform = tableCameraTransform(tableCam());
+  tableSharpen();
   if (tableHold && tableCarry(now)) more = true;
   if (more) tableKick();
   else tableFrameAt = 0;
@@ -1447,6 +1521,8 @@ function tableModeEnter() {
   document.documentElement.dataset.tablemode = '';
   tableAt = { ...TABLE_CAMERA_REST };
   tableTo = { ...TABLE_CAMERA_REST };
+  tableDecodeK = 1;
+  tableHiRes = false;
   tableBuild();
   tableFitTable();
   tableMeasure();
@@ -1913,11 +1989,42 @@ function tableWriteCard(card, lift = 0, lean = 0) {
     `${(tableCardZ(card) + lift).toFixed(2)}px) rotate(${card.turn}deg) rotateX(${lean.toFixed(2)}deg)`;
 }
 
+/* The picture a card is drawn from: its own, or Scryfall's large one of it
+ * once the table has needed those (tableSharpen). */
+function tableCardSrc(card) {
+  return tableHiRes ? tableLargeImage(card.imageUrl) : card.imageUrl;
+}
+
+/* The cards' pictures kept sharp for the zoom the camera is at or on its way
+ * to, whichever is the larger — so a zoom in has its pictures decoding while
+ * the camera is still travelling, and a zoom out keeps them until it has
+ * arrived. Both are written only when they change: --table-card-k on the
+ * scene (table.css lays each picture out that many times larger, and scales
+ * it back), and the switch to large pictures, which once made is kept while
+ * the table is up: a zoom back out has them already, and swapping back would
+ * only be a second set of requests for a smaller picture. A picture whose src
+ * changes keeps showing the old one until the new one has arrived. */
+function tableSharpen() {
+  if (!tableEls) return;
+  const zoom = Math.max(tableAt.zoom, tableTo.zoom);
+  const k = tableDecodeScale(zoom, window.devicePixelRatio);
+  if (k !== tableDecodeK) {
+    tableDecodeK = k;
+    tableEls.scene.style.setProperty('--table-card-k', String(k));
+  }
+  if (tableHiRes || !tableNeedsLarge(tableCardSize.w, zoom, window.devicePixelRatio)) return;
+  tableHiRes = true;
+  for (const card of tableCards) {
+    const img = card.el?.isConnected && card.el.querySelector('.table-card-img');
+    if (img) img.src = tableCardSrc(card);
+  }
+}
+
 /* A card that has no picture is not drawn as one: it keeps a surface and its
  * name, as the stacks' blank does. */
 function tableCardFace(card) {
   return card.imageUrl
-    ? `<img class="card-img table-card-img" src="${esc(card.imageUrl)}" alt="" draggable="false">`
+    ? `<img class="card-img table-card-img" src="${esc(tableCardSrc(card))}" alt="" draggable="false">`
     : `<span class="table-card-blank">${esc(card.name)}</span>`;
 }
 
@@ -1938,6 +2045,10 @@ function tableDrawCards() {
   const { width, height } = tableGeom.mat;
   const layout = tableFeature ? tableFeatureLayout(tableCards, width, height) : tableLayout(tableCards, width, height);
   tableCardSize = { w: layout.width, h: layout.height };
+  /* Asked before the pictures are written, so a large card on a hi-dpi
+     screen — the Card tab's — is drawn from the large picture straight away
+     rather than from the normal one and then again. */
+  tableSharpen();
   const places = tablePlaceCards(tableCards, layout.spots, tableMoved);
   const cards = document.createDocumentFragment();
   tableCards.forEach((card, i) => {
@@ -1973,6 +2084,7 @@ function tableResizeCards() {
   if (tableFeature) { tableDrawCards(); return; }
   const w = tableCardWidth(tableGeom.mat.width);
   tableCardSize = { w, h: w * TABLE_CARD_RATIO };
+  tableSharpen();
   for (const card of tableCards) {
     if (!card.el) continue;
     card.el.style.width  = `${w}px`;
@@ -2134,7 +2246,7 @@ function tableLookAt(card, from = null) {
   tableLookSeq++;
   tableLooked = card;
   const { lookBack, lookDetails } = tableEls;
-  lookImg.src = card.imageUrl;
+  lookImg.src = tableCardSrc(card);
   lookBack.setAttribute('aria-label', `Put ${card.name} back`);
   lookDetails.title = `Open ${card.name} on the Card tab`;
   look.classList.remove('is-up');

@@ -301,6 +301,55 @@ test('the camera takes the same time to arrive at any refresh rate', () => {
   assert.ok(ease(100) < 1, 'so the camera never lands in a single jump');
 });
 
+// ── Sharp pictures on a zoomed table ─────────────────────────────────────
+
+test('a card’s picture is laid out as many times larger as the zoom and the screen draw it', () => {
+  const k = (zoom, dpr) => app.evaluate(`tableDecodeScale(${zoom}, ${dpr})`);
+  assert.strictEqual(k(1, 1), 1, 'at rest on a 1x screen the picture is laid out as it always was');
+  assert.strictEqual(k(1.01, 1), 1.5, 'past rest it is rounded up to the next half, never down');
+  assert.strictEqual(k(1.5, 1), 1.5, 'and a zoom on a step is that step');
+  assert.strictEqual(k(2.5, 1), 2.5, 'all the way in, two and a half times');
+  assert.strictEqual(k(1, 2), 2, 'a 2x screen is drawn in twice the pixels, even at rest');
+  assert.strictEqual(k(2.5, 2), 5, 'and both together multiply');
+  assert.strictEqual(k(1.2, 1.25), 1.5, 'a fractional screen is rounded up with the zoom');
+  assert.strictEqual(k(9, 1), 2.5, 'a zoom past the camera’s range counts as its most');
+  assert.strictEqual(k(0.2, 0.5), 1, 'and nothing counts below 1');
+  assert.strictEqual(k('"nonsense"', undefined), 1, 'nor is anything unreadable more than rest');
+});
+
+test('the large picture is fetched only where a normal one would be drawn past its size', () => {
+  const big = (w, zoom, dpr) => app.evaluate(`tableNeedsLarge(${w}, ${zoom}, ${dpr})`);
+  const maxW = app.evaluate('TABLE_CARD_MAX_W'), maxZoom = app.evaluate('TABLE_ZOOM_MAX');
+  assert.strictEqual(big(maxW, maxZoom, 1), false, 'a 1x screen never needs one, the widest card zoomed all the way in');
+  assert.strictEqual(big(92, 1, 2), false, 'nor does a 2x screen at rest');
+  assert.strictEqual(big(92, 2.5, 2), true, 'but a 2x screen zoomed all the way in does');
+  assert.strictEqual(big(320, 1, 2), true, 'and so does the Card tab’s large card on a 2x screen at rest');
+});
+
+test('the large picture is Scryfall’s own, and anything else is left alone', () => {
+  const large = url => app.evaluate(`tableLargeImage(${JSON.stringify(url)})`);
+  assert.strictEqual(large('https://cards.scryfall.io/normal/front/8/8/88f4.jpg?1783935023'),
+    'https://cards.scryfall.io/large/front/8/8/88f4.jpg?1783935023');
+  assert.strictEqual(large('https://cards.scryfall.io/art_crop/front/8/8/88f4.jpg'),
+    'https://cards.scryfall.io/art_crop/front/8/8/88f4.jpg', 'a deck’s art crop has no large');
+  assert.strictEqual(large('https://example.com/normal/a.jpg'), 'https://example.com/normal/a.jpg',
+    'a picture from anywhere else is not guessed at');
+  assert.strictEqual(large(''), '');
+});
+
+test('a card is a 3D context, and its picture is laid out by the factor and scaled back by it', () => {
+  const sheet = read('public/css/table.css');
+  assert.match(sheet, /\.table-card\s*\{[^}]*transform-style:\s*preserve-3d/,
+    'the card is its own 3D context, so its picture is decoded for its own box');
+  const img = sheet.match(/\.table-card-img\s*\{([^}]*)\}/)[1];
+  assert.match(img, /--k:\s*var\(--table-card-k,\s*1\)/, 'the factor is the script’s, 1 when it has said none');
+  assert.match(img, /width:\s*calc\(100% \* var\(--k\)\)/);
+  assert.match(img, /height:\s*calc\(100% \* var\(--k\)\)/);
+  assert.match(img, /transform:\s*scale\(calc\(1 \/ var\(--k\)\)\)/, 'and scaled back down by the same');
+  assert.match(img, /transform-origin:\s*0 0/, 'about the corner it is laid out from');
+  assert.match(read('public/js/tablemode.js'), /setProperty\('--table-card-k'/, 'which the script writes');
+});
+
 // ── Picking a card up ────────────────────────────────────────────────────
 
 test('a card in hand is all the way up in about a tenth of a second, and higher than it was', () => {

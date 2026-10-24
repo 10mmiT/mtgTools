@@ -215,16 +215,49 @@ html[data-playmat] .table-mat {
   border-radius: var(--radius-card);
   cursor: grab;
   touch-action: none;
+  /* A 3D context of its own, for the picture's sake: see below. Nothing on
+     the card may flatten it, so its shadow is the picture's and not its own. */
+  transform-style: preserve-3d;
   transition: none;
 }
+
+/* The picture, laid out --table-card-k times the card's size and scaled back
+   down to it about its corner. The camera's zoom and the screen's device
+   pixels are invisible to Firefox's image decoder through the tilted table,
+   so a picture laid out at the card's size is decoded for zoom 1 on a 1x
+   screen however far the camera zooms, and drawn blurred (js/tablemode.js,
+   TABLE_DECODE_STEP, has the measurement). Laid out larger, it is decoded
+   larger — because the card is a 3D context, which makes the picture a face
+   of the scene whose own scale-down the decoder does not count. The script
+   sets the factor from the zoom and the device pixel ratio; on a 1x screen at
+   rest it is 1, and this is the picture as it always was.
+
+   Everything else the picture draws is in its own, larger pixels, so it is
+   drawn that many times larger to come out the same size: the lit and shaded
+   edges .card-img gives every card, and its shadow. The shadows are the
+   tokens' own, --card-shadow-rest and --card-shadow-held (tokens.css), with
+   their lengths multiplied out; a custom property cannot be scaled where it
+   is used, so the geometry is restated here, and it is the tokens' to change.
+
+   Only the shadow is let ease, and only while the card is in hand or coming
+   down (the two rules below): when the factor changes, the edges and the
+   shadow change with it in the same frame, and eased they would visibly
+   shrink and grow back. */
 .table-card-img {
-  width: 100%;
-  height: 100%;
+  --k: var(--table-card-k, 1);
+  width: calc(100% * var(--k));
+  height: calc(100% * var(--k));
   /* A card's picture is a card's shape already; a deck's commander art on the
      Decks tab is a landscape crop, and is cut to the card rather than squashed
      into it. */
   object-fit: cover;
   pointer-events: none;
+  transform-origin: 0 0;
+  transform: scale(calc(1 / var(--k)));
+  border-top-width: calc(1px * var(--k));
+  border-bottom-width: calc(1px * var(--k));
+  filter: drop-shadow(0 calc(3px * var(--k)) calc(6px * var(--k)) var(--card-cast));
+  transition: none;
 }
 /* In hand: the deeper shadow of something held well above the table rather
    than lying on it — which the card has whether or not it is allowed to rise.
@@ -232,10 +265,12 @@ html[data-playmat] .table-mat {
    js/tablemode.js), from the press. */
 .table-card.is-held { cursor: grabbing; }
 .table-card.is-held .table-card-img {
-  filter: var(--card-shadow-held);
+  filter: drop-shadow(0 calc(14px * var(--k)) calc(26px * var(--k)) var(--card-cast));
   transition: filter calc(var(--motion) * .11s) var(--ease-tint);
 }
 .table-card.is-settling { transition: transform var(--dur-card) var(--ease-tint); }
+/* Coming down, it lays its shadow back in .card-img's own time for it. */
+.table-card.is-settling .table-card-img { transition: filter calc(var(--motion) * .18s) var(--ease-tint); }
 /* Picked up to be looked at: its place on the table is kept for it. */
 .table-card.is-looked { visibility: hidden; }
 
