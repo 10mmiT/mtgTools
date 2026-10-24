@@ -269,12 +269,22 @@ const TABLE_ZOOM_KEY      = 1.25;
 /* How much of the way to the target the camera closes in a sixtieth of a
  * second — a frame on an ordinary screen; a faster screen closes less per
  * frame and a slower one more, by tableEaseFor(), so the camera takes the same
- * time to arrive at any refresh rate. And how near counts as there: a pan
- * within a ten-thousandth of its range and a zoom within a ten-thousandth of
- * a step — each under a fifth of a pixel on any desktop window, zoomed all
- * the way in — leave the frame loop nothing to draw, and it stops. */
+ * time to arrive at any refresh rate. The zoom and the pan close at their own
+ * rates. The zoom answers a wheel the hand has just turned and should keep up
+ * with it. The pan follows every movement of the pointer, so it is the one
+ * that is felt as the table sliding about: at the zoom's rate it set off
+ * sharply enough to read as a lurch, so it closes about a quarter less. That
+ * costs the zoom about the pointer nothing: which point of the table is under
+ * a still pointer does not depend on the zoom (tableCamera), so the two can
+ * arrive at different times.
+ *
+ * And how near counts as there: a pan within a ten-thousandth of its range
+ * and a zoom within a ten-thousandth of a step — each under a fifth of a pixel
+ * on any desktop window, zoomed all the way in — leave the frame loop nothing
+ * to draw, and it stops. */
 const TABLE_FRAME_MS       = 1000 / 60;
-const TABLE_CAMERA_EASE    = 0.12;
+const TABLE_ZOOM_EASE      = 0.12;
+const TABLE_PAN_EASE       = 0.09;
 const TABLE_SETTLED_PAN    = 0.0001;
 const TABLE_SETTLED_ZOOM   = 0.0001;
 const TABLE_CAMERA_KEYS    = ['zoom', 'panX', 'panY'];
@@ -461,18 +471,19 @@ function tableCamera({ zoom = 1, panX = 0, panY = 0 } = {}, width = 0, height = 
   return { zoom: z, tx: shift(panX, width), ty: shift(panY, height) };
 }
 
-/* One frame of the camera easing towards its target: each of the three closes
- * the same fraction of its gap, and one already within reach of its target
- * snaps to it. `settled` is true when all three have arrived, which is what
- * stops the frame loop. */
-function tableCameraStep(at, to, ease = TABLE_CAMERA_EASE) {
+/* One frame of the camera easing towards its target: the zoom closes
+ * `zoomEase` of its gap and each of the two pans `panEase` of its own, and one
+ * already within reach of its target snaps to it. `settled` is true when all
+ * three have arrived, which is what stops the frame loop. */
+function tableCameraStep(at, to, zoomEase = TABLE_ZOOM_EASE, panEase = TABLE_PAN_EASE) {
   const next = {};
   let settled = true;
   for (const key of TABLE_CAMERA_KEYS) {
     const gap   = to[key] - at[key];
-    const reach = key === 'zoom' ? TABLE_SETTLED_ZOOM : TABLE_SETTLED_PAN;
+    const zoom  = key === 'zoom';
+    const reach = zoom ? TABLE_SETTLED_ZOOM : TABLE_SETTLED_PAN;
     if (Math.abs(gap) <= reach) { next[key] = to[key]; continue; }
-    next[key] = at[key] + gap * ease;
+    next[key] = at[key] + gap * (zoom ? zoomEase : panEase);
     settled = false;
   }
   return { at: next, settled };
@@ -1258,7 +1269,8 @@ function tableFrame(now) {
   tableFrameAt = now;
   let more = false;
   if (cardMotionOn()) {
-    const step = tableCameraStep(tableAt, tableTo, tableEaseFor(dt, TABLE_CAMERA_EASE));
+    const step = tableCameraStep(tableAt, tableTo,
+      tableEaseFor(dt, TABLE_ZOOM_EASE), tableEaseFor(dt, TABLE_PAN_EASE));
     tableAt = step.at;
     more = !step.settled;
   } else {

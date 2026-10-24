@@ -278,6 +278,17 @@ test('the camera eases to its target and says when it has arrived', () => {
   assert.deepStrictEqual(again, { at: to, settled: true }, 'a camera already there is settled');
 });
 
+test('the pan eases about a quarter more gently than the zoom', () => {
+  const zoomEase = app.evaluate('TABLE_ZOOM_EASE'), panEase = app.evaluate('TABLE_PAN_EASE');
+  assert.strictEqual(zoomEase, 0.12, 'the zoom keeps up with the wheel as it did');
+  assert.strictEqual(panEase, 0.09, 'the pan closes a quarter less of its gap a frame');
+  /* One frame from rest towards a zoomed, panned target: each part closes its own share. */
+  const to = { zoom: 2, panX: 1, panY: -1 };
+  const { at } = app.copy(app.evaluate(`tableCameraStep(TABLE_CAMERA_REST, ${JSON.stringify(to)})`));
+  assert.ok(near(at.zoom, 1 + zoomEase), `the zoom closes ${zoomEase} of its gap, not ${at.zoom - 1}`);
+  assert.ok(near(at.panX, panEase) && near(at.panY, -panEase), 'and each pan closes its own share');
+});
+
 test('the camera takes the same time to arrive at any refresh rate', () => {
   const ease = dt => app.evaluate(`tableEaseFor(${dt}, 0.12)`);
   assert.ok(near(ease(1000 / 60), 0.12), 'a sixtieth of a second closes the stated share');
