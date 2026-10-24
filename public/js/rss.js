@@ -48,24 +48,10 @@ function renderRss(feeds) {
     <div class="rss-item">
       <div class="rss-item-meta">
         <span class="rss-feed-tag">${esc(item.feedTitle)}</span>
-        ${item.date ? `<span class="rss-item-date">${rssRelativeDate(item.date)}</span>` : ''}
+        ${item.date ? `<span class="rss-item-date">${timeAgo(item.date) || esc(String(item.date))}</span>` : ''}
       </div>
       <a class="rss-item-title" href="${esc(item.link)}" target="_blank" rel="noopener">${esc(item.title)}</a>
       ${item.description ? `<div class="rss-item-desc">${esc(item.description)}</div>` : ''}
     </div>
   `).join('');
-}
-
-function rssRelativeDate(dateStr) {
-  try {
-    const d = new Date(dateStr);
-    // Whatever the feed put there goes into innerHTML, so it is escaped.
-    if (isNaN(d)) return esc(String(dateStr));
-    const diff = Date.now() - d.getTime();
-    if (diff < 60_000)       return 'just now';
-    if (diff < 3_600_000)    return `${Math.floor(diff / 60_000)}m ago`;
-    if (diff < 86_400_000)   return `${Math.floor(diff / 3_600_000)}h ago`;
-    if (diff < 604_800_000)  return `${Math.floor(diff / 86_400_000)}d ago`;
-    return d.toLocaleDateString();
-  } catch { return esc(String(dateStr)); }
 }

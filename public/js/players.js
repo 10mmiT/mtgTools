@@ -930,7 +930,7 @@ function renderDeck() {
   document.getElementById('deckList').innerHTML = sorted.map(c => {
     const total  = colTotals.get(c.name) || 0;
     const isFound = total > 0;
-    const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(c.name)}%22`;
+    const href   = scryfallSearchUrl(c.name);
     return `<div class="deck-row">
       <span class="deck-dot ${isFound ? 'dot-found' : 'dot-missing'}"></span>
       <a class="deck-card-link card-open" href="${href}" target="_blank" rel="noopener" data-name="${esc(c.name)}" title="${esc(c.name)}">${esc(c.name)}</a>

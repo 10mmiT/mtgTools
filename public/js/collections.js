@@ -235,7 +235,7 @@ async function setCollectionOwner(key, ownerId) {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ owner: col.owner }),
     });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(await responseError(res));
   } catch (e) {
     col.owner = previous;
     renderCollections();
@@ -677,10 +677,7 @@ async function saveCollection(col) {
       owner: col.owner || null,
     }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  if (!res.ok) throw new Error(await responseError(res));
 }
 
 // ── Update / Remove collection ────────────────────────────────────────────
@@ -910,7 +907,7 @@ function removeCollection(key) {
     .then(async res => {
       if (res.ok) return;
       if (res.status === 401) return goToLogin();
-      const body = await res.json().catch(() => ({}));
+      const why = await responseError(res);
       if (col && !state.collections.some(c => c.key === key)) {
         state.collections.splice(Math.min(at, state.collections.length), 0, col);
       }
@@ -918,7 +915,7 @@ function removeCollection(key) {
       renderCollections();
       renderImports();
       renderResults();
-      showSaveNotice(`Couldn’t remove ${col?.name || 'that collection'}: ${body.error || `HTTP ${res.status}`}`);
+      showSaveNotice(`Couldn’t remove ${col?.name || 'that collection'}: ${why}`);
     })
     .catch(e => console.warn('Collection remove failed:', e.message));
 }
@@ -1005,7 +1002,7 @@ function chipHtml(col, imp, onShelf) {
     : col.status === 'error' ? col.error
     : [sourceLabel(source),
        owner ? `${owner.name}’s` : 'the group’s',
-       col.savedAt ? `updated ${relTime(col.savedAt)}` : '',
+       col.savedAt ? `updated ${timeAgo(col.savedAt)}` : '',
        off ? 'not on the shelf you are looking at' : ''].filter(Boolean).join(' · ');
 
   const busy = running || (col && col.updating);
@@ -1481,11 +1478,11 @@ function renderListView(rows, MAX) {
     if (cols.type)   metaCells += `<td class="td-meta">${esc(colType(m))}</td>`;
     if (cols.rarity) metaCells += `<td class="td-meta">${colRarity(m)}</td>`;
     if (cols.pt)     metaCells += `<td class="td-meta">${colPT(m)}</td>`;
-    if (cols.price)  metaCells += `<td class="td-meta">${m.eur != null ? '€' + m.eur : '—'}</td>`;
+    if (cols.price)  metaCells += `<td class="td-meta">${formatEur(m.eur) || '—'}</td>`;
     const qtyCells = r.qtys.map(q =>
       `<td class="td-qty ${q ? 'qty-some' : 'qty-zero'}">${q || '—'}</td>`
     ).join('');
-    const href = `https://scryfall.com/search?q=!%22${encodeURIComponent(r.name)}%22`;
+    const href = scryfallSearchUrl(r.name);
     return `<tr>
       <td class="td-name"><a class="card-link" href="${href}" target="_blank" rel="noopener" data-name="${esc(r.name)}">${esc(r.name)}</a></td>
       ${metaCells}
@@ -1632,7 +1629,7 @@ function _colStackCard(row) {
        turn control. */
     back:  scryfallFacesCache.get(row.name)?.[1] || '',
     badge: `×${total}`,
-    href:  `https://scryfall.com/search?q=!%22${encodeURIComponent(row.name)}%22`,
+    href:  scryfallSearchUrl(row.name),
   };
 }
 
@@ -1723,7 +1720,7 @@ async function renderGridView(rows, MAX) {
 
   function buildGridHTML(withImages) {
     return displayed.map(r => {
-      const href = `https://scryfall.com/search?q=!%22${encodeURIComponent(r.name)}%22`;
+      const href = scryfallSearchUrl(r.name);
       const imgUri = scryfallCache.get(r.name);
       const imgHtml = imgUri
         ? `<img class="card-img" src="${imgUri}" alt="${esc(r.name)}" onerror="this.style.display='none';this.parentNode.classList.add('img-failed')">`

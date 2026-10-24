@@ -74,7 +74,7 @@ function loadWants(wanted) {
     fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }),
     setTimeout: () => 1, clearTimeout() {},
     esc: s => String(s), jsAttr: s => String(s),
-    renderPrice: () => '', sfCardOwnership: () => '',
+    renderPrice: () => '', sfCardOwnership: () => '', scryfallSearchUrl: name => `#${name}`,
     playerColor: () => '#888', isMyPlayer: () => true,
     currentUser: { role: 'admin', playerId: 'p1' },
     state: { collections: [], players: [{ id: 'p1', name: 'Tim', wantList: wanted }] },

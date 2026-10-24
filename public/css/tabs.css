@@ -3227,7 +3227,7 @@ select.admin-inline-ctl { padding-right: var(--space-6); }
 }
 
 /* The deck as it stands. Marked rather than merely first, because "Now" and
-   "11 min ago" are the same shape of row and only one of them is the deck you
+   "11m ago" are the same shape of row and only one of them is the deck you
    are looking at. */
 .db-hist-now {
   background: var(--surface-2);

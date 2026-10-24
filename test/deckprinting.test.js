@@ -312,6 +312,7 @@ function loadTab(served = []) {
     esc: s => String(s),
     jsAttr: s => String(s),
     renderMana: () => '', renderPrice: () => '', sfCardOwnership: () => '',
+    formatEur: v => (v ? `€${v}` : ''), scryfallSearchUrl: name => `#${name}`,
     /* One player with one deck, because the load is asked for by name here —
      * dbLoadDeck reads the deck off the state before it asks the server for
      * its cards. Nothing else in this file needs the shelf, and none of these

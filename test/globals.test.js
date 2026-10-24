@@ -28,8 +28,10 @@ const path   = require('node:path');
 const JS = path.join(__dirname, '..', 'public', 'js');
 
 /* Top-level declarations only — a name indented by anything is inside a
-   function or a block and belongs to whoever owns that scope. */
-const DECLARED = /^(?:function|const|let|var)\s+([A-Za-z_$][\w$]*)/;
+   function or a block and belongs to whoever owns that scope. An `async`
+   function and a generator are declarations like any other: missing the
+   prefix once left every async function in the app unchecked. */
+const DECLARED = /^(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var|class)\s+)([A-Za-z_$][\w$]*)/;
 
 test('no two shipped modules declare the same top-level name', () => {
   const where = new Map();

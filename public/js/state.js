@@ -41,6 +41,15 @@ function playerSlot(player) {
 // resolving it here would freeze the theme in place at render time.
 function playerColor(player) { return `var(--player-${playerSlot(player)})`; }
 
+/* The player a typed name means: case and the spaces either side do not
+ * count, because nobody types a name the same way twice. Undefined for a name
+ * no player has, and for no name at all. */
+function playerByName(name) {
+  const key = String(name ?? '').trim().toLowerCase();
+  if (!key) return undefined;
+  return state.players.find(p => String(p.name || '').trim().toLowerCase() === key);
+}
+
 /* The name this browser remembers, behind Available@'s "Who are you?" bar.
  *
  * The key lives here rather than in js/available.js because it is read by two
@@ -680,11 +689,35 @@ async function writeWant(playerId, cardName, remove = false) {
 // ── Helpers ───────────────────────────────────────────────────────────────
 function showError(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 
+/* Why the server refused a request, for a response that is not ok: its JSON
+ * `error`, or the fallback when there is none — a proxy's HTML page, an empty
+ * body, a JSON body that does not say. Reads the body, so call it once and on
+ * the failure path only. */
+async function responseError(res, fallback = `HTTP ${res.status}`) {
+  const body = await res.json().catch(() => null);
+  return (typeof body?.error === 'string' && body.error) || fallback;
+}
+
+/* A price in euros, to the cent: "€1.50". Takes Scryfall's string ("1.5") or
+ * a number the app summed itself; anything that is not a price is '' for the
+ * caller to put its own blank in. The result is digits and a sign, so it
+ * needs no escaping. */
+function formatEur(value) {
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? `€${n.toFixed(2)}` : '';
+}
+
 // Render a Cardmarket (EUR) price from a Scryfall card object.
 function renderPrice(card) {
   const eur = card?.prices?.eur;
   if (!eur) return '';
-  return `<span class="card-price">€${parseFloat(eur).toFixed(2)}</span>`;
+  return `<span class="card-price">${formatEur(eur)}</span>`;
+}
+
+/* Scryfall's page for a card by its exact name — the `!"…"` search, which
+ * lands on the card itself rather than on everything whose name contains it. */
+function scryfallSearchUrl(name) {
+  return `https://scryfall.com/search?q=!%22${encodeURIComponent(name)}%22`;
 }
 
 // Render a Scryfall mana cost string like "{2}{W}{B}" as mana-font icons.
@@ -728,13 +761,22 @@ function jsAttr(s) {
 }
 
 // ── Relative time ─────────────────────────────────────────────────────────
-function relTime(iso) {
-  if (!iso) return '';
-  const s = (Date.now() - new Date(iso)) / 1000;
-  if (s < 60)    return 'just now';
-  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return new Date(iso).toLocaleDateString();
+/* How long ago, at the resolution the answer is useful at. Four minutes ago
+ * is "4m ago"; March is a date, because "148d ago" is a number nobody
+ * converts — and a date with the month in words, which no reader can take for
+ * the American order. Takes an ISO string, a millisecond count or a Date.
+ * Something that is not a time is '' for the caller to decide about; a time a
+ * clock running fast put in the future is "just now". */
+function timeAgo(when, now = Date.now()) {
+  if (when == null || when === '') return '';
+  const d = new Date(when);
+  if (isNaN(d)) return '';
+  const diff = Math.max(0, now - d.getTime());
+  if (diff < 60_000)      return 'just now';
+  if (diff < 3_600_000)   return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000)  return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 // ── Normalise URL ─────────────────────────────────────────────────────────

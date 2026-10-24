@@ -277,7 +277,7 @@ async function renderWantList() {
     if (vc.pt)     metaHead += '<th>P/T</th>';
 
     const tableRows = visibleRows.map(([cardName, wanterIds]) => {
-      const href  = `https://scryfall.com/search?q=!%22${encodeURIComponent(cardName)}%22`;
+      const href  = scryfallSearchUrl(cardName);
       const cells = activePlayers.map(p => {
         if (!wanterIds.has(p.id)) return `<td style="text-align:center;color:var(--border)">—</td>`;
         const canEdit = isMyPlayer(p.id);
@@ -347,7 +347,7 @@ async function renderWantList() {
     const card   = wantCardData.get(cardName);
     const face   = card?.card_faces?.[0];
     const imgUrl = card?.image_uris?.normal || face?.image_uris?.normal || '';
-    const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(cardName)}%22`;
+    const href   = scryfallSearchUrl(cardName);
     const sfUrl  = card?.scryfall_uri || href;
     const owned  = sfCardOwnership(cardName);
     const price  = renderPrice(card);

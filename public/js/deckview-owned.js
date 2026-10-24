@@ -120,12 +120,13 @@ function dbOwnedPrintings(cardName) {
  *  unknown case: a deck that has chosen nothing does not own "the printing it
  *  runs", and a shelf full of unattributed copies does not answer for one.
  *
- *  The plain yes-or-no, for anybody asking about a printing that is not a
- *  card in a deck — the gallery ringing what you own, and the printing
- *  optimiser's "prefer the ones I have". Inside this module the question is
- *  always four-valued and dbPrintingVerdict is what answers it: a yes/no here
- *  would fold "we do not know" into "no", which is the one thing this ticket
- *  exists to stop. */
+ *  The plain yes-or-no, for a printing that is not a card in a deck. Nothing
+ *  in the app asks it yet — the gallery and the printing optimiser read
+ *  dbOwnedPrintings() whole — but test/deckowned.test.js pins down through it
+ *  what owning a printing means: any language or condition, never the other
+ *  finish. Inside this module the question is always four-valued and
+ *  dbPrintingVerdict is what answers it: a yes/no here would fold "we do not
+ *  know" into "no", which is the one thing this ticket exists to stop. */
 function dbOwnsPrinting(cardName, printing) {
   return printingIdentity(printing) !== null
       && dbPrintingVerdict(dbOwnedPrintings(cardName), printing) === 'owned';

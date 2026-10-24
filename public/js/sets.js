@@ -252,7 +252,7 @@ function _setStackCard(card) {
     img:   card.image_uris?.normal || face?.image_uris?.normal || '',
     back:  scryfallBackFace(card),
     badge: card.collector_number ? `#${card.collector_number}` : '',
-    href:  `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`,
+    href:  scryfallSearchUrl(card.name),
   };
 }
 
@@ -281,7 +281,7 @@ function renderSetCardList(card) {
   const face   = card.card_faces?.[0];
   const imgUrl = card.image_uris?.small || face?.image_uris?.small || '';
   const mana   = card.mana_cost         || face?.mana_cost         || '';
-  const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
+  const href   = scryfallSearchUrl(card.name);
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   return `<div class="sf-card">
@@ -305,7 +305,7 @@ function renderSetCardList(card) {
 function renderSetCardGrid(card) {
   const face   = card.card_faces?.[0];
   const imgUrl = card.image_uris?.normal || face?.image_uris?.normal || '';
-  const href   = `https://scryfall.com/search?q=!%22${encodeURIComponent(card.name)}%22`;
+  const href   = scryfallSearchUrl(card.name);
   const owned  = sfCardOwnership(card.name);
   const price  = renderPrice(card);
   const link = `<a href="${card.scryfall_uri}" target="_blank" rel="noopener" class="card-open" data-name="${esc(card.name)}">

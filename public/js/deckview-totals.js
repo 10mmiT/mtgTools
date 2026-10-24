@@ -245,13 +245,11 @@ function _dbPriceOf(cards, copies) {
 
 // ── The price, on the readout ─────────────────────────────────────────────
 
-const _dbEur = n => `€${n.toFixed(2)}`;
-
 /* A figure and what is missing from it. A total with three cards it could not
  * price is not a total, so it says so rather than quietly being short — and a
  * figure with *nothing* priced is not a number at all, it is a dash. */
 function _dbPriceHtml(price) {
-  const sum = price.priced ? `<strong>${_dbEur(price.eur)}</strong>` : '—';
+  const sum = price.priced ? `<strong>${formatEur(price.eur)}</strong>` : '—';
   const note = price.unknown
     ? ` <span class="db-stat-unpriced">(${price.unknown} unpriced)</span>` : '';
   return sum + note;

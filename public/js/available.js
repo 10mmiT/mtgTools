@@ -38,9 +38,9 @@ const availTodayDate = new Date(availTodayISO + 'T00:00:00');
 // which position in a list is not. The hash is playerSlot()'s own fallback,
 // over the name rather than over an id these entries do not have.
 function availSlot(name) {
-  const key    = String(name || '').trim().toLowerCase();
-  const player = state.players.find(p => String(p.name || '').trim().toLowerCase() === key);
+  const player = playerByName(name);
   if (player) return playerSlot(player);
+  const key = String(name || '').trim().toLowerCase();
   let h = 0;
   for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) | 0;
   return Math.abs(h) % PLAYER_SLOTS;

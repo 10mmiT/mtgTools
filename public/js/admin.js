@@ -70,7 +70,7 @@ async function adminConfirmApprove(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role, playerId: playerId || null }),
     });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!res.ok) throw new Error(await responseError(res));
     await Promise.all([adminLoadRequests(), adminLoadUsers()]);
   } catch (e) { alert(`Error: ${e.message}`); }
 }
@@ -79,7 +79,7 @@ async function adminDenyRequest(id, username) {
   if (!confirm(`Deny account request from "${username}"?`)) return;
   try {
     const res = await fetch(`/api/admin/account-requests/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!res.ok) throw new Error(await responseError(res));
     await adminLoadRequests();
   } catch (e) { alert(`Error: ${e.message}`); }
 }
@@ -123,7 +123,7 @@ async function adminDeleteUser(username) {
   if (!confirm(`Delete user "${username}"? They will be signed out immediately.`)) return;
   try {
     const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!res.ok) throw new Error(await responseError(res));
     await adminLoadUsers();
   } catch (e) { alert(`Error: ${e.message}`); }
 }
@@ -131,12 +131,6 @@ async function adminDeleteUser(username) {
 function adminEditUser(username) {
   const row = document.getElementById(`admin-user-row-${username}`);
   if (!row) return;
-  const user        = { username };
-  const linkedPlayer = state.players.find(p => {
-    const allUsers = Array.from(document.querySelectorAll('#adminUsersBody tr')).map(r => r.id.replace('admin-user-row-', ''));
-    return false; // We'll read from the API data instead via inline form
-  });
-
   const playerOpts = [
     `<option value="">— No linked player —</option>`,
     ...state.players.map(p => `<option value="${p.id}">${esc(p.name)}</option>`),
@@ -187,7 +181,7 @@ async function adminSaveUser(username) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!res.ok) throw new Error(await responseError(res));
     await adminLoadUsers();
   } catch (e) { alert(`Error: ${e.message}`); }
 }
@@ -206,7 +200,7 @@ async function adminCreateUser(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, role, playerId }),
     });
-    if (!res.ok) throw new Error((await res.json()).error);
+    if (!res.ok) throw new Error(await responseError(res));
     document.getElementById('newUsername').value = '';
     document.getElementById('newPassword').value = '';
     document.getElementById('newRole').value     = 'player';

@@ -139,6 +139,8 @@ function loadGallery({ runs = null, accept = true } = {}) {
     BP_MD: 900,
     esc: s => String(s),
     jsAttr: s => String(s),
+    // js/state.js's, which is not loaded here; these prices are already to the cent.
+    formatEur: v => (v ? `€${v}` : ''),
     setTab() {},
     scryfallFetch: async () => ({ ok: true, json: async () => ({ data: PRINTS }) }),
     // The deck, as the gallery sees it: it can be asked what it runs, and told.
@@ -526,6 +528,7 @@ function loadTab({ playerId = 'p1' } = {}) {
     esc: s => String(s),
     jsAttr: s => String(s),
     renderMana: () => '', renderPrice: () => '', sfCardOwnership: () => '',
+    formatEur: v => (v ? `€${v}` : ''), scryfallSearchUrl: name => `#${name}`,
     state: { collections: [], players: [{ id: 'p1', name: 'P1', decks: [{ id: 'd1', name: 'A deck' }] }] },
     myPlayerId: () => 'p1', colOwner: () => null, playerColor: () => '',
     scryfallMetaCache: new Map(),

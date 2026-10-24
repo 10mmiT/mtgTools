@@ -490,11 +490,9 @@ async function dbOptimizeApply() {
 
 // ── What it looks like ────────────────────────────────────────────────────
 
-const _dbOptEur = n => `€${Math.abs(n).toFixed(2)}`;
-
 /* A price difference, signed and read as money going one way or the other. */
 const _dbOptDelta = n =>
-  (Math.abs(n) < 0.005 ? '—' : `${n < 0 ? '−' : '+'}${_dbOptEur(n)}`);
+  (Math.abs(n) < 0.005 ? '—' : `${n < 0 ? '−' : '+'}${formatEur(Math.abs(n))}`);
 
 /* A printing, said the way the Collections table says one. The finish comes
    with it, because the whole reason cheapest can surprise somebody is that it
@@ -564,7 +562,7 @@ function _dbOptPreviewHtml(plan) {
   const outside = plan.picks.filter(p => !_dbOptInPurse(p)).length;
   return `
     <div class="db-opt-total">${plan.picks.length} card${plan.picks.length === 1 ? '' : 's'} would change
-      · deck price ${esc(_dbOptEur(plan.before))} → ${esc(_dbOptEur(plan.after))}
+      · deck price ${formatEur(plan.before)} → ${formatEur(plan.after)}
       <span class="db-opt-aside">${esc(_dbOptDelta(plan.delta))}${outside
         ? `, ${outside} of them off the boards the price counts` : ''}</span></div>
     <div class="db-opt-scroll">

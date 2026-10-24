@@ -80,8 +80,7 @@ async function submitChangePassword() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
     });
-    const data = await res.json();
-    if (!res.ok) return showErr(data.error || 'Failed to change password.');
+    if (!res.ok) return showErr(await responseError(res, 'Failed to change password.'));
     closeChangePassword();
     showToast('✓  Password changed');
   } catch {
@@ -126,10 +125,8 @@ function myPlayerId() {
   if (currentUser.playerId) return currentUser.playerId;
   if (currentUser.username !== 'guest') return null;
   let remembered = '';
-  try { remembered = (localStorage.getItem(AVAIL_NAME_KEY) || '').trim().toLowerCase(); } catch {}
-  if (!remembered) return null;
-  const player = state.players.find(p => String(p.name || '').trim().toLowerCase() === remembered);
-  return player ? player.id : null;
+  try { remembered = localStorage.getItem(AVAIL_NAME_KEY) || ''; } catch {}
+  return playerByName(remembered)?.id ?? null;
 }
 
 // ── Quick "add to my wants" (from search/set browser) ─────────────────────────
