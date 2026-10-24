@@ -103,10 +103,27 @@ function openCardByName(name, forDeck = null) {
     }
   }
   // Fallback: full-page tab
+  openCardPage(name, forDeck);
+}
+
+/* The card on the Card tab itself rather than in the modal, whatever the
+ * window's width — openCardByName's fallback, and the way in for a caller
+ * that wants the tab: table mode's "Details" (js/tablemode.js), where the tab
+ * is a sheet lying on the table and a modal over it would hide the table. */
+function openCardPage(name, forDeck = null) {
+  _cardForDeck = forDeck;
   setTab('card', false);
   history.pushState({ view: 'card', cardName: name }, '', '#card=' + encodeURIComponent(name));
   loadCard({ name }, 'cardDetail');
 }
+
+/* The card the Card tab last drew — { name, id, imageUrl } — or null before it
+ * has drawn one. The modal's card is not it: the modal is a look at a card
+ * from somewhere else, and closes. Kept for whatever lays the tab's card out
+ * beside it: table mode's mat (js/tablemode.js). */
+let _cardShown = null;
+
+function cardDetailShown() { return _cardShown; }
 
 /* A printing, looked at. Never a choice — the tiles that choose do not come
    here — so this is one of the doors that clears the deck behind it. */
@@ -213,6 +230,8 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
 
   const cmUrl = card.purchase_uris?.cardmarket;
   const sfUrl = card.scryfall_uri;
+
+  if (hostId === 'cardDetail') _cardShown = { name: card.name, id: card.id || null, imageUrl: front };
 
   const rId = `${hostId}-rulings`;
   const pId = `${hostId}-prints`;

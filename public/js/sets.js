@@ -13,6 +13,7 @@ let sfSets      = null;   // [{ code, name, released, cards, owned, indexed }]
 let setIndexing = null;   // { sets, indexed, filling } — the index's own progress
 let currentSet  = null;   // { code, name }
 let setCardsAll = [];
+let _setShown   = null;   // { code, field, cards } — what the last render drew, see setShownPiles
 let setFilter   = 'all';  // 'all' | 'owned' | 'unowned'
 let setView     = 'list'; // 'list' | 'grid' | 'pile'
 const setSettled = new Set(); // the labels of the piles settled in the stack view; the rest are spread
@@ -140,6 +141,7 @@ async function selectSet(code) {
   const name  = sfSets?.find(s => s.code === code)?.name || code;
   currentSet  = { code, name };
   setCardsAll = [];
+  _setShown   = null;
   setMode('cards');
   renderSetChip();
 
@@ -175,6 +177,7 @@ function clearSet() {
   _setLoadSeq++;
   currentSet  = null;
   setCardsAll = [];
+  _setShown   = null;
   setMode('picker');
   document.getElementById('setCards').innerHTML = '';
   document.getElementById('setChipRow').innerHTML = '';
@@ -206,6 +209,7 @@ function renderSetCards() {
   const { criteria } = getSortChain('sets', { field: 'number', dir: 1 }, SET_SORT_FIELDS);
   const field = criteria[0]?.field || 'name';
   displayed = displayed.slice().sort(cardComparator(criteria));
+  _setShown = { code: currentSet?.code, field, cards: displayed };
 
   // §9.3: the "N of M owned" figure is the toolbar's result count. What the
   // ownership filter is currently hiding is said here too, since the grid
@@ -254,6 +258,16 @@ function _setStackCard(card) {
     badge: card.collector_number ? `#${card.collector_number}` : '',
     href:  scryfallSearchUrl(card.name),
   };
+}
+
+/* The open set's cards on show — the ownership filter and the sort applied —
+ * in the piles the stack view cuts them into, whichever view is on screen.
+ * Null when no set is open, or the one opening has not finished arriving. Kept
+ * for whatever else lays out the same cards: table mode's mat
+ * (js/tablemode.js). */
+function setShownPiles() {
+  if (!currentSet || _setShown?.code !== currentSet.code) return null;
+  return cardGroups(_setShown.field, _setShown.cards);
 }
 
 function renderSetPiles(displayed, field) {

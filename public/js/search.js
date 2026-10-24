@@ -105,6 +105,19 @@ async function fetchScryfallPage(url, append) {
   }
 }
 
+/* The results the last render drew, in the order it drew them. Kept so that
+ * something other than the results area can lay out the same cards without
+ * sorting them again: table mode's mat (js/tablemode.js) reads them through
+ * sfShownCards. */
+let _sfShown = [];
+
+/* What is on show: nothing while there are no results — before a search, once
+ * the box is cleared, or when a search found nothing or failed, each of which
+ * leaves its own sentence in the results area and no cards. */
+function sfShownCards() {
+  return sfState.cards.length ? _sfShown : [];
+}
+
 // Sort all loaded cards by the current sort, then render the whole set
 function sfRender() {
   const container = document.getElementById('sfResults');
@@ -113,6 +126,7 @@ function sfRender() {
   if (!cards.length) return; // leave any empty/error state from the fetch
 
   cards.sort(cardComparator(getSortChain('scryfall', null, SF_SORT_FIELDS).criteria));
+  _sfShown = cards;
 
   const wrap = sfViewSize === 'grid' ? 'sf-grid' : 'sf-results';
   const html = cards.map(c =>

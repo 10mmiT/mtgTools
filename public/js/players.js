@@ -638,6 +638,15 @@ function deckTileHtml(player, d, canEdit) {
 
 // ── Render the tab ──────────────────────────────────────────────────────────
 
+/* The decks the last render drew, in the piles it drew them in — the Mine
+ * grid's folders (the loose zone first), or Everyone's players — each pile
+ * { key, label, playerId, decks }. Kept so that something other than the grid
+ * can lay out the same decks without choosing them again: table mode's mat
+ * (js/tablemode.js) reads them through decksShown. */
+let _decksShown = [];
+
+function decksShown() { return _decksShown; }
+
 function renderPlayers() {
   const list = document.getElementById('playersList');
   if (!list) return;
@@ -679,6 +688,16 @@ function renderMineGrid(list) {
   if (info) info.textContent = built.length
     ? `${built.length} deck${built.length !== 1 ? 's' : ''}`
     : '';
+
+  if (player) {
+    const { loose, inFolder } = groupDecksByFolder(sortedFolders(player), built);
+    _decksShown = [
+      { key: '', label: '', playerId: player.id, decks: loose },
+      ...sortedFolders(player).map(f => ({ key: f.id, label: f.name, playerId: player.id, decks: inFolder.get(f.id) })),
+    ].filter(pile => pile.decks.length);
+  } else {
+    _decksShown = [];
+  }
 
   const body = !built.length && !(player?.folders || []).length
     ? '<div class="empty-state">No built decks yet — open a deck in the Deck Builder to import its cards, or switch to Everyone’s decks above.</div>'
@@ -795,6 +814,10 @@ function renderEveryone(list) {
       ? `${nPlayers} player${nPlayers !== 1 ? 's' : ''} · ${nDecks} deck${nDecks !== 1 ? 's' : ''}`
       : '';
   }
+
+  _decksShown = state.players
+    .map(p => ({ key: p.id, label: p.name, playerId: p.id, decks: p.decks || [] }))
+    .filter(pile => pile.decks.length);
 
   if (!state.players.length) {
     list.innerHTML = '<div class="empty-state">No players yet — add one above to get started.</div>';

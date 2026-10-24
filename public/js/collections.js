@@ -1271,6 +1271,7 @@ function scheduleRender() {
  * showed the getting-started hint — so the message goes into all three and
  * the display rules decide who reads it. */
 function colSayInstead(html, info = '') {
+  _colShownRows = [];   // a sentence instead of cards: no cards are showing
   /* The table is `width: max-content` so its columns fit the widest card
      name. A message is prose and not a column, and while it is the only row
      in there it must not set that width — a sentence wider than the window
@@ -1289,6 +1290,28 @@ function colSayInstead(html, info = '') {
 }
 
 // ── Render results ────────────────────────────────────────────────────────
+/* The rows the view last drew — filtered by what was typed and in the sort's
+ * order — or null before it has drawn any. Kept so that something other than
+ * these three views can lay out the same cards without asking the question
+ * again: table mode's mat (js/tablemode.js) reads them through colShownPiles.
+ * Written by every render, whatever the view and whether or not anything else
+ * is reading. */
+let _colShownRows = null;
+
+/* Rows cut into piles by the first word of the sort, as the stack view cuts
+ * them — the one place that decision is made, so the stack view and anything
+ * else that piles this tab's cards cannot come to pile them differently. */
+function colPiles(rows) {
+  return cardGroups(colSortCriteria()[0]?.field || 'name', rows, colSortContext());
+}
+
+/* The cards on show, in the piles the stack view would make of them: null
+ * before the first render, an empty list while the tab says something else
+ * instead (no collections, a search that does not parse, data still loading). */
+function colShownPiles() {
+  return _colShownRows ? colPiles(_colShownRows) : null;
+}
+
 function renderResults() {
   if (!_colControlsMounted) initCollectionsControls();
   else syncColSortFields();
@@ -1355,6 +1378,7 @@ function renderResults() {
   }
 
   const rows      = buildRows(query);
+  _colShownRows   = rows;
   ensureSortMeta(rows);
   const isMobile  = window.innerWidth < BP_SM;
   const MOBILE_CAP = 150;
@@ -1652,7 +1676,7 @@ async function renderPileView(rows) {
      could not disagree about what the piles were; the header reads the chain
      too now, and the mirror is gone. The rest of the chain never reaches here:
      it has already done its work, ordering the cards inside each pile. */
-  const groups = cardGroups(colSortCriteria()[0]?.field || 'name', rows, colSortContext());
+  const groups = colPiles(rows);
   forgetGonePiles(_colSettledPiles, groups);
 
   /* Drawn and then put down: cardPilesHtml() hands back the piles and

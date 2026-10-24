@@ -15,6 +15,26 @@ function dbRender() {
   animateCardMove(document.getElementById('dbDeckContent'), _dbPaint);
 }
 
+/* The categories the last paint drew, each with the cards in it the filter is
+ * showing, in the tab's sort — and which deck that paint was of. Kept so that
+ * something other than the mat can lay out the same piles without grouping
+ * the deck a second time: table mode's mat (js/tablemode.js) reads them
+ * through dbShownPiles. */
+let _dbShownPiles = null;   // { deckId, piles: [{ label, cards }] }
+
+/* The deck's piles as the mat has them, each card as { name, image } — the
+ * picture _dbCardImg() says the mat draws it with, asked now rather than at
+ * the paint, since a card's data can arrive after it — or null when no deck is
+ * open, or the one open has not been painted yet and the piles kept are
+ * another deck's. */
+function dbShownPiles() {
+  if (!dbDeck || _dbShownPiles?.deckId !== dbDeck.id) return null;
+  return _dbShownPiles.piles.map(pile => ({
+    label: pile.label,
+    cards: pile.cards.map(card => ({ name: card.card_name, image: _dbCardImg(card) })),
+  }));
+}
+
 /* What a thing on the mat is, as one string, so that it can be recognised
  * across a rebuild that shares no elements with the one before it. A card is
  * its ref — board and name, because a card in the deck and the same card in
@@ -99,6 +119,10 @@ function _dbPaint() {
     return { name: cat.name, all, cards: all.filter(c => _dbMatchesFilter(c)) };
   });
   const anyShown = piles.some(p => p.cards.length);
+  _dbShownPiles = {
+    deckId: dbDeck.id,
+    piles: piles.filter(p => p.cards.length).map(p => ({ label: p.name, cards: p.cards })),
+  };
 
   const sections = [];
   for (const pile of piles) {
