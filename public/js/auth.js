@@ -83,7 +83,7 @@ async function submitChangePassword() {
     const data = await res.json();
     if (!res.ok) return showErr(data.error || 'Failed to change password.');
     closeChangePassword();
-    _showWantToast('Password changed successfully');
+    showToast('✓  Password changed');
   } catch {
     showErr('Network error. Please try again.');
   } finally {
@@ -171,6 +171,15 @@ function wantBtnHtml(cardName) {
 }
 
 function _showWantToast(cardName) {
+  showToast(`✓  Added "${cardName}" to your wants`);
+}
+
+/* The app's one notice that is not a dialog, saying whatever it is given.
+ * Born as the want list's "Added …" and still drawn as that component; a
+ * changed password borrowed it and was announced as a card added to your
+ * wants, so the sentence is the caller's now. (A save that did not take has
+ * its own element in the danger pair — showSaveNotice in js/state.js.) */
+function showToast(text) {
   let toast = document.getElementById('wantToast');
   if (!toast) {
     toast = document.createElement('div');
@@ -178,7 +187,7 @@ function _showWantToast(cardName) {
     toast.className = 'want-toast';
     document.body.appendChild(toast);
   }
-  toast.textContent = `✓  Added "${cardName}" to your wants`;
+  toast.textContent = text;
   toast.classList.add('visible');
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => toast.classList.remove('visible'), 2800);
