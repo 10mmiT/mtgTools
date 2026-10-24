@@ -5,7 +5,7 @@ Written before the work, on branch `feat/printings-and-lands`, and revised on
 where the counterpart goes afterwards — what actually got built, which is allowed to
 disagree with this.
 
-Nothing here is implemented yet. The branch holds this document and nothing else.
+**Implemented — this plan is superseded.** Printings, printing-aware ownership, the deck's printing optimizer and the land base have shipped (`public/js/deckview-optimize.js`, `public/js/deckview-landbase.js`, `public/js/deckview-basics.js`). What was built is described in [spec-printings.md](../design/spec-printings.md) and [spec-landbase.md](../design/spec-landbase.md), with the research behind the land base in [research-landbase.md](../design/research-landbase.md); where those and this disagree, they are what happened. The rest of this document is kept as it was written.
 
 ## The four
 

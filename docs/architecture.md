@@ -12,8 +12,12 @@ mtgtools/
 ├── scryfall-db.js     # Scryfall bulk-data cache — daily oracle_cards download into SQLite
 ├── scryfall-queue.js  # One rate-limited Scryfall queue for the whole process (~9 req/s, Retry-After)
 ├── set-index.js       # What is in each set — background-filled, for the Set Browser's owned counts
+├── backup.js         # Daily copy of available.db into data/backups/, the newest few kept
+├── collection-import.js # Server-side collection imports, checkpointed page by page
+├── archidekt-queue.js # Archidekt's paced request queue for those imports
 ├── playmat-store.js   # Uploaded playmat images — one file per user, under data/playmats/
 ├── middleware/
+│   ├── async-handler.js # Wraps async route handlers so a rejection reaches Express's error handler
 │   ├── auth.js        # Session auth helpers (requireAuth, requireAdmin)
 │   └── limits.js      # The app's rate limiters — auth and playmat upload, two budgets
 ├── routes/
@@ -28,38 +32,15 @@ mtgtools/
 │   ├── rss.js         # RSS feed proxy + 10-minute server-side cache
 │   ├── sets.js        # Set Browser data — /api/sets: the set list with per-set owned counts
 │   └── state.js       # App state API — collections, players, decks, want lists
-├── test/              # 54 files, run by `npm test`
-│   ├── server.test.js       # HTTP seam — auth, state, admin, decks, prefs
-│   ├── prefs-open-mode.test.js  # Preferences with no accounts to hang them on
-│   ├── tokens.test.js       # Token-contract lint, asserted over the delivered CSS
-│   ├── themes.test.js       # All five palettes define every token
-│   ├── fonts.test.js        # The vendored typeface is served and self-hosted
-│   ├── playmat.test.js      # Upload, replace, remove, and what counts as an image
-│   ├── offline.test.js      # The app renders with no route out
-│   ├── motion.test.js       # The preference resolved against the OS setting
-│   ├── cardlift.test.js     # The lean, at the extremes and at the centre
-│   ├── cardstack.test.js    # Layers from count, angle from name
-│   ├── cardgroups.test.js   # Which pile a card belongs in, per sort field
-│   ├── cardsort.test.js     # A sort as a chain — order, seeding, ownership, migration
-│   ├── cardquery.test.js    # Scryfall syntax — what each filter reads, and what is refused
-│   ├── cardsize.test.js     # The size store, keyed per tab and per view
-│   ├── cardmove.test.js     # What travels on a re-render, and what is skipped
-│   ├── carddrag.test.js     # Hit-testing piles, the fan, the drop's effect
-│   ├── cardmenu.test.js     # Where a menu asked for at a point is drawn
-│   ├── cardcache.test.js    # The cached card's shape, and the version that re-imports it
-│   ├── cardshelf.test.js    # Which printings of this card are held, and the shelf that cannot say
-│   ├── deckdrag.test.js     # Picking a deck tile up, the zone that would take it, and where it lands
-│   ├── deckhistory.test.js  # When a deck is snapshotted, the caps, and what a restore puts back
-│   ├── deckframe.test.js    # The builder's frame — what folds away, and what stays
-│   ├── deckboards.test.js   # Two Sol Rings — the maybeboard, the sideboard, and the count
-│   ├── deckcommander.test.js # The commander as a board rather than a category
-│   ├── deckfilter.test.js   # The deck's filter box — the query language run over one deck
-│   ├── collectioncsv.test.js # What a real CSV export says about its printings, and what it does not
-│   ├── collectionowner.test.js # Whose shelf is whose — the column, the shelf, the open-mode name
-│   ├── deckowned.test.js    # "87 of 99 owned" — the scopes, the missing twelve, and
-│   │                        # whether it is the printing the deck runs
-│   ├── decklegality.test.js # Legal or the reason it is not, the bracket estimate, and tonight's bracket
-│   └── decklands.test.js    # The Lands tab — the cycles' pinned sizes and what one open section costs; the check: the source-count table at its boundaries, the hardest cost per colour, and what is allowed to count as a source; the fix: the query a short colour asks, and the copies in the house sorting above the play rate; and the basics optimizer: the split, the basics it will not touch, the three rules about {C} — the third of which is whether Wastes is one of those, the "at least 1 basic of every colour" override in both its states, and the write
+├── test/              # Every test/*.test.js, run by `npm test` (a glob — a new file joins on its own)
+│   ├── server.test.js, prefs-open-mode.test.js, ownership.test.js, versioning.test.js,
+│   │   statepoll.test.js, legacystate.test.js, backup.test.js …  # HTTP seam, auth, state, backups
+│   ├── tokens, themes, fonts, offline, motion, playmat, modal, globals, faq*  # Contracts the UI keeps
+│   ├── card*.test.js        # A card — lift, stacks, piles, sort, query, menu, drag, printings, shelf
+│   ├── collection*.test.js  # Collections — imports, CSVs, owners, which printings are held
+│   ├── deck*.test.js        # The Decks tab and the builder — boards, folders, privacy, history,
+│   │                        # ownership, legality, mana, lands, printings, the optimizer, export
+│   └── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -178,7 +159,7 @@ An import is the one thing that moves the counter often — it checkpoints every
 
 ## Design records
 
-Six pieces of work were large enough to be worth writing up afterwards, and each has a record in [records/](records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
+Seven pieces of work were large enough to be worth writing up afterwards, and each has a record in [records/](records/) that supersedes whatever it was planned from. They are written for whoever picks the code up next — what was built, what it cost, where the build departed from the plan, and what was found only by using it.
 
 | document | what it covers |
 |---|---|
@@ -188,7 +169,8 @@ Six pieces of work were large enough to be worth writing up afterwards, and each
 | [records/piles-expanded.md](records/piles-expanded.md) | Piles land expanded — a table of stacks arrives spread, and settling one is the thing you do |
 | [records/collection-query.md](records/collection-query.md) | Scryfall syntax in the Collections search — the query language parsed and run locally against the cards you own, one cache of card facts for the sort and the search both, and the filters that are refused by name because the local data can't answer them |
 | [records/deckbuilder-depth.md](records/deckbuilder-depth.md) | The deck builder answers questions — boards and a commander board, deck history, ownership and price, legality and bracket, the mana base read off the deck, the frame that folds and the menu beside the mat |
+| [records/deck-grid-and-folders.md](records/deck-grid-and-folders.md) | The Decks tab as a grid of your own decks, filed into folders |
 
-What each was planned from is kept beside them in [design/](design/): [ui.md](design/ui.md), the interactivity brief the second of those was written against, [spec-cards-as-objects.md](design/spec-cards-as-objects.md), its PRD, [spec-sorting.md](design/spec-sorting.md), the PRD for the third, and [spec-deckbuilder-depth.md](design/spec-deckbuilder-depth.md), the survey the sixth was cut from. Where any of them disagrees with its record, the record is what happened.
+What each was planned from is kept beside them in [design/](design/): [ui.md](design/ui.md), the interactivity brief the second of those was written against, [spec-cards-as-objects.md](design/spec-cards-as-objects.md), its PRD, [spec-sorting.md](design/spec-sorting.md), the PRD for the third, and [spec-deckbuilder-depth.md](design/spec-deckbuilder-depth.md), the survey the sixth was cut from, and [spec-deck-grid-and-folders.md](design/spec-deck-grid-and-folders.md), the spec for the seventh. Where any of them disagrees with its record, the record is what happened.
 
 Work large enough to need planning is cut into tickets first — one shippable, testable change each — under a `docs/tickets/<effort>/` directory that exists only while that effort is in flight. A ticket set is retired into a record once it lands, which is why there is no such directory here now.

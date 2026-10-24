@@ -62,3 +62,7 @@ Map `/app/data` to a persistent location on your host (e.g. `/mnt/user/appdata/m
 Once a day the server copies `available.db` to `data/backups/available-YYYY-MM-DD.db` and deletes all but the newest seven (`MTGTOOLS_BACKUP_DAYS` changes the count). It uses SQLite's online backup, so the copy is consistent while the app is serving, and it is taken at startup and checked hourly after that — a server restarted several times a day still makes one a day. `scryfall.db` is not backed up; it is a cache that the next refresh rebuilds. Playmat images under `data/playmats/` aren't backed up either.
 
 To restore one, stop the container, replace `data/available.db` with the backup (and delete any `available.db-wal` and `available.db-shm` beside it), then start the container again. These copies sit on the same disk as the database, so they don't protect you if the disk fails: include `data/backups/` in whatever backs up the host.
+
+### Container user and restarts
+
+The container runs as the unprivileged `node` user, uid 1000, so the host folder mapped to `/app/data` must be writable by that uid: `chown -R 1000:1000` it once. On Unraid, where appdata belongs to `nobody:users`, run the container with `--user 99:100` (Extra Parameters in the template) and `chown -R 99:100 /mnt/user/appdata/mtgtools` instead. `docker-compose.yml` sets `restart: unless-stopped`; set the same restart policy in your container manager if you're not using it.

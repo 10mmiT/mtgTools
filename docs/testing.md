@@ -4,7 +4,7 @@ The test suite, the token-contract linter, and the screenshot/measurement script
 
 ## Testing
 
-The project ships a test suite using Node's built-in `node:test` runner and `supertest` — over 1,400 tests across 56 files, needing no browser and no network.
+The project ships a test suite using Node's built-in `node:test` runner and `supertest` — every `test/*.test.js`, picked up by a glob, needing no browser and no network.
 
 ```bash
 npm test
@@ -51,7 +51,7 @@ npm run capture-screens -- $DATA --name after      # after it, then compare
 
 It starts its own copy of the server in open mode (no login needed) and drives the locally installed Firefox headless over WebDriver BiDi — no extra dependencies. Each view is loaded through the app's own URL routing (`/?theme=sepia#wants`) and captured once the page stops fetching. Tall pages are clipped to 4000px (`--max-height`), since a real collection runs to five figures. Output lands in `.scratch/ui-redesign/shots/<name>/` and is git-ignored.
 
-**Always pass `--data`.** Screens are only as interesting as the data behind them, and the repo's own `data/` is empty, so without it every tab renders an empty state and the comparison proves nothing. `.scratch/ui-redesign/capture-data/` holds a git-ignored snapshot of a populated database for exactly this; if it is missing, restore it before capturing. `DATA_FILE` names a file whose *directory* is used as the data directory, so `available.db` and `scryfall.db` sit beside the `state.json` path you pass. Always use a copy — the app writes to whatever database it is given.
+**Always pass `--data`.** Screens are only as interesting as the data behind them, and a fresh `data/` has nothing in it, so without real data every tab renders an empty state and the comparison proves nothing. `.scratch/ui-redesign/capture-data/` holds a git-ignored snapshot of a populated database for exactly this; if it is missing, restore it before capturing. `DATA_FILE` names a file whose *directory* is used as the data directory, so `available.db` and `scryfall.db` sit beside the `state.json` path you pass. Always use a copy — the app writes to whatever database it is given.
 
 Runs are deterministic: capturing twice with no changes gives byte-identical PNGs, so `sha256sum` is a fair way to confirm that a change left unrelated views alone.
 
