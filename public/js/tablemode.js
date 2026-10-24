@@ -265,14 +265,19 @@ const TABLE_CARD_RATIO = 88 / 63;
 
 /* The fans the layout draws. A pile's slot is about this many times as wide as
  * it is tall, because a fan spreads sideways. The step between two cards in a
- * fan is at most TABLE_FAN_MAX of a card's width and at least TABLE_FAN_MIN
- * before the fan breaks onto another row; a row under it sits TABLE_FAN_ROW of
- * a card's height lower. The ends of a fan turn out by TABLE_FAN_TURN degrees
- * and drop by TABLE_FAN_ARC of a card's height, the shape a hand spreads. */
+ * fan is at most TABLE_FAN_MAX of a card's width, and never under a third of
+ * it (TABLE_FAN_MIN) — enough of each card showing to tell it from the next;
+ * a pile that would need less breaks onto further rows instead. Rows are spread
+ * down the slot's height as far as it allows, a row at most a card's height
+ * (TABLE_ROW_MAX) under the one above and, where the slot has the room, no less
+ * than half of one (TABLE_ROW_MIN), so the top of every card — its name and
+ * its art — shows. The ends of a fan turn out by TABLE_FAN_TURN degrees and
+ * drop by TABLE_FAN_ARC of a card's height, the shape a hand spreads. */
 const TABLE_SLOT_ASPECT = 2;
 const TABLE_FAN_MAX  = 0.55;
-const TABLE_FAN_MIN  = 0.22;
-const TABLE_FAN_ROW  = 0.32;
+const TABLE_FAN_MIN  = 1 / 3;
+const TABLE_ROW_MIN  = 0.5;
+const TABLE_ROW_MAX  = 1;
 const TABLE_FAN_TURN = 5;
 const TABLE_FAN_ARC  = 0.06;
 
@@ -574,7 +579,9 @@ function tableCardWidth(matWidth) {
  * order their first card appears, in a grid of slots shaped for fans. Each
  * pile is a fan — the cards overlapping sideways, the ends turned out and
  * dropped a little — breaking onto further rows when a slot cannot hold it in
- * one. Every card keeps the angle its name gives it in a stack (stackJitter,
+ * one at a readable overlap, and onto more of them than that where the slot's
+ * height has room for them and the fan would otherwise be tighter than it need
+ * be (tableFanRows). Every card keeps the angle its name gives it in a stack (stackJitter,
  * js/cardstack.js) on top of its place in the fan, so a card lies the same way
  * on the table as it does in a pile anywhere else in the app.
  *
@@ -611,9 +618,9 @@ function tableLayout(cards, width, height) {
     const left = pad + (p % cols) * slotW;
     const top  = pad + Math.floor(p / cols) * slotH;
     const count  = pile.length;
-    const perRow = Math.max(1, Math.min(count, Math.floor(room / (w * TABLE_FAN_MIN)) + 1));
+    const perRow = Math.ceil(count / tableFanRows(count, room, slotH, w, h));
     const lines  = Math.ceil(count / perRow);
-    const stepY  = lines > 1 ? Math.max(0, Math.min(h * TABLE_FAN_ROW, (slotH - h) / (lines - 1))) : 0;
+    const stepY  = lines > 1 ? Math.max(0, Math.min(h * TABLE_ROW_MAX, (slotH - h) / (lines - 1))) : 0;
     const blockH = h + stepY * (lines - 1);
 
     pile.forEach((index, j) => {
@@ -634,6 +641,20 @@ function tableLayout(cards, width, height) {
     });
   });
   return { width: w, height: h, spots };
+}
+
+/* How many rows a pile of `count` cards is laid in, in a slot `room` pixels
+ * wider than a card and `slotH` tall, for cards w × h. At least as many as keep
+ * a third of every card showing sideways; more, up to as many as would let the
+ * fan open all the way, while the slot is tall enough for each row to show at
+ * least half of the cards above it. */
+function tableFanRows(count, room, slotH, w, h) {
+  if (!(count > 1) || !(w > 0) || !(h > 0)) return 1;
+  const across = step => Math.max(1, Math.floor(Math.max(0, room) / (w * step)) + 1);
+  const fewest = Math.ceil(count / across(TABLE_FAN_MIN));
+  const open   = Math.ceil(count / across(TABLE_FAN_MAX));
+  const tall   = Math.max(1, Math.floor(Math.max(0, slotH - h) / (h * TABLE_ROW_MIN)) + 1);
+  return Math.max(fewest, Math.min(tall, open));
 }
 
 /* The size of the one card the Card tab lays, on a mat of the given size, and

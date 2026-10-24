@@ -432,6 +432,47 @@ test('a group is a pile: its cards lie together, apart from the next pile', () =
   });
 });
 
+/* Every two cards of a pile either lie a third of a card apart across, or on
+ * different rows at least half a card apart down: nothing is hidden behind
+ * its neighbour but a sliver. */
+function assertReadable(list, laid, label) {
+  const { spots, width: w, height: h } = laid;
+  for (let i = 0; i < spots.length; i++) {
+    for (let j = i + 1; j < spots.length; j++) {
+      if (list[i].group !== list[j].group) continue;
+      const dx = Math.abs(spots[i].x - spots[j].x) * MAT.width;
+      const dy = Math.abs(spots[i].y - spots[j].y) * MAT.height;
+      assert.ok(dx >= w / 3 - 0.5 || dy >= h / 2 - 0.5,
+        `${label}: ${list[i].name} and ${list[j].name} lie ${dx.toFixed(1)}px across and ${dy.toFixed(1)}px down`);
+    }
+  }
+}
+
+test('one big pile wraps onto rows down the mat, never tighter than a third of a card', () => {
+  const list = cards(60);
+  const laid = layout(list);
+  assertReadable(list, laid, 'sixty in one pile');
+  const ys = laid.spots.map(s => s.y);
+  assert.ok((Math.max(...ys) - Math.min(...ys)) * MAT.height >= MAT.height / 2,
+    'the rows use the mat’s height rather than one band across its middle');
+});
+
+test('a few piles of many cards each wrap the same way inside their own slots', () => {
+  for (const [n, groups] of [[60, 2], [60, 4], [45, 3], [30, 1]]) {
+    const list = cards(n, i => `g${i % groups}`);
+    assertReadable(list, layout(list), `${n} cards in ${groups} piles`);
+  }
+});
+
+test('how many rows a pile is laid in', () => {
+  const rows = (count, room, slotH, w = 87, h = 87 * 88 / 63) => app.evaluate(`tableFanRows(${count}, ${room}, ${slotH}, ${w}, ${h})`);
+  assert.strictEqual(rows(1, 700, 500), 1);
+  assert.strictEqual(rows(5, 700, 500), 1, 'a fan that opens all the way in one row keeps to it');
+  assert.strictEqual(rows(60, 724, 512), 4, 'more rows than strictly needed when the height has room for them');
+  assert.strictEqual(rows(60, 724, 130), 3, 'and only what a third of a card needs when it has not');
+  assert.strictEqual(rows(60, 0, 512), 60, 'a slot no wider than a card stacks them');
+});
+
 test('a mat with nothing to lay, or no size, lays nothing out of place', () => {
   assert.deepStrictEqual(layout([]).spots, []);
   assert.deepStrictEqual(layout(cards(2), 0, 0).spots, [{ x: 0.5, y: 0.5, turn: 0 }, { x: 0.5, y: 0.5, turn: 0 }]);
