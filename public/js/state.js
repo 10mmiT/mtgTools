@@ -41,6 +41,15 @@ function playerSlot(player) {
 // resolving it here would freeze the theme in place at render time.
 function playerColor(player) { return `var(--player-${playerSlot(player)})`; }
 
+/* The player a typed name means: case and the spaces either side do not
+ * count, because nobody types a name the same way twice. Undefined for a name
+ * no player has, and for no name at all. */
+function playerByName(name) {
+  const key = String(name ?? '').trim().toLowerCase();
+  if (!key) return undefined;
+  return state.players.find(p => String(p.name || '').trim().toLowerCase() === key);
+}
+
 /* The name this browser remembers, behind Available@'s "Who are you?" bar.
  *
  * The key lives here rather than in js/available.js because it is read by two
