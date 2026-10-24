@@ -235,7 +235,7 @@ async function setCollectionOwner(key, ownerId) {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ owner: col.owner }),
     });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(await responseError(res));
   } catch (e) {
     col.owner = previous;
     renderCollections();
@@ -668,10 +668,7 @@ async function saveCollection(col) {
       owner: col.owner || null,
     }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  if (!res.ok) throw new Error(await responseError(res));
 }
 
 // ── Update / Remove collection ────────────────────────────────────────────
@@ -901,7 +898,7 @@ function removeCollection(key) {
     .then(async res => {
       if (res.ok) return;
       if (res.status === 401) return goToLogin();
-      const body = await res.json().catch(() => ({}));
+      const why = await responseError(res);
       if (col && !state.collections.some(c => c.key === key)) {
         state.collections.splice(Math.min(at, state.collections.length), 0, col);
       }
@@ -909,7 +906,7 @@ function removeCollection(key) {
       renderCollections();
       renderImports();
       renderResults();
-      showSaveNotice(`Couldn’t remove ${col?.name || 'that collection'}: ${body.error || `HTTP ${res.status}`}`);
+      showSaveNotice(`Couldn’t remove ${col?.name || 'that collection'}: ${why}`);
     })
     .catch(e => console.warn('Collection remove failed:', e.message));
 }

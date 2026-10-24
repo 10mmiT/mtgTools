@@ -80,8 +80,7 @@ async function submitChangePassword() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
     });
-    const data = await res.json();
-    if (!res.ok) return showErr(data.error || 'Failed to change password.');
+    if (!res.ok) return showErr(await responseError(res, 'Failed to change password.'));
     closeChangePassword();
     _showWantToast('Password changed successfully');
   } catch {

@@ -772,7 +772,7 @@ async function _dbWrite({ playerId, deckId, body }) {
     );
     if (res.status === 401 && typeof goToLogin === 'function') return goToLogin();
     if (!res.ok) {
-      const why = (await res.json().catch(() => ({}))).error;
+      const why = await responseError(res, '');
       /* The strip says it failed either way. A refusal — a deck that is
        * somebody else's to write, a card it will not store (routes/decks.js)
        * — also says why, where every other save that did not take says it:

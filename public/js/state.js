@@ -689,6 +689,15 @@ async function writeWant(playerId, cardName, remove = false) {
 // ── Helpers ───────────────────────────────────────────────────────────────
 function showError(el, msg) { el.textContent = msg; el.style.display = 'block'; }
 
+/* Why the server refused a request, for a response that is not ok: its JSON
+ * `error`, or the fallback when there is none — a proxy's HTML page, an empty
+ * body, a JSON body that does not say. Reads the body, so call it once and on
+ * the failure path only. */
+async function responseError(res, fallback = `HTTP ${res.status}`) {
+  const body = await res.json().catch(() => null);
+  return (typeof body?.error === 'string' && body.error) || fallback;
+}
+
 /* A price in euros, to the cent: "€1.50". Takes Scryfall's string ("1.5") or
  * a number the app summed itself; anything that is not a price is '' for the
  * caller to put its own blank in. The result is digits and a sign, so it
