@@ -431,3 +431,76 @@ describe('the version a want patch hands back', () => {
     assert.strictEqual(tab.run('state.version'), 9);
   });
 });
+
+// ── The other whole-state read ────────────────────────────────────────────
+
+/** js/collections.js's reloadCollections, out of the delivered file — the
+ *  read an import that has landed makes, which hydrates the whole state just
+ *  as the poll does. */
+const RELOAD_BLOCK = (() => {
+  const src  = read('public/js/collections.js');
+  const from = src.indexOf('async function reloadCollections()');
+  const to   = src.indexOf('\n}\n', from);
+  assert.ok(from >= 0 && to > from, 'collections.js no longer has the reloadCollections this test reads');
+  return src.slice(from, to + 3);
+})();
+
+describe('what an import landing may not undo', () => {
+  function loadReloadTab(answer) {
+    const tab = loadTab(answer);
+    tab.run(RELOAD_BLOCK);
+    tab.sandbox.results = 0;
+    tab.run('renderResults = () => { results++ }');
+    return tab;
+  }
+
+  test('a reload cut before one of our saves, arriving after it, is thrown away', async () => {
+    const held = deferred();
+    let gets = 0;
+    const tab  = loadReloadTab((url, opts) => {
+      if (opts.method === 'POST') return reply({ ok: true, version: 4 });
+      // The reload's own read is held; anything asked after the save is the new state.
+      return ++gets === 1 ? held.promise : reply(PAYLOAD(4, ['Atraxa', 'Krenko']));
+    });
+    tab.run(`hydrateState(${JSON.stringify(PAYLOAD(3, ['Atraxa']))}); state.version = 3`);
+
+    const reloading = tab.run('reloadCollections()');
+    await settle();
+    tab.run(`state.players[0].decks.push({ id: 'd9', source: 'manual', name: 'Krenko' })`);
+    assert.strictEqual(await tab.run('saveToStorage()'), true);
+
+    held.resolve(reply(PAYLOAD(3, ['Atraxa'])));
+    await reloading;
+
+    assert.deepStrictEqual(tab.decks(), ['Atraxa', 'Krenko'], 'the reload put the screen back to before the save');
+    assert.strictEqual(tab.run('state.version'), 4, 'the reload put the version back, so the next save is a false 409');
+  });
+
+  test('a reload never lowers the version', async () => {
+    const tab = loadReloadTab(() => reply(PAYLOAD(5, ['Old'])));
+    tab.run(`hydrateState(${JSON.stringify(PAYLOAD(7, ['Atraxa']))}); state.version = 7`);
+    await tab.run('reloadCollections()');
+    assert.strictEqual(tab.run('state.version'), 7);
+    assert.deepStrictEqual(tab.decks(), ['Atraxa']);
+  });
+
+  test('nor lands on something half-arrived', async () => {
+    const tab = loadReloadTab(() => reply(PAYLOAD(5, ['Renamed elsewhere'])));
+    tab.run(`hydrateState(${JSON.stringify(PAYLOAD(3, ['Atraxa']))}); state.version = 3`);
+    tab.run('state.players[0].decks[0].editing = true');
+    await tab.run('reloadCollections()');
+    assert.deepStrictEqual(tab.decks(), ['Atraxa']);
+    assert.strictEqual(tab.run('state.players[0].decks[0].editing'), true);
+  });
+
+  test('a reload with nothing in its way still lands, and is drawn', async () => {
+    const tab = loadReloadTab(() => reply(PAYLOAD(5, ['Atraxa'], {
+      collections: [{ key: 'c1', name: 'Binder', cards: [] }],
+    })));
+    tab.run(`hydrateState(${JSON.stringify(PAYLOAD(4, ['Atraxa']))}); state.version = 4`);
+    await tab.run('reloadCollections()');
+    assert.strictEqual(tab.run('state.version'), 5);
+    assert.deepStrictEqual(tab.answer('state.collections.map(c => c.name)'), ['Binder']);
+    assert.strictEqual(tab.sandbox.results, 1, 'the landed collection was not drawn');
+  });
+});
