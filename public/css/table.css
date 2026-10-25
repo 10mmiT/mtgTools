@@ -12,8 +12,8 @@
    placed by it, and the decisions behind both are in that file. So is the
    table's size: the script fits it to the window and hands the box over as
    --table-x/-y/-w/-h. The one number the two share is the rest tilt, which
-   the script hands over as --table-tilt so that the tabs standing on the rim
-   can be stood square to the eye by the same angle the table leans away by.
+   the script hands over as --table-tilt so that the table it maps the
+   pointer onto and the table drawn here lean away by the same angle.
 
    Nothing in a 3D scene may flatten what it holds by accident. overflow,
    opacity under 1 and filter each turn an element into a flat picture of its
@@ -99,14 +99,15 @@ html[data-tablemode] body::after { display: none; }
 }
 
 /* ── The rim ───────────────────────────────────────────────────────────
-   The three edges with tabs on them and the near one without. Each edge is
-   part of the 3D scene rather than a flat picture of it, which is what lets a
-   tab on it stand up off the wood. */
+   The three edges with tabs on them and the near one without. The tabs lie
+   flat on the wood, so an edge has nothing standing up off it and is drawn
+   as one flat picture lying in the table's plane, like the mat beside it.
+   That is also what lets a tab's label, opened over its neighbour's room,
+   be stacked above it by an ordinary z-index. */
 .table-rim {
   display: flex;
   gap: var(--space-2);
   padding: var(--space-3);
-  transform-style: preserve-3d;
 }
 .table-rim--far   { grid-area: far; justify-content: center; align-items: center; }
 .table-rim--left,
@@ -115,40 +116,125 @@ html[data-tablemode] body::after { display: none; }
 .table-rim--right { grid-area: right; }
 .table-rim--near  { grid-area: near; }
 
-/* A tab standing on the rim. It is hinged at its foot and stood up by exactly
-   the angle the table leans away by, so it faces the eye squarely and reads
-   like the sidebar button it stands for — wherever the camera pans, since the
-   camera never turns the table.
+/* A tab lying on the rim, in two parts. The button is a slot: the room the
+   tab may open into, fixed, so a tab opening never moves another. It draws
+   nothing and takes no pointer itself. The chip lying in it, the face, is
+   what is seen and what is pressed — a click on it is the button's, since it
+   is the button's own child.
 
-   Flat at rest, like the sidebar's buttons: a hairline and a surface. The
-   accent marks the open one and nothing else — its tab's own, which it gets
-   from data-tab through the same per-tab rules the sidebar's buttons do. */
+   The slots: on a side edge, the rim's width, with the chip at the outer end
+   and its label opening inwards across the wood towards the mat; on the far
+   edge, 10rem each, with the chip in the middle of its slot and its label
+   opening rightwards into the empty half of the next slot, short of the next
+   chip — the longest far label, Scryfall Search, opens to 148px of the 160px
+   there is. A window too narrow for six such slots shrinks them down to a
+   chip each, and the label that then reaches over a neighbour is lifted
+   above it while it shows. */
 .table-tab {
+  position: relative;
+  display: block;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  pointer-events: none;
+}
+.table-rim--far .table-tab { flex: 0 1 10rem; min-width: 2.5rem; }
+.table-tab[hidden] { display: none; }
+.table-tab:hover,
+.table-tab:focus-visible { z-index: 1; }
+/* The ring goes round what is seen, not round the empty slot. */
+.table-tab:focus-visible { outline: none; }
+.table-tab:focus-visible .table-tab-face {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 2px;
+}
+
+/* The chip: something lying on the wood rather than a control floating over
+   it. Flat in colour, a surface and a hairline like the sidebar's buttons,
+   foreshortened with the table because it lies in its plane, and with the
+   small, tight shadow a thin thing lying on a surface casts round its foot —
+   from the same light the cards' shadows fall from, in the colour a card
+   casts (--card-cast), since a tab lies on this table just as a card does.
+   A drop shadow, as the cards' are, because it hugs the chip's corners.
+
+   At rest it is square and shows its icon, drawn at the collapsed sidebar's
+   size: the icon's box is the chip's full inner width and the icon is
+   centred in it, which is what keeps the icon exactly where it is when the
+   label opens beside it. The accent marks the open tab, collapsed or not —
+   its tab's own, which it gets from data-tab through the same per-tab rules
+   the sidebar's buttons do. */
+.table-tab-face {
+  position: absolute;
+  top: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  box-sizing: border-box;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  max-width: 100%;
   background: var(--surface-1);
-  color: var(--text-muted);
   border: 1px solid var(--border);
   border-bottom: 2px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  font-weight: 600;
   white-space: nowrap;
-  transform-origin: 50% 100%;
-  transform: rotateX(calc(-1 * var(--table-tilt, 24deg)));
+  filter: drop-shadow(0 1px 1px var(--card-cast));
+  pointer-events: auto;
+  cursor: pointer;
   transition: color        var(--dur-tint) var(--ease-tint),
               border-color var(--dur-tint) var(--ease-tint);
 }
-.table-tab:hover { color: var(--text); }
-.table-tab[aria-expanded="true"] {
+.table-rim--left  .table-tab-face { left: 0; }
+.table-rim--right .table-tab-face { right: 0; flex-direction: row-reverse; }
+.table-rim--far   .table-tab-face { left: calc(50% - 1.25rem); max-width: none; }
+.table-tab-face svg {
+  flex: none;
+  width: calc(2.5rem - 2px);
+  height: 1.25rem;
+}
+.table-tab:hover .table-tab-face,
+.table-tab:focus-visible .table-tab-face { color: var(--text); }
+.table-tab[aria-expanded="true"] .table-tab-face {
   color: var(--accent, var(--primary));
   border-bottom-color: var(--accent, var(--primary));
 }
-.table-tab[hidden] { display: none; }
-.table-tab svg { flex-shrink: 0; }
-.table-tab span { overflow: hidden; text-overflow: ellipsis; }
+
+/* The label: folded away to nothing at rest, and opened beside the icon
+   while the tab is pointed at or focused — growing the chip, which grows
+   into its own slot and moves nothing else, as the label fades in and slides
+   the last few pixels out from behind the icon. In the sidebar's own time
+   for its labels (layout.css, .tab-btn-label). The space at its far end
+   opens with it, so folded it leaves no gap behind. A label too long for its
+   slot ends in an ellipsis rather than leaving the slot. */
+.table-tab-label {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0;
+  opacity: 0;
+  translate: calc(-1 * var(--space-2)) 0;
+  transition: max-width var(--dur-base) var(--ease-tint),
+              padding   var(--dur-base) var(--ease-tint),
+              opacity   var(--dur-base) var(--ease-tint),
+              translate var(--dur-base) var(--ease-tint);
+}
+.table-rim--right .table-tab-label { translate: var(--space-2) 0; }
+.table-tab:hover .table-tab-label,
+.table-tab:focus-visible .table-tab-label {
+  max-width: 12rem;
+  padding-inline-end: var(--space-3);
+  opacity: 1;
+  translate: none;
+}
+.table-rim--right .table-tab:hover .table-tab-label,
+.table-rim--right .table-tab:focus-visible .table-tab-label {
+  padding-inline: var(--space-3) 0;
+}
 
 /* ── The mat ───────────────────────────────────────────────────────────
    The playmat, when there is one — the same --playmat-src the page's own

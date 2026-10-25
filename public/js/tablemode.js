@@ -2,8 +2,9 @@
 // An experiment, and an opt-in one: the whole app as a table seen from a seat.
 // The user's playmat lies in the middle of it, framed by a wooden rim, and the
 // table is tilted away from the viewer the way a table is when you sit at it.
-// The tabs are no longer a sidebar. They are physical tabs standing on the rim,
-// and pressing one lifts that tab's page up off the table to be read.
+// The tabs are no longer a sidebar. They are physical tabs lying on the rim —
+// chips on the wood, an icon each, that show their label when pointed at — and
+// pressing one lifts that tab's page up off the table to be read.
 //
 // Nothing about the app changes underneath. A tab's page is the same element it
 // always was — the #tab-… pane setTab() shows — and table mode only *moves* it:
@@ -37,7 +38,7 @@
 //       .table-plane the table: wood, a grid of rim / mat / rim, preserve-3d,
 //                    tilted away by TABLE_TILT_REST and fitted to the window
 //                    here (tableFitSize)
-//         .table-rim   the four edges; the tabs stand on three of them
+//         .table-rim   the four edges; the tabs lie on three of them
 //         .table-mat   the playmat (or the theme's felt), where cards lie
 //   .table-dim     the slight veil over the table while a panel floats
 //   .table-panel   the panel host — see "Panels" below
@@ -56,7 +57,7 @@
 //
 // ── The table, fitted ─────────────────────────────────────────────────────
 // At rest the table fills the window: its near corners close to the window's
-// bottom corners and its far edge — with the tabs standing on it — close to
+// bottom corners and its far edge — with the tabs lying on it — close to
 // the top. A perspective makes that a question with an answer rather than a
 // percentage to tune: tableFitSize works out the plane's laid-out size and
 // place that land those edges there at the rest tilt, and tableFitTable hands
@@ -113,7 +114,7 @@
 //   float  lifted off the table and facing the viewer, flat and readable,
 //          scrolling inside; the table dims a little behind it. Every tab
 //          but the Card tab, in this first half of the work. It is fitted
-//          clear of the tabs standing on the rim (tableFloatBox), because a
+//          clear of the tabs lying on the rim (tableFloatBox), because a
 //          tab has to stay pressable while its page floats: pressed again it
 //          puts the page down, and any other tab swaps it.
 //   grow   unfolding from the tab's edge and lying ON the mat, in the tilted
@@ -241,13 +242,14 @@
 const TABLE_MODE_KEY = 'mtgtools_tablemode';
 
 /* How far the table leans away from the viewer at rest, in degrees. table.css
- * reads it too, as --table-tilt, so the tabs standing on the rim can be stood
- * square to the eye by the same number. */
+ * tilts the plane by it too, as --table-tilt, so the matrix the screen is
+ * mapped back to the mat through and the table the browser draws lean by the
+ * same number. */
 const TABLE_TILT_REST = 24;
 
 /* How the table is fitted to the window at rest (tableFitSize): its near
  * corners this many pixels in from the window's bottom corners, and its far
- * edge — or the tops of the tabs standing on it, whichever is higher — the
+ * edge — or the tops of the tabs on it, should they ever reach past it — the
  * same gutter below the window's top, plus room for the pan at rest to carry
  * the table down by TABLE_PAN_REST without a far tab leaving the window. */
 const TABLE_FIT_GUTTER = 8;
@@ -634,7 +636,7 @@ function tableEaseFor(dt, ease) {
 
 /* Where a floating panel goes in a window of `view` = { width, height }.
  *
- * As large as its ceiling allows, but clear of the tabs standing on the rim —
+ * As large as its ceiling allows, but clear of the tabs lying on the rim —
  * `clear` = { top, left, right }: the lowest edge of the far edge's tabs, the
  * rightmost edge of the left edge's and the leftmost of the right edge's, in
  * window pixels — so that every tab can still be pressed while the panel
@@ -1116,19 +1118,34 @@ function tableRimEntry(tab) {
   return TABLE_RIM.find(entry => entry.tab === tab) || null;
 }
 
-/* The tabs standing on one edge. A tab carries data-tab, which is what gives
- * it its tab's accent (tokens.css, §3) for the state it marks; the Appearance
- * one carries .appearance-trigger, which is how main.js's outside-click
- * handler knows the click that opens the popover is not a click outside it. */
+/* The icon of the one tab with no sidebar button to borrow one from: Leave
+ * table, which puts the page back with its sidebar — so a page with a sidebar
+ * down its side, drawn in the sidebar's own hand (24-unit box, 2.2 stroke,
+ * round ends). */
+const TABLE_LEAVE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/>' +
+  '<line x1="9" y1="3" x2="9" y2="21"/></svg>';
+
+/* The tabs lying on one edge. Each is a slot — the button — holding a chip,
+ * the face: an icon at rest, and its label beside it while it is pointed at
+ * or focused (table.css). The label is drawn, so it is read; and it is the
+ * button's accessible name too, said once as aria-label, so that a chip
+ * whose label is folded away to nothing is still called what it is. A tab
+ * carries data-tab, which is what gives it its tab's accent (tokens.css, §3)
+ * for the state it marks; the Appearance one carries .appearance-trigger,
+ * which is how main.js's outside-click handler knows the click that opens
+ * the popover is not a click outside it. */
 function tableRimHtml(edge) {
   return TABLE_RIM.map((entry, i) => {
     if (entry.edge !== edge) return '';
-    const nav  = document.getElementById(tableNavId(entry) || '');
-    const icon = nav?.querySelector('svg')?.outerHTML || '';
-    const cls  = `table-tab${entry.act === 'appearance' ? ' appearance-trigger' : ''}`;
-    const tab  = entry.tab ? ` data-tab="${entry.tab}"` : '';
-    return `<button type="button" class="${cls}" data-rim="${i}"${tab}>` +
-           `${icon}<span>${esc(tableRimLabel(entry))}</span></button>`;
+    const nav   = document.getElementById(tableNavId(entry) || '');
+    const icon  = nav?.querySelector('svg')?.outerHTML || (entry.act === 'leave' ? TABLE_LEAVE_ICON : '');
+    const cls   = `table-tab${entry.act === 'appearance' ? ' appearance-trigger' : ''}`;
+    const tab   = entry.tab ? ` data-tab="${entry.tab}"` : '';
+    const label = esc(tableRimLabel(entry));
+    return `<button type="button" class="${cls}" data-rim="${i}"${tab} aria-label="${label}">` +
+           `<span class="table-tab-face">${icon}<span class="table-tab-label" aria-hidden="true">${label}</span></span></button>`;
   }).join('');
 }
 
@@ -1249,10 +1266,11 @@ function tableBuild() {
  * handed to table.css as --table-x/-y/-w/-h on the scene. The far edge is
  * asked to sit a gutter below the window's top, plus the pan at rest's reach,
  * so a lean towards you never carries a far tab out of the window — and the
- * tabs standing on that edge, which rise above it a little or not at all
- * depending on their font and the rim's height, are then measured and the
- * room made bigger by whatever they still reach past it. Twice, since a
- * taller table stands its tabs a hair differently; the second pass is a
+ * tabs on that edge are then measured and the room made bigger by whatever
+ * they still reach past it. They lie flat inside the rim, so they reach past
+ * nothing and the measure changes nothing; it is kept so that a tab that one
+ * day stands up off the wood again is still kept in the window. Twice, since
+ * a taller table places its tabs a hair differently; the second pass is a
  * fraction of a pixel. Measured with the camera at rest, and put back. */
 function tableFitTable() {
   const { scene, camera, plane } = tableEls;
@@ -1676,7 +1694,14 @@ function tablePutPaneBack() {
  * rest and the gap widened by how far the pan at rest can carry them, so no
  * lean of the head walks a tab in under the panel. Put back in the same task,
  * so the rest pose is never drawn. A camera zoomed in has carried the tabs
- * elsewhere, and the panel is still fitted to where they stand at rest. */
+ * elsewhere, and the panel is still fitted to where they lie at rest.
+ *
+ * What is measured is each tab's slot, the button, not the chip lying in it.
+ * The slot is the room the chip's label opens into (table.css): on a side
+ * edge the width of the rim, so a label shown under the pointer is never
+ * drawn beneath the panel; and the chip sits at the slot's outer end, so on a
+ * window narrow enough for the panel to reach over the slots, what it reaches
+ * over first is empty wood and the chip is the last thing it would cover. */
 const TABLE_FLOAT_PROPS = ['left', 'top', 'width', 'height', 'right', 'margin-inline'];
 
 function tableFitPanel() {

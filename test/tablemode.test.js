@@ -124,6 +124,28 @@ test('the rim stands every tab the sidebar has, on the edges the table puts them
   }
 });
 
+test('the tabs lie flat on the rim, an icon each, and open their label on hover and focus', () => {
+  const sheet = read('public/css/table.css');
+  const rule = selector => {
+    const at = sheet.match(new RegExp(`(?:^|\\n)${selector.replace(/[.[\]()*:"=]/g, '\\$&')}\\s*\\{([^}]*)\\}`));
+    assert.ok(at, `table.css has a rule for ${selector}`);
+    return at[1];
+  };
+  assert.doesNotMatch(sheet, /rotateX\(calc\(-1/, 'nothing is stood back up against the tilt');
+  assert.doesNotMatch(rule('.table-rim'), /preserve-3d/, 'an edge is a flat picture in the table’s plane');
+  assert.doesNotMatch(rule('.table-tab'), /transform/, 'and a tab on it has no transform of its own');
+  const label = rule('.table-tab-label');
+  assert.match(label, /max-width:\s*0/, 'folded away at rest');
+  assert.match(label, /opacity:\s*0/);
+  assert.match(sheet, /\.table-tab:hover \.table-tab-label,\s*\n\.table-tab:focus-visible \.table-tab-label\s*\{[^}]*opacity:\s*1/,
+    'opened while pointed at or focused');
+  assert.match(sheet, /\.table-tab\[aria-expanded="true"\] \.table-tab-face\s*\{[^}]*border-bottom-color:\s*var\(--accent/,
+    'the open tab keeps its accent, folded or not');
+  const js = read('public/js/tablemode.js');
+  assert.match(js, /aria-label="\$\{label\}"/, 'every tab is named for its label, folded or not');
+  assert.match(js, /TABLE_LEAVE_ICON/, 'and Leave table, with no sidebar button to borrow from, has an icon of its own');
+});
+
 // ── Click or drag ─────────────────────────────────────────────────────────
 
 test('a press that moves under five pixels is a click', () => {
