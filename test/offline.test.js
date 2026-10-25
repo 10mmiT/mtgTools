@@ -184,3 +184,30 @@ test('no vendored file points at a source map it does not ship', () => {
       `${file}: a map that is not here is a 404 in devtools`);
   }
 });
+
+// ── Everything a stylesheet names is here ─────────────────────────────────
+
+/* A url() that names a local file is only as offline as the file is
+ * present: a missing one is a 404 that looks, on the page, like a theme with
+ * no texture or a face that fell back. Table mode's wood (public/textures/)
+ * is the case that asked for this, and the fonts come along with it. A
+ * url() in a custom property is resolved where it is used, and every sheet
+ * that uses one sits beside tokens.css, so each is read against css/. */
+test('every local file a stylesheet names is shipped', () => {
+  const named = new Set();
+  for (const sheet of SHEETS.filter(s => s.startsWith('public/css/'))) {
+    for (const [, url] of read(sheet).matchAll(/url\(\s*['"]?([^'")?#]+)/g)) {
+      if (url.startsWith('data:')) continue;
+      const file = path.resolve(path.join(ROOT, 'public/css'), url);
+      assert.ok(fs.existsSync(file), `${sheet}: url(${url}) is not in the repository`);
+      named.add(path.relative(ROOT, file));
+    }
+  }
+  for (const wood of ['public/textures/table-wood-dark.webp', 'public/textures/table-wood-light.webp']) {
+    assert.ok(named.has(wood), `${wood} is named by a stylesheet`);
+    /* A WebP, whole: RIFF and WEBP in its header, not a pointer file or a
+       truncated download. */
+    const head = fs.readFileSync(path.join(ROOT, wood)).subarray(0, 12).toString('latin1');
+    assert.match(head, /^RIFF....WEBP$/s, `${wood} is a WebP`);
+  }
+});

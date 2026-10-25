@@ -1435,10 +1435,17 @@ test('the API the next half of the work builds on is there, and frozen', () => {
 test('every palette says what its table is made of', () => {
   const palettes = parsePalettes(read('public/css/tokens.css'));
   for (const theme of PALETTE_THEMES) {
-    for (const token of ['--table-wood', '--table-wood-edge']) {
+    for (const token of ['--table-wood', '--table-wood-edge', '--table-wood-img', '--table-wood-tint', '--table-wood-lit',
+      '--table-land-ink', '--table-land-halo', '--table-land-fill']) {
       assert.ok(palettes[theme][token], `the ${theme} palette does not name ${token}`);
     }
   }
+  /* The dark rooms lie on walnut, the lit ones on oak, and the
+     high-contrast theme on no photograph at all. */
+  const wood = theme => palettes[theme]['--table-wood-img'];
+  for (const theme of ['dark', 'dusk']) assert.match(wood(theme), /^url\('\.\.\/textures\/table-wood-dark\.webp'\)$/, theme);
+  for (const theme of ['light', 'sepia']) assert.match(wood(theme), /^url\('\.\.\/textures\/table-wood-light\.webp'\)$/, theme);
+  assert.strictEqual(wood('contrast'), 'none');
 });
 
 test('the table’s stylesheet is served after the tabs’ and held to the token contract', () => {

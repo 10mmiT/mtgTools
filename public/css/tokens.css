@@ -426,6 +426,19 @@
      the tabs standing on the rim are surfaces of their own. */
   --table-wood:      #2e241d;
   --table-wood-edge: #1b1511;
+  /* The wood's grain, from a photograph rather than drawn: a texture under
+     public/textures/ (its README says where each one is from), tiled across
+     the board with the colour above as its fallback and drawn-on grain
+     under it (css/table.css). The url is relative to this file, and
+     table.css, where it is used, sits beside it, so it names the same
+     picture whichever file a browser resolves it against. The dark themes
+     lie on dark walnut, the light ones on oak. A photograph is brighter than
+     the room a dark theme is, so it is dimmed by --table-wood-tint, a flat
+     veil of the room's own dark laid over it; --table-wood-lit is the
+     hairline of light just inside the dark edge band, the board's bevel. */
+  --table-wood-img:  url('../textures/table-wood-dark.webp');
+  --table-wood-tint: rgb(10 11 13 / .45);
+  --table-wood-lit:  rgb(255 255 255 / .07);
   /* The landing mark a card in hand lays where it will land (css/table.css,
      .table-cast): a ring in --table-land-ink with a hairline of
      --table-land-halo inside it, and a faint wash of the ink. The ink is the
@@ -522,6 +535,10 @@ html[data-theme="dusk"] {
   --mat:   #1c1815;
   --table-wood:      #33261c;
   --table-wood-edge: #1f1710;
+  /* The same walnut, under a warmer veil. */
+  --table-wood-img:  url('../textures/table-wood-dark.webp');
+  --table-wood-tint: rgb(22 14 8 / .42);
+  --table-wood-lit:  rgb(255 240 220 / .07);
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 16%, transparent);
@@ -597,6 +614,10 @@ html[data-theme="light"] {
      rather than a hole in it. */
   --table-wood:      #a8835f;
   --table-wood-edge: #7b5c40;
+  /* Oak, in a lit room: no veil to speak of. */
+  --table-wood-img:  url('../textures/table-wood-light.webp');
+  --table-wood-tint: rgb(0 0 0 / .04);
+  --table-wood-lit:  rgb(255 255 255 / .22);
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 12%, transparent);
@@ -674,6 +695,10 @@ html[data-theme="sepia"] {
   --mat:   #ece4d6;
   --table-wood:      #a27b55;
   --table-wood-edge: #785739;
+  /* The same oak, warmed a little towards the paper. */
+  --table-wood-img:  url('../textures/table-wood-light.webp');
+  --table-wood-tint: rgb(110 70 20 / .10);
+  --table-wood-lit:  rgb(255 248 230 / .22);
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 12%, transparent);
@@ -759,6 +784,13 @@ html[data-theme="contrast"] {
      where the table's outline has to be seen rather than inferred. */
   --table-wood:      #3f2f21;
   --table-wood-edge: #9a7a58;
+  /* No photograph here: grain is texture behind the tabs lying on the rim,
+     and texture behind controls is what this theme exists to take away. The
+     board stays the flat colour with the faint drawn grain, and the edge
+     band above is what carries its outline. */
+  --table-wood-img:  none;
+  --table-wood-tint: transparent;
+  --table-wood-lit:  rgb(255 255 255 / .30);
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 18%, transparent);

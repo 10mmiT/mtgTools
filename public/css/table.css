@@ -69,11 +69,23 @@ html[data-tablemode] body::after { display: none; }
 }
 
 /* The table: a grid of rim, mat and rim, in wood. The border is the table's
-   outer edge, a darker band round the board; the faint lines across it are
-   the grain, drawn in the same wood token mixed towards that edge so a theme
-   that repaints the wood repaints its grain with it. Its box is the one the
-   script fits to the window; the fallback is only ever drawn by a script
-   that has not run.
+   outer edge, a darker band round the board, and the outline just inside it
+   a hairline of light along that edge's inner lip, the board's bevel
+   (--table-wood-lit). The board itself is painted in four layers, top first:
+   a flat veil of the room's own light (--table-wood-tint — a photograph is
+   brighter than a dark theme's dim room); the theme's wood, a photograph
+   tiled across it (--table-wood-img, public/textures/); faint lines of
+   grain drawn in the wood token mixed towards the edge, which the
+   photograph covers and which are the grain wherever there is none — the
+   high-contrast theme, or a picture still loading or gone; and the wood's
+   flat colour under all of it. A tile is --table-wood-tile across in the
+   plane's own pixels, about a hand's span of a real board at rest: big
+   enough that the repeat is not seen along a rim, small enough that the
+   grain is grain and not stripes. Every edge shows the photograph's grain
+   in the one direction it was taken in — a background cannot be turned,
+   and a turned copy per edge is a second picture to ship for a hairline of
+   rim. Its box is the one the script fits to the window; the fallback is
+   only ever drawn by a script that has not run.
 
    The rim's sizes, said once here for the grid and for what lies on the rim:
    a side edge is one chip wide — the chip and a hair of wood either side —
@@ -85,6 +97,7 @@ html[data-tablemode] body::after { display: none; }
   --table-rim-side:  3.5rem;
   --table-rim-far:   4.25rem;
   --table-tool-h:    3.5rem;
+  --table-wood-tile: 512px;
   position: absolute;
   left: var(--table-x, 6vw);
   top: var(--table-y, 12vh);
@@ -99,11 +112,17 @@ html[data-tablemode] body::after { display: none; }
     "near near near";
   border: 6px solid var(--table-wood-edge);
   border-radius: var(--radius-md);
+  outline: 1px solid var(--table-wood-lit);
+  outline-offset: -7px;
   background-color: var(--table-wood);
-  background-image: repeating-linear-gradient(94deg,
-    transparent 0 22px,
-    color-mix(in srgb, var(--table-wood-edge) 28%, transparent) 22px 23px,
-    transparent 23px 41px);
+  background-image:
+    linear-gradient(var(--table-wood-tint), var(--table-wood-tint)),
+    var(--table-wood-img, none),
+    repeating-linear-gradient(94deg,
+      transparent 0 22px,
+      color-mix(in srgb, var(--table-wood-edge) 28%, transparent) 22px 23px,
+      transparent 23px 41px);
+  background-size: auto, var(--table-wood-tile) var(--table-wood-tile), auto;
   transform-style: preserve-3d;
   transform: rotateX(var(--table-tilt, 24deg));
 }

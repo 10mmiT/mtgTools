@@ -64,6 +64,7 @@ mtgtools/
 │   ├── login.html     # Password login page
 │   ├── fonts/         # Inter, vendored — the app renders the same with no route out
 │   ├── vendor/        # mana-font and jsPDF, vendored for the same reason
+│   ├── textures/      # Table mode's wood, two CC0 Poly Haven photographs, vendored too
 │   ├── css/           # Loaded in this order; later files may override earlier
 │   │   ├── tokens.css     # The only file allowed raw colours: five theme palettes,
 │   │   │                  # the type/spacing/radius scales, the motion vocabulary
