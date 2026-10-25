@@ -41,14 +41,16 @@ mtgtools/
 │   ├── deck*.test.js        # The Decks tab and the builder — boards, folders, privacy, history,
 │   │                        # ownership, legality, mana, lands, printings, the optimizer, export
 │   ├── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
-│   └── tablemode.test.js    # Table mode — panel kinds, the rim's tabs, click or drag, the
+│   └── tablemode.test.js    # Table mode — panel kinds, which tab stands on which edge and in
+│                            # which group, click or drag, the
 │                            # table's fit, the pan and the wheel's zoom and their easing, how
 │                            # large a card's picture is decoded, the lift, the screen-to-mat
 │                            # mapping through the camera, the floating panel's box, the layout,
 │                            # what each tab lays and in which piles, where a re-laid card
-│                            # goes, when a panel tucks; the Deck Builder's commander at the
+│                            # goes, when a panel tucks, where a card in hand lands and its
+│                            # landing shadow lies; the Deck Builder's commander at the
 │                            # head of the mat, and when its slip and bin show, the bin's hit
-│                            # on the mat and what a card put in it does to the deck
+│                            # on the far rim and what a card put in it does to the deck
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -117,14 +119,15 @@ mtgtools/
 │       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
 │       ├── tablemode.js   # Table mode (experimental): the app as a 3D table seen from a seat — the
-│       │                  # switch, the table fitted to the window, the rim of tabs lying on it,
-│       │                  # panes lifted into panels and put back, the camera panning and zooming
-│       │                  # over it with its cards kept sharp, cards picked up off the mat, each
+│       │                  # switch, the table fitted to the window, the tabs lying down the rim's
+│       │                  # two sides round a wide mat, panes lifted into panels and put back, the
+│       │                  # camera panning and zooming over it with its cards kept sharp, cards
+│       │                  # picked up off the mat with a shadow where they will land, each
 │       │                  # tab's own cards laid there
 │       │                  # (read through a small getter beside each tab's renderer) with its
 │       │                  # panel tucked out of their way — the Deck Builder's with its commander
-│       │                  # at the head, a slip to add a card and a bin to drop one in;
-│       │                  # window.tableMode for anything else
+│       │                  # at the head, and on the far rim a slip to add a card and a bin to
+│       │                  # drop one in; window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
 │   ├── design/          # What was planned — briefs and PRDs, kept as context
