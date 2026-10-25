@@ -110,10 +110,19 @@ test('the rim stands every tab the sidebar has, on the edges the table puts them
   assert.deepStrictEqual([...tabs].sort(), [...APP_TABS].sort(),
     'a tab missing from the rim cannot be reached in table mode');
 
-  const edge = name => rim.filter(e => e.edge === name).map(e => e.tab || e.act);
-  assert.deepStrictEqual(edge('far'), ['collections', 'players', 'deckview', 'scryfall', 'sets', 'wants']);
-  assert.deepStrictEqual(edge('left'), ['available', 'pick', 'lands', 'card']);
-  assert.deepStrictEqual(edge('right'), ['appearance', 'rss', 'admin', 'password', 'signout', 'leave']);
+  /* Edge by edge and group by group, as the rim draws them. */
+  const layout = app.copy(app.evaluate('tableRimLayout()'));
+  const names = indices => (indices || []).map(i => rim[i].tab || rim[i].act);
+  assert.deepStrictEqual(Object.keys(layout).sort(), ['left', 'right'],
+    'only the side edges hold tabs: the far edge is the slip’s and the bin’s');
+  assert.deepStrictEqual(names(layout.right.far), ['collections', 'players', 'deckview', 'scryfall', 'sets', 'wants'],
+    'the card tabs stand down the right edge from its far corner');
+  assert.deepStrictEqual(Object.keys(layout.right), ['far'], 'in one group');
+  assert.deepStrictEqual(names(layout.left.far), ['available', 'pick', 'lands', 'card'],
+    'the other tabs at the far end of the left edge');
+  assert.deepStrictEqual(names(layout.left.near), ['appearance', 'rss', 'admin', 'password', 'signout', 'leave'],
+    'and the account and the table’s own controls apart from them at its near end');
+  assert.ok(rim.every(e => ['far', 'near'].includes(e.group)), 'every tab says which end of its edge it stands at');
 
   const html = read('public/index.html');
   for (const entry of rim.filter(e => e.nav)) {
@@ -141,6 +150,17 @@ test('the tabs lie flat on the rim, an icon each, and open their label on hover 
     'opened while pointed at or focused');
   assert.match(sheet, /\.table-tab\[aria-expanded="true"\] \.table-tab-face\s*\{[^}]*border-bottom-color:\s*var\(--accent/,
     'the open tab keeps its accent, folded or not');
+  assert.match(sheet, /\.table-rim--left,\s*\n\.table-rim--right\s*\{[^}]*justify-content:\s*space-between/,
+    'a side edge stands its two groups at its two ends, apart');
+  assert.match(sheet, /\.table-rim--left,\s*\n\.table-rim--right\s*\{[^}]*transform:\s*translateZ\(var\(--table-rim-z/,
+    'and lies above the cards, so a label opened over the mat is drawn over them');
+  assert.match(sheet, /\.table-rim--left,\s*\n\.table-rim--right\s*\{[^}]*pointer-events:\s*none/,
+    'while the edge itself takes no pointer from the cards beside it — only its chips do');
+  assert.ok(app.evaluate('TABLE_RIM_Z') > app.evaluate('(TABLE_CARDS_MAX + 2) * TABLE_CARD_GAP'),
+    'above the highest a card lying on the mat can be');
+  assert.match(sheet, /grid-template-columns:\s*var\(--table-rim-side\) minmax\(0, 1fr\) var\(--table-rim-side\)/,
+    'the side edges are one width, said once');
+  assert.match(sheet, /--table-rim-side:\s*3\.5rem/, 'a chip’s width and a hair of wood, so the mat is nearly the whole table');
   const js = read('public/js/tablemode.js');
   assert.match(js, /aria-label="\$\{label\}"/, 'every tab is named for its label, folded or not');
   assert.match(js, /TABLE_LEAVE_ICON/, 'and Leave table, with no sidebar button to borrow from, has an icon of its own');
@@ -423,6 +443,41 @@ test('on a window too narrow for both, the page stays readable and reaches over 
 test('a panel never has a negative size, whatever the rim measured', () => {
   const b = box({ width: 300, height: 200 }, { top: 400, left: 200, right: 100 });
   assert.ok(b.width >= 0 && b.height >= 0, JSON.stringify(b));
+});
+
+test('with the far edge bare of tabs, the panel hangs from the top of the window', () => {
+  const view = { width: 1440, height: 900 };
+  const b = box(view, { top: 0, left: 298, right: 1130 }, 41);
+  assert.strictEqual(b.top, 41, 'a gap below the window’s top, nothing to hang below');
+  assert.ok(near(b.left + b.width / 2, 714), 'centred between the side edges’ tabs');
+  assert.ok(b.left >= 298 + 41 && b.left + b.width <= 1130 - 41, 'and clear of them, labels and all');
+});
+
+test('tucked at the foot, the panel is still between the side tabs, clear of the account’s group', () => {
+  /* The tucked bar is the panel slid down, the same left and width: so the
+     question is whether the box is clear of the chips at the near end of
+     the left edge, which stand as low as the bar does. Measured-like
+     windows: chips and their labels' reach, in window pixels. */
+  const windows = [
+    { view: { width: 1440, height: 900 }, chipsL: 90,  reachL: 298, chipsR: 1350, reachR: 1130 },
+    { view: { width: 1280, height: 800 }, chipsL: 80,  reachL: 270, chipsR: 1200, reachR: 1010 },
+    /* The narrowest the table is offered at: the labels' room leaves less
+       than the floor, which wins — but only over the room labels open into,
+       never as far as a chip. */
+    { view: { width: 900,  height: 700 }, chipsL: 70,  reachL: 250, chipsR: 830,  reachR: 650 },
+  ];
+  for (const { view, chipsL, reachL, chipsR, reachR } of windows) {
+    const gap = 12 + 0.02 * view.width;
+    const b = box(view, { top: 0, left: reachL, right: reachR }, gap);
+    assert.ok(b.left > chipsL && b.left + b.width < chipsR,
+      `${view.width}×${view.height}: the bar [${b.left}, ${b.left + b.width}] reaches a chip`);
+    if (reachR - reachL - 2 * gap >= 560) {
+      assert.ok(b.left >= reachL + gap - 1e-9 && b.left + b.width <= reachR - gap + 1e-9,
+        `${view.width}×${view.height}: and the labels’ room too`);
+    } else {
+      assert.strictEqual(b.width, 560, 'the floor wins on a window too narrow for both');
+    }
+  }
 });
 
 // ── The table, fitted to the window ──────────────────────────────────────
@@ -1114,6 +1169,51 @@ test('the bin is hit on the mat, by the pointer mapped through the camera', () =
     const far = project(m, 10, 10, z);
     assert.strictEqual(inRect(unproject(m, far.x, far.y, z), bin), false);
   }
+});
+
+test('the bin is hit on the far rim, by the pointer mapped onto the plane past the mat’s edge', () => {
+  const inRect = (p, r) => app.sandbox.tableInMatRect(p, r);
+  /* The bin's box in the mat's pixels, lying on the far rim: above the mat's
+     top edge, so its top is negative — the mat in GEOM starts 75px into the
+     plane, so the rim runs from -75 to 0 there. */
+  const bin = { left: 760, top: -63, width: 56, height: 56 };
+  const z = app.evaluate('tableToolsZ()');
+  assert.ok(z > 0 && z <= 0.5, 'it lies on the wood, a hair above it, in the table’s plane');
+  for (const v of VIEWS) {
+    const m = matrix(v);
+    const mid = project(m, 788, -35, z);
+    const back = unproject(m, mid.x, mid.y, z);
+    assert.ok(near(back.u, 788, 1e-6) && near(back.v, -35, 1e-6),
+      `the mapping runs on past the mat’s edge across the rim: ${JSON.stringify(back)}`);
+    assert.strictEqual(inRect(back, bin), true, `the bin's middle, ${JSON.stringify(v)}`);
+    for (const [u, w] of [[761, -62], [815, -8]]) {
+      const p = project(m, u, w, z);
+      assert.strictEqual(inRect(unproject(m, p.x, p.y, z), bin), true, `its corner ${u},${w}`);
+    }
+    for (const [u, w] of [[788, 4], [788, -70], [740, -35], [830, -35]]) {
+      const p = project(m, u, w, z);
+      assert.strictEqual(inRect(unproject(m, p.x, p.y, z), bin), false, `${u},${w} is beside the bin, not in it`);
+    }
+  }
+  const css = read('public/css/table.css');
+  assert.match(css, /\.table-slip,\s*\n\.table-bin\s*\{[^}]*bottom:\s*calc\(100% \+ 1px \+ \(var\(--table-rim-far\) - var\(--table-tool-h\)\) \/ 2\)/,
+    'the stylesheet lays the slip and the bin above the mat’s top edge, centred in the far rim');
+  assert.match(css, /\.table-slip-pop \.table-slip-drop\s*\{[^}]*top:\s*0;[^}]*bottom:\s*auto/,
+    'and the slip’s suggestions hang down from below it, over the table');
+  assert.match(read('public/js/tablemode.js'), /t\.pop\.style\.top\s*=\s*`\$\{\(at\.bottom \+ TABLE_POP_GAP\)/,
+    'from the slip’s drawn foot');
+});
+
+test('over the bin a card becomes small enough for the bin to show round it, however large it is laid', () => {
+  const held = (w, b) => app.sandbox.tableBinHeldShrink(w, b);
+  const shrink = app.evaluate('TABLE_BIN_HELD_SHRINK'), fit = app.evaluate('TABLE_BIN_HELD_FIT');
+  assert.strictEqual(held(60, 56), shrink, 'a small card shrinks by the look’s own amount');
+  assert.ok(near(held(110, 56) * 110, 56 * fit), 'a large one to a share of the bin’s width');
+  assert.ok(held(150, 56) * 150 < 56, 'never wider than the bin');
+  assert.strictEqual(held(0, 56), shrink);
+  assert.strictEqual(held(110, 0), shrink, 'no bin to measure asks nothing further');
+  const pose = app.copy(app.sandbox.tableBinPose(1, held(110, 56)));
+  assert.ok(near(pose.shrink, held(110, 56)), 'and the look goes all the way to it');
 });
 
 test('a card with copies to spare loses one, and the last copy is taken out', () => {

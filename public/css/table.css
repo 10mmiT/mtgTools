@@ -73,16 +73,26 @@ html[data-tablemode] body::after { display: none; }
    the grain, drawn in the same wood token mixed towards that edge so a theme
    that repaints the wood repaints its grain with it. Its box is the one the
    script fits to the window; the fallback is only ever drawn by a script
-   that has not run. */
+   that has not run.
+
+   The rim's sizes, said once here for the grid and for what lies on the rim:
+   a side edge is one chip wide — the chip and a hair of wood either side —
+   because its labels open over the mat rather than into room kept for them
+   on the wood, which leaves the mat nearly the table's whole width. The far
+   edge is as deep as the Deck Builder's slip and bin (--table-tool-h) and a
+   little wood round them, which is all it holds. */
 .table-plane {
+  --table-rim-side:  3.5rem;
+  --table-rim-far:   4.25rem;
+  --table-tool-h:    3.5rem;
   position: absolute;
   left: var(--table-x, 6vw);
   top: var(--table-y, 12vh);
   width: var(--table-w, 88vw);
   height: var(--table-h, 76vh);
   display: grid;
-  grid-template-columns: 12rem minmax(0, 1fr) 12rem;
-  grid-template-rows: 4.25rem minmax(0, 1fr) 2.25rem;
+  grid-template-columns: var(--table-rim-side) minmax(0, 1fr) var(--table-rim-side);
+  grid-template-rows: var(--table-rim-far) minmax(0, 1fr) 2.25rem;
   grid-template-areas:
     "far  far  far"
     "left mat  right"
@@ -99,22 +109,46 @@ html[data-tablemode] body::after { display: none; }
 }
 
 /* ── The rim ───────────────────────────────────────────────────────────
-   The three edges with tabs on them and the near one without. The tabs lie
-   flat on the wood, so an edge has nothing standing up off it and is drawn
-   as one flat picture lying in the table's plane, like the mat beside it.
-   That is also what lets a tab's label, opened over its neighbour's room,
-   be stacked above it by an ordinary z-index. */
+   The two side edges with tabs on them, and the far and near ones without —
+   the far one is where the Deck Builder's slip and bin lie, below. The tabs
+   lie flat on the wood, so an edge has nothing standing up off it and is
+   drawn as one flat picture parallel to the table's plane, like the mat
+   beside it. That is also what lets a tab's label, opened over its
+   neighbour, be stacked above it by an ordinary z-index.
+
+   A side edge's picture lies --table-rim-z above the wood (written by the
+   script: above the highest card on the mat), because its labels open over
+   the mat's edge and must be drawn over the cards lying there, and found
+   first by the pointer. The edge itself takes no pointer — only its chips
+   do — so the strip of it over the mat's edge never stands between a hand
+   and a card. A card in hand is held far higher, and passes over it.
+
+   Each side edge stands its tabs in groups (js/tablemode.js, TABLE_RIM), a
+   column at each end of it: the far group from the far corner down, the
+   near group from the near corner up, and whatever the edge has to spare
+   between the two. */
 .table-rim {
   display: flex;
   gap: var(--space-2);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-2);
 }
-.table-rim--far   { grid-area: far; justify-content: center; align-items: center; }
+.table-rim--far   { grid-area: far; }
 .table-rim--left,
-.table-rim--right { flex-direction: column; justify-content: flex-start; align-items: stretch; }
+.table-rim--right {
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
+  transform: translateZ(var(--table-rim-z, 0px));
+  pointer-events: none;
+}
 .table-rim--left  { grid-area: left; }
 .table-rim--right { grid-area: right; }
 .table-rim--near  { grid-area: near; }
+.table-rim-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
 
 /* A tab lying on the rim, in two parts. The button is a slot: the room the
    tab may open into, fixed, so a tab opening never moves another. It draws
@@ -122,14 +156,12 @@ html[data-tablemode] body::after { display: none; }
    what is seen and what is pressed — a click on it is the button's, since it
    is the button's own child.
 
-   The slots: on a side edge, the rim's width, with the chip at the outer end
-   and its label opening inwards across the wood towards the mat; on the far
-   edge, 10rem each, with the chip in the middle of its slot and its label
-   opening rightwards into the empty half of the next slot, short of the next
-   chip — the longest far label, Scryfall Search, opens to 148px of the 160px
-   there is. A window too narrow for six such slots shrinks them down to a
-   chip each, and the label that then reaches over a neighbour is lifted
-   above it while it shows. */
+   The slot is the rim's width, which is a chip's, and the chip lies in it
+   against the outer edge; its label opens inwards, out of the slot and over
+   the mat's edge, by its words and the --space-3 it opens with — which
+   js/tablemode.js counts the same way, to keep a floating panel clear of a
+   label opened beside it (tableFitPanel). Lifted above the tabs below it
+   while it shows, so a label never opens under a neighbour's chip. */
 .table-tab {
   position: relative;
   display: block;
@@ -142,7 +174,6 @@ html[data-tablemode] body::after { display: none; }
   font-weight: 600;
   pointer-events: none;
 }
-.table-rim--far .table-tab { flex: 0 1 10rem; min-width: 2.5rem; }
 .table-tab[hidden] { display: none; }
 .table-tab:hover,
 .table-tab:focus-visible { z-index: 1; }
@@ -175,7 +206,6 @@ html[data-tablemode] body::after { display: none; }
   box-sizing: border-box;
   height: 2.5rem;
   min-width: 2.5rem;
-  max-width: 100%;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-bottom: 2px solid var(--border);
@@ -189,7 +219,6 @@ html[data-tablemode] body::after { display: none; }
 }
 .table-rim--left  .table-tab-face { left: 0; }
 .table-rim--right .table-tab-face { right: 0; flex-direction: row-reverse; }
-.table-rim--far   .table-tab-face { left: calc(50% - 1.25rem); max-width: none; }
 .table-tab-face svg {
   flex: none;
   width: calc(2.5rem - 2px);
@@ -365,6 +394,7 @@ html[data-playmat] .table-mat {
 /* Picked up to be looked at: its place on the table is kept for it. */
 .table-card.is-looked { visibility: hidden; }
 
+
 /* Put in the bin: it goes into it shrinking, and fades as it goes — the
    script writes the bin's place and the shrink into its transform — in the
    card layer's own time, so with cards still it is simply gone. A card with
@@ -460,21 +490,26 @@ html[data-playmat] .table-mat {
 .table-look-remove[hidden] { display: none; }
 
 /* ── The Deck Builder's slip and bin ───────────────────────────────────
-   Two things lying on the mat beside the deck's cards while a deck the user
-   may edit is laid there (js/tablemode.js, tableToolsShown): a slip to add a
-   card by name, in the middle of the near edge, and a bin to drop one in, in
-   the near right-hand corner. Both lie in the table's plane, just above every
-   card (--table-tools-z, written by the script), and are made like the rim's
-   chips — a surface, a hairline with a heavier foot, and the small contact
-   shadow of a thin thing lying on the wood — since they lie on this table as
-   the chips do. Their box is laid out without a transform of its own beyond
-   that height, because the script reads it off offsetTop and friends: the
-   piles are kept clear of it, and the bin is hit-tested against it. They carry
-   data-tab="deckview" for the Deck Builder's accent. */
+   Two things lying on the far rim above the deck's cards while a deck the
+   user may edit is laid there (js/tablemode.js, tableToolsShown): a slip to
+   add a card by name, in the middle of the rim, and a bin to drop one in,
+   towards its right-hand end. They are the mat's children, laid out above
+   its top edge — their foot the mat's border and half the rim's spare depth
+   above it, so they lie centred in the far rim — which keeps their boxes in
+   the mat's own pixels, as everything the hand meets on the table is. Both
+   lie on the wood, in the table's plane — a hair above it, --table-tools-z,
+   written by the script — and are made like the rim's chips — a surface, a hairline with a heavier foot, and the
+   small contact shadow of a thin thing lying on the wood — since they lie on
+   this table as the chips do. Their box is laid out without a transform of
+   its own beyond that height, because the script reads it off offsetTop and
+   friends: the bin is hit-tested against it, and a card added from the slip
+   comes in from it. They carry data-tab="deckview" for the Deck Builder's
+   accent. */
 .table-slip,
 .table-bin {
   position: absolute;
-  bottom: var(--space-3);
+  bottom: calc(100% + 1px + (var(--table-rim-far) - var(--table-tool-h)) / 2);
+  height: var(--table-tool-h);
   box-sizing: border-box;
   background: var(--surface-1);
   border: 1px solid var(--border);
@@ -495,6 +530,7 @@ html[data-playmat] .table-mat {
   width: min(20rem, 44%);
   margin-inline: auto;
   display: flex;
+  align-items: center;
   padding: var(--space-2);
   user-select: text;
 }
@@ -502,18 +538,19 @@ html[data-playmat] .table-mat {
 .table-slip-input { width: 100%; }
 
 /* Its suggestions, flat over the window rather than tilted with the table,
-   hung from above the slip wherever the slip is drawn: the script places the
-   host — no height of its own, so it takes no pointer — and the app's own
-   dropdown hangs up from its foot instead of down from its head. Over the
-   table and anything floating over it, under a card being looked at. */
+   hung from below the slip wherever the slip is drawn — the slip lies at the
+   top of the window, so the list drops down over the table: the script
+   places the host — no height of its own, so it takes no pointer — and the
+   app's own dropdown hangs down from it. Over the table and anything
+   floating over it, under a card being looked at. */
 .table-slip-pop {
   position: fixed;
   z-index: 30;
   height: 0;
 }
 .table-slip-pop .table-slip-drop {
-  top: auto;
-  bottom: 0;
+  top: 0;
+  bottom: auto;
   border-radius: var(--radius-md);
 }
 
@@ -526,8 +563,7 @@ html[data-playmat] .table-mat {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 3.5rem;
-  height: 3.5rem;
+  width: var(--table-tool-h);
   color: var(--text-muted);
   transition: color        var(--dur-tint) var(--ease-tint),
               border-color var(--dur-tint) var(--ease-tint),

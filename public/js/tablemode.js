@@ -3,8 +3,9 @@
 // The user's playmat lies in the middle of it, framed by a wooden rim, and the
 // table is tilted away from the viewer the way a table is when you sit at it.
 // The tabs are no longer a sidebar. They are physical tabs lying on the rim —
-// chips on the wood, an icon each, that show their label when pointed at — and
-// pressing one lifts that tab's page up off the table to be read.
+// chips on the wood down the two side edges, an icon each, that show their
+// label when pointed at — and pressing one lifts that tab's page up off the
+// table to be read.
 //
 // Nothing about the app changes underneath. A tab's page is the same element it
 // always was — the #tab-… pane setTab() shows — and table mode only *moves* it:
@@ -38,9 +39,12 @@
 //       .table-plane the table: wood, a grid of rim / mat / rim, preserve-3d,
 //                    tilted away by TABLE_TILT_REST and fitted to the window
 //                    here (tableFitSize)
-//         .table-rim   the four edges; the tabs lie on three of them
-//         .table-mat   the playmat (or the theme's felt), where cards lie —
-//                      and the Deck Builder's slip and bin, when they do
+//         .table-rim   the four edges; the tabs lie on the two side ones —
+//                      the card tabs down the right, the rest and the
+//                      account in two groups down the left
+//         .table-mat   the playmat (or the theme's felt), where cards lie;
+//                      the Deck Builder's slip and bin are its children too,
+//                      laid out over the far rim above it
 //   .table-dim     the slight veil over the table while a panel floats
 //   .table-panel   the panel host — see "Panels" below
 //   .table-look    a card picked up to be looked at, facing the viewer
@@ -59,12 +63,12 @@
 //
 // ── The table, fitted ─────────────────────────────────────────────────────
 // At rest the table fills the window: its near corners close to the window's
-// bottom corners and its far edge — with the tabs lying on it — close to
-// the top. A perspective makes that a question with an answer rather than a
-// percentage to tune: tableFitSize works out the plane's laid-out size and
-// place that land those edges there at the rest tilt, and tableFitTable hands
-// them to table.css, measuring the far tabs to leave them their room. Again
-// on every resize.
+// bottom corners and its far edge close to the top. A perspective makes that
+// a question with an answer rather than a percentage to tune: tableFitSize
+// works out the plane's laid-out size and place that land those edges there
+// at the rest tilt, and tableFitTable hands them to table.css. Again on every
+// resize. The side rims are one chip wide, so nearly all of the width the
+// fit gives the table is mat.
 //
 // ── Panning and zooming ──────────────────────────────────────────────────
 // The table never changes its angle. What moves is the camera over it: the
@@ -116,9 +120,10 @@
 //   float  lifted off the table and facing the viewer, flat and readable,
 //          scrolling inside; the table dims a little behind it. Every tab
 //          but the Card tab, in this first half of the work. It is fitted
-//          clear of the tabs lying on the rim (tableFloatBox), because a
-//          tab has to stay pressable while its page floats: pressed again it
-//          puts the page down, and any other tab swaps it.
+//          between the tabs lying down the two side edges, and the room
+//          their labels open into (tableFloatBox), because a tab has to stay
+//          pressable while its page floats: pressed again it puts the page
+//          down, and any other tab swaps it.
 //   grow   unfolding from the tab's edge and lying ON the mat, in the tilted
 //          plane — for content that belongs on the table. The Card tab.
 //          Being inside the plane, it is inside a transformed element: a
@@ -134,7 +139,8 @@
 // sort, the deck picker — over the very table its cards are laid on, so its
 // panel can be tucked: "Show table" in its header slides it down until only
 // that header shows, flat at the foot of the window and between the side
-// tabs, and the table is undimmed. Pressing the header brings it back. Moved
+// tabs — clear of the account's group at the near end of the left edge — and
+// the table is undimmed. Pressing the header brings it back. Moved
 // with `translate`, so the pane keeps the box it was laid out in and nothing
 // in it reflows; what is out of sight is made invisible too, so the keyboard
 // cannot Tab into it.
@@ -208,19 +214,20 @@
 //   the commander  lies at the head of the mat, at the far side, a tenth
 //                  larger than the rest (TABLE_HEAD_SCALE), with its partner
 //                  beside it; the piles are laid below it, never across it
-//   the slip       lies at the middle of the near edge: a field on the app's
+//   the slip       lies on the far rim, in the middle: a field on the app's
 //                  own card autocomplete, whose suggestions float flat over
-//                  the window above it. Enter, or a suggestion, adds one
+//                  the window below it. Enter, or a suggestion, adds one
 //                  copy (dbAddCard), and the card comes in from the slip to
 //                  its pile. `/` puts the field in hand.
-//   the bin        lies in the near right-hand corner. A card carried over it
-//                  lights it — hit-tested on the mat, by the pointer mapped
-//                  through the camera as the card in hand is — and let go
-//                  there, one copy goes (tableBinAction: dbChangeQty by -1,
-//                  or dbRemoveCard for the last) and the card goes into the
-//                  bin. "Remove one" under a card being looked at does the
-//                  same. The app's notice says what went; there is no undo
-//                  beyond the deck's history.
+//   the bin        lies on the far rim, towards its right-hand end. A card
+//                  carried over it lights it — hit-tested in the table's
+//                  plane, by the pointer mapped through the camera as the
+//                  card in hand is, the rim being the same plane as the mat —
+//                  and let go there, one copy goes (tableBinAction:
+//                  dbChangeQty by -1, or dbRemoveCard for the last) and the
+//                  card goes into the bin. "Remove one" under a card being
+//                  looked at does the same. The app's notice says what went;
+//                  there is no undo beyond the deck's history.
 //
 // A table card knows its deck card by its ref — board and name, the builder's
 // own key for it (dbCardRef) — carried from the getters through the source
@@ -263,13 +270,13 @@
 // tableModeStateLoaded() once the first state has arrived.
 //
 // The decisions are written as functions of their inputs and asserted in
-// test/tablemode.test.js: the panel kind per tab, the drag threshold, the
-// table's fit to the window, the pointer-to-pan mapping, the wheel's zoom and
+// test/tablemode.test.js: the panel kind per tab, which tab stands on which
+// edge and in which group, the drag threshold, the table's fit to the window, the pointer-to-pan mapping, the wheel's zoom and
 // the camera's easing, how large a card's picture is laid out and which file
 // it comes from, the lift, the screen-to-mat mapping through the camera, the
 // floating panel's box, the layout and its head band, what each tab lays and
 // how it is piled, where a re-laid card goes, when a panel tucks, and the
-// Deck Builder's slip and bin: when they show, the bin's hit on the mat, and
+// Deck Builder's slip and bin: when they show, the bin's hit on the rim, and
 // what a card put in it does to the deck.
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -285,9 +292,9 @@ const TABLE_TILT_REST = 24;
 
 /* How the table is fitted to the window at rest (tableFitSize): its near
  * corners this many pixels in from the window's bottom corners, and its far
- * edge — or the tops of the tabs on it, should they ever reach past it — the
- * same gutter below the window's top, plus room for the pan at rest to carry
- * the table down by TABLE_PAN_REST without a far tab leaving the window. */
+ * edge the same gutter below the window's top, plus room for the pan at rest
+ * to carry the table down by TABLE_PAN_REST without the far rim, and what
+ * lies on it, leaving the window. */
 const TABLE_FIT_GUTTER = 8;
 
 /* How far the camera slides at zoom 1 with the pointer at an edge of the
@@ -397,6 +404,15 @@ const TABLE_CARD_GAP = 0.25;
  * which costs more to composite than a picture in a grid. */
 const TABLE_CARDS_MAX = 60;
 
+/* How high the side edges' tabs lie above the wood, in the plane's pixels:
+ * above the highest a card lying on the mat can be — TABLE_CARDS_MAX of them,
+ * and the slip and the bin over those — by a few gaps more. A chip whose
+ * label opens inwards over the mat's edge is then drawn over whatever cards
+ * lie there, and is what the pointer finds first; a card in hand, held well
+ * above all of it, still passes over the tabs. table.css lifts the side
+ * edges by it, as --table-rim-z. */
+const TABLE_RIM_Z = (TABLE_CARDS_MAX + 6) * TABLE_CARD_GAP;
+
 /* A card on the mat, sized against the mat: a real playmat is about ten cards
  * wide. Bounded, so a small window still draws a card you can see and a huge
  * one does not draw a card the size of a hand. 88/63 is a card's own shape. */
@@ -481,25 +497,48 @@ const TABLE_RELAY_MAX_MS = 400;
  * sidebar button it stands for (`nav`, or tab-btn-<tab>), which is where its
  * label and its icon are read from and whose visibility it follows — the Admin
  * tab, Sign out and Change password stand on the rim only when the sidebar
- * would show them. The one with no sidebar button carries its own label. */
+ * would show them. The one with no sidebar button carries its own label.
+ *
+ * Only the two side edges hold tabs, which is what lets the side rims be
+ * thin and the mat wide: a side edge is one chip wide, and a chip's label
+ * opens inwards over the mat's edge rather than into room kept for it on
+ * the wood. The far edge is bare of tabs, for the Deck Builder's slip and
+ * bin to lie on while a deck is open there. The right edge holds the six
+ * main card tabs, from the far corner down. The left edge holds two groups,
+ * one at each end of it (`group`): the other tabs at the far end, and the
+ * account and the table's own controls at the near end, apart from them by
+ * whatever the edge has to spare. */
 const TABLE_RIM = [
-  { edge: 'far',   tab: 'collections' },
-  { edge: 'far',   tab: 'players' },
-  { edge: 'far',   tab: 'deckview' },
-  { edge: 'far',   tab: 'scryfall' },
-  { edge: 'far',   tab: 'sets' },
-  { edge: 'far',   tab: 'wants' },
-  { edge: 'left',  tab: 'available' },
-  { edge: 'left',  tab: 'pick' },
-  { edge: 'left',  tab: 'lands' },
-  { edge: 'left',  tab: 'card' },
-  { edge: 'right', act: 'appearance', nav: 'sidenavAppearanceBtn' },
-  { edge: 'right', act: 'rss',        nav: 'sidenavRssBtn' },
-  { edge: 'right', tab: 'admin' },
-  { edge: 'right', act: 'password',   nav: 'sidenavChangePwBtn' },
-  { edge: 'right', act: 'signout',    nav: 'sidenavLogoutBtn' },
-  { edge: 'right', act: 'leave',      label: 'Leave table' },
+  { edge: 'left',  group: 'far',  tab: 'available' },
+  { edge: 'left',  group: 'far',  tab: 'pick' },
+  { edge: 'left',  group: 'far',  tab: 'lands' },
+  { edge: 'left',  group: 'far',  tab: 'card' },
+  { edge: 'left',  group: 'near', act: 'appearance', nav: 'sidenavAppearanceBtn' },
+  { edge: 'left',  group: 'near', act: 'rss',        nav: 'sidenavRssBtn' },
+  { edge: 'left',  group: 'near', tab: 'admin' },
+  { edge: 'left',  group: 'near', act: 'password',   nav: 'sidenavChangePwBtn' },
+  { edge: 'left',  group: 'near', act: 'signout',    nav: 'sidenavLogoutBtn' },
+  { edge: 'left',  group: 'near', act: 'leave',      label: 'Leave table' },
+  { edge: 'right', group: 'far',  tab: 'collections' },
+  { edge: 'right', group: 'far',  tab: 'players' },
+  { edge: 'right', group: 'far',  tab: 'deckview' },
+  { edge: 'right', group: 'far',  tab: 'scryfall' },
+  { edge: 'right', group: 'far',  tab: 'sets' },
+  { edge: 'right', group: 'far',  tab: 'wants' },
 ];
+
+/* The edges and their groups, as the rim draws them: which tabs stand at
+ * each end of each edge, in order — the table above read edge by edge. A
+ * group with no tab in it is not drawn. */
+function tableRimLayout(rim = TABLE_RIM) {
+  const out = {};
+  rim.forEach((entry, index) => {
+    const edge  = out[entry.edge] || (out[entry.edge] = {});
+    const group = entry.group || 'far';
+    (edge[group] || (edge[group] = [])).push(index);
+  });
+  return out;
+}
 
 // ── The decisions ─────────────────────────────────────────────────────────
 
@@ -681,14 +720,17 @@ function tableEaseFor(dt, ease) {
 /* Where a floating panel goes in a window of `view` = { width, height }.
  *
  * As large as its ceiling allows, but clear of the tabs lying on the rim —
- * `clear` = { top, left, right }: the lowest edge of the far edge's tabs, the
- * rightmost edge of the left edge's and the leftmost of the right edge's, in
- * window pixels — so that every tab can still be pressed while the panel
- * floats, the open one to put it down and any other to swap it. It hangs
- * below the far tabs and is centred between the side ones. Where the side
+ * `clear` = { top, left, right }: the lowest edge of anything on the far
+ * edge it must hang below (0 for nothing: the far edge holds no tabs now),
+ * the rightmost reach of the left edge's tabs and the leftmost of the right
+ * edge's, in window pixels — so that every tab can still be pressed while
+ * the panel floats, the open one to put it down and any other to swap it. It
+ * hangs below `top` and is centred between the side tabs, which is also
+ * where it lies tucked at the window's foot, so the tabs at the near end of
+ * a side edge are as clear of the tucked bar as of the panel. Where the side
  * tabs leave less room than TABLE_PANEL_MIN_W, the floor wins and the panel
- * reaches over their inner ends: a tab half covered can still be pressed by
- * the half that is not. */
+ * reaches over the room their labels open into — never far enough, on any
+ * window the table is offered at, to reach the chips themselves. */
 function tableFloatBox(view, clear, gap = TABLE_PANEL_GAP) {
   const room  = Math.max(0, clear.right - clear.left - 2 * gap);
   const floor = Math.min(TABLE_PANEL_MIN_W, Math.max(0, view.width - 2 * gap));
@@ -862,8 +904,9 @@ function tableCardWidth(matWidth) {
  * side by side with any other head card (tableHeadSpots); the piles share out
  * the mat below that band, so none of them reaches into it. And `reserve` =
  * { bottom } keeps a band of that many pixels clear along the mat's near
- * edge, for what lies there instead of cards — the Deck Builder's slip and
- * bin. With no head card and nothing reserved, the piles have the whole mat.
+ * edge, for anything laid there instead of cards — nothing is, now that the
+ * Deck Builder's slip and bin lie on the far rim, off the mat. With no head
+ * card and nothing reserved, the piles have the whole mat.
  *
  * At most TABLE_CARDS_MAX cards; a centre is kept far enough inside the mat
  * that the card does not hang off it, or into either band. Returns the card's
@@ -1164,15 +1207,28 @@ function tableBinProgress(t, over, dt, motion = true) {
   return over ? Math.min(1, at + step) : Math.max(0, at - step);
 }
 
+/* How small a card in hand becomes over the bin, for a card `cardW` wide
+ * and a bin `binW` wide: TABLE_BIN_HELD_SHRINK of itself, or as small as it
+ * takes to be no wider than TABLE_BIN_HELD_FIT of the bin, whichever is the
+ * smaller — the look is the lit bin showing round the card, and a card is
+ * laid larger on a larger mat while the bin stays the size it is. A bin or
+ * a card with no width asks nothing further of it. */
+function tableBinHeldShrink(cardW, binW) {
+  const card = Number(cardW) || 0, bin = Number(binW) || 0;
+  if (!(card > 0) || !(bin > 0)) return TABLE_BIN_HELD_SHRINK;
+  return Math.min(TABLE_BIN_HELD_SHRINK, bin * TABLE_BIN_HELD_FIT / card);
+}
+
 /* That look, for a progress t: `k`, how much of it there is, on the lift's
  * cubic ease-out; the card's size, its opacity, and how far its centre is
- * drawn from the pointer to the bin's — each nothing at 0 and all of it at 1. */
-function tableBinPose(t) {
+ * drawn from the pointer to the bin's — each nothing at 0 and all of it at 1.
+ * `held` is how small the card is at 1 (tableBinHeldShrink). */
+function tableBinPose(t, held = TABLE_BIN_HELD_SHRINK) {
   const at = Math.min(1, Math.max(0, Number(t) || 0));
   const k = 1 - (1 - at) ** 3;
   return {
     k,
-    shrink:  1 - (1 - TABLE_BIN_HELD_SHRINK) * k,
+    shrink:  1 - (1 - held) * k,
     opacity: 1 - (1 - TABLE_BIN_HELD_FADE) * k,
     pull:    TABLE_BIN_HELD_PULL * k,
   };
@@ -1307,18 +1363,27 @@ const TABLE_LEAVE_ICON =
  * carries data-tab, which is what gives it its tab's accent (tokens.css, §3)
  * for the state it marks; the Appearance one carries .appearance-trigger,
  * which is how main.js's outside-click handler knows the click that opens
- * the popover is not a click outside it. */
+ * the popover is not a click outside it.
+ *
+ * An edge's tabs stand in its groups (tableRimLayout), each a column of its
+ * own at its end of the edge, far first, so the keyboard meets them in the
+ * order the eye reads them down the edge. */
 function tableRimHtml(edge) {
-  return TABLE_RIM.map((entry, i) => {
-    if (entry.edge !== edge) return '';
-    const nav   = document.getElementById(tableNavId(entry) || '');
-    const icon  = nav?.querySelector('svg')?.outerHTML || (entry.act === 'leave' ? TABLE_LEAVE_ICON : '');
-    const cls   = `table-tab${entry.act === 'appearance' ? ' appearance-trigger' : ''}`;
-    const tab   = entry.tab ? ` data-tab="${entry.tab}"` : '';
-    const label = esc(tableRimLabel(entry));
-    return `<button type="button" class="${cls}" data-rim="${i}"${tab} aria-label="${label}">` +
-           `<span class="table-tab-face">${icon}<span class="table-tab-label" aria-hidden="true">${label}</span></span></button>`;
-  }).join('');
+  const groups = tableRimLayout()[edge] || {};
+  return ['far', 'near'].filter(group => groups[group]).map(group =>
+    `<div class="table-rim-group" data-group="${group}">${groups[group].map(tableTabHtml).join('')}</div>`).join('');
+}
+
+/* One tab: the rim entry at index `i` of TABLE_RIM, as its button. */
+function tableTabHtml(i) {
+  const entry = TABLE_RIM[i];
+  const nav   = document.getElementById(tableNavId(entry) || '');
+  const icon  = nav?.querySelector('svg')?.outerHTML || (entry.act === 'leave' ? TABLE_LEAVE_ICON : '');
+  const cls   = `table-tab${entry.act === 'appearance' ? ' appearance-trigger' : ''}`;
+  const tab   = entry.tab ? ` data-tab="${entry.tab}"` : '';
+  const label = esc(tableRimLabel(entry));
+  return `<button type="button" class="${cls}" data-rim="${i}"${tab} aria-label="${label}">` +
+         `<span class="table-tab-face">${icon}<span class="table-tab-label" aria-hidden="true">${label}</span></span></button>`;
 }
 
 function tableBuild() {
@@ -1327,10 +1392,15 @@ function tableBuild() {
   scene.className = 'table-scene';
   scene.id = 'tableScene';
   scene.style.setProperty('--table-tilt', `${TABLE_TILT_REST}deg`);
+  scene.style.setProperty('--table-rim-z', `${TABLE_RIM_Z.toFixed(2)}px`);
+  /* The far edge holds no tabs: what lies on it, the Deck Builder's slip and
+     bin, are the mat's own children, laid out over it (table.css), so that
+     where they are is said in the mat's pixels like everything else the hand
+     meets on the table. */
   scene.innerHTML = `
     <div class="table-camera" id="tableCamera">
     <div class="table-plane" id="tablePlane">
-      <div class="table-rim table-rim--far" role="group" aria-label="Tabs on the far edge">${tableRimHtml('far')}</div>
+      <div class="table-rim table-rim--far"></div>
       <div class="table-rim table-rim--left" role="group" aria-label="Tabs on the left edge">${tableRimHtml('left')}</div>
       <div class="table-mat" id="tableMat">
         <p class="table-hint" id="tableHint" hidden></p>
@@ -1447,41 +1517,21 @@ function tableBuild() {
 /* The table fitted to the window: its box worked out by tableFitSize and
  * handed to table.css as --table-x/-y/-w/-h on the scene. The far edge is
  * asked to sit a gutter below the window's top, plus the pan at rest's reach,
- * so a lean towards you never carries a far tab out of the window — and the
- * tabs on that edge are then measured and the room made bigger by whatever
- * they still reach past it. They lie flat inside the rim, so they reach past
- * nothing and the measure changes nothing; it is kept so that a tab that one
- * day stands up off the wood again is still kept in the window. Twice, since
- * a taller table places its tabs a hair differently; the second pass is a
- * fraction of a pixel. Measured with the camera at rest, and put back. */
+ * so a lean towards you never carries the far rim — and the slip and bin
+ * lying on it — out of the window. Everything on the rim lies flat in the
+ * table's plane, so nothing on it reaches past the plane's own edges, and
+ * the plane's box is all there is to fit. */
 function tableFitTable() {
-  const { scene, camera, plane } = tableEls;
+  const { scene, camera } = tableEls;
   const view = { width: scene.clientWidth, height: scene.clientHeight };
   const depth = parseFloat(getComputedStyle(camera).perspective);
-  const want = TABLE_FIT_GUTTER + TABLE_PAN_REST * view.height;
-  const write = top => {
-    const box = tableFitSize(view, { perspective: depth > 0 ? depth : Infinity, top });
-    if (!box) return false;
-    scene.style.setProperty('--table-x', `${box.left.toFixed(2)}px`);
-    scene.style.setProperty('--table-y', `${box.top.toFixed(2)}px`);
-    scene.style.setProperty('--table-w', `${box.width.toFixed(2)}px`);
-    scene.style.setProperty('--table-h', `${box.height.toFixed(2)}px`);
-    return true;
-  };
-  let top = want;
-  if (!write(top)) return;
-  const was = camera.style.transform;
-  camera.style.transform = 'none';
-  for (let pass = 0; pass < 2; pass++) {
-    let highest = Infinity;
-    for (const btn of plane.querySelectorAll('.table-rim--far .table-tab')) {
-      if (!btn.hidden) highest = Math.min(highest, btn.getBoundingClientRect().top);
-    }
-    if (!(highest < want - 0.25)) break;
-    top += want - highest;
-    write(top);
-  }
-  camera.style.transform = was;
+  const top = TABLE_FIT_GUTTER + TABLE_PAN_REST * view.height;
+  const box = tableFitSize(view, { perspective: depth > 0 ? depth : Infinity, top });
+  if (!box) return;
+  scene.style.setProperty('--table-x', `${box.left.toFixed(2)}px`);
+  scene.style.setProperty('--table-y', `${box.top.toFixed(2)}px`);
+  scene.style.setProperty('--table-w', `${box.width.toFixed(2)}px`);
+  scene.style.setProperty('--table-h', `${box.height.toFixed(2)}px`);
 }
 
 /* The geometry the screen-to-mat mapping needs, read off the laid-out boxes
@@ -1802,19 +1852,23 @@ function tableOnPlaneClick(e) {
 }
 
 /* The Appearance popover, opened from the rim. It is the app's own popover,
- * floating as it always does; only where it opens is new — beside the right
- * edge's tab, on the side the window has room on, which toggleAppearance()
- * cannot know about since its sidebar opens it rightwards. Kept inside the
- * window. closeAppearance() undoes all of it. */
+ * floating as it always does; only where it opens is new — beside the tab's
+ * chip, towards the middle of the window from whichever edge the tab is on
+ * (the left, at the near end), which toggleAppearance() cannot know about
+ * since its sidebar opens it rightwards from the sidebar. Kept inside the
+ * window, so a chip low on the edge opens it upwards from its foot.
+ * closeAppearance() undoes all of it. */
 function tableOpenAppearance(btn) {
   const menu = document.getElementById('appearanceMenu');
   if (!menu) return;
   if (menu.classList.contains('open')) { closeAppearance(); return; }
   menu.classList.add('open');
-  const at   = btn.getBoundingClientRect();
+  const at   = (btn.querySelector('.table-tab-face') || btn).getBoundingClientRect();
   const box  = menu.getBoundingClientRect();
   const edge = 8;
-  const left = Math.max(edge, at.left - box.width - edge);
+  const inward = at.left + at.width / 2 < window.innerWidth / 2
+    ? at.right + edge : at.left - box.width - edge;
+  const left = Math.max(edge, Math.min(inward, window.innerWidth - box.width - edge));
   const top  = Math.max(edge, Math.min(at.top, window.innerHeight - box.height - edge));
   Object.assign(menu.style, {
     position: 'fixed', left: `${left}px`, top: `${top}px`, right: 'auto', bottom: 'auto',
@@ -1896,12 +1950,16 @@ function tablePutPaneBack() {
  * so the rest pose is never drawn. A camera zoomed in has carried the tabs
  * elsewhere, and the panel is still fitted to where they lie at rest.
  *
- * What is measured is each tab's slot, the button, not the chip lying in it.
- * The slot is the room the chip's label opens into (table.css): on a side
- * edge the width of the rim, so a label shown under the pointer is never
- * drawn beneath the panel; and the chip sits at the slot's outer end, so on a
- * window narrow enough for the panel to reach over the slots, what it reaches
- * over first is empty wood and the chip is the last thing it would cover. */
+ * What is measured is each chip and the room its label opens into. A side
+ * edge is one chip wide, and a chip's label opens inwards from it over the
+ * mat (table.css), so the reach measured is the chip as it lies at rest and
+ * its label's own width beyond it — the words, and the --space-3 the label
+ * opens with (table.css) — at the scale the chip is drawn at there.
+ * A label pointed at while a panel floats then opens beside the panel, not
+ * under it. The far edge holds no tabs, so the panel hangs from a gap below
+ * the window's top; the near edge holds none either, so the panel tucks to
+ * the window's foot between the side edges' tabs — clear of the account's
+ * group at the near end of the left edge, as of every other. */
 const TABLE_FLOAT_PROPS = ['left', 'top', 'width', 'height', 'right', 'margin-inline'];
 
 function tableFitPanel() {
@@ -1911,13 +1969,17 @@ function tableFitPanel() {
   const clear = { top: 0, left: 0, right: view.width };
   const was = camera.style.transform;
   camera.style.transform = 'none';
+  const pad = tableLabelPad();
   for (const btn of plane.querySelectorAll('.table-tab')) {
     if (btn.hidden) continue;
-    const at = btn.getBoundingClientRect();
+    const face  = btn.querySelector('.table-tab-face');
+    const label = btn.querySelector('.table-tab-label');
+    const at = face.getBoundingClientRect();
+    const scale = face.offsetWidth ? at.width / face.offsetWidth : 1;
+    const reach = ((label?.scrollWidth || 0) + pad) * scale;
     const edge = TABLE_RIM[Number(btn.dataset.rim)]?.edge;
-    if (edge === 'far')       clear.top   = Math.max(clear.top, at.bottom);
-    else if (edge === 'left') clear.left  = Math.max(clear.left, at.right);
-    else if (edge === 'right') clear.right = Math.min(clear.right, at.left);
+    if (edge === 'left')       clear.left  = Math.max(clear.left, at.right + reach);
+    else if (edge === 'right') clear.right = Math.min(clear.right, at.left - reach);
   }
   camera.style.transform = was;
   const box = tableFloatBox(view, clear, TABLE_PANEL_GAP + TABLE_PAN_REST * view.width);
@@ -1935,6 +1997,18 @@ function tableFitPanel() {
     panel.style.setProperty('--table-tuck-y',
       `${Math.max(0, view.height - TABLE_PANEL_GAP - header - box.top).toFixed(1)}px`);
   }
+}
+
+/* The padding a tab's label opens with, in pixels: --space-3, the token
+ * table.css opens it with, read by laying out a probe that wide — a custom
+ * property is handed back as written, in rem, rather than in pixels. */
+function tableLabelPad() {
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position: absolute; visibility: hidden; width: var(--space-3, 0px)';
+  tableEls.plane.append(probe);
+  const px = probe.offsetWidth;
+  probe.remove();
+  return px;
 }
 
 /* Open a tab: its pane into a panel, then setTab(), which draws it — into a
@@ -2288,13 +2362,14 @@ function tableDrawCards() {
   const { mat, hint } = tableEls;
   const before = new Set([...mat.querySelectorAll('.table-card')].map(el => el.dataset.key));
   for (const old of mat.querySelectorAll('.table-card')) old.remove();
-  /* The slip and the bin first: whether they lie on the mat decides how much
-     of its near edge the piles are kept clear of. */
+  /* The slip and the bin lie on the far rim, not on the mat, so they take
+     none of it from the piles; they are only shown or not for the cards
+     about to be laid. */
   tableSyncTools();
   const { width, height } = tableGeom.mat;
   const layout = tableFeature
     ? tableFeatureLayout(tableCards, width, height)
-    : tableLayout(tableCards, width, height, { bottom: tableToolsBand() });
+    : tableLayout(tableCards, width, height);
   tableCardSize = { w: layout.width, h: layout.height };
   /* Asked before the pictures are written, so a large card on a hi-dpi
      screen — the Card tab's — is drawn from the large picture straight away
@@ -2411,22 +2486,29 @@ function tableCarry(now) {
   hold.over = !!hold.dragging && !!card.ref && tableOverBin(hold.pointer);
   hold.binT = tableBinProgress(hold.binT, hold.over, now - hold.binAt, motion);
   hold.binAt = now;
-  const pose = tableBinPose(hold.binT);
-  const hover = Math.max(0, tableToolsZ() - tableCardZ(card)) + TABLE_BIN_HOVER;
+  const pose = tableBinPose(hold.binT,
+    tableBinHeldShrink(tableCardBox(card).w, tableTools?.bin.offsetWidth || 0));
+  /* Down to TABLE_BIN_HOVER above the bin, wherever the card's own place in
+     the pile is: a lift below nothing is a card held lower than it lay. */
+  const hover = tableToolsZ() + TABLE_BIN_HOVER - tableCardZ(card);
   hold.lift = rise + (hover - rise) * pose.k;
 
   const hit = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, tableCardZ(card) + hold.lift);
   if (hit) {
     const { width, height } = tableGeom.mat;
-    let u = hit.u - hold.grab.u, v = hit.v - hold.grab.v;
+    let u = Math.min(width, Math.max(0, hit.u - hold.grab.u));
+    let v = Math.min(height, Math.max(0, hit.v - hold.grab.v));
+    /* The bin lies on the far rim, off the mat, so the card going in is
+       drawn towards it unheld by the mat's edges — where it is put down, if
+       it is let go somewhere else, is still on the mat. */
     if (pose.k > 0) {
       const bin = tableBinRect();
       const bu = bin.left + bin.width / 2, bv = bin.top + bin.height / 2;
       u += (hit.u + (bu - hit.u) * TABLE_BIN_HELD_PULL - u) * pose.k;
       v += (hit.v + (bv - hit.v) * TABLE_BIN_HELD_PULL - v) * pose.k;
     }
-    card.x = Math.min(1, Math.max(0, u / width));
-    card.y = Math.min(1, Math.max(0, v / height));
+    card.x = u / width;
+    card.y = v / height;
   }
   const lean = TABLE_CARD_LIFT ? -TABLE_CARD_LEAN * rise / TABLE_CARD_LIFT * (1 - pose.k) : 0;
   tableWriteCard(card, hold.lift, lean, pose.shrink);
@@ -2597,7 +2679,7 @@ const TABLE_BIN_ICON =
   '<g class="table-bin-lid"><path d="M3 6h18"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></g>' +
   '<path d="M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 
-/* How far above the slip its suggestions float, in window pixels; how long a
+/* How far below the slip its suggestions float, in window pixels; how long a
  * card added from the slip is still looked for among the cards laid next, to
  * come in from the slip — long enough for a card the deck has no data for to
  * be fetched first, which dbAddCard waits for before it redraws; and how
@@ -2608,11 +2690,14 @@ const TABLE_BIN_SHRINK  = 0.2;
 
 /* A card in hand over the bin says it is going in, and stops hiding the bin:
  * it comes down towards the bin — to TABLE_BIN_HOVER pixels above it — shrinks
- * to TABLE_BIN_HELD_SHRINK of its size, fades to TABLE_BIN_HELD_FADE, and its
- * centre is drawn TABLE_BIN_HELD_PULL of the way from the pointer to the
- * bin's centre, so the lit bin shows round it. In the time a card takes to
- * come up off the felt, TABLE_LIFT_MS, on the same ease-out, both ways. */
+ * to TABLE_BIN_HELD_SHRINK of its size, or further, to TABLE_BIN_HELD_FIT of
+ * the bin's width, for a card too big for that to leave the bin showing
+ * (tableBinHeldShrink); fades to TABLE_BIN_HELD_FADE; and its centre is
+ * drawn TABLE_BIN_HELD_PULL of the way from the pointer to the bin's centre,
+ * so the lit bin shows round it. In the time a card takes to come up off the
+ * felt, TABLE_LIFT_MS, on the same ease-out, both ways. */
 const TABLE_BIN_HELD_SHRINK = 0.55;
+const TABLE_BIN_HELD_FIT    = 0.8;
 const TABLE_BIN_HELD_FADE   = 0.85;
 const TABLE_BIN_HELD_PULL   = 0.5;
 const TABLE_BIN_HOVER       = 8;
@@ -2625,12 +2710,16 @@ const TABLE_BIN_HOVER       = 8;
  * put up and taken down; the elements go into each new scene and come out of
  * it with the scene.
  *
- * The slip lies on the mat, in the table's plane, at the middle of its near
- * edge; the bin lies in the mat's near right-hand corner. Both lie just above
- * every card (--table-tools-z), as the Card tab's sheet does. The slip's
- * suggestions do not: a list tilted away with the table would be hard to
- * read, so they float flat over the window, outside the scene, hung above
- * wherever the slip is drawn (tableSlipPlace). */
+ * The slip lies on the far rim, in the table's plane, at the middle of it;
+ * the bin lies on the far rim too, towards its right-hand end. Both are the
+ * mat's children, laid out above its top edge (table.css), so their boxes
+ * are in the mat's pixels — negative ones, up there — like everything else
+ * the hand meets on the table. Both lie on the wood, a hair above it
+ * (--table-tools-z, tableToolsZ). The slip's suggestions do not lie in the
+ * plane: a list tilted
+ * away with the table would be hard to read, so they float flat over the
+ * window, outside the scene, hung below wherever the slip is drawn
+ * (tableSlipPlace). */
 function tableToolsMake() {
   if (tableTools) return tableTools;
   const slip = document.createElement('div');
@@ -2693,7 +2782,7 @@ function tableToolsMount() {
 /* The slip and bin shown or not, by tableToolsShown, for the cards on the mat
  * now and the deck open now — asked every time cards are drawn. Put away,
  * the slip lets go of its field and its suggestions, and the bin of its
- * light. Both lie just above every card on the mat. */
+ * light. Both lie on the wood, a hair above it (tableToolsZ). */
 function tableSyncTools() {
   const t = tableTools;
   if (!t || !tableEls) return;
@@ -2716,30 +2805,31 @@ function tableSyncTools() {
   }
 }
 
-/* How high above the felt the slip and the bin lie: above every card. */
+/* How high above the wood the slip and the bin lie: a card's gap, the
+ * height of the first card on a mat — on the wood, in the table's plane, and
+ * a hair above it so that they are never a coin toss against it. They lie on
+ * the far rim, where no card is laid; a card a hand leaves hanging over the
+ * mat's far edge lies over them, as it would over anything on the wood. */
 function tableToolsZ() {
-  return (tableCards.length + 2) * TABLE_CARD_GAP;
+  return TABLE_CARD_GAP;
 }
 
-/* How much of the mat's near edge the slip and the bin take up, in the mat's
- * own pixels — from the top of whichever of them reaches further in to the
- * mat's edge — for the piles to be kept clear of; nothing while they are not
- * there. Read off the laid-out boxes, which no transform touches. */
-function tableToolsBand() {
-  if (!tableToolsOn || !tableGeom) return 0;
-  const { slip, bin } = tableTools;
-  return Math.max(0, tableGeom.mat.height - Math.min(slip.offsetTop, bin.offsetTop));
-}
-
-/* The bin's box on the mat, in the mat's own pixels. */
+/* The bin's box in the mat's own pixels. It lies on the far rim, above the
+ * mat's top edge, so its top is negative: the mat's pixels run on past the
+ * mat's edges across the whole of the table's plane, which the rim shares,
+ * and the bin's laid-out box is read in them like a card's (offsetTop and
+ * friends, against the mat it is a child of — no transform touches them). */
 function tableBinRect() {
   const { bin } = tableTools;
   return { left: bin.offsetLeft, top: bin.offsetTop, width: bin.offsetWidth, height: bin.offsetHeight };
 }
 
-/* Whether a window point is over the bin: the point mapped onto the mat at
- * the height the bin lies at, through the camera as it is now — the mapping
- * a card in hand is carried by — and asked against the bin's box there. */
+/* Whether a window point is over the bin: the point mapped onto the table's
+ * plane at the height the bin lies at, through the camera as it is now — the
+ * mapping a card in hand is carried by — and asked against the bin's box
+ * there. The mapping is the plane's, not only the mat's: tableUnproject
+ * answers for any point of the plane, the rim's included, in the mat's
+ * pixels, so a bin lying on the rim is hit exactly as one on the mat was. */
 function tableOverBin(pointer) {
   if (!tableToolsOn || !tableGeom || !pointer) return false;
   const hit = tableUnproject(tableMatrix(), pointer.x, pointer.y, tableToolsZ());
@@ -2879,15 +2969,17 @@ function tableArrive(before) {
   tableAfter(el, () => el.classList.remove('is-settling'));
 }
 
-/* The slip's suggestions hung above the slip as it is drawn now — its drawn
+/* The slip's suggestions hung below the slip as it is drawn now — its drawn
  * box, through the tilt and the camera — flat and as wide as it, while they
- * are open. Asked when they open and on every frame the camera moves. */
+ * are open. Below, because the slip lies on the far rim, at the top of the
+ * window: the list drops down over the table, where there is room for it.
+ * Asked when they open and on every frame the camera moves. */
 function tableSlipPlace() {
   const t = tableTools;
   if (!t || !tableOn || t.slip.hidden || t.drop.style.display !== 'block') return;
   const at = t.slip.getBoundingClientRect();
   t.pop.style.left  = `${at.left.toFixed(1)}px`;
-  t.pop.style.top   = `${(at.top - TABLE_POP_GAP).toFixed(1)}px`;
+  t.pop.style.top   = `${(at.bottom + TABLE_POP_GAP).toFixed(1)}px`;
   t.pop.style.width = `${at.width.toFixed(1)}px`;
 }
 
