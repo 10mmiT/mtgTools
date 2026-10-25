@@ -211,9 +211,12 @@
 //   card         cardDetailShown()   js/card.js         the card, large, beside
 //                                                       the sheet
 //
-// A pile is a group; sixty cards are shared out across the piles fairly
-// (tableFairShare), so a deep first pile does not leave the rest of the table
-// empty. Every other tab leaves the mat as it is. A redraw that changes
+// A pile is a group; a tab's hundred cards (TABLE_TAB_CARDS_MAX) are shared
+// out across the piles fairly (tableFairShare), so a deep first pile does not
+// leave the rest of the table empty. The Deck Builder is the exception: it
+// lays the whole deck, a card for each entry with its count on it when it has
+// more than one copy (TABLE_DECK_CARDS_MAX). Every other tab leaves the mat
+// as it is. A redraw that changes
 // nothing about which cards lie where — the pictures arriving, a poll that
 // found the same state — puts the pictures in and moves nothing; one that
 // does lays the cards again, and a card a hand moved stays where it was put
@@ -267,9 +270,12 @@
 //   tableMode.panel()                        → { tab, kind } | null
 //   tableMode.kindFor(tab)                   → 'float' | 'grow'
 //   tableMode.layCards(cards, { hint, scope, feature })
-//                                            → how many were laid (≤ 60).
+//                                            → how many were laid (≤ 100,
+//                                              or ≤ 250 for scope 'deckview').
 //                                              cards: [{ name, imageUrl, id?,
-//                                              group?, open? }] — open(), where
+//                                              group?, open?, qty? }] — qty, the
+//                                              copies one card stands for, is
+//                                              said on it past 1; open(), where
 //                                              given, is what a click does
 //                                              instead of picking the card up;
 //                                              hint: what the mat says when the
@@ -418,35 +424,83 @@ const TABLE_DECODE_STEP   = 0.5;
 const TABLE_IMG_NORMAL_W  = 488;
 const TABLE_NEAR_GROWTH   = 1.2;
 
+/* How many cards the mat lays: two caps, because the two kinds of tab ask
+ * different things of it. The Deck Builder lays the deck — every entry of it,
+ * the commanders and each category's cards, one table card an entry however
+ * many copies it has (a count on the card says how many, tableCardFace) — so
+ * a deck is never shown with a third of it missing, and a card carried into
+ * another zone is never one the mat then has no room for. Up to
+ * TABLE_DECK_CARDS_MAX entries, a ceiling no real deck reaches and only there
+ * so that a pasted list of thousands cannot lay thousands. Every other tab —
+ * Collections, Search, Sets, Wants, Decks — shows a slice of something that
+ * can run to thousands, and lays TABLE_TAB_CARDS_MAX of it, shared fairly
+ * among its piles (tableFairShare). Which cap applies is the scope's
+ * (tableCardsMaxFor); the deck's is also the most the mat ever holds, which
+ * is what its depth is budgeted for, below. */
+const TABLE_DECK_CARDS_MAX = 250;
+const TABLE_TAB_CARDS_MAX  = 100;
+
 /* How far apart, in z, two cards lying on each other are. Cards share one
  * plane, and coplanar faces in a 3D scene are a coin toss for which is drawn on
- * top — so each lies a hair above the one under it. A quarter of a pixel each
- * is sixty cards in fifteen pixels, nothing an eye sees as height. */
+ * top — so each lies a hair above the one under it: a quarter of a pixel
+ * each, or less when there are more cards than TABLE_DEPTH holds at that.
+ *
+ * TABLE_DEPTH is the height every card lying on the mat shares, however many
+ * there are: the fifteen pixels sixty cards a quarter pixel apart always
+ * took, nothing an eye sees as height. The number of cards does not decide
+ * how high the table's furniture lies — the rim's tabs and the landing mark
+ * lie a few quarter pixels over TABLE_DEPTH — so a hundred cards, or the
+ * deck's ceiling of them, are laid closer together (tableCardGapFor) instead
+ * of the rim rising over a taller pile of them. 250 cards are 0.06px apart,
+ * which is still a plane apart to the browser's depth sort: depth there is
+ * floating point in the scene's pixels, nowhere near that coarse. The zones
+ * share the same depth by the same rule (tableZonesLayer). */
 const TABLE_CARD_GAP = 0.25;
+const TABLE_DEPTH    = 15;
 
-/* The most cards the mat draws at once. Each one is a picture in a 3D scene,
- * which costs more to composite than a picture in a grid. */
-const TABLE_CARDS_MAX = 60;
+/* How far above a card's picture what lies on the card is — its count of
+ * copies (tableQtyBadge). A card is a 3D context of its own (table.css), so
+ * the count is a face of the scene beside the picture, and coplanar with it
+ * would be the coin toss above; lifted, it must still be under the next card
+ * up, or it would show through it. So less than half the closest two cards
+ * can ever lie: at the deck's ceiling with every card a zone of its own —
+ * its felt, its card and its label, three layers a card — 0.0199px apart. */
+const TABLE_FACE_Z = 0.008;
 
 /* How high the side edges' tabs lie above the wood, in the plane's pixels:
- * above the highest a card lying on the mat can be — TABLE_CARDS_MAX of them,
- * and the slip and the bin over those — by a few gaps more. A chip whose
- * label opens inwards over the mat's edge is then drawn over whatever cards
- * lie there, and is what the pointer finds first; a card in hand, held well
- * above all of it, still passes over the tabs. table.css lifts the side
- * edges by it, as --table-rim-z. */
-const TABLE_RIM_Z = (TABLE_CARDS_MAX + 6) * TABLE_CARD_GAP;
+ * above the highest a card lying on the mat can be — TABLE_DEPTH — and the
+ * slip and the bin over those, by a few gaps more. A chip whose label opens
+ * inwards over the mat's edge is then drawn over whatever cards lie there,
+ * and is what the pointer finds first; a card in hand, held well above all
+ * of it, still passes over the tabs. table.css lifts the side edges by it,
+ * as --table-rim-z. */
+const TABLE_RIM_Z = TABLE_DEPTH + 6 * TABLE_CARD_GAP;
 
 /* How high the landing mark is drawn, in the plane's pixels: above every
- * card that can be lying on the mat — TABLE_CARDS_MAX of them — and the slip
- * and the bin, by a few gaps, so no pile it falls across is drawn over it;
- * and under the side edges' tabs, whose labels still open over it. The card
- * in hand is held far above this, so it passes over the mark — and while it
- * is still rising towards that, the mark is kept under it (tableCastDrawZ).
- * Drawn this high, it is not *at* this height as the eye sees it: it is
- * moved along the eye's rays to it, so it lands on the screen exactly where
- * a card lying at its own height would (tableCastTransform). */
-const TABLE_CAST_Z = (TABLE_CARDS_MAX + 3) * TABLE_CARD_GAP;
+ * card that can be lying on the mat — TABLE_DEPTH, however many — and the
+ * slip and the bin, by a few gaps, so no pile it falls across is drawn over
+ * it; and under the side edges' tabs, whose labels still open over it. The
+ * card in hand is held far above this, so it passes over the mark — and
+ * while it is still rising towards that, the mark is kept under it
+ * (tableCastDrawZ). Drawn this high, it is not *at* this height as the eye
+ * sees it: it is moved along the eye's rays to it, so it lands on the screen
+ * exactly where a card lying at its own height would (tableCastTransform). */
+const TABLE_CAST_Z = TABLE_DEPTH + 3 * TABLE_CARD_GAP;
+
+/* How far apart `layers` things lying on each other are, for all of them to
+ * fit in TABLE_DEPTH: TABLE_CARD_GAP while they do at that, and closer
+ * together when there are more. The piles' cards are one layer each; the
+ * zones add their felt and their labels (tableZonesLayer). */
+function tableCardGapFor(layers) {
+  return Math.min(TABLE_CARD_GAP, TABLE_DEPTH / Math.max(1, Number(layers) || 1));
+}
+
+/* The most cards a scope lays: the Deck Builder's ceiling for its deck, and
+ * TABLE_TAB_CARDS_MAX for every other tab and for a list laid through the
+ * API. */
+function tableCardsMaxFor(scope) {
+  return scope === 'deckview' ? TABLE_DECK_CARDS_MAX : TABLE_TAB_CARDS_MAX;
+}
 
 /* A card on the mat, sized against the mat: a real playmat is about ten cards
  * wide. Bounded, so a small window still draws a card you can see and a huge
@@ -943,12 +997,12 @@ function tableCardWidth(matWidth) {
  * Deck Builder's slip and bin lie on the far rim, off the mat. With no head
  * card and nothing reserved, the piles have the whole mat.
  *
- * At most TABLE_CARDS_MAX cards; a centre is kept far enough inside the mat
+ * At most TABLE_DECK_CARDS_MAX cards; a centre is kept far enough inside the mat
  * that the card does not hang off it, or into either band. Returns the card's
  * size in pixels too, since that is decided here — the size of a card in a
  * pile; a head card is drawn TABLE_HEAD_SCALE times it. */
 function tableLayout(cards, width, height, reserve = {}) {
-  const list = (cards || []).slice(0, TABLE_CARDS_MAX);
+  const list = (cards || []).slice(0, TABLE_DECK_CARDS_MAX);
   const w = tableCardWidth(width);
   const h = w * TABLE_CARD_RATIO;
   if (!list.length || !(width > 0) || !(height > 0)) {
@@ -1066,7 +1120,7 @@ function tableFeatureSize(matWidth, matHeight) {
  * its name gives it. More than one card would lie on top of it; nothing lays
  * more. */
 function tableFeatureLayout(cards, width, height) {
-  const list = (cards || []).slice(0, TABLE_CARDS_MAX);
+  const list = (cards || []).slice(0, TABLE_DECK_CARDS_MAX);
   const size = tableFeatureSize(width, height);
   const room = width > 0 && height > 0;
   const x = room ? Math.min(1, Math.max(0, (width - size.lane / 2) / width)) : 0.5;
@@ -1081,10 +1135,11 @@ function tableFeatureLayout(cards, width, height) {
 
 /* How many cards of each pile are laid, for piles of the given sizes, when no
  * more than `max` can be: the same share each, a pile smaller than its share
- * giving back what it does not use to the piles after it — so a hundred cards
- * of one kind and three of another lay the three and fifty-seven, not sixty of
- * the first. Each pile's cards are taken from its front, in the tab's order. */
-function tableFairShare(sizes, max = TABLE_CARDS_MAX) {
+ * giving back what it does not use to the piles after it — so, of a hundred
+ * to lay, two hundred cards of one kind and three of another lay the three
+ * and ninety-seven, not a hundred of the first. Each pile's cards are taken
+ * from its front, in the tab's order. */
+function tableFairShare(sizes, max = TABLE_TAB_CARDS_MAX) {
   const want = (sizes || []).map(n => Math.max(0, Math.floor(Number(n) || 0)));
   const take = want.map(() => 0);
   let left = Math.max(0, Math.floor(Number(max) || 0));
@@ -1106,7 +1161,7 @@ function tableFairShare(sizes, max = TABLE_CARDS_MAX) {
  * looks like and what it is known by — carrying its pile as its group, and no
  * more of each pile than tableFairShare gives it. A pile with nothing in it is
  * no pile. */
-function tableFromPiles(piles, cardOf, max = TABLE_CARDS_MAX) {
+function tableFromPiles(piles, cardOf, max = TABLE_TAB_CARDS_MAX) {
   const list = (piles || []).filter(pile => pile && Array.isArray(pile.cards) && pile.cards.length);
   const counts = tableFairShare(list.map(pile => pile.cards.length), max);
   const out = [];
@@ -1120,19 +1175,22 @@ function tableFromPiles(piles, cardOf, max = TABLE_CARDS_MAX) {
   return out;
 }
 
-/* The cards as the mat holds them: at most TABLE_CARDS_MAX, the nameless
- * dropped, each known by a key that is the same whenever the same card is laid
- * by the same tab — its scope, its id or else its name, and how many times
- * that has come up already in the list, for the second copy of a card. A card
- * may carry `head`, which lays it at the head of the mat (tableLayout), and
- * `ref`, which is what the tab knows it by to edit it — the Deck Builder's
- * board and name — or null for a card nothing can edit from the table. */
+/* The cards as the mat holds them: at most as many as the scope lays
+ * (tableCardsMaxFor), the nameless dropped, each known by a key that is the
+ * same whenever the same card is laid by the same tab — its scope, its id or
+ * else its name, and how many times that has come up already in the list,
+ * for the second copy of a card. A card may carry `head`, which lays it at
+ * the head of the mat (tableLayout), `ref`, which is what the tab knows it by
+ * to edit it — the Deck Builder's board and name — or null for a card
+ * nothing can edit from the table, and `qty`, how many copies of it the one
+ * card stands for: 1 unless a deck entry says more, which the card then
+ * says on its face. */
 function tableKeyCards(list, scope = '') {
   const seen = new Map();
   const prefix = scope ? `${scope}:` : '';
   return (Array.isArray(list) ? list : [])
     .filter(card => card && card.name)
-    .slice(0, TABLE_CARDS_MAX)
+    .slice(0, tableCardsMaxFor(scope))
     .map(card => {
       const base = prefix + String(card.id ?? card.name);
       const n = (seen.get(base) || 0) + 1;
@@ -1141,8 +1199,14 @@ function tableKeyCards(list, scope = '') {
         key: `${base}#${n}`, name: String(card.name), imageUrl: card.imageUrl || '',
         group: card.group ?? null, open: typeof card.open === 'function' ? card.open : null,
         head: !!card.head, ref: card.ref == null ? null : String(card.ref),
+        qty: tableQty(card.qty),
       };
     });
+}
+
+/* How many copies a laid card stands for: a whole number, at least one. */
+function tableQty(qty) {
+  return Math.max(1, Math.floor(Number(qty) || 1));
 }
 
 /* What a list of cards is to the mat, as one string: which cards lie in which
@@ -1156,15 +1220,17 @@ function tableListSig(list, scope = '', feature = false) {
 }
 
 /* The Deck Builder's cards as the mat lays them: the commanders first, at the
- * head of the mat, then a pile per category with whatever room is left of
- * TABLE_CARDS_MAX shared out among them. Each card is known by its ref — so a
- * card in the mainboard and the same card on the commander board are two
- * cards to the mat as they are to the deck — and carries it, so the bin and
- * "Remove one" can ask the builder to take one copy of it out. */
-function tableDeckCards(heads, piles, imageOf = () => '', max = TABLE_CARDS_MAX) {
+ * head of the mat, then a pile per category — every entry of the deck, one
+ * table card an entry with its count on it, up to TABLE_DECK_CARDS_MAX; only
+ * a deck past that has the room left after the commanders shared out among
+ * its categories. Each card is known by its ref — so a card in the mainboard
+ * and the same card on the commander board are two cards to the mat as they
+ * are to the deck — and carries it, so the bin and "Remove one" can ask the
+ * builder to take one copy of it out. */
+function tableDeckCards(heads, piles, imageOf = () => '', max = TABLE_DECK_CARDS_MAX) {
   const top = (heads || []).filter(card => card && card.name).slice(0, max);
   const laid = card => ({
-    name: card.name, id: card.ref, ref: card.ref, imageUrl: card.image || imageOf(card.name),
+    name: card.name, id: card.ref, ref: card.ref, imageUrl: card.image || imageOf(card.name), qty: card.qty,
   });
   return [
     ...top.map(card => ({ ...laid(card), head: true, group: 'commander' })),
@@ -1587,6 +1653,7 @@ function tableBuild() {
   scene.id = 'tableScene';
   scene.style.setProperty('--table-tilt', `${TABLE_TILT_REST}deg`);
   scene.style.setProperty('--table-rim-z', `${TABLE_RIM_Z.toFixed(2)}px`);
+  scene.style.setProperty('--table-face-z', `${TABLE_FACE_Z}px`);
   /* The far edge holds no tabs: what lies on it, the Deck Builder's slip and
      bin, are the mat's own children, laid out over it (table.css), so that
      where they are is said in the mat's pixels like everything else the hand
@@ -2125,9 +2192,12 @@ function tableShowPane(tab, kind = tablePanelKind(tab)) {
   panel.toggleAttribute('data-cards', kind === 'float' && tableIsCardTab(tab));
   panel.setAttribute('role', kind === 'float' ? 'dialog' : 'region');
   if (kind === 'grow') {
-    /* Lying on the mat, above every card on it. */
+    /* Lying on the mat, above every card on it: over the highest, by two
+       of the widest gaps — no higher, so a sheet over one card lies as low
+       as that card does. */
     for (const prop of TABLE_FLOAT_PROPS) panel.style.removeProperty(prop);
-    panel.style.setProperty('--table-sheet-z', `${((tableCards.length + 2) * TABLE_CARD_GAP).toFixed(2)}px`);
+    const top = tableCards.length * tableCardGapFor(tableCards.length);
+    panel.style.setProperty('--table-sheet-z', `${(top + 2 * TABLE_CARD_GAP).toFixed(2)}px`);
     mat.append(panel);
   } else {
     panel.style.removeProperty('--table-sheet-z');
@@ -2452,15 +2522,15 @@ function tablePageTab() {
 }
 
 /* Lay what a tab is showing. A list the mat already holds, from the same tab
- * and in the same piles, is not laid again — only its pictures are brought up
- * to date — so nothing moves when nothing changed. Returns whether cards were
+ * and in the same piles, is not laid again — only its pictures and its cards'
+ * counts are brought up to date — so nothing moves when nothing changed. Returns whether cards were
  * laid; a tab that lays nothing returns false and leaves the mat alone. */
 function tableLayFor(tab) {
   const source = tableSourceFor(tab);
   if (!source) return false;
   const sig = tableListSig(source.cards, tab, source.feature);
   if (tableLaid && tableLaid.tab === tab && tableLaid.sig === sig) {
-    tablePatchImages(source.cards, tab);
+    tablePatchCards(source.cards, tab);
     return false;
   }
   tableLayCards(source.cards, { hint: source.hint, scope: tab, feature: source.feature });
@@ -2484,14 +2554,22 @@ function tableFetchImages(tab) {
     .then(() => { if (tableOn && tableLaid?.tab === tab) tableLayFor(tab); });
 }
 
-/* The same cards as are lying on the mat, some of them with a picture now. */
-function tablePatchImages(list, scope) {
-  const fresh = new Map(tableKeyCards(list, scope).map(card => [card.key, card.imageUrl]));
+/* The same cards as are lying on the mat, some of them with a picture now,
+ * or a different count of copies — one taken out by the bin, one more added
+ * from the slip of a card the deck already has. Neither moves a card, so
+ * each is put on the card where it lies. */
+function tablePatchCards(list, scope) {
+  const fresh = new Map(tableKeyCards(list, scope).map(card => [card.key, card]));
   for (const card of tableCards) {
-    const url = fresh.get(card.key);
-    if (!url || url === card.imageUrl) continue;
+    const now = fresh.get(card.key);
+    if (!now) continue;
+    const url = now.imageUrl || card.imageUrl;
+    if (url === card.imageUrl && now.qty === card.qty) continue;
     card.imageUrl = url;
-    if (card.el) card.el.innerHTML = tableCardFace(card);
+    card.qty = now.qty;
+    if (!card.el) continue;
+    card.el.innerHTML = tableCardFace(card);
+    card.el.setAttribute('aria-label', tableCardLabel(card));
   }
 }
 
@@ -2534,8 +2612,8 @@ function tableQueueRelay(tab) {
 
 // ── Cards ─────────────────────────────────────────────────────────────────
 
-/* Lay a list of cards on the mat. Each is { name, imageUrl, id?, group? };
- * cards past TABLE_CARDS_MAX are not drawn. A card is known across calls by
+/* Lay a list of cards on the mat. Each is { name, imageUrl, id?, group?,
+ * qty? }; cards past the scope's cap (tableCardsMaxFor) are not drawn. A card is known across calls by
  * its id, or its name where it has none, numbered by how often that has come
  * up — so a card a hand moved earlier in the session lies where it was put
  * when the same list is laid again. */
@@ -2556,7 +2634,7 @@ function tableLayCards(list, { hint, scope = '', feature = false } = {}) {
 function tableCardZ(card) {
   /* Laid in zones, a card lies at the height its zone gives it (tableZonesLayer). */
   if (card.zoneZ != null) return card.zoneZ;
-  return (card.rank + 1) * TABLE_CARD_GAP;
+  return (card.rank + 1) * tableCardGapFor(tableCards.length);
 }
 
 /* The size a card is drawn at: a pile's card size, or TABLE_HEAD_SCALE times
@@ -2617,11 +2695,30 @@ function tableSharpen() {
 }
 
 /* A card that has no picture is not drawn as one: it keeps a surface and its
- * name, as the stacks' blank does. */
+ * name, as the stacks' blank does. A card standing for more than one copy —
+ * thirty Islands are one card on the mat, not thirty — says how many in a
+ * small count lying on its lower-left corner (tableQtyBadge). */
 function tableCardFace(card) {
-  return card.imageUrl
+  const face = card.imageUrl
     ? `<img class="card-img table-card-img" src="${esc(tableCardSrc(card))}" alt="" draggable="false">`
     : `<span class="table-card-blank">${esc(card.name)}</span>`;
+  return face + tableQtyBadge(card.qty);
+}
+
+/* The count a card carries for its copies: "×30", or nothing for one. It is
+ * drawn, so it is read; the card's own name says it to a screen reader
+ * (tableCardLabel), so the badge is hidden from one. */
+function tableQtyBadge(qty) {
+  const n = tableQty(qty);
+  return n > 1 ? `<span class="table-card-qty" aria-hidden="true">×${n}</span>` : '';
+}
+
+/* What a card is called to a screen reader: its name, its copies past one,
+ * and what pressing it does when that is to open something. */
+function tableCardLabel(card) {
+  const n = tableQty(card.qty);
+  const name = n > 1 ? `${card.name}, ${n} copies` : card.name;
+  return card.open ? `Open ${name}` : name;
 }
 
 function tableCardEl(card) {
@@ -2629,7 +2726,7 @@ function tableCardEl(card) {
   el.type = 'button';
   el.className = 'table-card';
   el.dataset.key = card.key;
-  el.setAttribute('aria-label', card.open ? `Open ${card.name}` : card.name);
+  el.setAttribute('aria-label', tableCardLabel(card));
   el.innerHTML = tableCardFace(card);
   el.addEventListener('click', tableOnCardClick);
   return el;
@@ -3367,8 +3464,8 @@ function tableSlipKey(e) {
 // category that turns up later is given a zone in free space, and one the
 // deck no longer has loses its zone.
 //
-// Depth: the zones and their cards share the TABLE_CARDS_MAX gaps of height
-// the piles have (tableZoneGapFor), each zone a run of it — its felt, its
+// Depth: the zones and their cards share the TABLE_DEPTH of height the piles
+// have (tableCardGapFor), each zone a run of it — its felt, its
 // cards, and its chip and grip above them — so the landing mark, the slip,
 // the bin and the rim's tabs keep lying above all of it as they do above the
 // piles, and a zone on top of another is drawn over that one's cards too.
@@ -3451,14 +3548,6 @@ function tableZoneNames(cats, counts, kept) {
  * with the label's band over it. */
 function tableZoneMinSize(cardW, cardH) {
   return { width: (Number(cardW) || 0) + 2 * TABLE_ZONE_PAD, height: TABLE_ZONE_HEAD + (Number(cardH) || 0) + TABLE_ZONE_PAD };
-}
-
-/* How many layers of height the zones' depth is divided into, and so how far
- * apart they are: the gap the piles use, or less, so that however many zones
- * and cards there are they fit in the TABLE_CARDS_MAX gaps the piles fit in,
- * under the landing mark and the rim. */
-function tableZoneGapFor(layers) {
-  return Math.min(TABLE_CARD_GAP, TABLE_CARDS_MAX * TABLE_CARD_GAP / Math.max(1, Number(layers) || 1));
 }
 
 /* Where `count` cards w × h lie in a zone zoneW × zoneH: their centres, in
@@ -3959,9 +4048,8 @@ function tableZonesPlace() {
   const kept = tableZoneKept(deck.id);
   const cats = typeof dbCats !== 'undefined' ? dbCats : [];
   const names = tableZoneNames(cats, counts, (kept || []).map(z => z.name));
-  /* Sized for the cards each will hold on the mat — its share of the
-     TABLE_CARDS_MAX laid — rather than for the deck's count, which its
-     label says. */
+  /* Sized for the cards each will hold on the mat — one an entry —
+     rather than for the deck's copies of them, which its label says. */
   const laid = new Map();
   for (const card of tableCards) if (!card.head) laid.set(String(card.group), (laid.get(String(card.group)) || 0) + 1);
   const { rects, changed } = tableZoneReconcile(kept, names.map(name => ({ name, count: laid.get(name) || 0 })),
@@ -4002,11 +4090,13 @@ function tableZonesClear() {
 /* The zones' depth, shared out in order: for each zone a layer for its
  * felt, one for each of its cards and one for its label and grip; then one
  * for each card no zone holds — the commander — over all of them. The
- * first layer is a gap above the mat, never on it. */
+ * first layer is a gap above the mat, never on it. However many zones and
+ * cards there are, they fit in TABLE_DEPTH (tableCardGapFor), under the
+ * landing mark and the rim. */
 function tableZonesLayer() {
   const zoned = new Set(tableZones.flatMap(zone => zone.cards));
   const loose = tableCards.filter(card => !zoned.has(card));
-  const g = tableZoneGapFor(1 + tableZones.reduce((s, zone) => s + zone.cards.length + 2, 0) + loose.length);
+  const g = tableCardGapFor(1 + tableZones.reduce((s, zone) => s + zone.cards.length + 2, 0) + loose.length);
   let at = 1;
   for (const zone of tableZones) {
     zone.z0 = at * g;
@@ -4130,7 +4220,7 @@ function tableZoneLight(zone) {
  * without a lift — cards still — it still lies over the cards round it. The
  * piles do this by raising its rank; here a rank is not a height. */
 function tableZonePickUp(card) {
-  if (tableZonesActive()) card.zoneZ = (TABLE_CARDS_MAX + 1) * TABLE_CARD_GAP;
+  if (tableZonesActive()) card.zoneZ = TABLE_DEPTH + TABLE_CARD_GAP;
 }
 
 /* A frame of a card carried over the zones: the zone under the pointer, lit

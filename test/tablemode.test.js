@@ -156,7 +156,7 @@ test('the tabs lie flat on the rim, an icon each, and open their label on hover 
     'and lies above the cards, so a label opened over the mat is drawn over them');
   assert.match(sheet, /\.table-rim--left,\s*\n\.table-rim--right\s*\{[^}]*pointer-events:\s*none/,
     'while the edge itself takes no pointer from the cards beside it — only its chips do');
-  assert.ok(app.evaluate('TABLE_RIM_Z') > app.evaluate('(TABLE_CARDS_MAX + 2) * TABLE_CARD_GAP'),
+  assert.ok(app.evaluate('TABLE_RIM_Z') > app.evaluate('TABLE_DEPTH + 2 * TABLE_CARD_GAP'),
     'above the highest a card lying on the mat can be');
   assert.match(sheet, /grid-template-columns:\s*var\(--table-rim-side\) minmax\(0, 1fr\) var\(--table-rim-side\)/,
     'the side edges are one width, said once');
@@ -691,9 +691,11 @@ const cards = (n, group = () => null) =>
 const layout = (list, w = MAT.width, h = MAT.height) =>
   app.copy(app.evaluate(`tableLayout(${JSON.stringify(list)}, ${w}, ${h})`));
 
-test('no more than sixty cards are laid, and every one lies on the mat', () => {
+test('no more than the deck’s ceiling of cards are laid, and every one lies on the mat', () => {
+  const max = app.evaluate('TABLE_DECK_CARDS_MAX');
+  assert.strictEqual(layout(cards(max + 30, i => i % 5)).spots.length, max);
   const laid = layout(cards(80, i => i % 5));
-  assert.strictEqual(laid.spots.length, 60);
+  assert.strictEqual(laid.spots.length, 80);
   const halfW = laid.width / 2 / MAT.width, halfH = laid.height / 2 / MAT.height;
   for (const spot of laid.spots) {
     assert.ok(spot.x >= halfW - 1e-9 && spot.x <= 1 - halfW + 1e-9, `x ${spot.x} hangs off the mat`);
@@ -836,15 +838,15 @@ test('every tab with cards has a source, and no other tab does', () => {
   assert.strictEqual(ask('toString'), null, 'nothing inherited is a source');
 });
 
-test('Collections lays the rows on show, in the stack view’s piles, at most sixty', () => {
+test('Collections lays the rows on show, in the stack view’s piles, at most a hundred', () => {
   const rows = n => Array.from({ length: n }, (_, i) => ({ name: `Card ${i}` }));
   const src = ask('collections', {
-    colShownPiles: () => [{ label: 'Creature', cards: rows(70) }, { label: 'Land', cards: [{ name: 'Forest' }] }],
+    colShownPiles: () => [{ label: 'Creature', cards: rows(170) }, { label: 'Land', cards: [{ name: 'Forest' }] }],
     scryfallCache: new Map([['Forest', 'forest.jpg']]),
   });
-  assert.strictEqual(src.cards.length, 60);
+  assert.strictEqual(src.cards.length, 100);
   assert.deepStrictEqual(plain(src.cards.at(-1)), { name: 'Forest', imageUrl: 'forest.jpg', group: 'Land' },
-    'the one land is laid even behind seventy creatures');
+    'the one land is laid even behind a hundred and seventy creatures');
   assert.strictEqual(src.cards[0].imageUrl, '', 'a card with no picture yet is laid without one…');
   assert.strictEqual(src.fetch, true, '…and its picture is asked for');
   const none = ask('collections', { colShownPiles: () => null });
@@ -1243,12 +1245,83 @@ test('the Deck Builder lays its commanders first, at the head, known by their re
   assert.strictEqual(old.cards.length, 1, 'a builder with no commander getter still lays its piles');
 });
 
-test('the commanders and the piles together are still no more than sixty', () => {
+test('the Deck Builder lays every entry of a deck of a hundred and more, up to its ceiling', () => {
   const heads = [{ name: 'A', ref: 'commander/A' }, { name: 'B', ref: 'commander/B' }];
-  const piles = [{ label: 'X', cards: Array.from({ length: 80 }, (_, i) => ({ name: `c${i}`, ref: `main/c${i}` })) }];
+  const entries = (n, cat) => Array.from({ length: n }, (_, i) => ({ name: `${cat}${i}`, ref: `main/${cat}${i}`, qty: 1 }));
+  /* A Commander deck and more: 2 commanders and 148 entries in three categories. */
+  const piles = [{ label: 'Creatures', cards: entries(90, 'c') }, { label: 'Lands', cards: entries(38, 'l') },
+    { label: 'Ramp', cards: entries(20, 'r') }];
   const laid = plain(app.sandbox.tableDeckCards(heads, piles));
-  assert.strictEqual(laid.length, 60);
-  assert.deepStrictEqual(laid.slice(0, 2).map(c => c.name), ['A', 'B'], 'the commanders are never the ones left off');
+  assert.strictEqual(laid.length, 150, 'nothing is left off a deck under the ceiling');
+  assert.deepStrictEqual(laid.map(c => c.ref), [...heads, ...piles.flatMap(p => p.cards)].map(c => c.ref),
+    'every entry, in the builder’s order');
+  /* And keyed for the mat, the deck scope keeps all of them too. */
+  assert.strictEqual(app.sandbox.tableKeyCards(laid, 'deckview').length, 150);
+
+  const max = app.evaluate('TABLE_DECK_CARDS_MAX');
+  assert.strictEqual(max, 250);
+  const huge = [{ label: 'X', cards: entries(400, 'x') }, { label: 'Y', cards: entries(5, 'y') }];
+  const capped = plain(app.sandbox.tableDeckCards(heads, huge));
+  assert.strictEqual(capped.length, max, 'a list past the ceiling is laid to it and no further');
+  assert.deepStrictEqual(capped.slice(0, 2).map(c => c.name), ['A', 'B'], 'the commanders are never the ones left off');
+  assert.strictEqual(capped.filter(c => c.group === 'Y').length, 5, 'and the room left is shared fairly');
+});
+
+test('each source lays no more than its cap: the deck its ceiling, every other tab a hundred', () => {
+  const sb = app.sandbox;
+  assert.strictEqual(app.evaluate('TABLE_TAB_CARDS_MAX'), 100);
+  assert.strictEqual(sb.tableCardsMaxFor('deckview'), app.evaluate('TABLE_DECK_CARDS_MAX'));
+  for (const scope of ['collections', 'players', 'scryfall', 'sets', 'wants', 'card', '']) {
+    assert.strictEqual(sb.tableCardsMaxFor(scope), 100, `${scope || 'the API'} lays a hundred`);
+  }
+  const list = n => Array.from({ length: n }, (_, i) => ({ name: `Card ${i}` }));
+  assert.strictEqual(sb.tableKeyCards(list(300), 'scryfall').length, 100, 'a page of search results is cut to the cap');
+  assert.strictEqual(sb.tableKeyCards(list(300), '').length, 100, 'and so is a list laid through the API');
+  assert.strictEqual(sb.tableKeyCards(list(300), 'deckview').length, 250, 'the deck is cut only at its ceiling');
+  const src = ask('scryfall', { sfShownCards: () => list(175).map((c, i) => ({ ...c, id: `id${i}` })) });
+  assert.strictEqual(sb.tableKeyCards(src.cards, 'scryfall').length, 100);
+  const sets = ask('sets', { setShownPiles: () => [{ label: 'Common', cards: list(150) }, { label: 'Rare', cards: list(60) }] });
+  assert.strictEqual(sets.cards.length, 100, 'a set’s piles share a hundred');
+});
+
+test('a deck entry of many copies is one card on the mat, its count on its face', () => {
+  const sb = app.sandbox;
+  const piles = [{ label: 'Lands', cards: [
+    { name: 'Island', image: 'island.jpg', ref: 'main/Island', qty: 30 },
+    { name: 'Sol Ring', image: 'sol.jpg', ref: 'main/Sol Ring', qty: 1 },
+  ] }];
+  const keyed = sb.tableKeyCards(sb.tableDeckCards([], piles), 'deckview');
+  assert.deepStrictEqual(plain(keyed.map(c => [c.name, c.qty])), [['Island', 30], ['Sol Ring', 1]],
+    'thirty Islands are one card, standing for thirty');
+  assert.strictEqual(sb.tableKeyCards([{ name: 'X' }], 'collections')[0].qty, 1, 'a card with no count stands for one');
+  assert.strictEqual(sb.tableKeyCards([{ name: 'X', qty: 'junk' }], '')[0].qty, 1);
+  assert.strictEqual(sb.tableKeyCards([{ name: 'X', qty: 0 }], '')[0].qty, 1);
+
+  /* The page's own esc (js/state.js) is not in the sandbox; the face only
+     needs one that escapes. */
+  app.evaluate(`if (typeof esc === 'undefined') globalThis.esc = s => String(s).replace(/[&<>"]/g, c => '&#' + c.charCodeAt(0) + ';');`);
+  const face = card => app.evaluate(`tableCardFace(${JSON.stringify(card)})`);
+  const many = face({ name: 'Island', imageUrl: 'island.jpg', qty: 30 });
+  assert.match(many, /<span class="table-card-qty" aria-hidden="true">×30<\/span>$/, 'the count lies on the card, after its picture');
+  assert.doesNotMatch(face({ name: 'Sol Ring', imageUrl: 'sol.jpg', qty: 1 }), /table-card-qty/, 'one copy says nothing');
+  assert.match(face({ name: 'Blank', imageUrl: '', qty: 4 }), /table-card-blank.*×4/, 'a card with no picture still says it');
+  assert.strictEqual(sb.tableCardLabel({ name: 'Island', qty: 30 }), 'Island, 30 copies', 'and its name says it to a screen reader');
+  assert.strictEqual(sb.tableCardLabel({ name: 'Sol Ring', qty: 1 }), 'Sol Ring');
+  assert.strictEqual(sb.tableCardLabel({ name: 'Deck', qty: 1, open: () => {} }), 'Open Deck');
+
+  /* A change of count is not a new layout: the same cards, lying where they are. */
+  const sig = qty => sb.tableListSig([{ name: 'Island', id: 'main/Island', group: 'Lands', qty }], 'deckview');
+  assert.strictEqual(sig(30), sig(29), 'one Island binned moves nothing');
+
+  const css = read('public/css/table.css');
+  const rule = css.match(/\.table-card-qty\s*\{([^}]*)\}/)?.[1] || '';
+  assert.match(rule, /left:\s*[\d.]+%/, 'on the card’s left…');
+  assert.match(rule, /bottom:\s*[\d.]+%/, '…lower corner');
+  assert.match(rule, /background:\s*var\(--surface-1\)/, 'on the app’s own surface');
+  assert.match(rule, /color:\s*var\(--text\)/, 'in its own text');
+  assert.match(rule, /transform:\s*translateZ\(var\(--table-face-z/, 'lifted off the picture by a hair');
+  assert.match(rule, /pointer-events:\s*none/, 'pressing it is pressing the card');
+  assert.match(rule, /opacity:\s*var\(--table-bin-fade/, 'and it fades with the picture over the bin');
 });
 
 test('a commander moving between boards is a new card to the mat, not the old one laid again', () => {
@@ -1352,10 +1425,42 @@ test('the landing mark lies where the card lands: the same spot, the same angle,
   assert.match(card, /^translate3d\([\d.-]+px, [\d.-]+px, 15\.00px\) rotate\(-3\.4deg\) rotateX\(0\.00deg\)$/);
 });
 
+test('the depth is a budget: every card at the ceiling lies under the mark and the rim, which lie where they did', () => {
+  const gap = app.evaluate('TABLE_CARD_GAP'), depth = app.evaluate('TABLE_DEPTH');
+  const cast = app.evaluate('TABLE_CAST_Z'), rim = app.evaluate('TABLE_RIM_Z');
+  /* The rim and the mark lie where sixty cards a quarter pixel apart put them,
+     so that no number of cards raises them. */
+  assert.strictEqual(rim, 66 * 0.25, 'the rim at the height it always had');
+  assert.strictEqual(cast, 63 * 0.25, 'and the mark');
+  const heights = n => app.copy(app.evaluate(`(() => {
+    const saved = tableCards;
+    tableCards = Array.from({ length: ${n} }, (_, i) => ({ rank: i }));
+    const z = tableCards.map(tableCardZ);
+    tableCards = saved;
+    return z;
+  })()`));
+  for (const n of [1, 60, 100, 200, app.evaluate('TABLE_DECK_CARDS_MAX')]) {
+    const z = heights(n);
+    const top = Math.max(...z);
+    assert.ok(top <= depth + 1e-9, `${n} cards: the highest at ${top} is inside the depth`);
+    assert.ok(top + 2 * gap <= cast + 1e-9, `${n} cards lie under the mark, with room for the card in hand's two gaps`);
+    assert.ok(cast < rim, 'and the mark under the rim');
+    const step = z[1] - z[0] || z[0];
+    assert.ok(step > 0, `${n} cards: each a plane above the one under it`);
+    if (n <= 60) assert.ok(near(step, gap), `${n} cards lie a quarter pixel apart, as they always did`);
+    else assert.ok(near(step, depth / n), `${n} cards share the depth, closer together`);
+  }
+  /* What lies on a card lies under the next card up, however close they come:
+     at the ceiling, every card a zone of its own. */
+  const closest = app.evaluate('tableCardGapFor(1 + 3 * TABLE_DECK_CARDS_MAX + 2)');
+  assert.ok(app.evaluate('TABLE_FACE_Z') > 0 && app.evaluate('TABLE_FACE_Z') < closest / 2,
+    'a card’s count is lifted off its picture by less than half the closest gap');
+});
+
 test('the landing mark is drawn above every pile and under the card in hand', () => {
   const gap = app.evaluate('TABLE_CARD_GAP'), top = app.evaluate('TABLE_CAST_Z');
-  const max = app.evaluate('TABLE_CARDS_MAX'), rim = app.evaluate('TABLE_RIM_Z');
-  assert.ok(top > max * gap, 'above the highest a card lying on the mat can be');
+  const rim = app.evaluate('TABLE_RIM_Z');
+  assert.ok(top > app.evaluate('TABLE_DEPTH'), 'above the highest a card lying on the mat can be');
   assert.ok(top < rim, 'and under the side edges’ tabs, whose labels open over the mat');
   const drawZ = (rest, lift) => app.sandbox.tableCastDrawZ(rest, lift);
   assert.strictEqual(drawZ(15, 96), top, 'held well up, the mark is drawn at its own height');
@@ -1788,13 +1893,13 @@ test('the Zones chip is kept per browser, and unreadable storage is just "off"',
 });
 
 test('the zones and their cards keep under the landing mark and the rim, however many there are', () => {
-  const cap = app.evaluate('TABLE_CARDS_MAX * TABLE_CARD_GAP');
-  for (const layers of [1, 20, 61, 100, 300]) {
-    const g = app.evaluate(`tableZoneGapFor(${layers})`);
+  const cap = app.evaluate('TABLE_DEPTH');
+  for (const layers of [1, 20, 61, 100, 300, 753]) {
+    const g = app.evaluate(`tableCardGapFor(${layers})`);
     assert.ok(g > 0 && g <= app.evaluate('TABLE_CARD_GAP'), `${layers} layers`);
     assert.ok(layers * g <= cap + 1e-9, `${layers} layers fit the piles' depth`);
   }
-  assert.ok(cap < app.evaluate('TABLE_CAST_Z') && app.evaluate('(TABLE_CARDS_MAX + 1) * TABLE_CARD_GAP') < app.evaluate('TABLE_CAST_Z'),
+  assert.ok(app.evaluate('TABLE_DEPTH + TABLE_CARD_GAP') < app.evaluate('TABLE_CAST_Z'),
     'a card picked up off a zone is still under the mark');
   const css = read('public/css/table.css');
   assert.match(css, /\.table-zone\s*\{[^}]*pointer-events:\s*none/, 'a zone’s felt is felt: it takes no pointer');

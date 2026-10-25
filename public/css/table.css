@@ -473,6 +473,34 @@ html[data-playmat] .table-mat {
   overflow: hidden;
 }
 
+/* A card standing for several copies — the deck's thirty Islands are one card
+   on the mat — says how many on its lower-left corner, where a fan or a
+   zone's overlap leaves the card showing: a small chip on the app's surface,
+   in its text, lying on the card. A child of the card, so it is carried,
+   lifted and laid down with it. The card is a 3D context, so the chip is a
+   face beside the picture and is lifted the hair --table-face-z off it
+   (js/tablemode.js, TABLE_FACE_Z: under the next card up); it fades with
+   the picture over the bin. It takes no pointer: pressing it is pressing
+   the card. */
+.table-card-qty {
+  position: absolute;
+  left: 6%;
+  bottom: 4.5%;
+  padding: 0 var(--space-1);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateZ(var(--table-face-z, 0px));
+  opacity: var(--table-bin-fade, 1);
+}
+
 /* ── A card picked up to be looked at ──────────────────────────────────
    Above the table and anything floating over it, below the app's own dialogs
    and the card preview. Behind the card, the whole window is the button that
