@@ -48,9 +48,10 @@ mtgtools/
 │                            # mapping through the camera, the floating panel's box, the layout,
 │                            # what each tab lays and in which piles, where a re-laid card
 │                            # goes, when a panel tucks, where a card in hand lands and its
-│                            # landing shadow lies; the Deck Builder's commander at the
-│                            # head of the mat, and when its slip and bin show, the bin's hit
-│                            # on the far rim and what a card put in it does to the deck
+│                            # landing mark lies — drawn above the piles without moving on
+│                            # screen; the Deck Builder's commander at the head of the mat,
+│                            # and when its slip and bin show, the bin's hit on the far rim
+│                            # and what a card put in it does to the deck
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -122,7 +123,7 @@ mtgtools/
 │       │                  # switch, the table fitted to the window, the tabs lying down the rim's
 │       │                  # two sides round a wide mat, panes lifted into panels and put back, the
 │       │                  # camera panning and zooming over it with its cards kept sharp, cards
-│       │                  # picked up off the mat with a shadow where they will land, each
+│       │                  # picked up off the mat with a ringed mark where they will land, each
 │       │                  # tab's own cards laid there
 │       │                  # (read through a small getter beside each tab's renderer) with its
 │       │                  # panel tucked out of their way — the Deck Builder's with its commander

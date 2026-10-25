@@ -394,21 +394,26 @@ html[data-playmat] .table-mat {
 /* Picked up to be looked at: its place on the table is kept for it. */
 .table-card.is-looked { visibility: hidden; }
 
-/* The landing shadow: where the card in hand comes down if it is let go
-   now, card-sized and at its angle, a hair under the height it will lie at
-   — the script lays it there every frame the card moves, by the same
-   arithmetic it lays the card with (js/tablemode.js, tableCastPose). A plain
-   shape in the colour a card casts, softened at its edge by a drop shadow of
-   the same colour, with a card's corners. A leaf, so its filter flattens
-   nothing; it takes no pointer, and has no transition of its own, so it is
-   never a frame behind the hand. */
+/* The landing mark: where the card in hand comes down if it is let go now,
+   card-sized, at its angle and with its corners — the script lays it in the
+   card's own landing pose every frame the card moves, and draws it above the
+   piles it falls across without moving it on the screen (js/tablemode.js,
+   tableCastTransform). Not a shadow: a shadow is dark, and dark vanishes on
+   the dark felts and under a card held over it. A mark instead — a 2px ring
+   in the theme's ink, a hairline of the page's colour inside it so the ring
+   still reads where the art under it is the ink's own colour, and a faint
+   wash of the ink over what it covers (--table-land-*, tokens.css). The ring
+   is an outline, outside the box, so the box the mark is measured by is the
+   card's. A leaf; it takes no pointer, and has no transition of its own, so
+   it is never a frame behind the hand. */
 .table-cast {
   position: absolute;
   left: 0;
   top: 0;
+  border: 1px solid var(--table-land-halo);
   border-radius: var(--radius-card);
-  background: var(--card-cast);
-  filter: drop-shadow(0 0 6px var(--card-cast));
+  outline: 2px solid var(--table-land-ink);
+  background: var(--table-land-fill);
   pointer-events: none;
 }
 .table-cast[hidden] { display: none; }

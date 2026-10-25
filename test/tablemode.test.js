@@ -1204,20 +1204,10 @@ test('the bin is hit on the far rim, by the pointer mapped onto the plane past t
     'from the slip’s drawn foot');
 });
 
-test('the landing shadow lies where the card lands: the same spot, the same angle, a hair under it', () => {
+test('the landing mark lies where the card lands: the same spot, the same angle, the same height', () => {
   const W = MAT.width, H = MAT.height;
-  const box = { w: 110, h: 110 * 88 / 63 };
   const rest = 15, lift = 96, turn = -3.4;
   const grab = { u: 12, v: -30 };
-  const corners = (m, spot, z) => {
-    const c = Math.cos(spot.turn * Math.PI / 180), s = Math.sin(spot.turn * Math.PI / 180);
-    const pts = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => {
-      const dx = a * box.w / 2, dy = b * box.h / 2;
-      return project(m, spot.x * W + dx * c - dy * s, spot.y * H + dx * s + dy * c, z);
-    });
-    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
-    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
-  };
   for (const v of VIEWS) {
     const m = matrix(v);
     /* The pointer, over where a hand holding the card by `grab` would have
@@ -1227,26 +1217,76 @@ test('the landing shadow lies where the card lands: the same spot, the same angl
     const spot = app.copy(app.sandbox.tableDropSpot(hit, grab, W, H));
     assert.ok(near(spot.x * W, 400, 1e-6) && near(spot.y * H, 300, 1e-6),
       `it lands under where it is held, by the pointer’s own mapping: ${JSON.stringify(spot)}`);
-    const landing = { ...spot, turn };
     const cast = app.copy(app.sandbox.tableCastPose(spot, turn, rest));
-    assert.deepStrictEqual([cast.x, cast.y, cast.turn], [landing.x, landing.y, landing.turn],
-      'the shadow’s place and angle are the landing’s');
-    assert.ok(cast.z < rest && rest - cast.z <= app.evaluate('TABLE_CARD_GAP') / 2,
-      'a hair under the card’s height in the pile, above every card under it');
-    const a = corners(m, landing, rest), b = corners(m, cast, cast.z);
-    const d = Math.max(...a.map((n, i) => Math.abs(n - b[i])));
-    assert.ok(d < 1, `the card at rest and the shadow are drawn within a pixel: ${d}`);
+    assert.deepStrictEqual(cast, { x: spot.x, y: spot.y, turn, z: rest },
+      'the mark’s pose is the card’s own once it is down');
   }
-  /* The same arithmetic writes both: only the height differs. */
+  /* The same arithmetic lays both. */
+  const box = { w: 110, h: 110 * 88 / 63 };
   const spot = { x: 0.4, y: 0.6, turn };
   const card = app.evaluate(`tableLieTransform(${JSON.stringify(spot)}, ${JSON.stringify(box)}, ${JSON.stringify(MAT)}, ${rest})`);
   const cast = app.copy(app.sandbox.tableCastPose(spot, turn, rest));
-  const shadow = app.evaluate(`tableLieTransform(${JSON.stringify(cast)}, ${JSON.stringify(box)}, ${JSON.stringify(MAT)}, ${cast.z})`);
-  assert.strictEqual(shadow.replace(/, [\d.]+px\)/, ', Zpx)'), card.replace(/, [\d.]+px\)/, ', Zpx)'));
+  assert.strictEqual(app.evaluate(`tableLieTransform(${JSON.stringify(cast)}, ${JSON.stringify(box)}, ${JSON.stringify(MAT)}, ${cast.z})`), card);
   assert.match(card, /^translate3d\([\d.-]+px, [\d.-]+px, 15\.00px\) rotate\(-3\.4deg\) rotateX\(0\.00deg\)$/);
 });
 
-test('a card in hand lands on the mat, and lets go onto the spot its shadow lay on', () => {
+test('the landing mark is drawn above every pile and under the card in hand', () => {
+  const gap = app.evaluate('TABLE_CARD_GAP'), top = app.evaluate('TABLE_CAST_Z');
+  const max = app.evaluate('TABLE_CARDS_MAX'), rim = app.evaluate('TABLE_RIM_Z');
+  assert.ok(top > max * gap, 'above the highest a card lying on the mat can be');
+  assert.ok(top < rim, 'and under the side edges’ tabs, whose labels open over the mat');
+  const drawZ = (rest, lift) => app.sandbox.tableCastDrawZ(rest, lift);
+  assert.strictEqual(drawZ(15, 96), top, 'held well up, the mark is drawn at its own height');
+  assert.strictEqual(drawZ(2, 96), top, 'however low the card lay');
+  assert.ok(near(drawZ(2, 4), 2 + 4 - 2 * gap), 'while the card is still rising, under it by two gaps');
+  assert.strictEqual(drawZ(2, 0), 2, 'never under the card’s own height: with cards still it lies on its mark');
+});
+
+test('drawn higher, the landing mark does not move on the screen by a hair', () => {
+  const box = { w: 110, h: 110 * 88 / 63 };
+  const rest = 3, turn = 7;
+  const spot = { x: 0.31, y: 0.72 };
+  const pose = app.copy(app.sandbox.tableCastPose(spot, turn, rest));
+  const drawZ = app.evaluate('TABLE_CAST_Z');
+  const num = String.raw`(-?[\d.]+)`;
+  const shape = new RegExp(String.raw`^translate3d\(${num}px, ${num}px, ${num}px\) scale3d\(${num}, ${num}, ${num}\) ` +
+    String.raw`translate3d\(${num}px, ${num}px, ${num}px\) (translate3d.*)$`);
+  for (const v of VIEWS) {
+    const m = matrix(v);
+    const eye = app.copy(app.sandbox.tableEye(m));
+    /* The eye is the one point the projection sends nowhere. */
+    for (const row of [0, 4, 12]) {
+      const r = m[row] * eye.u + m[row + 1] * eye.v + m[row + 2] * eye.z + m[row + 3];
+      assert.ok(Math.abs(r) < 1e-6 * Math.max(1, Math.abs(m[row + 3])), `row ${row} vanishes at the eye: ${r}`);
+    }
+    assert.ok(eye.z > drawZ, 'above the table, where a seat’s eye is');
+    const t = app.evaluate(`tableCastTransform(${JSON.stringify(m)}, ${JSON.stringify(pose)}, ${JSON.stringify(box)}, ${JSON.stringify(MAT)}, ${drawZ})`);
+    const got = shape.exec(t);
+    assert.ok(got, `a scale about the eye, round the card’s own pose: ${t}`);
+    const [ox, oy, oz, s] = got.slice(1, 5).map(Number);
+    assert.strictEqual(got[10], app.evaluate(`tableLieTransform(${JSON.stringify(pose)}, ${JSON.stringify(box)}, ${JSON.stringify(MAT)}, ${rest})`));
+    assert.ok(near(ox, eye.u - box.w / 2, 1e-3) && near(oy, eye.v - box.h / 2, 1e-3) && near(oz, eye.z, 1e-3),
+      'about the eye, put in the frame of the element’s own centre');
+    /* Each corner of the card at rest, slid along its ray from the eye by
+       the transform's factor: drawn at drawZ, on the very same pixel. */
+    const c = Math.cos(turn * Math.PI / 180), sn = Math.sin(turn * Math.PI / 180);
+    for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const dx = a * box.w / 2, dy = b * box.h / 2;
+      const P = { u: spot.x * MAT.width + dx * c - dy * sn, v: spot.y * MAT.height + dx * sn + dy * c, z: rest };
+      const Q = { u: eye.u + s * (P.u - eye.u), v: eye.v + s * (P.v - eye.v), z: eye.z + s * (P.z - eye.z) };
+      assert.ok(near(Q.z, drawZ, 1e-3), `drawn at the mark’s height: ${Q.z}`);
+      const p = project(m, P.u, P.v, P.z), q = project(m, Q.u, Q.v, Q.z);
+      assert.ok(near(p.x, q.x, 0.01) && near(p.y, q.y, 0.01), `the same pixel: ${JSON.stringify([p, q])}`);
+    }
+  }
+  /* No perspective, no eye: drawn at its own height, as it was. */
+  const flat = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  assert.strictEqual(app.sandbox.tableEye(flat), null);
+  assert.strictEqual(app.evaluate(`tableCastTransform(${JSON.stringify(flat)}, ${JSON.stringify(pose)}, ${JSON.stringify(box)}, ${JSON.stringify(MAT)}, ${drawZ})`),
+    app.evaluate(`tableLieTransform(${JSON.stringify(pose)}, ${JSON.stringify(box)}, ${JSON.stringify(MAT)}, ${rest})`));
+});
+
+test('a card in hand lands on the mat, and lets go onto the spot its mark lay on', () => {
   const W = MAT.width, H = MAT.height;
   const spot = (u, v) => app.copy(app.sandbox.tableDropSpot({ u, v }, { u: 0, v: 0 }, W, H));
   assert.deepStrictEqual(spot(-200, 300), { x: 0, y: 300 / H }, 'its centre is kept on the mat');
@@ -1256,11 +1296,13 @@ test('a card in hand lands on the mat, and lets go onto the spot its shadow lay 
   assert.strictEqual(app.sandbox.tableDropSpot({ u: 1, v: 1 }, { u: 0, v: 0 }, 0, H), null);
   const js = read('public/js/tablemode.js');
   assert.match(js, /if \(hold\.land\) \{ card\.x = hold\.land\.x; card\.y = hold\.land\.y; \}/,
-    'let go, the card is put down on the spot the shadow was laid on');
+    'let go, the card is put down on the spot the mark was laid on');
   assert.match(js, /tableCastWrite\(hold\.dragging && !hold\.over \? hold : null\)/,
-    'the shadow shows only while the card is carried, and not over the bin');
+    'the mark shows only while the card is carried, and not over the bin');
   const css = read('public/css/table.css');
-  assert.match(css, /\.table-cast\s*\{[^}]*background:\s*var\(--card-cast\)/, 'in the colour a card casts');
+  assert.match(css, /\.table-cast\s*\{[^}]*outline:\s*2px solid var\(--table-land-ink\)/, 'ringed in the theme’s ink');
+  assert.match(css, /\.table-cast\s*\{[^}]*border:\s*1px solid var\(--table-land-halo\)/, 'with the page’s colour inside the ring');
+  assert.match(css, /\.table-cast\s*\{[^}]*background:\s*var\(--table-land-fill\)/, 'and a faint wash of the ink');
   assert.match(css, /\.table-cast\s*\{[^}]*pointer-events:\s*none/, 'taking no pointer');
   assert.doesNotMatch(css.match(/\.table-cast\s*\{[^}]*\}/)[0], /transition/, 'and never easing behind the card');
 });

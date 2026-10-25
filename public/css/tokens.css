@@ -426,6 +426,17 @@
      the tabs standing on the rim are surfaces of their own. */
   --table-wood:      #2e241d;
   --table-wood-edge: #1b1511;
+  /* The landing mark a card in hand lays where it will land (css/table.css,
+     .table-cast): a ring in --table-land-ink with a hairline of
+     --table-land-halo inside it, and a faint wash of the ink. The ink is the
+     theme's --primary — the table's accent, there being no tab's colour on
+     it — which is near-white on the dark felts and near-black on the light
+     ones; the halo is the page's colour, its opposite, so where the art
+     under the mark is the ink's own colour the halo carries the edge. Both
+     pairs are measured (scripts/check-contrast.js, the mark role). */
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 16%, transparent);
 
   /* Overlay shadows. Flat surfaces get a hairline instead — there is
      deliberately no --shadow-raised. */
@@ -511,6 +522,9 @@ html[data-theme="dusk"] {
   --mat:   #1c1815;
   --table-wood:      #33261c;
   --table-wood-edge: #1f1710;
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 16%, transparent);
 
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
@@ -583,6 +597,9 @@ html[data-theme="light"] {
      rather than a hole in it. */
   --table-wood:      #a8835f;
   --table-wood-edge: #7b5c40;
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 12%, transparent);
 
   /* Light themes carry roughly half the shadow alpha. */
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .14), 0 1px 3px rgb(0 0 0 / .08);
@@ -657,6 +674,9 @@ html[data-theme="sepia"] {
   --mat:   #ece4d6;
   --table-wood:      #a27b55;
   --table-wood-edge: #785739;
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 12%, transparent);
 
   /* Half alpha like the other light theme, warmed to match the paper. */
   --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
@@ -739,6 +759,9 @@ html[data-theme="contrast"] {
      where the table's outline has to be seen rather than inferred. */
   --table-wood:      #3f2f21;
   --table-wood-edge: #9a7a58;
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 18%, transparent);
 
   /* Each of these leads with a hairline ring, which no other palette needs.
      An overlay carries a shadow and no border (§4.5), and that works because
