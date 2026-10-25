@@ -360,6 +360,20 @@ html[data-playmat] .table-mat {
 /* Picked up to be looked at: its place on the table is kept for it. */
 .table-card.is-looked { visibility: hidden; }
 
+/* Put in the bin: it goes into it shrinking, and fades as it goes — the
+   script writes the bin's place and the shrink into its transform — in the
+   card layer's own time, so with cards still it is simply gone. A card with
+   copies to spare comes back where it lay, fading in rather than sliding
+   back out of the bin. Fading flattens the card's 3D context for as long as
+   it lasts, which a card on its way out of sight can spare. */
+.table-card.is-binned {
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-card) var(--ease-tint),
+              opacity   var(--dur-card) var(--ease-tint);
+}
+.table-card.is-unbinning { transition: opacity var(--dur-card) var(--ease-tint); }
+
 /* A card with no picture is a plain face with its name on it — not a card
    pretending to be one, and not a dark gap either: the name is set where a
    card's own name is, along the top, at a size that survives the table's
@@ -422,17 +436,110 @@ html[data-playmat] .table-mat {
   filter: var(--card-shadow-raised);
   transition: transform var(--dur-card) var(--ease-tint);
 }
-/* Positioned, so it lies over the window's button rather than under it; and
-   come in once the card is on its way up, rather than waiting under an empty
-   window for it. */
-.table-look-details {
+/* Details, and Remove one beside it where the card can be taken out of a
+   deck (js/tablemode.js says when). Positioned, so they lie over the
+   window's button rather than under it; and come in once the card is on its
+   way up, rather than waiting under an empty window for it. */
+.table-look-actions {
   position: relative;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
+  display: flex;
+  gap: var(--space-2);
   opacity: 0;
   transition: opacity var(--dur-card) var(--ease-tint);
 }
-.table-look.is-up .table-look-details { opacity: 1; }
+.table-look.is-up .table-look-actions { opacity: 1; }
+.table-look-actions .btn-secondary {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.table-look-remove[hidden] { display: none; }
+
+/* ── The Deck Builder's slip and bin ───────────────────────────────────
+   Two things lying on the mat beside the deck's cards while a deck the user
+   may edit is laid there (js/tablemode.js, tableToolsShown): a slip to add a
+   card by name, in the middle of the near edge, and a bin to drop one in, in
+   the near right-hand corner. Both lie in the table's plane, just above every
+   card (--table-tools-z, written by the script), and are made like the rim's
+   chips — a surface, a hairline with a heavier foot, and the small contact
+   shadow of a thin thing lying on the wood — since they lie on this table as
+   the chips do. Their box is laid out without a transform of its own beyond
+   that height, because the script reads it off offsetTop and friends: the
+   piles are kept clear of it, and the bin is hit-tested against it. They carry
+   data-tab="deckview" for the Deck Builder's accent. */
+.table-slip,
+.table-bin {
+  position: absolute;
+  bottom: var(--space-3);
+  box-sizing: border-box;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  filter: drop-shadow(0 1px 1px var(--card-cast));
+  transform: translateZ(var(--table-tools-z, 0px));
+}
+.table-slip[hidden],
+.table-bin[hidden] { display: none; }
+
+/* The slip: a paper slip with a field on it, centred without a transform —
+   see above. The scene takes no text selection; a field being typed in
+   does. */
+.table-slip {
+  left: 0;
+  right: 0;
+  width: min(20rem, 44%);
+  margin-inline: auto;
+  display: flex;
+  padding: var(--space-2);
+  user-select: text;
+}
+.table-slip-field.autocomplete-wrap { flex: 1; min-width: 0; }
+.table-slip-input { width: 100%; }
+
+/* Its suggestions, flat over the window rather than tilted with the table,
+   hung from above the slip wherever the slip is drawn: the script places the
+   host — no height of its own, so it takes no pointer — and the app's own
+   dropdown hangs up from its foot instead of down from its head. Over the
+   table and anything floating over it, under a card being looked at. */
+.table-slip-pop {
+  position: fixed;
+  z-index: 30;
+  height: 0;
+}
+.table-slip-pop .table-slip-drop {
+  top: auto;
+  bottom: 0;
+  border-radius: var(--radius-md);
+}
+
+/* The bin: an icon tray, its icon drawn at the rim's chips' size. Held over,
+   it opens — its tab's accent on the icon and the foot, a little larger, the
+   lid lifted — in the card layer's own time, so with cards still it changes
+   without moving. */
+.table-bin {
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  color: var(--text-muted);
+  transition: color        var(--dur-tint) var(--ease-tint),
+              border-color var(--dur-tint) var(--ease-tint),
+              transform    calc(var(--motion) * .15s) var(--ease-tint);
+}
+.table-bin svg { width: 1.5rem; height: 1.5rem; }
+.table-bin-lid {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  transition: transform calc(var(--motion) * .15s) var(--ease-tint);
+}
+.table-bin.is-over {
+  color: var(--accent, var(--primary));
+  border-color: var(--accent, var(--primary));
+  transform: translateZ(var(--table-tools-z, 0px)) scale(1.12);
+}
+.table-bin.is-over .table-bin-lid { transform: translateY(-1px) rotate(-24deg); }
 
 /* ── Panels ────────────────────────────────────────────────────────────
    One host for a tab's page, in one of two kinds — see js/tablemode.js. The

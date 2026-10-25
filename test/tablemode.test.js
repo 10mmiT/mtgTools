@@ -961,6 +961,215 @@ test('cards laid by something done in the pane tuck the panel; typing and polls 
   assert.strictEqual(auto({ actedAgo: -5 }), false, 'a clock that went backwards is not an action');
 });
 
+// ── The Deck Builder's table: the commander, the slip and the bin ──────────
+
+/* A card's box on the mat, in the mat's pixels, unturned: its centre from its
+ * spot and its size from the layout, a head card's TABLE_HEAD_SCALE times. */
+const HEAD_SCALE = app.evaluate('TABLE_HEAD_SCALE');
+function boxOf(list, laid, i, mat = MAT) {
+  const k = list[i].head ? HEAD_SCALE : 1;
+  const w = laid.width * k, h = laid.height * k;
+  const cx = laid.spots[i].x * mat.width, cy = laid.spots[i].y * mat.height;
+  return { left: cx - w / 2, right: cx + w / 2, top: cy - h / 2, bottom: cy + h / 2, w, h };
+}
+const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+const deckList = (heads, n, groups = 4) => [
+  ...Array.from({ length: heads }, (_, i) => ({ name: `Commander ${i}`, head: true, group: 'commander' })),
+  ...cards(n, i => `cat${i % groups}`),
+];
+
+test('the commander lies front and centre at the far side, a tenth larger than the rest', () => {
+  assert.ok(near(HEAD_SCALE, 1.1), 'about a tenth larger');
+  const list = deckList(1, 40);
+  const laid = layout(list);
+  const head = boxOf(list, laid, 0);
+  assert.ok(near(laid.spots[0].x, 0.5, 1e-9), 'centred across the mat');
+  for (let i = 1; i < list.length; i++) {
+    assert.ok(head.top <= boxOf(list, laid, i).top, `${list[i].name} lies further back than the commander`);
+  }
+  assert.ok(head.top >= 0, 'and it is on the mat');
+  assert.ok(near(head.w, laid.width * 1.1) && near(head.h / head.w, 88 / 63), 'in a card’s shape, scaled');
+});
+
+test('no pile reaches into the commander’s place, however full the deck', () => {
+  for (const [heads, n, groups] of [[1, 59, 8], [2, 58, 8], [1, 59, 1], [2, 20, 3], [1, 5, 2]]) {
+    const list = deckList(heads, n, groups);
+    const laid = layout(list);
+    for (let h = 0; h < heads; h++) {
+      const head = boxOf(list, laid, h);
+      for (let i = heads; i < list.length; i++) {
+        assert.ok(!overlaps(head, boxOf(list, laid, i)),
+          `${heads} commander(s), ${n} cards in ${groups} piles: ${list[i].name} lies across ${list[h].name}`);
+      }
+    }
+  }
+});
+
+test('two commanders lie side by side, apart, and centred together', () => {
+  const list = deckList(2, 30);
+  const laid = layout(list);
+  const [a, b] = [boxOf(list, laid, 0), boxOf(list, laid, 1)];
+  assert.ok(near(laid.spots[0].y, laid.spots[1].y, 1e-9), 'on one line');
+  assert.ok(a.right < b.left, 'not overlapping, the first on the left');
+  assert.ok(near(b.left - a.right, laid.width * app.evaluate('TABLE_HEAD_GAP')), 'a quarter of a card apart');
+  assert.ok(near((laid.spots[0].x + laid.spots[1].x) / 2, 0.5, 1e-9), 'the pair centred across the mat');
+});
+
+test('a deck with no commander is laid exactly as before', () => {
+  const list = cards(40, i => `cat${i % 5}`);
+  const plainLaid = layout(list);
+  assert.deepStrictEqual(app.copy(app.evaluate(`tableLayout(${JSON.stringify(list)}, ${MAT.width}, ${MAT.height}, {})`)), plainLaid);
+  assert.deepStrictEqual(app.call('tableHeadSpots', 0, MAT.width, MAT.height, 87, 120), { spots: [], bottom: 0 },
+    'no head band at all');
+});
+
+test('a band kept along the near edge has no pile card in it', () => {
+  const list = deckList(1, 59, 6);
+  const band = 80;
+  const laid = app.copy(app.evaluate(`tableLayout(${JSON.stringify(list)}, ${MAT.width}, ${MAT.height}, { bottom: ${band} })`));
+  for (let i = 0; i < list.length; i++) {
+    assert.ok(boxOf(list, laid, i).bottom <= MAT.height - band + 1e-6, `${list[i].name} lies in the slip’s band`);
+  }
+  const huge = app.copy(app.evaluate(`tableLayout(${JSON.stringify(cards(4))}, ${MAT.width}, ${MAT.height}, { bottom: 99999 })`));
+  assert.ok(huge.spots.every(s => Number.isFinite(s.x) && Number.isFinite(s.y)), 'a band past the mat lays nothing out of reach');
+});
+
+test('the Deck Builder lays its commanders first, at the head, known by their ref', () => {
+  const src = ask('deckview', {
+    dbShownPiles: () => [
+      { label: 'Ramp', cards: [{ name: 'Sol Ring', image: 'ring.jpg', ref: 'main/Sol Ring', qty: 1 }] },
+      { label: 'Creatures', cards: [{ name: 'Tymna the Weaver', image: '', ref: 'main/Tymna the Weaver', qty: 1 }] },
+    ],
+    dbShownCommanders: () => [
+      { name: 'Kraum, Ludevic’s Opus', image: 'kraum.jpg', ref: 'commander/Kraum, Ludevic’s Opus', qty: 1 },
+      { name: 'Tymna the Weaver', image: 'tymna.jpg', ref: 'commander/Tymna the Weaver', qty: 1 },
+    ],
+  });
+  assert.deepStrictEqual(plain(src.cards.map(c => [c.name, c.ref, !!c.head, c.group])), [
+    ['Kraum, Ludevic’s Opus', 'commander/Kraum, Ludevic’s Opus', true, 'commander'],
+    ['Tymna the Weaver', 'commander/Tymna the Weaver', true, 'commander'],
+    ['Sol Ring', 'main/Sol Ring', false, 'Ramp'],
+    ['Tymna the Weaver', 'main/Tymna the Weaver', false, 'Creatures'],
+  ]);
+  const keyed = app.sandbox.tableKeyCards(src.cards, 'deckview');
+  assert.deepStrictEqual(plain(keyed.map(c => c.key)), [
+    'deckview:commander/Kraum, Ludevic’s Opus#1', 'deckview:commander/Tymna the Weaver#1',
+    'deckview:main/Sol Ring#1', 'deckview:main/Tymna the Weaver#1',
+  ], 'a commander and a mainboard copy of one name are two cards on the mat');
+  assert.deepStrictEqual(plain(keyed.map(c => c.ref)), plain(src.cards.map(c => c.ref)), 'and each keeps its ref');
+  assert.strictEqual(keyed[0].head, true);
+
+  const none = ask('deckview', { dbShownPiles: () => [{ label: 'Lands', cards: [{ name: 'Forest', image: '', ref: 'main/Forest' }] }],
+    dbShownCommanders: () => [] });
+  assert.deepStrictEqual(plain(none.cards.map(c => [c.name, !!c.head])), [['Forest', false]], 'no commander, no head');
+  const old = ask('deckview', { dbShownPiles: () => [{ label: 'Lands', cards: [{ name: 'Forest', image: '' }] }] });
+  assert.strictEqual(old.cards.length, 1, 'a builder with no commander getter still lays its piles');
+});
+
+test('the commanders and the piles together are still no more than sixty', () => {
+  const heads = [{ name: 'A', ref: 'commander/A' }, { name: 'B', ref: 'commander/B' }];
+  const piles = [{ label: 'X', cards: Array.from({ length: 80 }, (_, i) => ({ name: `c${i}`, ref: `main/c${i}` })) }];
+  const laid = plain(app.sandbox.tableDeckCards(heads, piles));
+  assert.strictEqual(laid.length, 60);
+  assert.deepStrictEqual(laid.slice(0, 2).map(c => c.name), ['A', 'B'], 'the commanders are never the ones left off');
+});
+
+test('a commander moving between boards is a new card to the mat, not the old one laid again', () => {
+  const sig = list => app.sandbox.tableListSig(list, 'deckview');
+  const before = [{ name: 'Atraxa', id: 'main/Atraxa', group: 'Creatures' }];
+  const after = [{ name: 'Atraxa', id: 'commander/Atraxa', group: 'commander', head: true }];
+  assert.notStrictEqual(sig(before), sig(after));
+  assert.notStrictEqual(sig([{ name: 'A', group: 'g' }]), sig([{ name: 'A', group: 'g', head: true }]),
+    'and a card laid at the head is laid differently from one in a pile');
+});
+
+test('the slip and the bin lie only on the Deck Builder’s table, for a deck the user may edit', () => {
+  const shown = o => app.sandbox.tableToolsShown({ scope: 'deckview', deckOpen: true, canEdit: true, ...o });
+  assert.strictEqual(shown({}), true);
+  assert.strictEqual(shown({ canEdit: false }), false, 'another player’s deck is looked at, not changed');
+  assert.strictEqual(shown({ deckOpen: false }), false, 'no deck, nothing to add to');
+  for (const scope of ['collections', 'players', 'scryfall', 'sets', 'wants', 'card', '', undefined]) {
+    assert.strictEqual(shown({ scope }), false, `${scope} lays no deck`);
+  }
+});
+
+test('the bin is hit on the mat, by the pointer mapped through the camera', () => {
+  const inRect = (p, r) => app.sandbox.tableInMatRect(p, r);
+  const bin = { left: 800, top: 500, width: 56, height: 56 };
+  assert.strictEqual(inRect({ u: 828, v: 528 }, bin), true, 'the middle');
+  assert.strictEqual(inRect({ u: 800, v: 556 }, bin), true, 'an edge counts');
+  assert.strictEqual(inRect({ u: 799.5, v: 528 }, bin), false);
+  assert.strictEqual(inRect({ u: 828, v: 556.5 }, bin), false);
+  assert.strictEqual(inRect(null, bin), false, 'a pointer that misses the mat is over nothing');
+  assert.strictEqual(inRect({ u: 1, v: 1 }, null), false);
+
+  /* Through every view the table is seen in: the window point the bin's
+     middle is drawn at maps back inside it, and the point the far corner of
+     the mat is drawn at does not — at the height the bin lies at. */
+  for (const v of VIEWS) {
+    const m = matrix(v);
+    const z = 15;
+    const mid = project(m, 828, 528, z);
+    assert.strictEqual(inRect(unproject(m, mid.x, mid.y, z), bin), true, `the bin's middle, ${JSON.stringify(v)}`);
+    const far = project(m, 10, 10, z);
+    assert.strictEqual(inRect(unproject(m, far.x, far.y, z), bin), false);
+  }
+});
+
+test('a card with copies to spare loses one, and the last copy is taken out', () => {
+  const action = q => app.sandbox.tableBinAction(q);
+  assert.strictEqual(action(4), 'less');
+  assert.strictEqual(action(2), 'less');
+  assert.strictEqual(action(1), 'remove');
+  assert.strictEqual(action(undefined), 'remove', 'a row with no quantity is one card');
+  assert.strictEqual(action(0), 'remove');
+});
+
+test('the table’s edits go through the builder’s own, and only what the deck still holds', () => {
+  const calls = [];
+  const deck = new Map([['main/Forest', { qty: 3 }], ['main/Sol Ring', { qty: 1 }], ['commander/Atraxa', { qty: 1 }]]);
+  const sb = app.sandbox;
+  const globals = {
+    dbFindCard: ref => deck.get(ref),
+    dbChangeQty: (ref, d) => { calls.push(['qty', ref, d]); deck.get(ref).qty += d; },
+    dbRemoveCard: ref => { calls.push(['remove', ref]); deck.delete(ref); },
+    showToast: text => calls.push(['toast', text]),
+  };
+  const before = new Map(Object.keys(globals).map(k => [k, Object.getOwnPropertyDescriptor(sb, k)]));
+  Object.assign(sb, globals);
+  try {
+    app.evaluate('tableToolsOn = true');
+    assert.strictEqual(sb.tableRemoveOne({ name: 'Forest', ref: 'main/Forest' }), 'less');
+    assert.strictEqual(sb.tableRemoveOne({ name: 'Sol Ring', ref: 'main/Sol Ring' }), 'remove');
+    assert.strictEqual(sb.tableRemoveOne({ name: 'Atraxa', ref: 'commander/Atraxa' }), 'remove',
+      'the commander is taken out the way the builder takes it out');
+    assert.strictEqual(sb.tableRemoveOne({ name: 'Sol Ring', ref: 'main/Sol Ring' }), null, 'a card already gone');
+    assert.strictEqual(sb.tableRemoveOne({ name: 'Plains' }), null, 'a card with no ref is not the deck’s');
+    assert.deepStrictEqual(plain(calls.filter(c => c[0] !== 'toast')), [
+      ['qty', 'main/Forest', -1], ['remove', 'main/Sol Ring'], ['remove', 'commander/Atraxa'],
+    ]);
+    assert.ok(calls.some(c => c[0] === 'toast' && /Forest/.test(c[1]) && /2 left/.test(c[1])), 'the notice says what is left');
+    app.evaluate('tableToolsOn = false');
+    assert.strictEqual(sb.tableRemoveOne({ name: 'Forest', ref: 'main/Forest' }), null,
+      'nothing is taken out of a deck the slip and bin are not lying beside');
+  } finally {
+    app.evaluate('tableToolsOn = false');
+    for (const [k, d] of before) { if (d) Object.defineProperty(sb, k, d); else delete sb[k]; }
+  }
+});
+
+test('the slip’s field and its suggestions are the app’s own, and the stylesheet lays them', () => {
+  const js = read('public/js/tablemode.js');
+  assert.match(js, /mountCardAutocomplete\('tableSlipInput', 'tableSlipDrop'/,
+    'the slip reuses the builder’s autocomplete rather than a copy of it');
+  const css = read('public/css/table.css');
+  for (const rule of ['.table-slip', '.table-bin', '.table-bin.is-over', '.table-slip-pop', '.table-card.is-binned']) {
+    assert.ok(css.includes(rule), `table.css has no ${rule}`);
+  }
+  assert.match(css, /\.table-slip\[hidden\],\s*\.table-bin\[hidden\]\s*\{\s*display:\s*none/,
+    'hidden means hidden, whatever the display they are laid out with');
+});
+
 // ── The switch ────────────────────────────────────────────────────────────
 
 test('the switch is honoured only where the desktop query says it can be', () => {

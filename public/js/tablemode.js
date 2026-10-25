@@ -39,10 +39,12 @@
 //                    tilted away by TABLE_TILT_REST and fitted to the window
 //                    here (tableFitSize)
 //         .table-rim   the four edges; the tabs lie on three of them
-//         .table-mat   the playmat (or the theme's felt), where cards lie
+//         .table-mat   the playmat (or the theme's felt), where cards lie —
+//                      and the Deck Builder's slip and bin, when they do
 //   .table-dim     the slight veil over the table while a panel floats
 //   .table-panel   the panel host — see "Panels" below
 //   .table-look    a card picked up to be looked at, facing the viewer
+//   .table-slip-pop  the slip's suggestions, flat over the window
 //
 // The dim, the floating panel and the card being looked at are siblings of the
 // scene rather than children of it, on purpose. The scene is position: fixed,
@@ -173,7 +175,11 @@
 //
 //   collections  colShownPiles()     js/collections.js  the rows on show, in the
 //                                                       stack view's piles
-//   deckview     dbShownPiles()      js/deckview-render.js  a pile per category
+//   deckview     dbShownPiles()      js/deckview-render.js  a pile per category,
+//                dbShownCommanders()                         and the commander —
+//                                                            a board of its own,
+//                                                            not a category — at
+//                                                            the head of the mat
 //   players      decksShown()        js/players.js      a card per deck, in its
 //                                                       folder (Mine) or under
 //                                                       its player (Everyone);
@@ -192,6 +198,34 @@
 // found the same state — puts the pictures in and moves nothing; one that
 // does lays the cards again, and a card a hand moved stays where it was put
 // (tableMoved, keyed by tab and card).
+//
+// ── The Deck Builder's table ─────────────────────────────────────────────
+// The deck is not only shown on the table; it can be changed from it, for a
+// deck the user may edit (tableToolsShown), through the builder's own edits
+// in js/deckview-edit.js so that the category rules, the save and the
+// history stay the builder's:
+//
+//   the commander  lies at the head of the mat, at the far side, a tenth
+//                  larger than the rest (TABLE_HEAD_SCALE), with its partner
+//                  beside it; the piles are laid below it, never across it
+//   the slip       lies at the middle of the near edge: a field on the app's
+//                  own card autocomplete, whose suggestions float flat over
+//                  the window above it. Enter, or a suggestion, adds one
+//                  copy (dbAddCard), and the card comes in from the slip to
+//                  its pile. `/` puts the field in hand.
+//   the bin        lies in the near right-hand corner. A card carried over it
+//                  lights it — hit-tested on the mat, by the pointer mapped
+//                  through the camera as the card in hand is — and let go
+//                  there, one copy goes (tableBinAction: dbChangeQty by -1,
+//                  or dbRemoveCard for the last) and the card goes into the
+//                  bin. "Remove one" under a card being looked at does the
+//                  same. The app's notice says what went; there is no undo
+//                  beyond the deck's history.
+//
+// A table card knows its deck card by its ref — board and name, the builder's
+// own key for it (dbCardRef) — carried from the getters through the source
+// and kept on the card, and keyed by it, so a commander and a mainboard copy
+// of the same name are two cards on the mat.
 //
 // ── For the next half: the API ────────────────────────────────────────────
 //
@@ -233,8 +267,10 @@
 // table's fit to the window, the pointer-to-pan mapping, the wheel's zoom and
 // the camera's easing, how large a card's picture is laid out and which file
 // it comes from, the lift, the screen-to-mat mapping through the camera, the
-// floating panel's box, the layout, what each tab lays and how it is piled,
-// where a re-laid card goes, and when a panel tucks.
+// floating panel's box, the layout and its head band, what each tab lays and
+// how it is piled, where a re-laid card goes, when a panel tucks, and the
+// Deck Builder's slip and bin: when they show, the bin's hit on the mat, and
+// what a card put in it does to the deck.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -417,6 +453,14 @@ const TABLE_EMPTY_HINT = 'No cards to show';
 const TABLE_FEATURE_SHARE = 0.78;
 const TABLE_FEATURE_MAX   = 0.3;
 const TABLE_FEATURE_PAD   = 0.12;
+
+/* A card at the head of the mat — the Deck Builder's commander, or both of a
+ * pair of partners — lies front and centre at the far side, a tenth larger
+ * than the cards in the piles: it is what the deck is built around, and the
+ * eye should find it first. Two lie side by side, a quarter of a card apart.
+ * The piles are laid below them, never across them (tableLayout). */
+const TABLE_HEAD_SCALE = 1.1;
+const TABLE_HEAD_GAP   = 0.25;
 
 /* How long after something done in a pane the cards it lays still count as
  * its answer, for tucking the panel out of their way: long enough for a
@@ -813,38 +857,64 @@ function tableCardWidth(matWidth) {
  * js/cardstack.js) on top of its place in the fan, so a card lies the same way
  * on the table as it does in a pile anywhere else in the app.
  *
+ * A card marked `head` is not in a pile: it lies at the head of the mat, in a
+ * band across its far side, TABLE_HEAD_SCALE times the size of the rest and
+ * side by side with any other head card (tableHeadSpots); the piles share out
+ * the mat below that band, so none of them reaches into it. And `reserve` =
+ * { bottom } keeps a band of that many pixels clear along the mat's near
+ * edge, for what lies there instead of cards — the Deck Builder's slip and
+ * bin. With no head card and nothing reserved, the piles have the whole mat.
+ *
  * At most TABLE_CARDS_MAX cards; a centre is kept far enough inside the mat
- * that the card does not hang off it. Returns the card's size in pixels too,
- * since that is decided here. */
-function tableLayout(cards, width, height) {
+ * that the card does not hang off it, or into either band. Returns the card's
+ * size in pixels too, since that is decided here — the size of a card in a
+ * pile; a head card is drawn TABLE_HEAD_SCALE times it. */
+function tableLayout(cards, width, height, reserve = {}) {
   const list = (cards || []).slice(0, TABLE_CARDS_MAX);
   const w = tableCardWidth(width);
   const h = w * TABLE_CARD_RATIO;
   if (!list.length || !(width > 0) || !(height > 0)) {
     return { width: w, height: h, spots: list.map(() => ({ x: 0.5, y: 0.5, turn: 0 })) };
   }
+  const pad   = w * 0.35;
+  const spots = new Array(list.length);
+
+  /* The head band first: what it holds decides where the piles may begin. */
+  const heads = [];
+  list.forEach((card, i) => { if (card.head) heads.push(i); });
+  const head = tableHeadSpots(heads.length, width, height, w, h);
+  heads.forEach((index, j) => {
+    const turn = typeof stackJitter === 'function' ? stackJitter(list[index].name) : 0;
+    spots[index] = { ...head.spots[j], turn: Math.round(turn * 10) / 10 || 0 };
+  });
 
   const piles = [];
   const byGroup = new Map();
   list.forEach((card, i) => {
+    if (card.head) return;
     const key = card.group == null ? '' : String(card.group);
     if (!byGroup.has(key)) { byGroup.set(key, []); piles.push(byGroup.get(key)); }
     byGroup.get(key).push(i);
   });
+  if (!piles.length) return { width: w, height: h, spots };
 
+  /* The part of the mat the piles share: below the head band, and above the
+     band kept clear along the near edge — both held inside the mat, so a
+     reserve asked for past it is the mat's height and no more. */
+  const areaTop = Math.min(height, head.bottom);
+  const areaBot = Math.max(areaTop, height - Math.max(0, Number(reserve?.bottom) || 0));
+  const areaH   = areaBot - areaTop;
   const cols  = Math.max(1, Math.min(piles.length,
-    Math.round(Math.sqrt(piles.length * (width / height) / TABLE_SLOT_ASPECT)) || 1));
+    Math.round(Math.sqrt(piles.length * (width / Math.max(1, areaH)) / TABLE_SLOT_ASPECT)) || 1));
   const rows  = Math.ceil(piles.length / cols);
-  const pad   = w * 0.35;
-  const slotW = (width  - 2 * pad) / cols;
-  const slotH = (height - 2 * pad) / rows;
+  const slotW = (width - 2 * pad) / cols;
+  const slotH = Math.max(0, areaH - 2 * pad) / rows;
   const room  = Math.max(0, slotW - w);
   const clamp = (n, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, n)));
 
-  const spots = new Array(list.length);
   piles.forEach((pile, p) => {
     const left = pad + (p % cols) * slotW;
-    const top  = pad + Math.floor(p / cols) * slotH;
+    const top  = areaTop + pad + Math.floor(p / cols) * slotH;
     const count  = pile.length;
     const perRow = Math.ceil(count / tableFanRows(count, room, slotH, w, h));
     const lines  = Math.ceil(count / perRow);
@@ -863,12 +933,33 @@ function tableLayout(cards, width, height) {
       const turn = t * TABLE_FAN_TURN + (typeof stackJitter === 'function' ? stackJitter(list[index].name) : 0);
       spots[index] = {
         x: clamp(cx, w / 2, width  - w / 2) / width,
-        y: clamp(cy, h / 2, height - h / 2) / height,
+        y: clamp(cy, areaTop + h / 2, areaBot - h / 2) / height,
         turn: Math.round(turn * 10) / 10 || 0,
       };
     });
   });
   return { width: w, height: h, spots };
+}
+
+/* Where `count` head cards lie on a mat of the given size, for cards w × h in
+ * the piles: drawn TABLE_HEAD_SCALE times that, side by side across the
+ * middle of the far side a pile's padding in from the edge, TABLE_HEAD_GAP of
+ * a card apart. `spots` are their centres, as fractions of the mat; `bottom`
+ * is where the band they lie in ends, in pixels from the far edge — the
+ * cards' foot, and 0 with none to lay, which leaves the whole mat to the
+ * piles. */
+function tableHeadSpots(count, width, height, w, h) {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  if (!n || !(width > 0) || !(height > 0)) return { spots: [], bottom: 0 };
+  const pad = w * 0.35;
+  const W = w * TABLE_HEAD_SCALE, H = h * TABLE_HEAD_SCALE;
+  const step = W + w * TABLE_HEAD_GAP;
+  const y = Math.min(height / 2, pad + H / 2);
+  const spots = Array.from({ length: n }, (_, i) => {
+    const cx = width / 2 + (i - (n - 1) / 2) * step;
+    return { x: Math.min(width - W / 2, Math.max(W / 2, cx)) / width, y: y / height };
+  });
+  return { spots, bottom: y + H / 2 };
 }
 
 /* How many rows a pile of `count` cards is laid in, in a slot `room` pixels
@@ -954,7 +1045,10 @@ function tableFromPiles(piles, cardOf, max = TABLE_CARDS_MAX) {
 /* The cards as the mat holds them: at most TABLE_CARDS_MAX, the nameless
  * dropped, each known by a key that is the same whenever the same card is laid
  * by the same tab — its scope, its id or else its name, and how many times
- * that has come up already in the list, for the second copy of a card. */
+ * that has come up already in the list, for the second copy of a card. A card
+ * may carry `head`, which lays it at the head of the mat (tableLayout), and
+ * `ref`, which is what the tab knows it by to edit it — the Deck Builder's
+ * board and name — or null for a card nothing can edit from the table. */
 function tableKeyCards(list, scope = '') {
   const seen = new Map();
   const prefix = scope ? `${scope}:` : '';
@@ -968,17 +1062,36 @@ function tableKeyCards(list, scope = '') {
       return {
         key: `${base}#${n}`, name: String(card.name), imageUrl: card.imageUrl || '',
         group: card.group ?? null, open: typeof card.open === 'function' ? card.open : null,
+        head: !!card.head, ref: card.ref == null ? null : String(card.ref),
       };
     });
 }
 
 /* What a list of cards is to the mat, as one string: which cards lie in which
- * piles, in what order, laid by whom and how. Two lists that answer the same
- * are laid the same way, so only their pictures can differ — which is what
- * lets a redraw that only brought pictures leave every card where it lies. */
+ * piles, or at the head of the mat, in what order, laid by whom and how. Two
+ * lists that answer the same are laid the same way, so only their pictures
+ * can differ — which is what lets a redraw that only brought pictures leave
+ * every card where it lies. */
 function tableListSig(list, scope = '', feature = false) {
   return JSON.stringify([scope, !!feature,
-    tableKeyCards(list, scope).map(card => [card.key, card.group])]);
+    tableKeyCards(list, scope).map(card => [card.key, card.group, card.head])]);
+}
+
+/* The Deck Builder's cards as the mat lays them: the commanders first, at the
+ * head of the mat, then a pile per category with whatever room is left of
+ * TABLE_CARDS_MAX shared out among them. Each card is known by its ref — so a
+ * card in the mainboard and the same card on the commander board are two
+ * cards to the mat as they are to the deck — and carries it, so the bin and
+ * "Remove one" can ask the builder to take one copy of it out. */
+function tableDeckCards(heads, piles, imageOf = () => '', max = TABLE_CARDS_MAX) {
+  const top = (heads || []).filter(card => card && card.name).slice(0, max);
+  const laid = card => ({
+    name: card.name, id: card.ref, ref: card.ref, imageUrl: card.image || imageOf(card.name),
+  });
+  return [
+    ...top.map(card => ({ ...laid(card), head: true, group: 'commander' })),
+    ...tableFromPiles(piles, laid, max - top.length),
+  ];
 }
 
 /* Where each card lies once laid: where a hand last put it this session, if
@@ -1009,6 +1122,35 @@ function tableTuckOnOpen({ kind, from, to, kept }) {
 function tableShouldAutoTuck({ kind, tab, tucked, actedAgo }) {
   return kind === 'float' && tableIsCardTab(tab) && !tucked
       && Number(actedAgo) >= 0 && Number(actedAgo) <= TABLE_TUCK_WINDOW;
+}
+
+/* Whether the Deck Builder's slip and bin lie on the mat: while the cards on
+ * it are the Deck Builder's (`scope`, the tab that laid them), a deck is open,
+ * and it is one the user may edit — somebody else's deck can be looked at on
+ * the table and not changed from it, as in the builder. */
+function tableToolsShown({ scope, deckOpen, canEdit }) {
+  return scope === 'deckview' && !!deckOpen && !!canEdit;
+}
+
+/* Whether a point of the mat, { u, v } in the mat's own pixels, is inside a
+ * rect of it, { left, top, width, height } in the same pixels — the edges
+ * counted in. A point that missed the mat altogether (null) is inside nothing.
+ * The point is the pointer's, mapped onto the mat through the camera by
+ * tableUnproject, the same mapping a card in hand is carried by: so the bin
+ * answers to where the pointer is over the tilted, panned and zoomed table,
+ * not to where its box would be on a flat screen. */
+function tableInMatRect(point, rect) {
+  if (!point || !rect) return false;
+  const u = Number(point.u), v = Number(point.v);
+  return u >= rect.left && u <= rect.left + rect.width && v >= rect.top && v <= rect.top + rect.height;
+}
+
+/* What putting one card in the bin does to the deck: a card with copies to
+ * spare loses one ('less', dbChangeQty by -1), and the last copy is taken out
+ * ('remove', dbRemoveCard) — the two things the builder's own − and Remove
+ * do, which keep the save, the history and the commander record theirs. */
+function tableBinAction(qty) {
+  return (Number(qty) || 1) > 1 ? 'less' : 'remove';
 }
 
 // ── The switch ────────────────────────────────────────────────────────────
@@ -1100,6 +1242,11 @@ let tableLooked   = null;    // the card picked up to be looked at
 let tableDecodeK  = 1;       // how much larger than its card a picture is laid out
 let tableHiRes    = false;   // whether the cards are drawn from Scryfall's large pictures
 let tableLookSeq  = 0;
+let tableScope    = '';      // the tab the cards on the mat were laid for, '' through the API
+let tableTools    = null;    // the Deck Builder's slip and bin, made once — see tableToolsMake()
+let tableToolsOn  = false;   // whether they lie on the mat now (tableToolsShown)
+let tableBinOver  = false;   // whether the card in hand is over the bin
+let tableArrival  = null;    // { name, x, y, until }: a card just added from the slip, on its way
 
 /* The sidebar button a rim entry stands for. */
 function tableNavId(entry) {
@@ -1198,7 +1345,9 @@ function tableBuild() {
      keyboard. The image is the app's .card-img, so it wears a card's corner,
      edge and shadow — and takes no pointer of its own, so js/cardlift.js never
      finds it to lift and a click on it is the button's. Under it, Details,
-     which is the one thing on the window that is not "put it back". */
+     and beside that — for a card of a deck the user may edit, on the Deck
+     Builder's table — Remove one: the two things on the window that are not
+     "put it back". */
   const look = document.createElement('div');
   look.className = 'table-look';
   look.id = 'tableLook';
@@ -1206,7 +1355,10 @@ function tableBuild() {
   look.innerHTML = `
     <button type="button" class="table-look-back"></button>
     <img class="card-img table-look-card" alt="" draggable="false">
-    <button type="button" class="btn-secondary table-look-details">Details</button>`;
+    <div class="table-look-actions">
+      <button type="button" class="btn-secondary table-look-details">Details</button>
+      <button type="button" class="btn-secondary table-look-remove" hidden>Remove one</button>
+    </div>`;
 
   /* Straight after the page shell rather than at the end of the body, so the
      table comes first in the keyboard's order: what follows the shell is
@@ -1215,9 +1367,12 @@ function tableBuild() {
      a first Tab should land on the rim, not in a panel nobody can see. Every
      one of those carries a z-index of its own, so coming after them in the
      page buys the table nothing in the stacking order. */
+  const tools = tableToolsMake();
   const shell = document.querySelector('.site-main');
-  if (shell) shell.after(scene, dim, panel, look);
-  else body.append(scene, dim, panel, look);
+  if (shell) shell.after(scene, dim, panel, look, tools.pop);
+  else body.append(scene, dim, panel, look, tools.pop);
+  scene.querySelector('#tableMat').append(tools.slip, tools.bin);
+  tableToolsMount();
 
   tableEls = {
     scene, dim, panel, look,
@@ -1232,6 +1387,7 @@ function tableBuild() {
     lookBack:   look.querySelector('.table-look-back'),
     lookImg:    look.querySelector('img'),
     lookDetails: look.querySelector('.table-look-details'),
+    lookRemove: look.querySelector('.table-look-remove'),
   };
 
   /* Listeners on the elements go with them when the scene is taken down. */
@@ -1260,6 +1416,7 @@ function tableBuild() {
   panelBody.addEventListener('input', () => { tableActedAt = 0; });
   tableEls.lookBack.addEventListener('click', () => tableLookAway());
   tableEls.lookDetails.addEventListener('click', () => tableOpenDetails());
+  tableEls.lookRemove.addEventListener('click', () => tableLookRemove());
 }
 
 /* The table fitted to the window: its box worked out by tableFitSize and
@@ -1370,6 +1527,10 @@ function tableFrame(now) {
   tableEls.camera.style.transform = tableCameraTransform(tableCam());
   tableSharpen();
   if (tableHold && tableCarry(now)) more = true;
+  /* Asked every frame a card is in hand rather than on every pointer move:
+     the camera can carry the bin under a pointer that is holding still. */
+  tableBinLight(!!tableHold?.dragging && tableOverBin(tableHold.pointer));
+  tableSlipPlace();
   if (more) tableKick();
   else tableFrameAt = 0;
 }
@@ -1409,9 +1570,11 @@ function tableOnPointerOut(e) {
  * and not over the Card tab's sheet, which lies on the mat but is a page that
  * scrolls. The wheel's own default is taken: there is nothing behind the
  * table to scroll, and a sideways swipe would otherwise go back a page. A
- * held Ctrl is the browser's own zoom, and is left to it. */
+ * held Ctrl is the browser's own zoom, and is left to it. Nor over the Deck
+ * Builder's slip, which is a field being typed in; its suggestions float
+ * outside the scene and are never asked. */
 function tableOnWheel(e) {
-  if (e.ctrlKey || e.target.closest?.('.table-panel')) return;
+  if (e.ctrlKey || e.target.closest?.('.table-panel, .table-slip')) return;
   e.preventDefault();
   tableAim(e.clientX, e.clientY);
   tableTo.zoom = tableWheelZoom(tableTo.zoom, e.deltaY, e.deltaMode, tableGeom.view.height);
@@ -1455,6 +1618,7 @@ function tableOnResize() {
     tableMeasure();
     tableResizeCards();
     tableFitPanel();
+    tableSlipPlace();
     tableKick();
   });
 }
@@ -1462,8 +1626,15 @@ function tableOnResize() {
 /* Escape is the table's only when nothing else had a claim on it at the moment
  * it was pressed. Asked in the capture phase, before main.js's own Escape
  * handler has closed whatever drawer or menu it was for — by the time the key
- * reaches the bubble phase that evidence is gone. */
+ * reaches the bubble phase that evidence is gone.
+ *
+ * And `/`, which is the slip's while it is on the mat (tableSlipKey) — taken
+ * here, before the document hears it, and stopped there: the Deck Builder's
+ * own shortcuts listen on the document, and their `/` opens the builder's
+ * search drawer, which would float the page up over the table the slip is
+ * lying on. Whenever the slip does not take it, it goes on to them. */
 function tableOnKeyCapture(e) {
+  if (e.key === '/') { if (tableSlipKey(e)) e.stopPropagation(); return; }
   if (e.key !== 'Escape') return;
   const dialog = (typeof modalIsOpen === 'function' && modalIsOpen())
               || (typeof faqIsOpen === 'function' && faqIsOpen());
@@ -1570,7 +1741,10 @@ function tableModeLeave() {
   clearTimeout(tableRelayId);
   tableFrameId = tableResizeId = tableFrameAt = tableRelayId = 0;
   for (const card of tableCards) card.el = null;
-  for (const el of [tableEls.scene, tableEls.dim, tableEls.panel, tableEls.look]) el.remove();
+  tableTools?.ac?.close();
+  for (const el of [tableEls.scene, tableEls.dim, tableEls.panel, tableEls.look, tableTools?.pop]) el?.remove();
+  tableToolsOn = tableBinOver = false;
+  tableArrival = null;
   tableEls = null;
   tableGeom = null;
   tableOn = false;
@@ -1833,10 +2007,10 @@ const TABLE_SOURCES = Object.freeze({
   deckview() {
     const piles = typeof dbShownPiles === 'function' ? dbShownPiles() : null;
     if (!piles) return { cards: [], hint: 'Open a deck from Decks' };
-    return {
-      cards: tableFromPiles(piles, card => ({ name: card.name, imageUrl: card.image || tableImageOf(card.name) })),
-      hint: TABLE_EMPTY_HINT, fetch: true,
-    };
+    /* The commander is not one of the piles — it is a board of its own, and
+       the piles are the mainboard's categories — so it is asked for apart. */
+    const heads = (typeof dbShownCommanders === 'function' && dbShownCommanders()) || [];
+    return { cards: tableDeckCards(heads, piles, tableImageOf), hint: TABLE_EMPTY_HINT, fetch: true };
   },
   players() {
     const piles = (typeof decksShown === 'function' && decksShown()) || [];
@@ -1993,6 +2167,7 @@ function tableLayCards(list, { hint, scope = '', feature = false } = {}) {
   tableCards = tableKeyCards(list, scope)
     .map((card, i) => ({ ...card, x: 0.5, y: 0.5, turn: 0, rank: i, el: null }));
   tableFeature = !!feature && tableCards.length > 0;
+  tableScope = String(scope || '');
   tableHintText = hint || TABLE_HINT;
   if (tableOn) tableDrawCards();
   return tableCards.length;
@@ -2002,16 +2177,33 @@ function tableCardZ(card) {
   return (card.rank + 1) * TABLE_CARD_GAP;
 }
 
+/* The size a card is drawn at: a pile's card size, or TABLE_HEAD_SCALE times
+ * it for a card at the head of the mat. Laid out at that size rather than
+ * scaled to it, so its picture is decoded for the size it is drawn at. */
+function tableCardBox(card) {
+  const k = card?.head ? TABLE_HEAD_SCALE : 1;
+  return { w: tableCardSize.w * k, h: tableCardSize.h * k };
+}
+
+function tableSizeCard(card) {
+  if (!card.el) return;
+  const { w, h } = tableCardBox(card);
+  card.el.style.width  = `${w.toFixed(2)}px`;
+  card.el.style.height = `${h.toFixed(2)}px`;
+}
+
 /* A card's transform: where it lies, how high above the felt, the angle it
- * lies at, and how far it leans back towards the viewer. One string, so a card
- * settling eases every part of it at once. */
-function tableWriteCard(card, lift = 0, lean = 0) {
+ * lies at, and how far it leans back towards the viewer — and `shrink`, how
+ * small it has become going into the bin. One string, so a card settling
+ * eases every part of it at once. */
+function tableWriteCard(card, lift = 0, lean = 0, shrink = 1) {
   if (!card.el || !tableGeom) return;
   const { width, height } = tableGeom.mat;
-  const { w, h } = tableCardSize;
+  const { w, h } = tableCardBox(card);
   card.el.style.transform =
     `translate3d(${(card.x * width - w / 2).toFixed(2)}px, ${(card.y * height - h / 2).toFixed(2)}px, ` +
-    `${(tableCardZ(card) + lift).toFixed(2)}px) rotate(${card.turn}deg) rotateX(${lean.toFixed(2)}deg)`;
+    `${(tableCardZ(card) + lift).toFixed(2)}px) rotate(${card.turn}deg) rotateX(${lean.toFixed(2)}deg)` +
+    (shrink !== 1 ? ` scale(${shrink.toFixed(3)})` : '');
 }
 
 /* The picture a card is drawn from: its own, or Scryfall's large one of it
@@ -2037,7 +2229,8 @@ function tableSharpen() {
     tableDecodeK = k;
     tableEls.scene.style.setProperty('--table-card-k', String(k));
   }
-  if (tableHiRes || !tableNeedsLarge(tableCardSize.w, zoom, window.devicePixelRatio)) return;
+  const widest = tableCardSize.w * (tableCards.some(card => card.head) ? TABLE_HEAD_SCALE : 1);
+  if (tableHiRes || !tableNeedsLarge(widest, zoom, window.devicePixelRatio)) return;
   tableHiRes = true;
   for (const card of tableCards) {
     const img = card.el?.isConnected && card.el.querySelector('.table-card-img');
@@ -2057,6 +2250,7 @@ function tableCardEl(card) {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'table-card';
+  el.dataset.key = card.key;
   el.setAttribute('aria-label', card.open ? `Open ${card.name}` : card.name);
   el.innerHTML = tableCardFace(card);
   el.addEventListener('click', tableOnCardClick);
@@ -2066,9 +2260,15 @@ function tableCardEl(card) {
 function tableDrawCards() {
   if (!tableEls || !tableGeom) return;
   const { mat, hint } = tableEls;
+  const before = new Set([...mat.querySelectorAll('.table-card')].map(el => el.dataset.key));
   for (const old of mat.querySelectorAll('.table-card')) old.remove();
+  /* The slip and the bin first: whether they lie on the mat decides how much
+     of its near edge the piles are kept clear of. */
+  tableSyncTools();
   const { width, height } = tableGeom.mat;
-  const layout = tableFeature ? tableFeatureLayout(tableCards, width, height) : tableLayout(tableCards, width, height);
+  const layout = tableFeature
+    ? tableFeatureLayout(tableCards, width, height)
+    : tableLayout(tableCards, width, height, { bottom: tableToolsBand() });
   tableCardSize = { w: layout.width, h: layout.height };
   /* Asked before the pictures are written, so a large card on a hi-dpi
      screen — the Card tab's — is drawn from the large picture straight away
@@ -2079,12 +2279,12 @@ function tableDrawCards() {
   tableCards.forEach((card, i) => {
     Object.assign(card, places[i]);
     card.el = tableCardEl(card);
-    card.el.style.width  = `${tableCardSize.w}px`;
-    card.el.style.height = `${tableCardSize.h.toFixed(2)}px`;
+    tableSizeCard(card);
     cards.append(card.el);
   });
   mat.insertBefore(cards, hint);
   for (const card of tableCards) tableWriteCard(card);
+  tableArrive(before);
   hint.textContent = tableHintText;
   hint.hidden = tableCards.length > 0;
   tableSyncLane();
@@ -2112,8 +2312,7 @@ function tableResizeCards() {
   tableSharpen();
   for (const card of tableCards) {
     if (!card.el) continue;
-    card.el.style.width  = `${w}px`;
-    card.el.style.height = `${tableCardSize.h.toFixed(2)}px`;
+    tableSizeCard(card);
     tableWriteCard(card);
   }
 }
@@ -2200,6 +2399,16 @@ function tableRelease(e) {
   if (!hold || (e && e.pointerId !== hold.id)) return;
   tableHold = null;
   const card = hold.card;
+  /* Let go over the bin: one copy of it out of the deck, and the card into
+     the bin rather than lying where the hand left it — so it is not kept
+     there for the next time the deck is laid (tableBinCard). */
+  const binned = hold.dragging && e?.type === 'pointerup' && !!card.ref && tableOverBin(hold.pointer);
+  tableBinLight(false);
+  if (binned) {
+    tableSwallow = true;
+    tableBinCard(card, hold.from);
+    return;
+  }
   if (hold.dragging) {
     tableSwallow = true;
     tableMoved.set(card.key, { x: card.x, y: card.y, turn: card.turn });
@@ -2248,8 +2457,10 @@ function tableFlipFrom(fromEl, toEl, turn, box = null) {
 function tableAfter(el, done) {
   if (!cardMotionOn()) { done(); return; }
   let finished = false;
-  const finish = () => {
-    if (finished) return;
+  const finish = e => {
+    /* Its own, not one of its children's: the picture inside a card eases its
+       shadow on a shorter clock, and that transition's end bubbles up here. */
+    if (finished || (e && e.target !== el)) return;
     finished = true;
     el.removeEventListener('transitionend', finish);
     done();
@@ -2274,6 +2485,8 @@ function tableLookAt(card, from = null) {
   lookImg.src = tableCardSrc(card);
   lookBack.setAttribute('aria-label', `Put ${card.name} back`);
   lookDetails.title = `Open ${card.name} on the Card tab`;
+  tableEls.lookRemove.hidden = !(tableToolsOn && card.ref);
+  tableEls.lookRemove.title = `Take one ${card.name} out of the deck`;
   look.classList.remove('is-up');
   look.hidden = false;
   /* Drawn first where the card lies, with no transition, then let go: the
@@ -2318,6 +2531,314 @@ function tableOpenDetails() {
   if (!card) return;
   tableLookAway(true);
   if (typeof openCardPage === 'function') openCardPage(card.name);
+}
+
+// ── The Deck Builder's slip and bin ──────────────────────────────────────
+
+/* The bin's icon, drawn in the sidebar's own hand — a 24-unit box, a 2.2
+ * stroke, round ends — with its lid as a group of its own, so that it can
+ * lift open while a card is held over it (table.css). */
+const TABLE_BIN_ICON =
+  '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<g class="table-bin-lid"><path d="M3 6h18"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></g>' +
+  '<path d="M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+
+/* How far above the slip its suggestions float, in window pixels; how long a
+ * card added from the slip is still looked for among the cards laid next, to
+ * come in from the slip — long enough for a card the deck has no data for to
+ * be fetched first, which dbAddCard waits for before it redraws; and how
+ * small a card has become by the time it is in the bin. */
+const TABLE_POP_GAP     = 6;
+const TABLE_ARRIVAL_MS  = 10000;
+const TABLE_BIN_SHRINK  = 0.2;
+
+/* The slip, its suggestions and the bin, made once and kept for the session:
+ * the slip's field is mounted on the app's own card autocomplete
+ * (mountCardAutocomplete, js/sortui.js) — the one the builder's Add a card
+ * field is — and that adds a listener to the document of its own for the
+ * click outside it. Made once, it is added once, however often the table is
+ * put up and taken down; the elements go into each new scene and come out of
+ * it with the scene.
+ *
+ * The slip lies on the mat, in the table's plane, at the middle of its near
+ * edge; the bin lies in the mat's near right-hand corner. Both lie just above
+ * every card (--table-tools-z), as the Card tab's sheet does. The slip's
+ * suggestions do not: a list tilted away with the table would be hard to
+ * read, so they float flat over the window, outside the scene, hung above
+ * wherever the slip is drawn (tableSlipPlace). */
+function tableToolsMake() {
+  if (tableTools) return tableTools;
+  const slip = document.createElement('div');
+  slip.className = 'table-slip';
+  slip.dataset.tab = 'deckview';
+  slip.hidden = true;
+  slip.innerHTML = `
+    <div class="autocomplete-wrap table-slip-field">
+      <input type="text" id="tableSlipInput" class="table-slip-input" aria-label="Add a card to this deck"
+             placeholder="Add a card…" autocomplete="off" spellcheck="false">
+    </div>`;
+
+  const pop = document.createElement('div');
+  pop.className = 'table-slip-pop';
+  pop.innerHTML = '<div id="tableSlipDrop" class="ac-dropdown table-slip-drop" style="display:none"></div>';
+
+  const bin = document.createElement('div');
+  bin.className = 'table-bin';
+  bin.dataset.tab = 'deckview';
+  bin.hidden = true;
+  bin.setAttribute('role', 'img');
+  bin.setAttribute('aria-label', 'Bin: a card dropped here takes one copy of it out of the deck');
+  bin.title = 'Drop a card here to take one copy of it out of the deck';
+  bin.innerHTML = TABLE_BIN_ICON;
+
+  const input = slip.querySelector('input');
+  const drop  = pop.firstElementChild;
+  /* A press on the slip is a press on a field: it is not a card picked up,
+     and nothing under it on the mat is told about it. */
+  slip.addEventListener('pointerdown', e => e.stopPropagation());
+  /* Escape with no suggestions open puts the field down, so the next key is
+     the table's again. With them open it is the autocomplete's, which closes
+     them and says so by preventing it. */
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    e.stopPropagation();
+    input.blur();
+  });
+  tableTools = { slip, input, pop, drop, bin, ac: null, mounted: false };
+  /* The autocomplete opens and closes its list by its display; whenever it
+     does, the list is hung above the slip where it is drawn now. Only the
+     host is written to, never the list, so this cannot answer itself. */
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(tableSlipPlace).observe(drop, { attributes: true, attributeFilter: ['style'] });
+  }
+  return tableTools;
+}
+
+/* Mounted the first time the field is in the page, where the autocomplete
+ * looks for it by id. Enter takes what is typed, or the suggestion walked to;
+ * a click takes the one clicked. */
+function tableToolsMount() {
+  const t = tableTools;
+  if (!t || t.mounted || typeof mountCardAutocomplete !== 'function') return;
+  t.ac = mountCardAutocomplete('tableSlipInput', 'tableSlipDrop', name => tableSlipAdd(name),
+    { onEnter: () => tableSlipAdd(t.input.value) });
+  t.mounted = !!t.ac;
+}
+
+/* The slip and bin shown or not, by tableToolsShown, for the cards on the mat
+ * now and the deck open now — asked every time cards are drawn. Put away,
+ * the slip lets go of its field and its suggestions, and the bin of its
+ * light. Both lie just above every card on the mat. */
+function tableSyncTools() {
+  const t = tableTools;
+  if (!t || !tableEls) return;
+  const deck = typeof dbDeck !== 'undefined' ? dbDeck : null;
+  const on = tableToolsShown({
+    scope: tableScope,
+    deckOpen: !!deck,
+    canEdit: !!deck && typeof isMyPlayer === 'function' && isMyPlayer(deck.playerId),
+  });
+  tableToolsOn = on;
+  t.slip.hidden = !on;
+  t.bin.hidden = !on;
+  const z = `${tableToolsZ().toFixed(2)}px`;
+  t.slip.style.setProperty('--table-tools-z', z);
+  t.bin.style.setProperty('--table-tools-z', z);
+  if (!on) {
+    t.ac?.close();
+    if (document.activeElement === t.input) t.input.blur();
+    tableBinLight(false);
+  }
+}
+
+/* How high above the felt the slip and the bin lie: above every card. */
+function tableToolsZ() {
+  return (tableCards.length + 2) * TABLE_CARD_GAP;
+}
+
+/* How much of the mat's near edge the slip and the bin take up, in the mat's
+ * own pixels — from the top of whichever of them reaches further in to the
+ * mat's edge — for the piles to be kept clear of; nothing while they are not
+ * there. Read off the laid-out boxes, which no transform touches. */
+function tableToolsBand() {
+  if (!tableToolsOn || !tableGeom) return 0;
+  const { slip, bin } = tableTools;
+  return Math.max(0, tableGeom.mat.height - Math.min(slip.offsetTop, bin.offsetTop));
+}
+
+/* The bin's box on the mat, in the mat's own pixels. */
+function tableBinRect() {
+  const { bin } = tableTools;
+  return { left: bin.offsetLeft, top: bin.offsetTop, width: bin.offsetWidth, height: bin.offsetHeight };
+}
+
+/* Whether a window point is over the bin: the point mapped onto the mat at
+ * the height the bin lies at, through the camera as it is now — the mapping
+ * a card in hand is carried by — and asked against the bin's box there. */
+function tableOverBin(pointer) {
+  if (!tableToolsOn || !tableGeom || !pointer) return false;
+  const hit = tableUnproject(tableMatrix(), pointer.x, pointer.y, tableToolsZ());
+  return tableInMatRect(hit, tableBinRect());
+}
+
+/* The bin, lit — in its tab's accent, a little larger and with its lid up —
+ * while a card in hand is over it. Written only when that changes. */
+function tableBinLight(on) {
+  if (!!on === tableBinOver) return;
+  tableBinOver = !!on;
+  tableTools?.bin.classList.toggle('is-over', tableBinOver);
+}
+
+/* A card put in the bin: it goes in, shrinking and fading as it does, and
+ * one copy of it comes out of the deck once it is in (tableRemoveOne). The
+ * last copy goes from the mat with the redraw that edit brings; a card with
+ * copies to spare comes back out to where it lay before it was picked up —
+ * `from` — since the rest of it is still in the deck. With cards still the
+ * transitions are none: the card is simply gone, or simply back. The bin's
+ * place is not where a hand put the card, so it is not kept as one. */
+function tableBinCard(card, from) {
+  const el = card.el;
+  if (!el || !tableGeom) return;
+  const { width, height } = tableGeom.mat;
+  const rect = tableBinRect();
+  el.classList.remove('is-held', 'is-settling');
+  el.classList.add('is-binned');
+  card.x = (rect.left + rect.width / 2) / width;
+  card.y = (rect.top + rect.height / 2) / height;
+  tableWriteCard(card, Math.max(0, tableToolsZ() - tableCardZ(card)), 0, TABLE_BIN_SHRINK);
+  tableAfter(el, () => {
+    const action = tableRemoveOne(card);
+    card.x = from.x;
+    card.y = from.y;
+    if (action === 'remove' && !el.isConnected) return;
+    if (action === 'remove') { tableWriteCard(card, 0, 0, TABLE_BIN_SHRINK); return; }
+    /* Still in the deck — a copy to spare, or the edit refused: it fades
+       back in where it lay, without sliding back out of the bin. */
+    el.classList.add('is-unbinning');
+    el.classList.remove('is-binned');
+    tableWriteCard(card);
+    tableAfter(el, () => el.classList.remove('is-unbinning'));
+  });
+}
+
+/* One copy of a card out of the open deck, through the builder's own edits —
+ * see tableBinAction — with the app's notice saying so. The app has no undo
+ * for an edit like this one beyond the deck's history, so the notice says
+ * what was done and offers nothing. The mat is laid again from the deck at
+ * once, whether or not its panel is open to notice the redraw. Returns what
+ * was done, or null for a card the deck no longer has, or may not change. */
+function tableRemoveOne(card) {
+  if (!tableToolsOn || !card?.ref || typeof dbFindCard !== 'function') return null;
+  const row = dbFindCard(card.ref);
+  if (!row) return null;
+  const action = tableBinAction(row.qty);
+  if (action === 'less') dbChangeQty(card.ref, -1);
+  else dbRemoveCard(card.ref);
+  if (typeof showToast === 'function') {
+    showToast(action === 'less'
+      ? `✓  Removed one "${card.name}", ${row.qty || 1} left`
+      : `✓  Removed "${card.name}"`);
+  }
+  tableRelayDeck();
+  return action;
+}
+
+/* The Deck Builder's cards laid again from the deck as it is now — for an
+ * edit made from the table, which the pane's watcher only sees while the
+ * pane is open in a panel. A deck that did not change lays nothing. */
+function tableRelayDeck() {
+  if (tableOn && tableScope === 'deckview') tableLayFor('deckview');
+}
+
+/* Remove one, pressed under a card being looked at: the card put back down
+ * at once, and into the bin from where it lies, as if it had been carried
+ * there. */
+function tableLookRemove() {
+  const card = tableLooked;
+  if (!card || !card.ref || !tableToolsOn) return;
+  tableLookAway(true);
+  tableBinCard(card, { x: card.x, y: card.y });
+}
+
+/* A card added from the slip: one copy, through the builder's own add —
+ * which files it in its category, saves the deck and keeps its history —
+ * and the field cleared and kept for the next. The builder's own Add a card
+ * field is cleared by that add as it always is; what was typed there is put
+ * back, since it was not what was added. Nothing about the panel changes:
+ * it is not opened, and not brought up from tucked. The card is looked for
+ * among the cards laid next, to come in from the slip (tableArrive). */
+function tableSlipAdd(raw) {
+  const t = tableTools;
+  if (!t) return;
+  const name = String(raw || '').trim();
+  t.input.value = '';
+  t.ac?.close();
+  t.input.focus({ preventScroll: true });
+  if (!name || !tableToolsOn || typeof dbAddCard !== 'function' || !tableGeom) return;
+  const { width, height } = tableGeom.mat;
+  tableArrival = {
+    name,
+    x: (t.slip.offsetLeft + t.slip.offsetWidth / 2) / width,
+    y: (t.slip.offsetTop + t.slip.offsetHeight / 2) / height,
+    until: Date.now() + TABLE_ARRIVAL_MS,
+  };
+  const builder = document.getElementById('dbAddCardInput');
+  const kept = builder ? builder.value : '';
+  const added = dbAddCard(name);
+  if (builder) builder.value = kept;
+  Promise.resolve(added).catch(() => {}).then(tableRelayDeck);
+}
+
+/* The card just added from the slip, if it is among the cards just drawn and
+ * was not on the mat before them (`before`, the keys that were): drawn first
+ * at the slip, then let settle to its place in the card layer's own time. Not
+ * when cards may not move — it is simply in its pile. */
+function tableArrive(before) {
+  const arrival = tableArrival;
+  if (!arrival) return;
+  if (Date.now() > arrival.until) { tableArrival = null; return; }
+  const card = tableCards.find(c => c.name === arrival.name && c.el && !before.has(c.key));
+  if (!card) return;
+  tableArrival = null;
+  if (!cardMotionOn()) return;
+  const at = { x: card.x, y: card.y };
+  card.x = arrival.x;
+  card.y = arrival.y;
+  tableWriteCard(card);
+  void card.el.offsetWidth;
+  card.x = at.x;
+  card.y = at.y;
+  card.el.classList.add('is-settling');
+  tableWriteCard(card);
+  const el = card.el;
+  tableAfter(el, () => el.classList.remove('is-settling'));
+}
+
+/* The slip's suggestions hung above the slip as it is drawn now — its drawn
+ * box, through the tilt and the camera — flat and as wide as it, while they
+ * are open. Asked when they open and on every frame the camera moves. */
+function tableSlipPlace() {
+  const t = tableTools;
+  if (!t || !tableOn || t.slip.hidden || t.drop.style.display !== 'block') return;
+  const at = t.slip.getBoundingClientRect();
+  t.pop.style.left  = `${at.left.toFixed(1)}px`;
+  t.pop.style.top   = `${(at.top - TABLE_POP_GAP).toFixed(1)}px`;
+  t.pop.style.width = `${at.width.toFixed(1)}px`;
+}
+
+/* `/` puts the slip's field in hand, while the slip is on the mat and the
+ * table is what is in front: not with a card being looked at, a dialog up, or
+ * a panel floating over the table, and not with a field already being typed
+ * in, where `/` is a character. */
+function tableSlipKey(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey || tableIsTyping(e.target)) return false;
+  if (!tableToolsOn || !tableTools || tableLooked) return false;
+  if ((typeof modalIsOpen === 'function' && modalIsOpen()) || (typeof faqIsOpen === 'function' && faqIsOpen())) return false;
+  if (tablePanel && tablePanel.kind === 'float' && !tableTucked) return false;
+  e.preventDefault();
+  tableTools.input.focus({ preventScroll: true });
+  return true;
 }
 
 // ── What main.js tells the table ─────────────────────────────────────────
