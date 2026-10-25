@@ -20,19 +20,39 @@ function dbRender() {
  * something other than the mat can lay out the same piles without grouping
  * the deck a second time: table mode's mat (js/tablemode.js) reads them
  * through dbShownPiles. */
-let _dbShownPiles = null;   // { deckId, piles: [{ label, cards }] }
+let _dbShownPiles = null;   // { deckId, piles: [{ label, cards }], heads: [card] }
 
-/* The deck's piles as the mat has them, each card as { name, image } — the
- * picture _dbCardImg() says the mat draws it with, asked now rather than at
- * the paint, since a card's data can arrive after it — or null when no deck is
- * open, or the one open has not been painted yet and the piles kept are
- * another deck's. */
+/* A card as the getters below hand it out: its name, the picture
+ * _dbCardImg() says the mat draws it with — asked now rather than at the
+ * paint, since a card's data can arrive after it — and its ref, board and
+ * name, which is what every edit in js/deckview-edit.js is asked by. The
+ * quantity is the row's as it was at the paint; anything about to edit the
+ * card asks dbFindCard() for the row as it is now. */
+function _dbShownCard(card) {
+  return { name: card.card_name, image: _dbCardImg(card), ref: dbCardRef(card), qty: card.qty || 1 };
+}
+
+/* The deck's piles as the mat has them, each card as _dbShownCard() says —
+ * or null when no deck is open, or the one open has not been painted yet and
+ * the piles kept are another deck's. */
 function dbShownPiles() {
   if (!dbDeck || _dbShownPiles?.deckId !== dbDeck.id) return null;
   return _dbShownPiles.piles.map(pile => ({
     label: pile.label,
-    cards: pile.cards.map(card => ({ name: card.card_name, image: _dbCardImg(card) })),
+    cards: pile.cards.map(_dbShownCard),
   }));
+}
+
+/* The commander — or both, with a partner — as the last paint drew it at the
+ * head of the mat, each card as _dbShownCard() says. Apart from the piles,
+ * because it is not one of them: the commander is a board of its own (js/
+ * deckview-boards.js), and the piles are the mainboard's categories. Empty
+ * when the deck has none, when the commander board is switched off, or when
+ * the filter is not showing it — what the mat shows, as the piles are; null
+ * on the same terms as dbShownPiles(). */
+function dbShownCommanders() {
+  if (!dbDeck || _dbShownPiles?.deckId !== dbDeck.id) return null;
+  return (_dbShownPiles.heads || []).map(_dbShownCard);
 }
 
 /* What a thing on the mat is, as one string, so that it can be recognised
@@ -122,6 +142,11 @@ function _dbPaint() {
   _dbShownPiles = {
     deckId: dbDeck.id,
     piles: piles.filter(p => p.cards.length).map(p => ({ label: p.name, cards: p.cards })),
+    /* The commander board, on the terms its region below is drawn on: while
+       the board is switched on, and the filter's cards of it, in its sort. */
+    heads: dbShownBoards.has(DB_COMMANDER_BOARD)
+      ? dbCommanderCards().filter(c => _dbMatchesFilter(c)).sort(_dbSortCards(cmp))
+      : [],
   };
 
   const sections = [];
