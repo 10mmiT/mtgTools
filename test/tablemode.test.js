@@ -1425,6 +1425,20 @@ test('the landing mark lies where the card lands: the same spot, the same angle,
   assert.match(card, /^translate3d\([\d.-]+px, [\d.-]+px, 15\.00px\) rotate\(-3\.4deg\) rotateX\(0\.00deg\)$/);
 });
 
+test('past sixty cards, a card lying still casts no shadow, and one in hand still does', () => {
+  const rest = n => app.sandbox.tableRestShadows(n);
+  assert.strictEqual(app.evaluate('TABLE_SHADOWS_MAX'), 60);
+  for (const n of [0, 1, 60]) assert.strictEqual(rest(n), true, `${n} cards keep their shadows, as the table always drew them`);
+  for (const n of [61, 100, 250]) assert.strictEqual(rest(n), false, `${n} cards lie without`);
+  const css = read('public/css/table.css');
+  assert.match(css, /\.table-mat\[data-many\] \.table-card-img\s*\{\s*filter:\s*none;\s*\}/, 'the mat says so, and table.css drops the filter');
+  const many = css.indexOf('.table-mat[data-many] .table-card-img');
+  const held = css.indexOf('.table-card.is-held .table-card-img {');
+  assert.ok(many > 0 && held > many, 'before the held shadow, so the card in hand still casts its own');
+  assert.match(read('public/js/tablemode.js'), /toggleAttribute\('data-many', !tableRestShadows\(tableCards\.length\)\)/,
+    'written each time the cards are laid');
+});
+
 test('the depth is a budget: every card at the ceiling lies under the mark and the rim, which lie where they did', () => {
   const gap = app.evaluate('TABLE_CARD_GAP'), depth = app.evaluate('TABLE_DEPTH');
   const cast = app.evaluate('TABLE_CAST_Z'), rim = app.evaluate('TABLE_RIM_Z');

@@ -440,6 +440,26 @@ const TABLE_NEAR_GROWTH   = 1.2;
 const TABLE_DECK_CARDS_MAX = 250;
 const TABLE_TAB_CARDS_MAX  = 100;
 
+/* How many cards may lie on the mat each casting its own shadow at rest. A
+ * card's shadow is a drop-shadow filter on its picture, and a filter on a
+ * face of a 3D scene is drawn on its own surface and blurred again every
+ * frame the camera moves — most of what a card costs to draw: measured over
+ * a pan in headless Firefox at 1440×900, 206 cards drew a frame in about
+ * 200ms with their shadows and 95ms without, against 47ms for the table with
+ * no cards at all. Up to sixty, as many as the table always drew, every card
+ * keeps its shadow and the table is what it was. Past that, a card lying
+ * still casts none (table.css, .table-mat[data-many]) — in a pile of a
+ * hundred most of each shadow falls on the card under it, out of sight —
+ * and the one card in hand, or coming down, casts its own as it always did:
+ * so a deck of two hundred costs no more to pan or to carry a card across
+ * than the sixty-card table did. */
+const TABLE_SHADOWS_MAX = 60;
+
+/* Whether the cards lying on a mat of `count` cast their shadows at rest. */
+function tableRestShadows(count) {
+  return (Number(count) || 0) <= TABLE_SHADOWS_MAX;
+}
+
 /* How far apart, in z, two cards lying on each other are. Cards share one
  * plane, and coplanar faces in a 3D scene are a coin toss for which is drawn on
  * top — so each lies a hair above the one under it: a quarter of a pixel
@@ -2742,6 +2762,7 @@ function tableDrawCards() {
      about to be laid. */
   tableSyncTools();
   const { width, height } = tableGeom.mat;
+  mat.toggleAttribute('data-many', !tableRestShadows(tableCards.length));
   const layout = tableFeature
     ? tableFeatureLayout(tableCards, width, height)
     : tableLayout(tableCards, width, height);

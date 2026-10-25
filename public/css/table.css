@@ -393,6 +393,13 @@ html[data-playmat] .table-mat {
   filter: drop-shadow(0 calc(3px * var(--k)) calc(6px * var(--k)) var(--card-cast));
   transition: none;
 }
+/* More cards than the table draws shadows for (js/tablemode.js,
+   TABLE_SHADOWS_MAX): lying still, a card casts none, because a filter on
+   every one of a deck's cards is most of what the table costs to draw. Held
+   or coming down, a card is not lying still, and the rules below give it its
+   shadow back — eased in as it rises and out as it comes to rest, in the
+   times those rules give. Before them, so that they win. */
+.table-mat[data-many] .table-card-img { filter: none; }
 /* In hand: the deeper shadow of something held well above the table rather
    than lying on it — which the card has whether or not it is allowed to rise.
    It grows in the time the card takes to rise (TABLE_LIFT_MS, 110ms, in
