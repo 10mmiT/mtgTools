@@ -239,6 +239,13 @@
 // and kept on the card, and keyed by it, so a commander and a mainboard copy
 // of the same name are two cards on the mat.
 //
+// And the deck can be laid a zone per category instead of a pile per one: the
+// Zones chip on the far rim beside the slip, kept per browser. A zone is a
+// rectangle on the felt that lays its own cards out to fit it, moved by its
+// label, resized by its grip, renamed in place; a card carried into another
+// zone moves into that category by the builder's own drop. Off, the piles are
+// exactly as they were. See "The Deck Builder's zones", its own section below.
+//
 // ── For the next half: the API ────────────────────────────────────────────
 //
 //   tableMode.isOn()                         → boolean
@@ -283,7 +290,9 @@
 // how it is piled, where a re-laid card goes, when a panel tucks, where a
 // card in hand lands and its landing mark lies, and the Deck Builder's slip and
 // bin: when they show, the bin's hit on the rim, and what a card put in it
-// does to the deck.
+// does to the deck — and its zones: how a zone fits its cards, how the zones
+// are laid out the first time and kept, which zone a card is let go over, and
+// who may change them.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -1627,6 +1636,9 @@ function tableBuild() {
   tableEls.lookBack.addEventListener('click', () => tableLookAway());
   tableEls.lookDetails.addEventListener('click', () => tableOpenDetails());
   tableEls.lookRemove.addEventListener('click', () => tableLookRemove());
+  /* The Deck Builder's zones: their chips on the far rim, and their own
+     listeners on the mat. */
+  tableZonesBuild();
 }
 
 /* The table fitted to the window: its box worked out by tableFitSize and
@@ -1717,6 +1729,7 @@ function tableFrame(now) {
   tableEls.camera.style.transform = tableCameraTransform(tableCam());
   tableSharpen();
   if (tableHold && tableCarry(now)) more = true;
+  if (tableZoneHold && tableZoneStep(now)) more = true;
   /* Asked every frame a card is in hand rather than on every pointer move:
      the camera can carry the bin under a pointer that is holding still —
      and tableCarry has just asked it, for the card's own look. */
@@ -1737,6 +1750,7 @@ function tableOnPointerMove(e) {
     hold.pointer = { x: e.clientX, y: e.clientY };
     if (!hold.dragging && tableIsDrag(e.clientX - hold.start.x, e.clientY - hold.start.y)) hold.dragging = true;
   }
+  tableZoneOnPointerMove(e);
   tableKick();
 }
 
@@ -1846,6 +1860,7 @@ function tableOnKey(e) {
 /* The window losing the pointer mid-drag: the card is put down where it is. */
 function tableOnBlur() {
   if (tableHold) tableRelease({ pointerId: tableHold.id });
+  if (tableZoneHold) tableZoneRelease({ pointerId: tableZoneHold.id });
 }
 
 function tableListen(on) {
@@ -1853,6 +1868,8 @@ function tableListen(on) {
   window[method]('pointermove', tableOnPointerMove, { passive: true });
   window[method]('pointerup', tableRelease);
   window[method]('pointercancel', tableRelease);
+  window[method]('pointerup', tableZoneRelease);
+  window[method]('pointercancel', tableZoneRelease);
   window[method]('pointerout', tableOnPointerOut);
   window[method]('resize', tableOnResize);
   window[method]('keydown', tableOnKeyCapture, true);
@@ -1936,6 +1953,8 @@ function tableModeLeave() {
   for (const el of [tableEls.scene, tableEls.dim, tableEls.panel, tableEls.look, tableTools?.pop]) el?.remove();
   tableToolsOn = tableBinOver = false;
   tableArrival = null;
+  tableZoneHold = tableZoneEdit = tableZoneTarget = tableZoneLanding = tableZoneChips = null;
+  tableZones = [];
   tableEls = null;
   tableGeom = null;
   tableOn = false;
@@ -2360,7 +2379,8 @@ function tableQueueRelay(tab) {
   tableRelayId = setTimeout(() => {
     tableRelayId = 0;
     if (!tableOn || tablePanel?.tab !== tab) return;
-    if (!tableLayFor(tab)) return;
+    /* Nothing new to lay may still be a count changed in a zone's label. */
+    if (!tableLayFor(tab)) { if (tab === 'deckview') tableZonesRefresh(); return; }
     const actedAgo = tableActedAt ? Date.now() - tableActedAt : Infinity;
     if (tableShouldAutoTuck({ kind: tablePanel.kind, tab, tucked: tableTucked, actedAgo })) tableTuckPanel(true);
     tableActedAt = 0;
@@ -2389,6 +2409,8 @@ function tableLayCards(list, { hint, scope = '', feature = false } = {}) {
 }
 
 function tableCardZ(card) {
+  /* Laid in zones, a card lies at the height its zone gives it (tableZonesLayer). */
+  if (card.zoneZ != null) return card.zoneZ;
   return (card.rank + 1) * TABLE_CARD_GAP;
 }
 
@@ -2495,8 +2517,12 @@ function tableDrawCards() {
     cards.append(card.el);
   });
   mat.insertBefore(cards, hint);
+  /* Laid in zones instead, when they are on: the zones place every card
+     they hold over the piles' places. */
+  tableZonesPlace();
   for (const card of tableCards) tableWriteCard(card);
   tableArrive(before);
+  tableZoneLand();
   hint.textContent = tableHintText;
   hint.hidden = tableCards.length > 0;
   tableSyncLane();
@@ -2527,6 +2553,8 @@ function tableResizeCards() {
     tableSizeCard(card);
     tableWriteCard(card);
   }
+  /* Zones are fractions of the mat too, and fit the new card size again. */
+  if (tableZones.length) tableZonesRefresh();
 }
 
 /* The card that was picked up goes to the top of everything, and the rest
@@ -2549,6 +2577,7 @@ function tableOnCardDown(e) {
   const el = e.target.closest?.('.table-card');
   const card = el && tableCards.find(c => c.el === el);
   if (!card) return;
+  tableZonePickUp(card);
   const hit = tableUnproject(tableMatrix(), e.clientX, e.clientY, tableCardZ(card));
   if (!hit) return;
   const { width, height } = tableGeom.mat;
@@ -2599,6 +2628,7 @@ function tableCarry(now) {
      the pointer's question, never the card's, so the card being drawn
      towards the bin cannot change the answer. */
   hold.over = !!hold.dragging && !!card.ref && tableOverBin(hold.pointer);
+  tableZoneHover(hold);
   hold.binT = tableBinProgress(hold.binT, hold.over, now - hold.binAt, motion);
   hold.binAt = now;
   const pose = tableBinPose(hold.binT,
@@ -2632,7 +2662,7 @@ function tableCarry(now) {
      on the card would flatten the 3D context its picture is kept sharp by. */
   if (pose.k > 0) card.el?.style.setProperty('--table-bin-fade', pose.opacity.toFixed(3));
   else card.el?.style.removeProperty('--table-bin-fade');
-  tableCastWrite(hold.dragging && !hold.over ? hold : null);
+  tableCastWrite(hold.dragging && !hold.over ? tableZoneCast(hold) : null);
   return rise !== tableLiftHeight(Infinity, motion) || hold.binT !== (hold.over ? 1 : 0);
 }
 
@@ -2685,6 +2715,8 @@ function tableRelease(e) {
     tableBinCard(card, hold.from);
     return;
   }
+  /* Laid in zones, a card carried goes into a zone or back to its own. */
+  if (hold.dragging && tableZoneDrop(hold, e)) return;
   if (hold.dragging) {
     tableSwallow = true;
     /* Down onto the spot the landing mark lay on — the one the card is
@@ -3047,7 +3079,7 @@ function tableRemoveOne(card) {
  * edit made from the table, which the pane's watcher only sees while the
  * pane is open in a panel. A deck that did not change lays nothing. */
 function tableRelayDeck() {
-  if (tableOn && tableScope === 'deckview') tableLayFor('deckview');
+  if (tableOn && tableScope === 'deckview' && !tableLayFor('deckview')) tableZonesRefresh();
 }
 
 /* Remove one, pressed under a card being looked at: the card put back down
@@ -3140,6 +3172,1105 @@ function tableSlipKey(e) {
   e.preventDefault();
   tableTools.input.focus({ preventScroll: true });
   return true;
+}
+
+// ── The Deck Builder's zones ─────────────────────────────────────────────
+// A second way of laying the deck, chosen by the "Zones" chip on the far rim
+// beside the slip and kept per browser (TABLE_ZONES_KEY): every category of
+// the deck is a zone, a rectangle lying on the felt with its name and count
+// on a chip at its top-left corner and a grip at its bottom-right, and the
+// zone lays its own cards out to fit inside it (tableZoneFit). With the chip
+// off, nothing here runs and the mat is laid in its piles exactly as before;
+// where a hand put a card in the piles is kept for them, since nothing here
+// writes to it.
+//
+//   a zone       a category the deck's mainboard has cards in, or one that
+//                was given a zone here (+ Zone, a rename) and so has a place
+//                kept for it however empty it is — not every category the
+//                deck has ever had, which would be nine default ones lying
+//                empty on a deck that never used them (tableZoneNames). The
+//                commander keeps its spot at the head of the mat and is no
+//                zone.
+//   moving one   the label, pressed and dragged: the zone rises a little with
+//                all its cards and follows the pointer through the same
+//                screen-to-mat mapping a card in hand does, and settles where
+//                it is let go. The last one moved, or resized, lies on top.
+//   resizing     the grip: the zone's cards are fitted again every frame,
+//                which only rewrites their transforms — the cheap path.
+//   a card       carried and let go over another zone moves into that
+//                category through the builder's own drop (cardCarryDrop, the
+//                same call a card carried between piles in the builder makes,
+//                so the save and the history are the builder's); let go over
+//                its own zone, or over no zone, it goes back to its place in
+//                its zone, and its landing mark says so. Over another zone
+//                there is no mark, since where the card lands in it is the
+//                builder's sort to decide: the zone lights instead.
+//   + Zone       a new category, by the builder's own add and its own unique
+//                placeholder name, with an empty zone in free space.
+//   renaming     a double-click on the label (or Enter, or F2, on it focused)
+//                opens a field on it; Enter, or clicking away, renames through
+//                the builder's own rename, and Escape leaves the name be.
+//
+// Somebody else's deck can be laid in zones, to be looked at that way, and
+// not changed: no zone moves, grows, is renamed or is added, and no card goes
+// from one to another (tableZoneRules).
+//
+// Where each zone lies is kept per deck in the browser (TABLE_ZONE_RECTS_KEY
+// and the deck's id), as fractions of the mat, so a window of another size
+// lays them in proportion. The first time a deck is laid in zones they are
+// laid out for it in a tidy grid below the commander (tableZoneAutoLayout); a
+// category that turns up later is given a zone in free space, and one the
+// deck no longer has loses its zone.
+//
+// Depth: the zones and their cards share the TABLE_CARDS_MAX gaps of height
+// the piles have (tableZoneGapFor), each zone a run of it — its felt, its
+// cards, and its chip and grip above them — so the landing mark, the slip,
+// the bin and the rim's tabs keep lying above all of it as they do above the
+// piles, and a zone on top of another is drawn over that one's cards too.
+
+/* The browser's copy of the Zones chip: '1' when on, nothing when off. And
+ * the prefix of each deck's kept layout: the deck's id follows it. */
+const TABLE_ZONES_KEY      = 'mtgtools_table_zones';
+const TABLE_ZONE_RECTS_KEY = 'mtgtools_table_zones:';
+
+/* A zone's insides, in the mat's own pixels: the padding round its cards,
+ * the band across its top that its label lies in (TABLE_ZONE_HEAD, the
+ * label TABLE_ZONE_LABEL_H tall in the middle of it), the gap between two
+ * zones the layout leaves, and the gap between two cards of a zone that has
+ * room to lay them apart. table.css is handed the three it draws with. */
+const TABLE_ZONE_PAD      = 8;
+const TABLE_ZONE_HEAD     = 32;
+const TABLE_ZONE_LABEL_H  = 22;
+const TABLE_ZONE_GAP      = 12;
+const TABLE_ZONE_CARD_GAP = 6;
+
+/* How far a zone's cards may close up on each other before they are piled
+ * instead: across, to a third of a card showing (TABLE_FAN_MIN, the fans'
+ * own floor), and down, to the band along a card's top its name is printed
+ * in — about TABLE_ZONE_TITLE of its height. Piled, each card lies
+ * TABLE_ZONE_PILE_STEP pixels right of and below the one under it. */
+const TABLE_ZONE_TITLE     = 0.16;
+const TABLE_ZONE_PILE_STEP = 2;
+
+/* How high a zone comes up off the felt while it is carried, in the mat's
+ * pixels — a quarter of a card's lift: a whole region of the table is being
+ * slid, not a card picked up — and the step the search for free space for a
+ * new zone moves by. */
+const TABLE_ZONE_LIFT = 24;
+const TABLE_ZONE_SCAN = 8;
+
+/* The two chips' icons, in the sidebar's own hand: four tiles for the zones,
+ * and a plus for a new one. The grip's mark is three dots on the diagonal of
+ * the zone's corner. */
+const TABLE_ZONES_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/>' +
+  '<rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/>' +
+  '<rect x="13" y="13" width="8" height="8" rx="1"/></svg>';
+const TABLE_ZONE_ADD_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/>' +
+  '<line x1="5" y1="12" x2="19" y2="12"/></svg>';
+const TABLE_ZONE_GRIP_ICON =
+  '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="10" cy="4" r="1.2"/><circle cx="7" cy="7" r="1.2"/>' +
+  '<circle cx="4" cy="10" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="7" cy="10" r="1.2"/>' +
+  '<circle cx="10" cy="10" r="1.2"/></svg>';
+
+// ── The zones' decisions ──
+
+/* What the zones may do, for the cards on the mat now: the chip is offered
+ * while the Deck Builder's cards lie there with a deck open; the zones are
+ * laid while it is on; and they may be changed — moved, resized, renamed,
+ * added to, and cards moved between them — only for a deck the user may
+ * edit. */
+function tableZoneRules({ scope, deckOpen, canEdit, on }) {
+  const toggle = scope === 'deckview' && !!deckOpen;
+  const zones  = toggle && !!on;
+  const edit   = zones && !!canEdit;
+  return { toggle, zones, arrange: edit, rename: edit, add: edit, move: edit };
+}
+
+/* Which categories are zones, in the deck's own order of them: `cats` the
+ * deck's categories ([{ name }] or names), `counts` how many cards each has
+ * in the mainboard (a Map, or an object), `kept` the names a zone is kept for
+ * (an array or a Set). A category with cards, or a kept zone the deck still
+ * has; never one the deck no longer has. */
+function tableZoneNames(cats, counts, kept) {
+  const count = name => Number(counts instanceof Map ? counts.get(name) : counts?.[name]) || 0;
+  const keep = kept instanceof Set ? kept : new Set(kept || []);
+  const names = (cats || []).map(cat => (typeof cat === 'string' ? cat : cat?.name)).filter(Boolean).map(String);
+  return [...new Set(names)].filter(name => count(name) > 0 || keep.has(name));
+}
+
+/* The smallest a zone may be, for cards w × h: one card and its padding,
+ * with the label's band over it. */
+function tableZoneMinSize(cardW, cardH) {
+  return { width: (Number(cardW) || 0) + 2 * TABLE_ZONE_PAD, height: TABLE_ZONE_HEAD + (Number(cardH) || 0) + TABLE_ZONE_PAD };
+}
+
+/* How many layers of height the zones' depth is divided into, and so how far
+ * apart they are: the gap the piles use, or less, so that however many zones
+ * and cards there are they fit in the TABLE_CARDS_MAX gaps the piles fit in,
+ * under the landing mark and the rim. */
+function tableZoneGapFor(layers) {
+  return Math.min(TABLE_CARD_GAP, TABLE_CARDS_MAX * TABLE_CARD_GAP / Math.max(1, Number(layers) || 1));
+}
+
+/* Where `count` cards w × h lie in a zone zoneW × zoneH: their centres, in
+ * the zone's own pixels from its top-left corner, in the builder's order —
+ * the first at the top left, reading across and then down, each later card
+ * lying over the one before. Inside the zone's padding and below its label's
+ * band, three ways, the first that fits:
+ *
+ *   grid     full cards, a TABLE_ZONE_CARD_GAP apart, as many across as the
+ *            zone takes — when the rows they need fit down it;
+ *   overlap  the same, closed up: across to a third of a card showing and
+ *            down to its name's band. Of the ways to lay them in columns and
+ *            rows that close up no further than that, the one that shows the
+ *            most of each card — the top-left corner the cards over it leave
+ *            uncovered — and the fewest rows of those;
+ *   stack    cards share spots, in piles of as few as will do: each pile a
+ *            box a card and TABLE_ZONE_PILE_STEP pixels a card larger, laid
+ *            out as in an overlap, the cards spread evenly over the piles in
+ *            order, each TABLE_ZONE_PILE_STEP right of and below the one
+ *            under it.
+ *
+ * And when not even one pile of all of them fits — a zone at its smallest
+ * size — one pile whose step closes up to whatever the padding leaves.
+ * `mode` says which; `visible` is how much of each card shows, 0…1, which is
+ * what the layout of a whole deck weighs (tableZoneAutoLayout). A zone no
+ * larger than a card, which its smallest size never is, lays every card at
+ * its corner. */
+function tableZoneFit(count, zoneW, zoneH, cardW, cardH, {
+  pad = TABLE_ZONE_PAD, head = TABLE_ZONE_HEAD, gap = TABLE_ZONE_CARD_GAP,
+} = {}) {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  const w = Math.max(0, Number(cardW) || 0), h = Math.max(0, Number(cardH) || 0);
+  const A = Math.max(0, (Number(zoneW) || 0) - 2 * pad);
+  const B = Math.max(0, (Number(zoneH) || 0) - head - pad);
+  if (!n || !(w > 0) || !(h > 0)) return { mode: 'grid', visible: 1, spots: Array.from({ length: n }, () => ({ x: pad, y: head })) };
+
+  /* m boxes bw × bh in columns and rows: the best of c columns, 1 to m. A
+     column step under a third of a box is never needed — more columns only
+     close it further — so the search stops there. */
+  const arrange = (m, bw, bh) => {
+    if (A + 1e-9 < bw || B + 1e-9 < bh) return null;
+    let best = null;
+    for (let c = 1; c <= m; c++) {
+      const r = Math.ceil(m / c);
+      const sx = c > 1 ? Math.min(bw + gap, (A - bw) / (c - 1)) : 0;
+      if (c > 1 && sx < bw * TABLE_FAN_MIN - 1e-9) break;
+      const sy = r > 1 ? Math.min(bh + gap, (B - bh) / (r - 1)) : 0;
+      if (r > 1 && sy < bh * TABLE_ZONE_TITLE - 1e-9) continue;
+      const vis = (c > 1 ? Math.min(sx, bw) : bw) * (r > 1 ? Math.min(sy, bh) : bh) / (bw * bh);
+      if (!best || vis > best.vis + 1e-9 || (Math.abs(vis - best.vis) <= 1e-9 && r < best.r)) best = { c, r, sx, sy, vis };
+    }
+    return best;
+  };
+  /* Box k's centre, of boxes bw × bh arranged as `fit`. */
+  const at = (fit, bw, bh, k) => ({
+    x: pad + bw / 2 + (k % fit.c) * fit.sx,
+    y: head + bh / 2 + Math.floor(k / fit.c) * fit.sy,
+  });
+
+  const flat = arrange(n, w, h);
+  if (flat) {
+    const grid = (flat.c === 1 || flat.sx >= w) && (flat.r === 1 || flat.sy >= h);
+    return { mode: grid ? 'grid' : 'overlap', visible: flat.vis, spots: Array.from({ length: n }, (_, k) => at(flat, w, h, k)) };
+  }
+
+  /* n cards over `piles` piles, as evenly as they go and in order, a pile's
+     cards stepping `step` from its box's top-left corner. */
+  const pile = (piles, spotOf, step) => {
+    const spots = [];
+    const base = Math.floor(n / piles), extra = n % piles;
+    for (let i = 0; i < piles; i++) {
+      const spot = spotOf(i);
+      for (let j = 0; j < base + (i < extra ? 1 : 0); j++) spots.push({ x: spot.x + j * step, y: spot.y + j * step });
+    }
+    return spots;
+  };
+  for (let depth = 2; depth <= n; depth++) {
+    const piles = Math.ceil(n / depth);
+    const reach = TABLE_ZONE_PILE_STEP * (depth - 1);
+    const fit = arrange(piles, w + reach, h + reach);
+    if (!fit) continue;
+    return {
+      mode: 'stack', visible: fit.vis / depth,
+      spots: pile(piles, i => {
+        const box = at(fit, w + reach, h + reach, i);
+        return { x: box.x - reach / 2, y: box.y - reach / 2 };
+      }, TABLE_ZONE_PILE_STEP),
+    };
+  }
+  /* One pile, its step closed up into the padding to its right and below —
+     still inside the zone. */
+  const room = Math.min(A + pad - w, B + pad - h);
+  const step = n > 1 ? Math.max(0, Math.min(TABLE_ZONE_PILE_STEP, room / (n - 1))) : 0;
+  return { mode: 'stack', visible: 1 / n, spots: pile(1, () => ({ x: pad + w / 2, y: head + h / 2 }), step) };
+}
+
+/* A zone a new category is given: wide enough for a few of its cards side by
+ * side — three, or as many as it has, at least one — on a mat `width` wide,
+ * and a row of cards tall. */
+function tableZoneDefaultSize(count, cardW, cardH, width = Infinity) {
+  const min = tableZoneMinSize(cardW, cardH);
+  const cols = Math.min(3, Math.max(1, Math.floor(Number(count) || 0)));
+  const w = 2 * TABLE_ZONE_PAD + cols * cardW + (cols - 1) * TABLE_ZONE_CARD_GAP;
+  return { width: Math.max(min.width, Math.min(w, Number(width) - 2 * TABLE_ZONE_GAP)), height: min.height };
+}
+
+/* Whether two rects overlap, `gap` apart counting as touching. */
+function tableZoneOverlap(a, b, gap = 0) {
+  return a.left < b.left + b.width + gap && b.left < a.left + a.width + gap
+      && a.top < b.top + b.height + gap && b.top < a.top + a.height + gap;
+}
+
+/* Where a zone `size` = { width, height } goes on a mat of the given size,
+ * among the zones there already (`rects`) and round the commander's box
+ * (`keepOut`, tableZoneHeadRect, or null): the first place, reading across
+ * and down from the mat's far corner, that is clear of every one of them by
+ * a TABLE_ZONE_GAP — and with no such place, the one overlapping them the
+ * least. Returns its top-left corner, { left, top }. */
+function tableZoneFree(rects, size, width, height, keepOut = null) {
+  const W = Number(width) || 0, H = Number(height) || 0;
+  const w = Math.min(size.width, W), h = Math.min(size.height, H);
+  const top0 = Math.min(Math.max(0, H - h), TABLE_ZONE_GAP);
+  const xMax = Math.max(0, W - w - TABLE_ZONE_GAP), yMax = Math.max(0, H - h - TABLE_ZONE_GAP);
+  const others = [...(rects || []), ...(keepOut ? [keepOut] : [])];
+  let best = null;
+  for (let y = top0; y <= Math.max(top0, yMax) + 1e-9; y += TABLE_ZONE_SCAN) {
+    for (let x = Math.min(TABLE_ZONE_GAP, xMax); x <= xMax + 1e-9; x += TABLE_ZONE_SCAN) {
+      const at = { left: x, top: y, width: w, height: h };
+      let cover = 0;
+      for (const r of others) {
+        if (!tableZoneOverlap(at, r, TABLE_ZONE_GAP)) continue;
+        cover += Math.max(1, (Math.min(x + w, r.left + r.width) - Math.max(x, r.left))
+                           * (Math.min(y + h, r.top + r.height) - Math.max(y, r.top)));
+      }
+      if (!cover) return { left: x, top: y };
+      if (!best || cover < best.cover) best = { left: x, top: y, cover };
+    }
+  }
+  return best ? { left: best.left, top: best.top } : { left: 0, top: top0 };
+}
+
+/* The box the commander lies in — or both of a pair, side by side — on a mat
+ * of the given size for cards w × h in the piles: what no zone is laid over
+ * the first time, nor a new zone put on. Null with no commander. */
+function tableZoneHeadRect(count, width, height, cardW, cardH) {
+  const head = tableHeadSpots(count, width, height, cardW, cardH);
+  if (!head.spots.length) return null;
+  const W = cardW * TABLE_HEAD_SCALE, H = cardH * TABLE_HEAD_SCALE;
+  const xs = head.spots.map(s => s.x * width), ys = head.spots.map(s => s.y * height);
+  const left = Math.min(...xs) - W / 2, top = Math.min(...ys) - H / 2;
+  return { left, top, width: Math.max(...xs) + W / 2 - left, height: Math.max(...ys) + H / 2 - top };
+}
+
+/* A deck's zones laid out for the first time, on a mat of the given size for
+ * cards w × h: `zones` = [{ name, count }], in the deck's order, round the
+ * commander's box (`keepOut`, tableZoneHeadRect, or null).
+ *
+ * In rows of one height, a TABLE_ZONE_GAP apart and from the mat's edges;
+ * a row level with the commander is two runs, one each side of it. The
+ * categories are shared out over the rows in order — no row given more
+ * zones than fit across it at their smallest — so that the cards to a pixel
+ * of width are as even as they can be from row to row, and in each run a
+ * zone is as wide as its share of the run's cards: sized in proportion to
+ * them. Of the numbers of rows that fit, the one whose zones show the most
+ * of their cards (tableZoneFit, weighed by how many cards that is) — and of
+ * those, the one whose zones are nearest square. More zones than fit at
+ * their smallest are laid below the commander in rows that overlap, still
+ * on the mat. Returns [{ name, left, top, width, height }] in the order
+ * asked, in pixels. */
+function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null) {
+  const list = zones || [];
+  const W = Number(width) || 0, H = Number(height) || 0;
+  const n = list.length;
+  if (!n || !(W > 0) || !(H > 0)) return [];
+  const gap = TABLE_ZONE_GAP;
+  const min = tableZoneMinSize(cardW, cardH);
+  const weight = list.map(z => Math.max(1, Number(z.count) || 0));
+  const fits = len => Math.max(0, Math.floor((len + gap + 1e-9) / (min.width + gap)));
+  const AH = H - 2 * gap;
+  let best = null;
+
+  for (let R = 1; R <= n; R++) {
+    const rowH = (AH - (R - 1) * gap) / R;
+    if (rowH + 1e-9 < min.height) break;
+    /* Each row's runs: the whole width, or the two sides of the commander. */
+    const rows = Array.from({ length: R }, (_, r) => {
+      const top = gap + r * (rowH + gap);
+      const level = keepOut && top < keepOut.top + keepOut.height + gap && keepOut.top < top + rowH + gap;
+      const runs = level
+        ? [[gap, keepOut.left - gap], [keepOut.left + keepOut.width + gap, W - gap]]
+        : [[gap, W - gap]];
+      const spans = runs.map(([a, b]) => ({ left: a, width: Math.max(0, b - a) }));
+      return { top, spans, cap: spans.reduce((s, sp) => s + fits(sp.width), 0), room: spans.reduce((s, sp) => s + sp.width, 0) };
+    });
+    if (rows.reduce((s, row) => s + row.cap, 0) < n) continue;
+
+    /* The categories over the rows, in order: the cut that keeps the most
+       cards to a pixel of any row lowest, each row within its capacity. */
+    const prefix = [0];
+    weight.forEach((wt, i) => prefix.push(prefix[i] + wt));
+    const cost = Array.from({ length: R + 1 }, () => new Array(n + 1).fill(Infinity));
+    const from = Array.from({ length: R + 1 }, () => new Array(n + 1).fill(-1));
+    cost[0][0] = 0;
+    for (let r = 1; r <= R; r++) {
+      const row = rows[r - 1];
+      for (let j = 0; j <= n; j++) {
+        for (let i = Math.max(0, j - row.cap); i <= j; i++) {
+          if (cost[r - 1][i] === Infinity) continue;
+          const load = j > i ? (prefix[j] - prefix[i]) / Math.max(1, row.room) : 0;
+          const c = Math.max(cost[r - 1][i], load);
+          if (c < cost[r][j] - 1e-12) { cost[r][j] = c; from[r][j] = i; }
+        }
+      }
+    }
+    if (cost[R][n] === Infinity) continue;
+    const cuts = [n];
+    for (let r = R; r > 0; r--) cuts.unshift(from[r][cuts[0]]);
+
+    const rects = new Array(n);
+    let ok = true;
+    rows.forEach((row, r) => {
+      const idx = [];
+      for (let i = cuts[r]; i < cuts[r + 1]; i++) idx.push(i);
+      /* A row in two runs: its zones split between them where the cards to
+         a pixel come out most even, in order, each run within its fit. */
+      let parts = [idx];
+      if (row.spans.length === 2) {
+        let pick = null;
+        for (let k = 0; k <= idx.length; k++) {
+          const a = idx.slice(0, k), b = idx.slice(k);
+          if (a.length > fits(row.spans[0].width) || b.length > fits(row.spans[1].width)) continue;
+          const wa = a.reduce((s, i) => s + weight[i], 0), wb = b.reduce((s, i) => s + weight[i], 0);
+          const skew = Math.abs(wa / Math.max(1, row.spans[0].width) - wb / Math.max(1, row.spans[1].width));
+          if (!pick || skew < pick.skew - 1e-12) pick = { skew, parts: [a, b] };
+        }
+        if (!pick) { ok = false; return; }
+        parts = pick.parts;
+      }
+      parts.forEach((part, s) => {
+        const span = row.spans[s];
+        const partWeight = part.reduce((sum, i) => sum + weight[i], 0);
+        const spare = span.width - part.length * min.width - (part.length - 1) * gap;
+        let x = span.left;
+        for (const i of part) {
+          const zw = min.width + Math.max(0, spare) * weight[i] / Math.max(1, partWeight);
+          rects[i] = { name: list[i].name, left: x, top: row.top, width: zw, height: rowH };
+          x += zw + gap;
+        }
+      });
+    });
+    if (!ok) continue;
+
+    let score = 0, square = 0;
+    rects.forEach((rect, i) => {
+      score  += weight[i] * tableZoneFit(list[i].count, rect.width, rect.height, cardW, cardH).visible;
+      square += Math.min(rect.width / rect.height, rect.height / rect.width);
+    });
+    if (!best || score > best.score + 1e-6 || (Math.abs(score - best.score) <= 1e-6 && square > best.square)) {
+      best = { rects, score, square };
+    }
+  }
+  if (best) return best.rects;
+
+  /* Too many for the mat at their smallest: below the commander, as many
+     across as fit, and the rows stepped down the room there is,
+     overlapping, each kept on the mat. */
+  const top0 = keepOut ? keepOut.top + keepOut.height + gap : gap;
+  const cols = Math.max(1, fits(W - 2 * gap));
+  const rowsN = Math.ceil(n / cols);
+  const room = Math.max(0, H - gap - top0 - min.height);
+  const stepY = rowsN > 1 ? Math.min(min.height + gap, room / (rowsN - 1)) : 0;
+  return list.map((z, i) => ({
+    name: z.name,
+    left: Math.max(0, Math.min(W - min.width, gap + (i % cols) * (min.width + gap))),
+    top:  Math.max(0, Math.min(H - min.height, top0 + Math.floor(i / cols) * stepY)),
+    width: Math.min(W, min.width), height: Math.min(H, min.height),
+  }));
+}
+
+/* Rects in a mat's pixels as fractions of it, for keeping — and back, on a
+ * mat of any size: each kept at least `min` = { width, height } (a smaller
+ * window lays larger cards than fit a zone sized for a larger one's), no
+ * larger than the mat, and inside it. Anything unreadable in what was kept
+ * is dropped rather than laid. */
+function tableZoneNormalise(rects, width, height) {
+  const W = Number(width) || 1, H = Number(height) || 1;
+  return (rects || []).map(r => ({ name: String(r.name), x: r.left / W, y: r.top / H, w: r.width / W, h: r.height / H }));
+}
+
+function tableZoneDenormalise(list, width, height, min = { width: 0, height: 0 }) {
+  const W = Number(width) || 0, H = Number(height) || 0;
+  const ok = n => Number.isFinite(n) && n >= 0;
+  return (Array.isArray(list) ? list : [])
+    .filter(z => z && typeof z.name === 'string' && z.name && ok(z.x) && ok(z.y) && ok(z.w) && ok(z.h))
+    .map(z => {
+      const w = Math.min(W, Math.max(min.width, z.w * W));
+      const h = Math.min(H, Math.max(min.height, z.h * H));
+      return {
+        name: z.name, width: w, height: h,
+        left: Math.max(0, Math.min(W - w, z.x * W)),
+        top:  Math.max(0, Math.min(H - h, z.y * H)),
+      };
+    });
+}
+
+/* The zones of a deck, in pixels on a mat of the given size, from what was
+ * kept for it (`kept`, normalised, in the order they are drawn, or null for a
+ * deck never laid in zones) and the zones it should have now (`zones` =
+ * [{ name, count }]): never kept, laid out afresh; kept, each zone the deck
+ * still has where it was, in its order, and a zone new since then in free
+ * space after them. `changed` says whether that is other than what was kept,
+ * which is when it is kept again. */
+function tableZoneReconcile(kept, zones, width, height, cardW, cardH, keepOut = null) {
+  const list = zones || [];
+  if (!Array.isArray(kept)) {
+    return { rects: tableZoneAutoLayout(list, width, height, cardW, cardH, keepOut), changed: list.length > 0 };
+  }
+  const min = tableZoneMinSize(cardW, cardH);
+  const wanted = new Set(list.map(z => z.name));
+  const rects = tableZoneDenormalise(kept, width, height, min).filter(r => wanted.has(r.name));
+  const have = new Set(rects.map(r => r.name));
+  let changed = rects.length !== kept.length;
+  for (const z of list) {
+    if (have.has(z.name)) continue;
+    const size = tableZoneDefaultSize(z.count, cardW, cardH, width);
+    rects.push({ name: z.name, ...tableZoneFree(rects, size, width, height, keepOut), ...size });
+    have.add(z.name);
+    changed = true;
+  }
+  return { rects, changed };
+}
+
+/* Which zone a point of the mat — the pointer, mapped onto it — is over: the
+ * index of the topmost zone holding it, the last drawn, or -1 for none. */
+function tableZoneAt(point, rects) {
+  if (!point) return -1;
+  for (let i = (rects || []).length - 1; i >= 0; i--) if (tableInMatRect(point, rects[i])) return i;
+  return -1;
+}
+
+// ── The zones on the table ──
+
+let tableZones       = [];     // [{ name, count, left, top, width, height, z0, topZ, mode, cards, el, label, … }], drawn in order
+let tableZoneMemo    = null;   // { deckId, list }: the deck's kept layout, normalised, as last read or written
+let tableZoneHold    = null;   // a zone being moved or resized by its label or grip
+let tableZoneTarget  = null;   // the zone lit under the card in hand
+let tableZoneEdit    = null;   // { name, input }: the zone being renamed
+let tableZoneChips   = null;   // { box, toggle, add }: the chips on the far rim, made with each scene
+let tableZoneLanding = null;   // { key, x, y, until }: a card just let go into another zone, on its way
+
+function readTableZones() {
+  try { return localStorage.getItem(TABLE_ZONES_KEY) === '1'; }
+  catch { return false; }
+}
+
+function rememberTableZones(on) {
+  try {
+    if (on) localStorage.setItem(TABLE_ZONES_KEY, '1');
+    else    localStorage.removeItem(TABLE_ZONES_KEY);
+  } catch {}
+}
+
+/* A deck's kept layout — normalised, as tableZoneDenormalise reads it — or
+ * null for one never laid in zones. Kept in memory too, so storage that
+ * cannot be written still keeps the session's layout. */
+function tableZoneKept(deckId) {
+  if (tableZoneMemo?.deckId === deckId) return tableZoneMemo.list;
+  let list = null;
+  try {
+    const raw = JSON.parse(localStorage.getItem(TABLE_ZONE_RECTS_KEY + deckId) || 'null');
+    if (Array.isArray(raw?.zones)) list = raw.zones;
+  } catch { list = null; }
+  tableZoneMemo = { deckId, list };
+  return list;
+}
+
+function tableZoneKeep(deckId, rects) {
+  if (!deckId || !tableGeom) return;
+  const list = tableZoneNormalise(rects, tableGeom.mat.width, tableGeom.mat.height);
+  tableZoneMemo = { deckId, list };
+  try { localStorage.setItem(TABLE_ZONE_RECTS_KEY + deckId, JSON.stringify({ zones: list })); } catch {}
+}
+
+function tableZoneDeck() {
+  return typeof dbDeck !== 'undefined' ? dbDeck : null;
+}
+
+/* The rules as they stand for the cards on the mat and the deck open now. */
+function tableZoneRulesNow() {
+  const deck = tableZoneDeck();
+  return tableZoneRules({
+    scope: tableScope,
+    deckOpen: !!deck && !tableFeature,
+    canEdit: !!deck && typeof isMyPlayer === 'function' && isMyPlayer(deck.playerId),
+    on: readTableZones(),
+  });
+}
+
+function tableZonesActive() {
+  return tableOn && !!tableGeom && tableZoneRulesNow().zones;
+}
+
+/* How many cards each category has in the deck's mainboard — the count the
+ * builder's own pile headings give, whatever the filter is showing. */
+function tableZoneCounts() {
+  const counts = new Map();
+  const main = typeof dbMainCards === 'function' ? dbMainCards() : [];
+  for (const card of main) {
+    const cat = card.category || (typeof dbAutoCategory === 'function' ? dbAutoCategory(card.card_name) : '');
+    if (cat) counts.set(cat, (counts.get(cat) || 0) + (card.qty || 1));
+  }
+  return counts;
+}
+
+/* The commander's box on the mat now (tableZoneHeadRect), which the zones
+ * are laid round the first time and a new zone is kept off; null with no
+ * commander lying there. */
+function tableZoneKeepOut() {
+  const heads = tableCards.filter(card => card.head).length;
+  if (!heads || !tableGeom) return null;
+  const { width, height } = tableGeom.mat;
+  return tableZoneHeadRect(heads, width, height, tableCardSize.w, tableCardSize.h);
+}
+
+/* The chips on the far rim, beside the slip, made with each scene: Zones,
+ * which says whether it is on by aria-pressed and its tab's accent, and
+ * + Zone. Their own listeners go with them. A press on either is a press on
+ * a control, not on the mat under it. And the zones' own listeners on the
+ * mat: a label or a grip pressed, a label double-clicked or keyed. */
+function tableZonesBuild() {
+  const { scene, mat } = tableEls;
+  scene.style.setProperty('--table-zone-pad', `${TABLE_ZONE_PAD}px`);
+  scene.style.setProperty('--table-zone-head', `${TABLE_ZONE_HEAD}px`);
+  scene.style.setProperty('--table-zone-label-h', `${TABLE_ZONE_LABEL_H}px`);
+  const box = document.createElement('div');
+  box.className = 'table-zone-chips';
+  box.dataset.tab = 'deckview';
+  box.hidden = true;
+  box.innerHTML = `
+    <button type="button" class="table-zone-chip" data-zone-toggle aria-pressed="false"
+            title="Lay each category of the deck in a zone of its own">${TABLE_ZONES_ICON}<span>Zones</span></button>
+    <button type="button" class="table-zone-chip" data-zone-add hidden
+            title="A new category, in a zone of its own">${TABLE_ZONE_ADD_ICON}<span>Zone</span></button>`;
+  const toggle = box.querySelector('[data-zone-toggle]');
+  const add = box.querySelector('[data-zone-add]');
+  box.addEventListener('pointerdown', e => e.stopPropagation());
+  toggle.addEventListener('click', () => tableZonesToggle());
+  add.addEventListener('click', () => tableZoneAdd());
+  mat.append(box);
+  mat.addEventListener('pointerdown', tableOnZoneDown);
+  mat.addEventListener('dblclick', tableOnZoneDblClick);
+  mat.addEventListener('keydown', tableOnZoneKey);
+  tableZoneChips = { box, toggle, add };
+}
+
+/* The chips shown, pressed and offered as the rules say — asked every time
+ * cards are drawn. They lie on the wood at the slip's height. */
+function tableZonesSyncChips(rules) {
+  const chips = tableZoneChips;
+  if (!chips) return;
+  chips.box.hidden = !rules.toggle;
+  chips.toggle.setAttribute('aria-pressed', String(rules.zones));
+  chips.add.hidden = !rules.add;
+  chips.box.style.setProperty('--table-tools-z', `${tableToolsZ().toFixed(2)}px`);
+}
+
+/* Zones on, or off: the deck laid again in the other way. A rename in
+ * progress is dropped and a zone in hand put down first. */
+function tableZonesToggle() {
+  tableZoneEndEdit(false, { refocus: false });
+  tableZoneHold = null;
+  rememberTableZones(!readTableZones());
+  tableDrawCards();
+}
+
+/* The zones laid, for the cards about to be drawn: asked by tableDrawCards
+ * once every card has its place in the piles and an element, before any is
+ * written. With zones on, each zone is placed — as kept, or laid out afresh —
+ * and every card the zones hold is given its place in its zone and its
+ * height in the zones' depth (card.zoneZ, which tableCardZ answers with); the
+ * commander, which is no zone's, keeps its place at the head of the mat, and
+ * is given a height over the zones. With zones off there are none, and every
+ * card keeps the place the piles gave it. Returns whether zones are laid. */
+function tableZonesPlace() {
+  const rules = tableZoneRulesNow();
+  tableZonesSyncChips(rules);
+  tableZoneLight(null);
+  if (!rules.zones || !tableGeom || !tableEls) { tableZonesClear(); return false; }
+  const deck = tableZoneDeck();
+  const { width, height } = tableGeom.mat;
+  const { w, h } = tableCardSize;
+  /* Laid again with a zone in hand — the deck redrawn under it — the zones
+     are kept where they are first, the one in hand where the hand has it,
+     and the hand is given the zone of that name as it is laid now. */
+  const held = tableZoneHold?.zone?.name;
+  if (held != null && tableZones.length) tableZoneKeep(deck.id, tableZones);
+  const counts = tableZoneCounts();
+  const kept = tableZoneKept(deck.id);
+  const cats = typeof dbCats !== 'undefined' ? dbCats : [];
+  const names = tableZoneNames(cats, counts, (kept || []).map(z => z.name));
+  /* Sized for the cards each will hold on the mat — its share of the
+     TABLE_CARDS_MAX laid — rather than for the deck's count, which its
+     label says. */
+  const laid = new Map();
+  for (const card of tableCards) if (!card.head) laid.set(String(card.group), (laid.get(String(card.group)) || 0) + 1);
+  const { rects, changed } = tableZoneReconcile(kept, names.map(name => ({ name, count: laid.get(name) || 0 })),
+    width, height, w, h, tableZoneKeepOut());
+  if (changed) tableZoneKeep(deck.id, rects);
+
+  const before = new Map(tableZones.map(zone => [zone.name, zone]));
+  tableZones = rects.map(rect => ({ ...(before.get(rect.name) || {}), ...rect, count: counts.get(rect.name) || 0, cards: [] }));
+  const byName = new Map(tableZones.map(zone => [zone.name, zone]));
+  for (const [name, zone] of before) if (!byName.has(name)) zone.el?.remove();
+  for (const card of tableCards) {
+    delete card.zoneSpot;
+    if (!card.head) byName.get(String(card.group))?.cards.push(card);
+  }
+  tableZonesLayer();
+  for (const zone of tableZones) {
+    tableZoneFitCards(zone);
+    tableZoneDraw(zone, 0, rules);
+  }
+  if (held != null) {
+    const zone = byName.get(held);
+    if (zone) tableZoneHold.zone = zone;
+    else tableZoneHold = null;
+  }
+  return true;
+}
+
+/* No zones: their elements gone, and the cards' heights in them forgotten,
+ * so each card lies at the height its rank gives it in the piles. */
+function tableZonesClear() {
+  tableZoneEndEdit(false, { refocus: false });
+  tableZoneHold = null;
+  for (const zone of tableZones) zone.el?.remove();
+  tableZones = [];
+  for (const card of tableCards) { delete card.zoneZ; delete card.zoneSpot; }
+}
+
+/* The zones' depth, shared out in order: for each zone a layer for its
+ * felt, one for each of its cards and one for its label and grip; then one
+ * for each card no zone holds — the commander — over all of them. The
+ * first layer is a gap above the mat, never on it. */
+function tableZonesLayer() {
+  const zoned = new Set(tableZones.flatMap(zone => zone.cards));
+  const loose = tableCards.filter(card => !zoned.has(card));
+  const g = tableZoneGapFor(1 + tableZones.reduce((s, zone) => s + zone.cards.length + 2, 0) + loose.length);
+  let at = 1;
+  for (const zone of tableZones) {
+    zone.z0 = at * g;
+    zone.topZ = (zone.cards.length + 1) * g;
+    zone.cards.forEach((card, j) => { card.zoneZ = (at + j + 1) * g; });
+    at += zone.cards.length + 2;
+  }
+  loose.forEach((card, i) => { card.zoneZ = (at + i) * g; });
+}
+
+/* A zone's cards placed to fit it, as fractions of the mat — and where in
+ * the zone each lies, so that a zone being moved carries them along without
+ * fitting them again. Square to the zone: the angle a card lies at in a
+ * pile would turn its corners out past the zone's edge. A card in hand is
+ * left where the hand has it. */
+function tableZoneFitCards(zone) {
+  const { width, height } = tableGeom.mat;
+  const fit = tableZoneFit(zone.cards.length, zone.width, zone.height, tableCardSize.w, tableCardSize.h);
+  zone.mode = fit.mode;
+  zone.cards.forEach((card, j) => {
+    card.zoneSpot = fit.spots[j];
+    if (tableHold?.card === card) return;
+    card.x = (zone.left + card.zoneSpot.x) / width;
+    card.y = (zone.top + card.zoneSpot.y) / height;
+    card.turn = 0;
+  });
+}
+
+/* The zone's cards moved with it: each where its place in the zone now is,
+ * `lift` above the height it lies at. */
+function tableZoneCarryCards(zone, lift = 0) {
+  const { width, height } = tableGeom.mat;
+  for (const card of zone.cards) {
+    if (!card.zoneSpot || tableHold?.card === card) continue;
+    card.x = (zone.left + card.zoneSpot.x) / width;
+    card.y = (zone.top + card.zoneSpot.y) / height;
+    tableWriteCard(card, lift);
+  }
+}
+
+/* A zone's element, made the first time and written each time after: its
+ * box, its place and height (and `lift` above that, while it is carried),
+ * the height of its label and grip over its cards, its name and count, and
+ * whether it can be changed. Laid out at its size, not scaled to it, so its
+ * hairline and its label stay their own size whatever size it is. */
+function tableZoneDraw(zone, lift = 0, rules = tableZoneRulesNow()) {
+  if (!zone.el) {
+    const el = document.createElement('div');
+    el.className = 'table-zone';
+    el.dataset.tab = 'deckview';
+    el.innerHTML = `
+      <div class="table-zone-label"><span class="table-zone-name"></span><span class="table-zone-count"></span></div>
+      <span class="table-zone-grip" title="Drag to resize the zone">${TABLE_ZONE_GRIP_ICON}</span>`;
+    zone.el = el;
+    tableEls.mat.insertBefore(el, tableEls.hint);
+  }
+  const { el } = zone;
+  const label = el.querySelector('.table-zone-label');
+  el.dataset.zone = zone.name;
+  el.dataset.fit = zone.mode || 'grid';
+  el.toggleAttribute('data-editable', rules.arrange);
+  el.style.width  = `${zone.width.toFixed(2)}px`;
+  el.style.height = `${zone.height.toFixed(2)}px`;
+  el.style.transform = `translate3d(${zone.left.toFixed(2)}px, ${zone.top.toFixed(2)}px, ${(zone.z0 + lift).toFixed(3)}px)`;
+  el.style.setProperty('--table-zone-top', `${zone.topZ.toFixed(3)}px`);
+  label.querySelector('.table-zone-name').textContent = zone.name;
+  label.querySelector('.table-zone-count').textContent = String(zone.count);
+  const said = `${zone.name}, ${zone.count} card${zone.count === 1 ? '' : 's'}`;
+  if (rules.arrange) {
+    label.setAttribute('role', 'button');
+    label.tabIndex = 0;
+    label.setAttribute('aria-label', `${said}. Drag to move the zone; double-click, Enter or F2 to rename it`);
+    label.title = 'Drag to move the zone · double-click to rename it';
+  } else {
+    label.removeAttribute('role');
+    label.removeAttribute('tabindex');
+    label.setAttribute('aria-label', said);
+    label.removeAttribute('title');
+  }
+}
+
+/* Every zone and card written where it is now: after the zones' order — and
+ * so their depth — has changed. */
+function tableZonesWrite(rules = tableZoneRulesNow()) {
+  for (const zone of tableZones) tableZoneDraw(zone, 0, rules);
+  for (const card of tableCards) if (tableHold?.card !== card) tableWriteCard(card);
+}
+
+/* The zones laid again from the deck as it is now, without the cards being
+ * made again — a count changed, a zone added or renamed that took no card
+ * with it, the window resized. Not while a zone is in hand or being renamed,
+ * nor a card in hand: their next release lays them. Zones that are no
+ * longer on — the deck closed, the chip off — have their cards laid in the
+ * piles again. */
+function tableZonesRefresh() {
+  if (!tableOn || !tableEls || !tableGeom || tableHold || tableZoneHold || tableZoneEdit) return;
+  const had = tableZones.length > 0;
+  if (tableZonesPlace()) tableZonesWrite();
+  else if (had) tableDrawCards();
+}
+
+/* Which zone the window point `pointer` is over, through the camera as it
+ * is now, at the felt's height — or null. */
+function tableZoneUnder(pointer) {
+  if (!pointer || !tableGeom || !tableZones.length) return null;
+  const hit = tableUnproject(tableMatrix(), pointer.x, pointer.y, tableZones[0].z0 || 0);
+  const i = tableZoneAt(hit, tableZones);
+  return i >= 0 ? tableZones[i] : null;
+}
+
+/* A zone lit in its tab's accent while a card in hand is over it — or none.
+ * Written only when that changes. */
+function tableZoneLight(zone) {
+  if (zone === tableZoneTarget) return;
+  tableZoneTarget?.el?.classList.remove('is-target');
+  tableZoneTarget = zone || null;
+  tableZoneTarget?.el?.classList.add('is-target');
+}
+
+/* A card picked up off a zone comes up over every zone's layers, so that held
+ * without a lift — cards still — it still lies over the cards round it. The
+ * piles do this by raising its rank; here a rank is not a height. */
+function tableZonePickUp(card) {
+  if (tableZonesActive()) card.zoneZ = (TABLE_CARDS_MAX + 1) * TABLE_CARD_GAP;
+}
+
+/* A frame of a card carried over the zones: the zone under the pointer, lit
+ * if the card can be moved into it — not over the bin, not the commander,
+ * and only for a deck the user may edit. */
+function tableZoneHover(hold) {
+  const rules = tableZonesActive() ? tableZoneRulesNow() : null;
+  const zone = rules && hold.dragging && !hold.over && !hold.card.head ? tableZoneUnder(hold.pointer) : null;
+  hold.zone = zone;
+  tableZoneLight(rules?.move ? zone : null);
+}
+
+/* The landing mark for a card carried over the zones, which is always where
+ * it will lie: over another zone it will go into, nowhere this side of the
+ * builder's sort — so no mark, the lit zone says it; anywhere else, its own
+ * place in its own zone, where it goes back to. A card no zone holds is
+ * marked as in the piles. */
+function tableZoneCast(hold) {
+  if (!tableZonesActive() || hold.card.head || !hold.card.zoneSpot) return hold;
+  if (hold.zone && hold.zone.name !== String(hold.card.group) && tableZoneRulesNow().move) return null;
+  return { card: hold.card, lift: hold.lift, land: hold.from };
+}
+
+/* A card carried over the zones, let go: into the zone under the pointer
+ * through the builder's own drop, if that is another zone and the deck the
+ * user's — the deck then laid again, the card coming in from where it was
+ * let go (tableZoneLand) — and otherwise back to its place in its zone. True
+ * when this was the zones' to answer, which a card no zone holds is not. */
+function tableZoneDrop(hold, e) {
+  const card = hold.card;
+  if (!tableZonesActive() || card.head || !card.zoneSpot) return false;
+  tableSwallow = true;
+  /* Only a hand letting go moves a card: a card put down for it — the window
+     losing the pointer, the deck laid again under it — goes back. */
+  const zone = e?.type === 'pointerup' ? tableZoneUnder(hold.pointer) : null;
+  tableZoneLight(null);
+  const main = typeof DB_MAIN_BOARD === 'string' ? DB_MAIN_BOARD : 'main';
+  if (zone && zone.name !== String(card.group) && tableZoneRulesNow().move
+      && card.ref && card.ref.startsWith(`${main}/`) && typeof dbPlace === 'function') {
+    tableZoneLanding = { key: card.key, x: card.x, y: card.y, until: Date.now() + TABLE_ARRIVAL_MS };
+    const place = dbPlace(main, zone.name);
+    const moved = typeof cardCarryDrop === 'function' ? cardCarryDrop([card.ref], place)
+      : typeof dbMoveCardsTo === 'function' && dbMoveCardsTo([card.ref], place);
+    if (moved) { tableRelayDeck(); return true; }
+    tableZoneLanding = null;
+  }
+  card.x = hold.from.x;
+  card.y = hold.from.y;
+  const el = card.el;
+  el?.classList.remove('is-held');
+  el?.classList.add('is-settling');
+  if (tableZonesPlace()) tableZonesWrite();
+  if (el) tableAfter(el, () => el.classList.remove('is-settling'));
+  return true;
+}
+
+/* The card just let go into another zone, among the cards just laid: drawn
+ * first where the hand let it go, then let settle to its place in its new
+ * zone, in the card layer's own time. Not when cards may not move. */
+function tableZoneLand() {
+  const landing = tableZoneLanding;
+  tableZoneLanding = null;
+  if (!landing || Date.now() > landing.until || !cardMotionOn()) return;
+  const card = tableCards.find(c => c.key === landing.key && c.el);
+  if (!card) return;
+  const at = { x: card.x, y: card.y };
+  card.x = landing.x;
+  card.y = landing.y;
+  tableWriteCard(card);
+  void card.el.offsetWidth;
+  card.x = at.x;
+  card.y = at.y;
+  card.el.classList.add('is-settling');
+  tableWriteCard(card);
+  const el = card.el;
+  tableAfter(el, () => el.classList.remove('is-settling'));
+}
+
+/* A zone's label or grip pressed: the zone is taken in hand, to be moved by
+ * its label or resized by its grip once the pointer has gone TABLE_DRAG_START
+ * — a press that goes nowhere is a click, and two of them a rename. Where
+ * the hand closed is kept, in the mat's pixels at the label's height, so that
+ * point stays under the pointer. Only for a zone that may be changed. */
+function tableOnZoneDown(e) {
+  if (e.button !== 0 || e.pointerType === 'touch' || tableLooked || tableHold || tableZoneHold) return;
+  const handle = e.target.closest?.('.table-zone-label, .table-zone-grip');
+  if (!handle || !tableZonesActive() || !tableZoneRulesNow().arrange) return;
+  const zone = tableZones.find(z => z.el?.contains(handle));
+  if (!zone) return;
+  const resize = handle.classList.contains('table-zone-grip');
+  const hit = tableUnproject(tableMatrix(), e.clientX, e.clientY, zone.z0 + zone.topZ);
+  if (!hit) return;
+  tableZoneHold = {
+    zone, id: e.pointerId, mode: resize ? 'resize' : 'move', dragging: false, since: 0, lift: 0,
+    start: { x: e.clientX, y: e.clientY }, pointer: { x: e.clientX, y: e.clientY },
+    grab: resize
+      ? { u: zone.left + zone.width - hit.u, v: zone.top + zone.height - hit.v }
+      : { u: hit.u - zone.left, v: hit.v - zone.top },
+  };
+  try { handle.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
+}
+
+/* The pointer, moved with a zone in hand: where it is, and — once it has
+ * gone far enough — the zone taken up: to the top of the zones, so that it
+ * and its cards are drawn over any it is carried across. */
+function tableZoneOnPointerMove(e) {
+  const hold = tableZoneHold;
+  if (!hold || e.pointerId !== hold.id) return;
+  hold.pointer = { x: e.clientX, y: e.clientY };
+  if (hold.dragging || !tableIsDrag(e.clientX - hold.start.x, e.clientY - hold.start.y)) return;
+  hold.dragging = true;
+  hold.since = performance.now();
+  tableZones = [...tableZones.filter(z => z !== hold.zone), hold.zone];
+  tableZonesLayer();
+  tableZonesWrite();
+  hold.zone.el.classList.remove('is-settling');
+  hold.zone.el.classList.add(hold.mode === 'move' ? 'is-lifted' : 'is-resizing');
+  for (const card of hold.zone.cards) card.el?.classList.remove('is-settling');
+}
+
+/* One frame of a zone in hand. Moved, it rises to TABLE_ZONE_LIFT in a
+ * card's lift time (none when cards may not move) and is put where the
+ * point the hand closed on is under the pointer, at the height the label is
+ * risen to, kept on the mat — its cards carried with it. Resized, its corner
+ * follows the pointer, no smaller than its smallest and no further than the
+ * mat's edge, and its cards are fitted again. Returns whether it is still
+ * rising. */
+function tableZoneStep(now) {
+  const hold = tableZoneHold;
+  if (!hold?.dragging || !tableGeom) return false;
+  const zone = hold.zone;
+  const { width: W, height: H } = tableGeom.mat;
+  const clamp = (n, lo, hi) => Math.min(Math.max(lo, hi), Math.max(lo, n));
+  if (hold.mode === 'move') {
+    const motion = cardMotionOn();
+    const rise = tableLiftHeight(now - hold.since, motion) * TABLE_ZONE_LIFT / TABLE_CARD_LIFT;
+    hold.lift = rise;
+    const hit = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, zone.z0 + zone.topZ + rise);
+    if (hit) {
+      zone.left = clamp(hit.u - hold.grab.u, 0, W - zone.width);
+      zone.top  = clamp(hit.v - hold.grab.v, 0, H - zone.height);
+    }
+    tableZoneDraw(zone, rise);
+    tableZoneCarryCards(zone, rise);
+    return rise !== tableLiftHeight(Infinity, motion) * TABLE_ZONE_LIFT / TABLE_CARD_LIFT;
+  }
+  const hit = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, zone.z0 + zone.topZ);
+  if (hit) {
+    const min = tableZoneMinSize(tableCardSize.w, tableCardSize.h);
+    zone.width  = clamp(hit.u + hold.grab.u - zone.left, min.width, W - zone.left);
+    zone.height = clamp(hit.v + hold.grab.v - zone.top, min.height, H - zone.top);
+  }
+  tableZoneFitCards(zone);
+  tableZoneDraw(zone);
+  for (const card of zone.cards) tableWriteCard(card);
+  return false;
+}
+
+/* Let go of a zone: it comes down where it is, its cards with it, in the
+ * card layer's own time, and the deck's layout is kept. A press that never
+ * moved changes nothing. */
+function tableZoneRelease(e) {
+  const hold = tableZoneHold;
+  if (!hold || (e && e.pointerId !== hold.id)) return;
+  tableZoneHold = null;
+  if (!hold.dragging || !tableEls) return;
+  const zone = hold.zone;
+  const settle = [zone.el, ...zone.cards.map(card => card.el)].filter(Boolean);
+  zone.el?.classList.remove('is-lifted', 'is-resizing');
+  for (const el of settle) el.classList.add('is-settling');
+  tableZoneDraw(zone);
+  tableZoneCarryCards(zone);
+  for (const el of settle) tableAfter(el, () => el.classList.remove('is-settling'));
+  tableZoneKeep(tableZoneDeck()?.id, tableZones);
+}
+
+/* A new zone: a new category through the builder's own add, under the
+ * builder's own placeholder name — already unique — and a zone for it in
+ * free space, kept before the category is added so that the redraw the add
+ * brings finds it. An add the builder refuses keeps no zone. */
+function tableZoneAdd() {
+  const rules = tableZoneRulesNow();
+  const deck = tableZoneDeck();
+  if (!rules.add || !deck || !tableGeom || typeof _dbAddCategoryByName !== 'function') return;
+  const cats = typeof dbCats !== 'undefined' ? dbCats : [];
+  let name = typeof _dbNewCategoryName === 'function' ? _dbNewCategoryName() : '';
+  for (let n = 1; !name || cats.some(c => c.name === name); n++) name = n === 1 ? 'New category' : `New category ${n}`;
+  const { width, height } = tableGeom.mat;
+  const size = tableZoneDefaultSize(0, tableCardSize.w, tableCardSize.h, width);
+  const at = tableZoneFree(tableZones, size, width, height, tableZoneKeepOut());
+  const before = tableZones.map(({ name: n, left, top, width: w, height: h }) => ({ name: n, left, top, width: w, height: h }));
+  tableZoneKeep(deck.id, [...before, { name, ...at, ...size }]);
+  if (!_dbAddCategoryByName(name)) { tableZoneKeep(deck.id, before); return; }
+  tableRelayDeck();
+}
+
+/* A label double-clicked, or Enter or F2 on it focused: renamed, for a deck
+ * the user may edit. */
+function tableOnZoneDblClick(e) {
+  const label = e.target.closest?.('.table-zone-label');
+  if (!label || !tableZoneRulesNow().rename) return;
+  const zone = tableZones.find(z => z.el?.contains(label));
+  if (zone) tableZoneBeginEdit(zone);
+}
+
+function tableOnZoneKey(e) {
+  if (e.key !== 'Enter' && e.key !== 'F2') return;
+  const label = e.target.closest?.('.table-zone-label');
+  if (!label || e.target !== label || !tableZoneRulesNow().rename) return;
+  const zone = tableZones.find(z => z.el?.contains(label));
+  if (!zone) return;
+  e.preventDefault();
+  tableZoneBeginEdit(zone);
+}
+
+/* The rename field, laid over the label where it lies, in the table's plane
+ * as the slip's field is: the name in it, chosen, to be typed over. Enter
+ * renames, Escape does not, and leaving the field renames as the builder's
+ * own name box does. Its keys are its own: Escape, Enter and the table's
+ * shortcuts stop at it. */
+function tableZoneBeginEdit(zone) {
+  tableZoneEndEdit(false, { refocus: false });
+  if (!zone.el) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'table-zone-rename';
+  input.value = zone.name;
+  input.spellcheck = false;
+  input.autocomplete = 'off';
+  input.setAttribute('aria-label', `Rename the category ${zone.name}`);
+  input.addEventListener('pointerdown', e => e.stopPropagation());
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    tableZoneEndEdit(e.key === 'Enter');
+  });
+  input.addEventListener('blur', () => { if (tableZoneEdit?.input === input) tableZoneEndEdit(true, { blur: true }); });
+  zone.el.classList.add('is-renaming');
+  zone.el.append(input);
+  tableZoneEdit = { name: zone.name, input };
+  input.focus({ preventScroll: true });
+  input.select();
+}
+
+/* The rename field put away — renaming, if `commit` and the name is a new
+ * one: through the builder's own rename, the zone keeping its place under
+ * its new name. A name another category has is refused as the builder's
+ * rename refuses it: said, with the field kept open for another — or, the
+ * field having been left, not renamed. */
+function tableZoneEndEdit(commit, { blur = false, refocus = !blur } = {}) {
+  const edit = tableZoneEdit;
+  if (!edit) return;
+  const from = edit.name;
+  const to = edit.input.value.trim();
+  const cats = typeof dbCats !== 'undefined' ? dbCats : [];
+  const fresh = commit && !!to && to !== from;
+  if (fresh && cats.some(c => c.name === to)) {
+    if (!blur) {
+      if (typeof showToast === 'function') showToast('That category already exists');
+      edit.input.select();
+      return;
+    }
+    commit = false;
+  }
+  tableZoneEdit = null;
+  const zone = tableZones.find(z => z.name === from);
+  zone?.el?.classList.remove('is-renaming');
+  edit.input.remove();
+  if (fresh && commit && tableZoneRulesNow().rename && typeof _dbRenameCategory === 'function') {
+    tableZoneRename(from, to);
+  }
+  if (refocus) tableZones.find(z => z.name === (fresh && commit ? to : from))?.el
+    ?.querySelector('.table-zone-label')?.focus({ preventScroll: true });
+}
+
+/* A category renamed from its zone: the zone's place kept under the new
+ * name first, then the builder's own rename — which saves the deck and
+ * redraws it — and the mat laid again from that. */
+function tableZoneRename(from, to) {
+  const deck = tableZoneDeck();
+  for (const zone of tableZones) if (zone.name === from) zone.name = to;
+  tableZoneKeep(deck?.id, tableZones);
+  _dbRenameCategory(from, to);
+  tableRelayDeck();
 }
 
 // ── What main.js tells the table ─────────────────────────────────────────

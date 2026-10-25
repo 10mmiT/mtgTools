@@ -1297,8 +1297,10 @@ test('a card in hand lands on the mat, and lets go onto the spot its mark lay on
   const js = read('public/js/tablemode.js');
   assert.match(js, /if \(hold\.land\) \{ card\.x = hold\.land\.x; card\.y = hold\.land\.y; \}/,
     'let go, the card is put down on the spot the mark was laid on');
-  assert.match(js, /tableCastWrite\(hold\.dragging && !hold\.over \? hold : null\)/,
+  assert.match(js, /tableCastWrite\(hold\.dragging && !hold\.over \? tableZoneCast\(hold\) : null\)/,
     'the mark shows only while the card is carried, and not over the bin');
+  assert.match(js, /function tableZoneCast\(hold\) \{\s*if \(!tableZonesActive\(\) \|\| hold\.card\.head \|\| !hold\.card\.zoneSpot\) return hold;/,
+    'and is the card’s own wherever the deck is laid in piles');
   const css = read('public/css/table.css');
   assert.match(css, /\.table-cast\s*\{[^}]*outline:\s*2px solid var\(--table-land-ink\)/, 'ringed in the theme’s ink');
   assert.match(css, /\.table-cast\s*\{[^}]*border:\s*1px solid var\(--table-land-halo\)/, 'with the page’s colour inside the ring');
@@ -1398,6 +1400,288 @@ test('the slip’s field and its suggestions are the app’s own, and the styles
     'hidden means hidden, whatever the display they are laid out with');
 });
 
+// ── The Deck Builder's zones ──────────────────────────────────────────────
+
+const ZONE = {
+  pad:  app.evaluate('TABLE_ZONE_PAD'),
+  head: app.evaluate('TABLE_ZONE_HEAD'),
+  gap:  app.evaluate('TABLE_ZONE_GAP'),
+  step: app.evaluate('TABLE_ZONE_PILE_STEP'),
+  title: app.evaluate('TABLE_ZONE_TITLE'),
+};
+const zoneFit = (n, W, H, w, h) => app.call('tableZoneFit', n, W, H, w, h);
+const zoneMin = (w, h) => app.call('tableZoneMinSize', w, h);
+
+/* Every card of a fit inside its zone — within the zone's rect, below its
+   label's band — and every card placed. */
+function assertFitInside(fit, n, W, H, w, h, what) {
+  assert.strictEqual(fit.spots.length, n, `${what}: every card is placed`);
+  for (const [i, s] of fit.spots.entries()) {
+    assert.ok(s.x - w / 2 >= -1e-6 && s.x + w / 2 <= W + 1e-6, `${what}: card ${i} lies across the zone's side, ${JSON.stringify(s)}`);
+    assert.ok(s.y - h / 2 >= ZONE.head - 1e-6 && s.y + h / 2 <= H + 1e-6, `${what}: card ${i} lies past the zone's top band or foot, ${JSON.stringify(s)}`);
+  }
+}
+
+test('a zone lays its cards as a grid of whole cards when they fit, in the builder’s order', () => {
+  const w = 100, h = 140;
+  const fit = zoneFit(5, 2 * ZONE.pad + 3 * w + 2 * 6, ZONE.head + 2 * h + 6 + ZONE.pad, w, h);
+  assert.strictEqual(fit.mode, 'grid');
+  assert.strictEqual(fit.visible, 1);
+  assertFitInside(fit, 5, 2 * ZONE.pad + 3 * w + 12, ZONE.head + 2 * h + 6 + ZONE.pad, w, h, 'grid');
+  /* Three across, then two below them, reading order. */
+  const rows = [...new Set(fit.spots.map(s => s.y))];
+  assert.strictEqual(rows.length, 2);
+  assert.deepStrictEqual(fit.spots.map(s => rows.indexOf(s.y)), [0, 0, 0, 1, 1]);
+  for (let i = 1; i < 3; i++) assert.ok(fit.spots[i].x - fit.spots[i - 1].x >= w, 'side by side, not over each other');
+  assert.ok(fit.spots[3].y - fit.spots[0].y >= h, 'the second row clear of the first');
+  /* And one card at its smallest is one whole card. */
+  const min = zoneMin(w, h);
+  const one = zoneFit(1, min.width, min.height, w, h);
+  assert.strictEqual(one.mode, 'grid');
+  assertFitInside(one, 1, min.width, min.height, w, h, 'one card');
+});
+
+test('a zone too small for a grid closes its cards up, down to a third across and the name band down', () => {
+  const w = 100, h = 140;
+  for (const [n, W, H] of [[8, 330, 330], [6, 2 * ZONE.pad + 2.2 * w, 400], [12, 400, ZONE.head + h + 0.5 * h + ZONE.pad], [20, 500, 520]]) {
+    const fit = zoneFit(n, W, H, w, h);
+    assert.strictEqual(fit.mode, 'overlap', `${n} in ${W}×${H}`);
+    assert.ok(fit.visible < 1 && fit.visible > 0);
+    assertFitInside(fit, n, W, H, w, h, `${n} in ${W}×${H}`);
+    const xs = [...new Set(fit.spots.map(s => s.x.toFixed(6)))].map(Number).sort((a, b) => a - b);
+    const ys = [...new Set(fit.spots.map(s => s.y.toFixed(6)))].map(Number).sort((a, b) => a - b);
+    for (let i = 1; i < xs.length; i++) assert.ok(xs[i] - xs[i - 1] >= w / 3 - 1e-6, `a third of every card shows across: ${xs}`);
+    for (let i = 1; i < ys.length; i++) assert.ok(ys[i] - ys[i - 1] >= ZONE.title * h - 1e-6, `every card's name shows: ${ys}`);
+    /* Each later card lies right of or below the one before: the top-left
+       corner of every card, its name, is what the cards over it leave. */
+    for (let i = 1; i < n; i++) {
+      const a = fit.spots[i - 1], b = fit.spots[i];
+      assert.ok(b.y > a.y + 1e-9 || (b.y === a.y && b.x > a.x), `card ${i} follows card ${i - 1}`);
+    }
+  }
+});
+
+test('a zone too small even for that piles its cards, a few to a spot, two pixels a card', () => {
+  const w = 100, h = 140;
+  const min = zoneMin(w, h);
+  /* The last flag: whether the zone has room for more than one pile. */
+  for (const [n, W, H, many] of [[40, 300, 300, true], [60, min.width + 40, min.height + 30, false],
+    [9, min.width, min.height, false], [25, min.width + 10, min.height + 200, true]]) {
+    const fit = zoneFit(n, W, H, w, h);
+    assert.strictEqual(fit.mode, 'stack', `${n} in ${W}×${H}`);
+    assertFitInside(fit, n, W, H, w, h, `${n} in ${W}×${H}`);
+    /* The piles: runs of cards stepping down and right by the pile step from
+       the first card of each — sized as evenly as the count goes. */
+    const piles = [];
+    for (const s of fit.spots) {
+      const last = piles[piles.length - 1];
+      const prev = last && last[last.length - 1];
+      if (prev && near(s.x - prev.x, s.y - prev.y) && s.x - prev.x > 0 && s.x - prev.x <= ZONE.step + 1e-9) last.push(s);
+      else piles.push([s]);
+    }
+    const sizes = piles.map(p => p.length);
+    assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1, `spread evenly: ${sizes}`);
+    if (many) assert.ok(piles.length > 1, `${n} cards share more than one spot where there is room: ${sizes}`);
+    else assert.strictEqual(piles.length, 1, `${n} cards in a zone with room for one pile: ${sizes}`);
+    for (const p of piles) for (let j = 1; j < p.length; j++) {
+      assert.ok(near(p[j].x - p[j - 1].x, p[0 + 1].x - p[0].x), 'one step through a pile');
+    }
+    const first = piles.find(p => p.length > 1);
+    if (first && many) assert.ok(near(first[1].x - first[0].x, ZONE.step), `a pile steps ${ZONE.step}px a card`);
+  }
+});
+
+test('however a zone is sized, its cards all lie inside it, and the fit only tightens as it shrinks', () => {
+  const w = 111, h = 155;
+  const min = zoneMin(w, h);
+  const order = { grid: 0, overlap: 1, stack: 2 };
+  for (const n of [1, 2, 3, 7, 16, 33, 60]) {
+    let was = -1;
+    for (let W = 1100; W >= min.width; W -= 37) {
+      const H = Math.max(min.height, W * 0.6);
+      const fit = zoneFit(n, W, H, w, h);
+      assertFitInside(fit, n, W, H, w, h, `${n} in ${W}×${H}`);
+      assert.ok(order[fit.mode] >= was, `${n} cards: shrinking to ${W} loosened the fit to ${fit.mode}`);
+      was = order[fit.mode];
+    }
+  }
+  assert.deepStrictEqual(zoneFit(0, 300, 300, w, h).spots, [], 'an empty zone lays nothing');
+});
+
+/* The real deck's shape: sixteen categories, a commander and a partner. */
+const ZONE_DECK = [['Artifacts', 1], ['Clones', 1], ['Counters', 4], ['Creatures', 5], ['Draw', 12], ['Evasion', 11],
+  ['Finisher', 1], ['Lands', 51], ['Protection', 1], ['Pump', 2], ['Ramp', 8], ['Recursion', 5], ['Removal', 8],
+  ['Theft', 2], ['Tokens', 8], ['Tutor', 2]].map(([name, count]) => ({ name, count }));
+
+test('the first time, the zones are laid in a tidy grid: apart, on the mat, and clear of the commander', () => {
+  const cases = [
+    { W: 1114, H: 830, zones: ZONE_DECK, heads: 2 },
+    { W: 1114, H: 830, zones: ZONE_DECK.slice(0, 3), heads: 1 },
+    { W: 1500, H: 1000, zones: ZONE_DECK.slice(0, 9), heads: 0 },
+    { W: 760, H: 560, zones: ZONE_DECK.slice(0, 5), heads: 1 },
+    { W: 1114, H: 830, zones: [{ name: 'Lands', count: 38 }], heads: 1 },
+  ];
+  for (const { W, H, zones, heads } of cases) {
+    const w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
+    const band = app.call('tableHeadSpots', heads, W, H, w, h);
+    const keep = heads ? app.call('tableZoneHeadRect', heads, W, H, w, h) : null;
+    const rects = app.call('tableZoneAutoLayout', zones, W, H, w, h, keep);
+    const what = `${zones.length} zones on ${W}×${H}`;
+    assert.deepStrictEqual(rects.map(r => r.name), zones.map(z => z.name), `${what}: one zone per category, in order`);
+    const min = zoneMin(w, h);
+    for (const r of rects) {
+      assert.ok(r.left >= 0 && r.top >= 0 && r.left + r.width <= W + 1e-6 && r.top + r.height <= H + 1e-6, `${what}: ${r.name} inside the mat`);
+      assert.ok(r.width >= min.width - 1e-6 && r.height >= min.height - 1e-6, `${what}: ${r.name} no smaller than a card`);
+      for (const s of band.spots) {
+        const cw = w * 1.1, ch = h * 1.1;
+        const head = { left: s.x * W - cw / 2, top: s.y * H - ch / 2, width: cw, height: ch };
+        assert.ok(!app.sandbox.tableZoneOverlap(head, r), `${what}: ${r.name} over the commander`);
+      }
+      if (keep) assert.ok(!app.sandbox.tableZoneOverlap(keep, r), `${what}: ${r.name} over the commander's box`);
+    }
+    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+      assert.ok(!app.sandbox.tableZoneOverlap(rects[i], rects[j]), `${what}: ${rects[i].name} overlaps ${rects[j].name}`);
+    }
+    /* Sized by their cards: along a row — on one side of the commander —
+       the larger category is never the narrower zone. */
+    const side = r => (keep && near(r.top, rects[0].top) ? (r.left < keep.left ? -1 : 1) : 0);
+    for (const a of rects) for (const b of rects) {
+      const ca = zones.find(z => z.name === a.name).count, cb = zones.find(z => z.name === b.name).count;
+      if (near(a.top, b.top) && side(a) === side(b) && ca > cb) assert.ok(a.width >= b.width - 1e-6, `${what}: ${a.name} (${ca}) narrower than ${b.name} (${cb})`);
+    }
+  }
+});
+
+test('a zone kept is laid where it was on a mat of any size, as fractions of it', () => {
+  const rects = [
+    { name: 'Lands', left: 12, top: 220, width: 500, height: 260 },
+    { name: 'Ramp', left: 600.5, top: 300.25, width: 180, height: 210 },
+  ];
+  const kept = app.call('tableZoneNormalise', rects, 1114, 830);
+  for (const z of kept) for (const k of ['x', 'y', 'w', 'h']) assert.ok(z[k] >= 0 && z[k] <= 1, `${z.name}.${k} is a fraction of the mat`);
+  /* Through storage: JSON, as localStorage keeps it. */
+  const back = app.call('tableZoneDenormalise', JSON.parse(JSON.stringify(kept)), 1114, 830, { width: 100, height: 100 });
+  for (const [i, r] of rects.entries()) {
+    for (const k of ['left', 'top', 'width', 'height']) assert.ok(near(back[i][k], r[k], 1e-9), `${r.name}.${k} round trip`);
+    assert.strictEqual(back[i].name, r.name);
+  }
+  /* On a larger mat, in proportion. */
+  const big = app.call('tableZoneDenormalise', kept, 2228, 1660, { width: 100, height: 100 });
+  assert.ok(near(big[0].left, 24) && near(big[0].width, 1000) && near(big[1].top, 600.5));
+  /* On a smaller one, no smaller than a card, and still on the mat. */
+  const small = app.call('tableZoneDenormalise', kept, 557, 415, { width: 120, height: 200 });
+  for (const r of small) {
+    assert.ok(r.width >= 120 && r.height >= 200 && r.left + r.width <= 557 + 1e-9 && r.top + r.height <= 415 + 1e-9, JSON.stringify(r));
+  }
+  /* What cannot be read is not laid. */
+  assert.deepStrictEqual(app.call('tableZoneDenormalise', [{ name: 'x', x: 'a' }, null, { x: 0.1, y: 0.1, w: 0.1, h: 0.1 }], 100, 100), []);
+  assert.deepStrictEqual(app.call('tableZoneDenormalise', 'nonsense', 100, 100), []);
+});
+
+test('a category new since the layout was kept gets a zone in free space; one gone loses its zone', () => {
+  const W = 1114, H = 830, w = 111, h = 155;
+  const keep = app.call('tableZoneHeadRect', 1, W, H, w, h);
+  const first = app.call('tableZoneReconcile', null, ZONE_DECK.slice(0, 4), W, H, w, h, keep);
+  assert.strictEqual(first.changed, true, 'laid out for the first time, it is kept');
+  assert.deepStrictEqual(first.rects.map(r => r.name), ZONE_DECK.slice(0, 4).map(z => z.name));
+  const kept = app.call('tableZoneNormalise', first.rects, W, H);
+  const same = app.call('tableZoneReconcile', kept, ZONE_DECK.slice(0, 4), W, H, w, h, keep);
+  assert.strictEqual(same.changed, false, 'the same deck is laid as kept');
+  for (const [i, r] of same.rects.entries()) assert.ok(near(r.left, first.rects[i].left) && near(r.top, first.rects[i].top));
+
+  /* Counters gone, Draw and a new empty category come. */
+  const now = [ZONE_DECK[0], ZONE_DECK[1], ZONE_DECK[3], { name: 'Draw', count: 12 }, { name: 'New category', count: 0 }];
+  const next = app.call('tableZoneReconcile', kept, now, W, H, w, h, keep);
+  assert.strictEqual(next.changed, true);
+  assert.deepStrictEqual(next.rects.map(r => r.name), ['Artifacts', 'Clones', 'Creatures', 'Draw', 'New category'],
+    'the kept ones in their order, then the new ones');
+  for (const r of next.rects.slice(0, 3)) {
+    const was = first.rects.find(f => f.name === r.name);
+    assert.ok(near(r.left, was.left) && near(r.top, was.top), `${r.name} stays where it was`);
+  }
+  for (const r of next.rects.slice(3)) {
+    assert.ok(r.left >= 0 && r.top >= 0 && r.left + r.width <= W && r.top + r.height <= H, `${r.name} on the mat`);
+    assert.ok(!app.sandbox.tableZoneOverlap(r, keep), `${r.name} placed over the commander`);
+    for (const o of next.rects) if (o !== r) assert.ok(!app.sandbox.tableZoneOverlap(r, o), `${r.name} placed over ${o.name}`);
+  }
+  const min = zoneMin(w, h);
+  assert.ok(next.rects[4].width >= min.width && next.rects[4].height >= min.height, 'an empty zone is still a card’s size');
+});
+
+test('a card let go is over the topmost zone under the pointer, mapped onto the mat through the camera', () => {
+  const zones = [
+    { name: 'Lands', left: 100, top: 200, width: 300, height: 220 },
+    { name: 'Ramp', left: 350, top: 300, width: 200, height: 200 },
+    { name: 'Draw', left: 600, top: 200, width: 150, height: 200 },
+  ];
+  const at = p => app.sandbox.tableZoneAt(p, zones);
+  assert.strictEqual(at({ u: 150, v: 250 }), 0);
+  assert.strictEqual(at({ u: 380, v: 350 }), 1, 'where two overlap, the one drawn last — moved last — is the one');
+  assert.strictEqual(at({ u: 600, v: 400 }), 2, 'an edge counts');
+  assert.strictEqual(at({ u: 575, v: 250 }), -1, 'between zones is no zone');
+  assert.strictEqual(at({ u: 50, v: 50 }), -1);
+  assert.strictEqual(at(null), -1, 'a pointer that misses the mat is over no zone');
+  for (const v of VIEWS) {
+    const m = matrix(v);
+    for (const [u, w, want] of [[250, 310, 0], [450, 400, 1], [675, 300, 2], [575, 250, -1], [20, 20, -1]]) {
+      const p = project(m, u, w, 0.5);
+      assert.strictEqual(at(unproject(m, p.x, p.y, 0.5)), want, `${u},${w} through ${JSON.stringify(v)}`);
+    }
+  }
+});
+
+test('zones are offered on the Deck Builder’s table, and only the user’s own deck can be changed in them', () => {
+  const rules = o => app.call('tableZoneRules', { scope: 'deckview', deckOpen: true, canEdit: true, on: true, ...o });
+  assert.deepStrictEqual(rules({}), { toggle: true, zones: true, arrange: true, rename: true, add: true, move: true });
+  assert.deepStrictEqual(rules({ canEdit: false }), { toggle: true, zones: true, arrange: false, rename: false, add: false, move: false },
+    'somebody else’s deck can be laid in zones and looked at, not changed');
+  assert.deepStrictEqual(rules({ on: false }), { toggle: true, zones: false, arrange: false, rename: false, add: false, move: false },
+    'off, the chip is still there to turn them on, and nothing else is');
+  for (const scope of ['collections', 'players', 'scryfall', 'sets', 'wants', 'card', '', undefined]) {
+    assert.strictEqual(rules({ scope }).toggle, false, `${scope} has no zones`);
+    assert.strictEqual(rules({ scope }).zones, false);
+  }
+  assert.strictEqual(rules({ deckOpen: false }).toggle, false, 'no deck, no zones');
+
+  /* Which categories are zones: those with cards, and those given a zone. */
+  const cats = ['Creatures', 'Planeswalkers', 'Lands', 'Battles', 'New category'].map(name => ({ name }));
+  assert.deepStrictEqual(app.call('tableZoneNames', cats, { Creatures: 5, Lands: 38 }, []), ['Creatures', 'Lands'],
+    'a category the deck never used lies nowhere');
+  assert.deepStrictEqual(app.call('tableZoneNames', cats, { Creatures: 5, Lands: 38 }, ['New category', 'Gone']),
+    ['Creatures', 'Lands', 'New category'], 'an empty one given a zone keeps it; one the deck no longer has does not');
+});
+
+test('the Zones chip is kept per browser, and unreadable storage is just "off"', () => {
+  const app2 = loadTableMode();
+  assert.strictEqual(app2.evaluate('readTableZones()'), false, 'off until it is turned on');
+  app2.evaluate('rememberTableZones(true)');
+  assert.strictEqual(app2.store.get('mtgtools_table_zones'), '1');
+  assert.strictEqual(app2.evaluate('readTableZones()'), true);
+  app2.evaluate('rememberTableZones(false)');
+  assert.ok(!app2.store.has('mtgtools_table_zones'), 'off is no key at all');
+  const locked = loadTableMode({ storage: false });
+  assert.strictEqual(locked.evaluate('readTableZones()'), false);
+  assert.doesNotThrow(() => locked.evaluate('rememberTableZones(true)'));
+  assert.strictEqual(locked.evaluate('tableZoneKept("d_1")'), null, 'a deck with nothing readable kept is laid out afresh');
+});
+
+test('the zones and their cards keep under the landing mark and the rim, however many there are', () => {
+  const cap = app.evaluate('TABLE_CARDS_MAX * TABLE_CARD_GAP');
+  for (const layers of [1, 20, 61, 100, 300]) {
+    const g = app.evaluate(`tableZoneGapFor(${layers})`);
+    assert.ok(g > 0 && g <= app.evaluate('TABLE_CARD_GAP'), `${layers} layers`);
+    assert.ok(layers * g <= cap + 1e-9, `${layers} layers fit the piles' depth`);
+  }
+  assert.ok(cap < app.evaluate('TABLE_CAST_Z') && app.evaluate('(TABLE_CARDS_MAX + 1) * TABLE_CARD_GAP') < app.evaluate('TABLE_CAST_Z'),
+    'a card picked up off a zone is still under the mark');
+  const css = read('public/css/table.css');
+  assert.match(css, /\.table-zone\s*\{[^}]*pointer-events:\s*none/, 'a zone’s felt is felt: it takes no pointer');
+  assert.match(css, /\.table-zone-label\s*\{[^}]*pointer-events:\s*auto/, 'its label does');
+  assert.match(css, /\.table-zone-grip\s*\{[^}]*width:\s*2rem;[^}]*height:\s*2rem/, 'its grip is a 2rem square to press');
+  assert.match(read('public/js/tablemode.js'), /cardCarryDrop\(\[card\.ref\], place\)/,
+    'a card goes into a zone through the builder’s own drop');
+});
+
 // ── The switch ────────────────────────────────────────────────────────────
 
 test('the switch is honoured only where the desktop query says it can be', () => {
@@ -1436,7 +1720,7 @@ test('every palette says what its table is made of', () => {
   const palettes = parsePalettes(read('public/css/tokens.css'));
   for (const theme of PALETTE_THEMES) {
     for (const token of ['--table-wood', '--table-wood-edge', '--table-wood-img', '--table-wood-tint', '--table-wood-lit',
-      '--table-land-ink', '--table-land-halo', '--table-land-fill']) {
+      '--table-land-ink', '--table-land-halo', '--table-land-fill', '--table-zone-fill', '--table-zone-line']) {
       assert.ok(palettes[theme][token], `the ${theme} palette does not name ${token}`);
     }
   }

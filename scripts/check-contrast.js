@@ -266,6 +266,9 @@ function pairs(palette) {
    * backdrop the way the veil's extremes stand for any art above. */
   add('mark', '--table-land-ink', '--mat', 'landing mark on the felt');
   add('mark', '--table-land-ink', '--table-land-halo', 'landing mark against its own halo, over art');
+  /* And the Deck Builder's zones: the hairline round each, on the felt it
+   * lies on, as its alpha composites it there. */
+  add('chrome', { token: '--table-zone-line', over: '--mat' }, '--mat', 'a zone’s hairline on the felt');
 
   return out.map(p => ({ ...p, palette }));
 }

@@ -450,6 +450,14 @@
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 16%, transparent);
+  /* The Deck Builder's zones on the table (css/table.css, .table-zone): a
+     faint wash of the theme's ink over the felt and a hairline of it round
+     the edge — the room's own text colour, made thin, so a zone reads as a
+     region of the felt rather than a surface lying on it. The hairline is
+     measured against the felt (scripts/check-contrast.js, chrome), and
+     drawn heavier in the contrast theme, where a boundary is a real one. */
+  --table-zone-fill: rgb(231 234 238 / .035);
+  --table-zone-line: rgb(231 234 238 / .22);
 
   /* Overlay shadows. Flat surfaces get a hairline instead — there is
      deliberately no --shadow-raised. */
@@ -542,6 +550,8 @@ html[data-theme="dusk"] {
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 16%, transparent);
+  --table-zone-fill: rgb(238 234 229 / .035);
+  --table-zone-line: rgb(238 234 229 / .22);
 
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
@@ -621,6 +631,8 @@ html[data-theme="light"] {
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 12%, transparent);
+  --table-zone-fill: rgb(20 24 29 / .035);
+  --table-zone-line: rgb(20 24 29 / .2);
 
   /* Light themes carry roughly half the shadow alpha. */
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .14), 0 1px 3px rgb(0 0 0 / .08);
@@ -702,6 +714,8 @@ html[data-theme="sepia"] {
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 12%, transparent);
+  --table-zone-fill: rgb(31 27 21 / .04);
+  --table-zone-line: rgb(31 27 21 / .2);
 
   /* Half alpha like the other light theme, warmed to match the paper. */
   --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
@@ -794,6 +808,8 @@ html[data-theme="contrast"] {
   --table-land-ink:  var(--primary);
   --table-land-halo: var(--bg);
   --table-land-fill: color-mix(in srgb, var(--primary) 18%, transparent);
+  --table-zone-fill: rgb(255 255 255 / .06);
+  --table-zone-line: rgb(255 255 255 / .5);
 
   /* Each of these leads with a hairline ring, which no other palette needs.
      An overlay carries a shadow and no border (§4.5), and that works because

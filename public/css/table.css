@@ -624,6 +624,156 @@ html[data-playmat] .table-mat {
 }
 .table-bin.is-over .table-bin-lid { transform: translateY(-1px) rotate(-24deg); }
 
+/* ── The Deck Builder's zones ──────────────────────────────────────────
+   The deck laid a zone per category, while the Zones chip is on
+   (js/tablemode.js, tableZoneRules). Its two chips lie on the far rim,
+   left of the slip, made like the rim's tabs — a surface, a hairline with a
+   heavier foot, the small contact shadow — with their label always open,
+   since they are not tabs to be told apart by an icon; the Zones chip
+   pressed wears its tab's accent on its ink and its foot, as an open tab
+   does. They are the mat's children, laid out over the far rim as the slip
+   is, at its height. */
+.table-zone-chips {
+  position: absolute;
+  bottom: calc(100% + 1px + (var(--table-rim-far) - 2.5rem) / 2);
+  right: calc(50% + min(20rem, 44%) / 2 + var(--space-3));
+  display: flex;
+  gap: var(--space-2);
+  transform: translateZ(var(--table-tools-z, 0px));
+}
+.table-zone-chips[hidden],
+.table-zone-chip[hidden] { display: none; }
+.table-zone-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  height: 2.5rem;
+  padding: 0 var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  filter: drop-shadow(0 1px 1px var(--card-cast));
+  cursor: pointer;
+  transition: color        var(--dur-tint) var(--ease-tint),
+              border-color var(--dur-tint) var(--ease-tint);
+}
+.table-zone-chip svg { flex: none; width: 1.25rem; height: 1.25rem; }
+.table-zone-chip:hover,
+.table-zone-chip:focus-visible { color: var(--text); }
+.table-zone-chip:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 2px; }
+.table-zone-chip[aria-pressed="true"] {
+  color: var(--accent, var(--primary));
+  border-bottom-color: var(--accent, var(--primary));
+}
+
+/* A zone: a rectangle lying on the felt, a faint wash and a hairline of the
+   theme's ink (--table-zone-fill, --table-zone-line), under its cards. The
+   script lays it out at its size and places it, and the height its label
+   and grip lie at over its cards, --table-zone-top. It takes no pointer —
+   pressed, its empty felt is felt — only its label and its grip do. A 3D
+   context of its own, for those two to lie above its cards; nothing on it
+   may flatten it. */
+.table-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  background: var(--table-zone-fill);
+  border: 1px solid var(--table-zone-line);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+/* A card in hand over it, to be put into it: lit in its tab's accent, the
+   hairline drawn twice as heavy by an outline just inside it. */
+.table-zone.is-target {
+  border-color: var(--accent, var(--primary));
+  outline: 1px solid var(--accent, var(--primary));
+  outline-offset: -2px;
+}
+/* Let go, it comes down where it was put in the card layer's own time,
+   with its cards. */
+.table-zone.is-settling { transition: transform var(--dur-card) var(--ease-tint); }
+
+/* Its label: a small chip lying on the felt in the band across the zone's
+   top — its name, cut short by an ellipsis rather than leaving the zone, and
+   its count. Pressed and dragged, it carries the zone. */
+.table-zone-label {
+  position: absolute;
+  left: var(--table-zone-pad);
+  top: calc((var(--table-zone-head) - var(--table-zone-label-h)) / 2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  max-width: calc(100% - 2 * var(--table-zone-pad));
+  height: var(--table-zone-label-h);
+  padding: 0 var(--space-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateZ(var(--table-zone-top, 0px));
+  pointer-events: auto;
+}
+.table-zone[data-editable] .table-zone-label { cursor: grab; }
+.table-zone.is-lifted .table-zone-label { cursor: grabbing; }
+.table-zone-label:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 2px; }
+.table-zone-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.table-zone-count { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* The rename field, laid over the label where it lies, as wide as a name
+   wants. The scene takes no text selection; a field being typed in does. */
+.table-zone-rename {
+  position: absolute;
+  left: var(--table-zone-pad);
+  top: calc((var(--table-zone-head) - var(--table-zone-label-h)) / 2 - 2px);
+  box-sizing: border-box;
+  width: min(14rem, calc(100% - 2 * var(--table-zone-pad)));
+  min-width: 8rem;
+  height: calc(var(--table-zone-label-h) + 4px);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  transform: translateZ(var(--table-zone-top, 0px));
+  pointer-events: auto;
+  user-select: text;
+}
+.table-zone.is-renaming .table-zone-label { visibility: hidden; }
+
+/* Its grip: three dots in the corner, in a 2rem square that takes the
+   pointer — over 24px on the screen even at the mat's far edge, where the
+   table is drawn smallest. Only on a zone that may be changed. */
+.table-zone-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: none;
+  align-items: flex-end;
+  justify-content: flex-end;
+  width: 2rem;
+  height: 2rem;
+  padding: var(--space-1);
+  box-sizing: border-box;
+  color: var(--text-muted);
+  transform: translateZ(var(--table-zone-top, 0px));
+  pointer-events: auto;
+  cursor: nwse-resize;
+}
+.table-zone[data-editable] .table-zone-grip { display: flex; }
+.table-zone-grip svg { width: .75rem; height: .75rem; fill: currentColor; }
+.table-zone-grip:hover,
+.table-zone.is-resizing .table-zone-grip { color: var(--text); }
+
 /* ── Panels ────────────────────────────────────────────────────────────
    One host for a tab's page, in one of two kinds — see js/tablemode.js. The
    header is the drawer's own (.drawer-hdr), and the body scrolls, holding the
