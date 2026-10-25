@@ -46,7 +46,9 @@ mtgtools/
 │                            # large a card's picture is decoded, the lift, the screen-to-mat
 │                            # mapping through the camera, the floating panel's box, the layout,
 │                            # what each tab lays and in which piles, where a re-laid card
-│                            # goes, when a panel tucks
+│                            # goes, when a panel tucks; the Deck Builder's commander at the
+│                            # head of the mat, and when its slip and bin show, the bin's hit
+│                            # on the mat and what a card put in it does to the deck
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -120,7 +122,9 @@ mtgtools/
 │       │                  # over it with its cards kept sharp, cards picked up off the mat, each
 │       │                  # tab's own cards laid there
 │       │                  # (read through a small getter beside each tab's renderer) with its
-│       │                  # panel tucked out of their way; window.tableMode for anything else
+│       │                  # panel tucked out of their way — the Deck Builder's with its commander
+│       │                  # at the head, a slip to add a card and a bin to drop one in;
+│       │                  # window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
 │   ├── design/          # What was planned — briefs and PRDs, kept as context
