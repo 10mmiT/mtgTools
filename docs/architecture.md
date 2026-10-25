@@ -51,7 +51,9 @@ mtgtools/
 │                            # landing mark lies — drawn above the piles without moving on
 │                            # screen; the Deck Builder's commander at the head of the mat,
 │                            # and when its slip and bin show, the bin's hit on the far rim
-│                            # and what a card put in it does to the deck
+│                            # and what a card put in it does to the deck; its zones — how
+│                            # one fits its cards, the first layout, the kept rects, the
+│                            # zone a card is let go over, who may change them
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -129,7 +131,9 @@ mtgtools/
 │       │                  # (read through a small getter beside each tab's renderer) with its
 │       │                  # panel tucked out of their way — the Deck Builder's with its commander
 │       │                  # at the head, and on the far rim a slip to add a card and a bin to
-│       │                  # drop one in; window.tableMode for anything else
+│       │                  # drop one in, and a chip laying the deck a zone per category — zones
+│       │                  # moved, resized and renamed on the felt, a card carried between them
+│       │                  # moving category; window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
 │   ├── design/          # What was planned — briefs and PRDs, kept as context
