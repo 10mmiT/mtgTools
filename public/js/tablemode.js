@@ -1153,6 +1153,31 @@ function tableBinAction(qty) {
   return (Number(qty) || 1) > 1 ? 'less' : 'remove';
 }
 
+/* How far a card in hand has gone over to its "going in the bin" look, as
+ * progress 0…1: towards 1 while the pointer is over the bin and back towards
+ * 0 when it leaves, the whole way in TABLE_LIFT_MS — `dt` is the frame's
+ * length — and at once when cards may not move. */
+function tableBinProgress(t, over, dt, motion = true) {
+  if (!motion) return over ? 1 : 0;
+  const step = Math.max(0, Number(dt) || 0) / TABLE_LIFT_MS;
+  const at = Math.min(1, Math.max(0, Number(t) || 0));
+  return over ? Math.min(1, at + step) : Math.max(0, at - step);
+}
+
+/* That look, for a progress t: `k`, how much of it there is, on the lift's
+ * cubic ease-out; the card's size, its opacity, and how far its centre is
+ * drawn from the pointer to the bin's — each nothing at 0 and all of it at 1. */
+function tableBinPose(t) {
+  const at = Math.min(1, Math.max(0, Number(t) || 0));
+  const k = 1 - (1 - at) ** 3;
+  return {
+    k,
+    shrink:  1 - (1 - TABLE_BIN_HELD_SHRINK) * k,
+    opacity: 1 - (1 - TABLE_BIN_HELD_FADE) * k,
+    pull:    TABLE_BIN_HELD_PULL * k,
+  };
+}
+
 // ── The switch ────────────────────────────────────────────────────────────
 
 /* Desktop only: the app's desktop breakpoint, and a pointer that hovers — the
@@ -1528,8 +1553,9 @@ function tableFrame(now) {
   tableSharpen();
   if (tableHold && tableCarry(now)) more = true;
   /* Asked every frame a card is in hand rather than on every pointer move:
-     the camera can carry the bin under a pointer that is holding still. */
-  tableBinLight(!!tableHold?.dragging && tableOverBin(tableHold.pointer));
+     the camera can carry the bin under a pointer that is holding still —
+     and tableCarry has just asked it, for the card's own look. */
+  tableBinLight(!!tableHold?.over);
   tableSlipPlace();
   if (more) tableKick();
   else tableFrameAt = 0;
@@ -2343,6 +2369,9 @@ function tableOnCardDown(e) {
   tableHold = {
     card, id: e.pointerId, dragging: false, lift: 0,
     since:   performance.now(),
+    /* How far it has gone over to the bin's look (tableBinProgress), and when
+       that was last asked, for the length of the next frame. */
+    binT: 0, binAt: performance.now(), over: false,
     start:   { x: e.clientX, y: e.clientY },
     pointer: { x: e.clientX, y: e.clientY },
     /* Where it lay, for a press that turns out to be a click: the card rises
@@ -2372,17 +2401,40 @@ function tableCarry(now) {
   const hold = tableHold;
   const card = hold.card;
   const motion = cardMotionOn();
-  hold.lift = tableLiftHeight(now - hold.since, motion);
+  const rise = tableLiftHeight(now - hold.since, motion);
+
+  /* Over the bin, the card goes over to the look that says it is going in
+     (tableBinPose): down towards the bin, smaller, fainter and drawn towards
+     its middle — eased both ways in the lift's time. Whether it is over is
+     the pointer's question, never the card's, so the card being drawn
+     towards the bin cannot change the answer. */
+  hold.over = !!hold.dragging && !!card.ref && tableOverBin(hold.pointer);
+  hold.binT = tableBinProgress(hold.binT, hold.over, now - hold.binAt, motion);
+  hold.binAt = now;
+  const pose = tableBinPose(hold.binT);
+  const hover = Math.max(0, tableToolsZ() - tableCardZ(card)) + TABLE_BIN_HOVER;
+  hold.lift = rise + (hover - rise) * pose.k;
 
   const hit = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, tableCardZ(card) + hold.lift);
   if (hit) {
     const { width, height } = tableGeom.mat;
-    card.x = Math.min(1, Math.max(0, (hit.u - hold.grab.u) / width));
-    card.y = Math.min(1, Math.max(0, (hit.v - hold.grab.v) / height));
+    let u = hit.u - hold.grab.u, v = hit.v - hold.grab.v;
+    if (pose.k > 0) {
+      const bin = tableBinRect();
+      const bu = bin.left + bin.width / 2, bv = bin.top + bin.height / 2;
+      u += (hit.u + (bu - hit.u) * TABLE_BIN_HELD_PULL - u) * pose.k;
+      v += (hit.v + (bv - hit.v) * TABLE_BIN_HELD_PULL - v) * pose.k;
+    }
+    card.x = Math.min(1, Math.max(0, u / width));
+    card.y = Math.min(1, Math.max(0, v / height));
   }
-  const lean = TABLE_CARD_LIFT ? -TABLE_CARD_LEAN * hold.lift / TABLE_CARD_LIFT : 0;
-  tableWriteCard(card, hold.lift, lean);
-  return hold.lift !== tableLiftHeight(Infinity, motion);
+  const lean = TABLE_CARD_LIFT ? -TABLE_CARD_LEAN * rise / TABLE_CARD_LIFT * (1 - pose.k) : 0;
+  tableWriteCard(card, hold.lift, lean, pose.shrink);
+  /* Fainter on its picture, a leaf, rather than on the card: opacity under 1
+     on the card would flatten the 3D context its picture is kept sharp by. */
+  if (pose.k > 0) card.el?.style.setProperty('--table-bin-fade', pose.opacity.toFixed(3));
+  else card.el?.style.removeProperty('--table-bin-fade');
+  return rise !== tableLiftHeight(Infinity, motion) || hold.binT !== (hold.over ? 1 : 0);
 }
 
 /* Let go. A drag puts the card down where it is, in the card layer's own
@@ -2399,6 +2451,7 @@ function tableRelease(e) {
   if (!hold || (e && e.pointerId !== hold.id)) return;
   tableHold = null;
   const card = hold.card;
+  card.el?.style.removeProperty('--table-bin-fade');
   /* Let go over the bin: one copy of it out of the deck, and the card into
      the bin rather than lying where the hand left it — so it is not kept
      there for the next time the deck is laid (tableBinCard). */
@@ -2552,6 +2605,17 @@ const TABLE_BIN_ICON =
 const TABLE_POP_GAP     = 6;
 const TABLE_ARRIVAL_MS  = 10000;
 const TABLE_BIN_SHRINK  = 0.2;
+
+/* A card in hand over the bin says it is going in, and stops hiding the bin:
+ * it comes down towards the bin — to TABLE_BIN_HOVER pixels above it — shrinks
+ * to TABLE_BIN_HELD_SHRINK of its size, fades to TABLE_BIN_HELD_FADE, and its
+ * centre is drawn TABLE_BIN_HELD_PULL of the way from the pointer to the
+ * bin's centre, so the lit bin shows round it. In the time a card takes to
+ * come up off the felt, TABLE_LIFT_MS, on the same ease-out, both ways. */
+const TABLE_BIN_HELD_SHRINK = 0.55;
+const TABLE_BIN_HELD_FADE   = 0.85;
+const TABLE_BIN_HELD_PULL   = 0.5;
+const TABLE_BIN_HOVER       = 8;
 
 /* The slip, its suggestions and the bin, made once and kept for the session:
  * the slip's field is mounted on the app's own card autocomplete

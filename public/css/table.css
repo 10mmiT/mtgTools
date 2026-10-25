@@ -349,6 +349,11 @@ html[data-playmat] .table-mat {
    than lying on it — which the card has whether or not it is allowed to rise.
    It grows in the time the card takes to rise (TABLE_LIFT_MS, 110ms, in
    js/tablemode.js), from the press. */
+/* Over the bin, a card in hand fades a little — on its picture, a leaf, so
+   nothing is flattened that is kept 3D for its sharpness; the script eases
+   --table-bin-fade with the rest of that look (js/tablemode.js,
+   tableBinPose), and it is not set anywhere else. */
+.table-card-img { opacity: var(--table-bin-fade, 1); }
 .table-card.is-held { cursor: grabbing; }
 .table-card.is-held .table-card-img {
   filter: drop-shadow(0 calc(14px * var(--k)) calc(26px * var(--k)) var(--card-cast));

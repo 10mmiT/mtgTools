@@ -1125,6 +1125,31 @@ test('a card with copies to spare loses one, and the last copy is taken out', ()
   assert.strictEqual(action(0), 'remove');
 });
 
+test('over the bin, a card in hand goes over to a smaller, fainter look, eased both ways in the lift’s time', () => {
+  const progress = (...a) => app.sandbox.tableBinProgress(...a);
+  const pose = t => app.copy(app.sandbox.tableBinPose(t));
+  const lift = app.evaluate('TABLE_LIFT_MS');
+  assert.ok(near(progress(0, true, lift / 2), 0.5), 'half way in half the lift’s time');
+  assert.strictEqual(progress(0.5, true, lift * 3), 1, 'and no further than all the way');
+  assert.ok(near(progress(1, false, lift / 4), 0.75), 'leaving, it comes back at the same rate');
+  assert.strictEqual(progress(0.3, false, lift * 2), 0);
+  assert.strictEqual(progress(0, true, 1, false), 1, 'with cards still it switches at once');
+  assert.strictEqual(progress(1, false, 1, false), 0);
+
+  assert.deepStrictEqual(pose(0), { k: 0, shrink: 1, opacity: 1, pull: 0 }, 'off the bin, the held look is untouched');
+  const full = pose(1);
+  assert.ok(near(full.shrink, 0.55) && near(full.opacity, 0.85) && near(full.pull, 0.5), JSON.stringify(full));
+  const half = pose(0.5);
+  assert.ok(half.k > 0.5 && half.k < 1, 'on an ease-out, quick at first');
+  assert.ok(half.shrink < 1 && half.shrink > 0.55);
+});
+
+test('the fade is on the card’s picture, never on the card, whose 3D context it would flatten', () => {
+  const css = read('public/css/table.css');
+  assert.match(css, /\.table-card-img \{ opacity: var\(--table-bin-fade, 1\); \}/);
+  assert.ok(!/\.table-card(\.is-held)? \{[^}]*--table-bin-fade/.test(css), 'not on the card itself');
+});
+
 test('the table’s edits go through the builder’s own, and only what the deck still holds', () => {
   const calls = [];
   const deck = new Map([['main/Forest', { qty: 3 }], ['main/Sol Ring', { qty: 1 }], ['commander/Atraxa', { qty: 1 }]]);
