@@ -135,6 +135,15 @@
 // is only taken when nothing else on the page wanted it: a dialog, a drawer, a
 // menu or the RSS panel open at the time of the key press each keep it.
 //
+// The Card sheet opened over another view — from a card's "Details", or its
+// tab pressed while another tab's panel was up or another tab's cards lay on
+// the mat — closes back to that view rather than to an empty table: the tab
+// it was opened over, its panel open, tucked or closed as it was left, and
+// its cards laid again where a hand had put them (tableCardReturnFor,
+// tableDismissPanel, tableRestoreView). Where the history allows it the close
+// is the browser's Back (tableReturnByBack), so the close and Back pressed
+// with the sheet up are one path through setTab() and never two steps.
+//
 // ── Tucking a panel away ──────────────────────────────────────────────────
 // A tab with cards (TABLE_CARD_TABS) floats its controls — the search box, the
 // sort, the deck picker — over the very table its cards are laid on, so its
@@ -1183,6 +1192,64 @@ function tableTuckOnOpen({ kind, from, to, kept }) {
   return kind === 'float' && !!kept && tableIsCardTab(from) && tableIsCardTab(to);
 }
 
+/* What the Card sheet is opened over, and so what putting it down brings back
+ * — { tab, panel } with panel 'open', 'tucked' or 'closed' — or null when
+ * there is nothing to go back to.
+ *
+ * The Card tab here is a look at one card on the way to somewhere else: you
+ * pick a card up off the Deck Builder's piles, press Details, read it, and
+ * put it down. Putting it down has to be going back, then, and not merely
+ * the sheet going away — the mat had been holding the deck, and a closed
+ * sheet over the one large card it leaves behind is the deck gone.
+ *
+ * `from` is the tab whose panel was open when the sheet came up, and
+ * `tucked` whether that panel was tucked at the time: the view comes back as
+ * it was left. With no panel open the view was the mat itself, and `laid` —
+ * the tab whose cards lie on it (tableLaid) — is what comes back, with its
+ * panel still closed. The Card tab opened over itself, or over a mat nothing
+ * has been laid on, has nothing behind it to return to. Where each card lay
+ * is not part of the answer: tableMoved keeps it per card for the whole
+ * session, so laying the same tab's cards again puts them back by itself. */
+function tableCardReturnFor({ to, from = null, tucked = false, laid = null }) {
+  if (to !== 'card') return null;
+  if (from) return from === 'card' ? null : { tab: from, panel: tucked ? 'tucked' : 'open' };
+  return laid && laid !== 'card' ? { tab: laid, panel: 'closed' } : null;
+}
+
+/* Whether a history entry is the Card tab's: openCardPage's card, or the
+ * tab's own entry pushed by setTab() for a press on the rim. */
+function tableIsCardEntry(state) {
+  return state?.view === 'card' || (state?.view === 'tab' && state?.tab === 'card');
+}
+
+/* Whether putting the Card sheet down should be the browser's Back rather
+ * than a fresh visit to the tab it was opened over.
+ *
+ * Opening the sheet pushed one history entry — openCardPage's card, or
+ * setTab's for a press on the rim — on top of the view it was opened over.
+ * Stepping back off it is then the exact undo: the history ends where it
+ * stood before, and Back afterwards leaves the app's view rather than
+ * walking into the card a second time. And popstate goes through setTab(),
+ * whose tableModeBeforeTab() restores the view, so Back pressed with the
+ * sheet open and the sheet's own close are one path, not two that could come
+ * to disagree.
+ *
+ * Only when that is certainly what Back would do, which is two things: the
+ * entry under the card's was that tab's (`ret.backTo`, read as the sheet came
+ * up), and the entry standing now is the very one pushed over it. That one is
+ * stamped with the sheet's token as it is pushed (tableStampCardEntry), so a
+ * second card opened on the sheet — a new entry, unstamped — or an entry
+ * reached some other way answers no. The history's length cannot say it: a
+ * push over forward entries cuts them away and leaves the length where it
+ * was. A printing swapped in place replaces the entry and keeps the stamp
+ * (cardSwapPrinting, js/card.js), since it is still the same visit to the
+ * card. Anything else, and Back would land somewhere nobody asked for, so the
+ * caller visits the tab instead. */
+function tableReturnByBack({ ret, state }) {
+  if (!ret || !ret.backTo || ret.token == null) return false;
+  return tableIsCardEntry(state) && state.tableOver === ret.token;
+}
+
 /* Whether cards just laid tuck the panel out of their way: a floating panel,
  * for a tab with cards, not already tucked, and something done in its pane
  * no more than TABLE_TUCK_WINDOW ago — `actedAgo`, in milliseconds, Infinity
@@ -1435,6 +1502,13 @@ let tableRelaySince = 0;     // when the pane's current run of writes began
 let tableActedAt  = 0;       // when something was last done in the pane, or 0
 let tableTucked   = false;   // whether the panel is tucked away now
 let tableTuckKept = false;   // whether the user's last choice was to tuck it
+/* What the Card sheet was opened over: tableCardReturnFor()'s answer, with
+   the kind of panel the tab was in, whether the history entry under the
+   card's is that tab's (backTo) and the token the card's entry is stamped
+   with — see tableReturnByBack(). Null while the sheet is not up, or has
+   nothing behind it. */
+let tableCardReturn = null;
+let tableCardSeq    = 0;     // the last token a Card sheet's history entry was stamped with
 const tableMoved  = new Map();   // card key → { x, y, turn }: where a hand put it
 let tableHold     = null;    // the card under a pressed pointer
 let tableSwallow  = false;   // the click a drag ends with is not a click
@@ -1614,7 +1688,7 @@ function tableBuild() {
   scene.addEventListener('wheel', tableOnWheel, { passive: false });
   tableEls.mat.addEventListener('pointerdown', tableOnCardDown);
   tableEls.mat.addEventListener('dragstart', e => e.preventDefault());
-  panel.querySelector('[data-table-close]').addEventListener('click', () => tableClosePanel());
+  panel.querySelector('[data-table-close]').addEventListener('click', () => tableDismissPanel());
   panel.querySelector('[data-table-tuck]').addEventListener('click', () => tableTuckPanel(true, { byUser: true }));
   /* Tucked, the whole title bar is the way back, bar the ✕ on it — and bar
      "Show table", whose own click is still on its way up through here having
@@ -1854,7 +1928,7 @@ function tableOnKey(e) {
   if (e.key !== 'Escape') { tableZoomKey(e); return; }
   if (tableEscTaken) return;
   if (tableLooked) { tableLookAway(); return; }
-  if (tablePanel) tableClosePanel();
+  if (tablePanel) tableDismissPanel();
 }
 
 /* The window losing the pointer mid-drag: the card is put down where it is. */
@@ -1941,6 +2015,7 @@ function tableModeLeave() {
   if (tableHold) tableRelease({ pointerId: tableHold.id });
   tableLookAway(true);
   tableClosePanel({ quiet: true });
+  tableCardReturn = null;   // the mode going away is not a way back to anything
   tableListen(false);
   tableWatch?.disconnect();
   tableWatch = null;
@@ -1972,7 +2047,7 @@ function tableOnPlaneClick(e) {
   if (!entry) return;
   if (entry.tab) {
     /* The open tab, pressed again, is put back down. */
-    if (tablePanel?.tab === entry.tab) tableClosePanel();
+    if (tablePanel?.tab === entry.tab) tableDismissPanel();
     else tableOpenPanel(entry.tab);
     return;
   }
@@ -2020,6 +2095,26 @@ function tableShowPane(tab, kind = tablePanelKind(tab)) {
   if (!pane) return false;
   if (tablePanel && tablePanel.tab === tab && tablePanel.kind === kind) return true;
   const from = tablePanel?.tab ?? null;
+  /* The view the Card sheet is coming up over, remembered before the panel
+     it was in is put away — see tableCardReturnFor(). Read here, the one
+     place every way of opening a tab passes through, while history.state is
+     still the entry under the card's: openCardPage and setTab both push the
+     card's own entry after this has run. Any other tab opened clears it, so
+     a sheet that was swapped for something else does not later send the
+     user back to a view they had already left. */
+  if (tab === 'card') {
+    const ret = tableCardReturnFor({ to: tab, from, tucked: tableTucked, laid: tableLaid?.tab ?? null });
+    const before = typeof history !== 'undefined' ? history.state : null;
+    tableCardReturn = ret && {
+      ...ret,
+      kind: from ? tablePanel.kind : null,
+      backTo: before?.view === 'tab' && before.tab === ret.tab,
+      token: ++tableCardSeq,
+    };
+    if (tableCardReturn?.backTo) tableStampCardEntry(tableCardReturn);
+  } else {
+    tableCardReturn = null;
+  }
   tablePutPaneBack();
   tableUntuck();
   tableActedAt = 0;
@@ -2171,6 +2266,56 @@ function tableClosePanel({ quiet = false } = {}) {
   tableSyncLane();
   tableRimSync();
   if (!quiet) plane.querySelector(`.table-tab[data-tab="${tab}"]`)?.focus({ preventScroll: true });
+}
+
+/* The Card sheet's own history entry stamped with its token, once whoever
+ * opened the sheet has pushed it — openCardPage and setTab() both push after
+ * the pane is shown, in the same task, so a microtask is after the push and
+ * before anything else can move the history. If what stands then is not a
+ * card entry, nothing was pushed (setTab skips a repeat of the entry it is
+ * on) and nothing is stamped, so the close will not step Back off an entry
+ * that is not the sheet's. See tableReturnByBack(). */
+function tableStampCardEntry(ret) {
+  if (typeof history === 'undefined' || typeof queueMicrotask !== 'function') return;
+  queueMicrotask(() => {
+    if (tableCardReturn !== ret) return;
+    const state = history.state;
+    if (!tableIsCardEntry(state)) return;
+    history.replaceState({ ...state, tableOver: ret.token }, '');
+  });
+}
+
+/* The panel put down by the user — its ✕, Escape, or its tab on the rim
+ * pressed again. Every panel just closes, bar the Card sheet opened over
+ * another view, which goes back to that view (tableCardReturnFor): by the
+ * browser's Back where that is certainly the same thing, and otherwise by
+ * opening the tab again. Either way it is setTab() that arrives, and
+ * tableModeBeforeTab() that restores — so nothing here moves a pane itself,
+ * and the history is stepped at most once. */
+function tableDismissPanel() {
+  const back = tablePanel?.tab === 'card' ? tableCardReturn : null;
+  if (!back) { tableClosePanel(); return; }
+  if (tableReturnByBack({ ret: back, state: history.state })) {
+    history.back();
+    return;
+  }
+  setTab(back.tab);
+}
+
+/* The view the Card sheet was opened over, put back as it was: the tab's
+ * panel open, or tucked, or — when it was the mat alone — no panel at all,
+ * the sheet simply put away. Called from tableModeBeforeTab(), so setTab()
+ * goes on to draw the tab and lay its cards again (tableModeAfterTab), and
+ * those land where a hand last put them (tableMoved).
+ *
+ * Opening the tab's pane may tuck it by itself — the Card tab is a tab with
+ * cards too, so tableTuckOnOpen can answer yes for a user who last tucked
+ * one — and the panel is then set to what it was, not to that guess. */
+function tableRestoreView(back) {
+  if (back.panel === 'closed') { tableClosePanel(); return; }
+  tableShowPane(back.tab, back.kind || tablePanelKind(back.tab));
+  const tuck = back.panel === 'tucked';
+  if (tuck !== tableTucked) tableTuckPanel(tuck);
 }
 
 /* Tuck the panel down to its header, or bring it back up. Only a floating
@@ -4278,7 +4423,17 @@ function tableZoneRename(from, to) {
 /* Called first thing in setTab(): a tab opened from anywhere while the table
  * is up has its pane carried into a panel before its init draws into it. */
 function tableModeBeforeTab(tab) {
-  if (tableOn && tablePanel?.tab !== tab) tableShowPane(tab);
+  if (!tableOn) return;
+  /* The view the Card sheet was opened over, arrived at again — by the
+     sheet's own close, or by Back — comes back as it was left rather than
+     as a freshly opened panel. */
+  const back = tableCardReturn;
+  if (back && tablePanel?.tab === 'card' && tab === back.tab) {
+    tableCardReturn = null;
+    tableRestoreView(back);
+    return;
+  }
+  if (tablePanel?.tab !== tab) tableShowPane(tab);
 }
 
 /* Called last thing in setTab(): the tab's cards on the mat, if it has any —

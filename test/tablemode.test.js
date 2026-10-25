@@ -1016,6 +1016,128 @@ test('cards laid by something done in the pane tuck the panel; typing and polls 
   assert.strictEqual(auto({ actedAgo: -5 }), false, 'a clock that went backwards is not an action');
 });
 
+// ── Putting the Card sheet down ───────────────────────────────────────────
+// The Card tab, opened over another view, closes back to it. What is asserted
+// is what comes back and how it is reached; the panel's own moving of panes is
+// stubbed, being the smoke harness's to watch.
+
+test('the Card sheet remembers the view it came up over, as it was left', () => {
+  const ret = o => app.copy(app.sandbox.tableCardReturnFor({ to: 'card', ...o }));
+  assert.deepStrictEqual(ret({ from: 'deckview' }), { tab: 'deckview', panel: 'open' });
+  assert.deepStrictEqual(ret({ from: 'deckview', tucked: true }), { tab: 'deckview', panel: 'tucked' },
+    'a tucked panel comes back tucked');
+  assert.deepStrictEqual(ret({ from: null, laid: 'deckview' }), { tab: 'deckview', panel: 'closed' },
+    'the mat alone comes back with no panel over it');
+  assert.deepStrictEqual(ret({ from: 'lands', laid: 'deckview' }), { tab: 'lands', panel: 'open' },
+    'the panel that was up is the view, not the cards under it');
+  assert.strictEqual(ret({ from: null, laid: null }), null, 'a bare table has nothing to go back to');
+  assert.strictEqual(ret({ from: null, laid: 'card' }), null, 'nor does the Card tab’s own card');
+  assert.strictEqual(ret({ from: 'card' }), null, 'nor the sheet opened over itself');
+  assert.strictEqual(app.sandbox.tableCardReturnFor({ to: 'deckview', from: 'sets' }), null,
+    'only the Card sheet is a way back');
+});
+
+test('the sheet closes by Back only when Back is certainly the way it came', () => {
+  const by = o => app.sandbox.tableReturnByBack({
+    ret: { tab: 'deckview', backTo: true, token: 4 },
+    state: { view: 'card', cardName: 'Sol Ring', tableOver: 4 }, ...o });
+  assert.strictEqual(by({}), true, 'the card entry pushed over the deck’s, stamped');
+  assert.strictEqual(by({ state: { view: 'card', cardId: 'x', tableOver: 4 } }), true,
+    'a printing swapped in place is still it');
+  assert.strictEqual(by({ state: { view: 'tab', tab: 'card', tableOver: 4 } }), true,
+    'the tab pressed on the rim pushed this one');
+  assert.strictEqual(by({ state: { view: 'card', cardName: 'Arcane Signet' } }), false,
+    'a second card was opened on the sheet, an entry of its own');
+  assert.strictEqual(by({ state: { view: 'card', cardName: 'Sol Ring', tableOver: 3 } }), false,
+    'an older sheet’s entry, reached some other way');
+  assert.strictEqual(by({ state: { view: 'tab', tab: 'sets', tableOver: 4 } }), false,
+    'the entry is somebody else’s now');
+  assert.strictEqual(by({ ret: { tab: 'deckview', backTo: false, token: 4 } }), false,
+    'the entry under the card was not the deck’s');
+  assert.strictEqual(by({ ret: null }), false);
+});
+
+/** The table with its panel moves stubbed: what tableShowPane, tableClosePanel
+ *  and tableTuckPanel are asked to do, and setTab and the history, recorded. */
+function tableWithSheet(ret) {
+  const t = loadTableMode();
+  t.evaluate(`
+    _did = [];
+    tableOn = true;
+    tablePanel = { tab: 'card', kind: 'grow' };
+    tableTucked = false;
+    tableCardReturn = ${JSON.stringify(ret)};
+    tableShowPane = (tab, kind) => { _did.push(['show', tab, kind]); tablePanel = { tab, kind }; tableTucked = false; return true; };
+    tableClosePanel = () => { _did.push(['close']); tablePanel = null; };
+    tableTuckPanel = on => { _did.push(['tuck', on]); tableTucked = on; };
+    setTab = tab => { _did.push(['setTab', tab]); tableModeBeforeTab(tab); };
+    history = { state: { view: 'card', cardName: 'Sol Ring', tableOver: 4 }, back() { _did.push(['back']); } };
+  `);
+  return t;
+}
+
+test('closing the sheet over the deck steps Back, and Back brings the deck’s panel up as it was', () => {
+  const t = tableWithSheet({ tab: 'deckview', panel: 'tucked', kind: 'float', backTo: true, token: 4 });
+  t.evaluate('tableDismissPanel()');
+  assert.deepStrictEqual(t.copy(t.evaluate('_did')), [['back']], 'the close went anywhere but Back');
+  // popstate arrives as setTab(tab, false), which tells the table first.
+  t.evaluate(`tableModeBeforeTab('deckview')`);
+  assert.deepStrictEqual(t.copy(t.evaluate('_did')).slice(1),
+    [['show', 'deckview', 'float'], ['tuck', true]], 'the deck’s panel did not come back tucked');
+  assert.strictEqual(t.evaluate('tableCardReturn'), null, 'and the way back is spent');
+});
+
+test('where Back is not certain, the close visits the tab, once', () => {
+  const t = tableWithSheet({ tab: 'deckview', panel: 'open', kind: 'float', backTo: false, token: 4 });
+  t.evaluate('tableDismissPanel()');
+  assert.deepStrictEqual(t.copy(t.evaluate('_did')),
+    [['setTab', 'deckview'], ['show', 'deckview', 'float']]);
+});
+
+test('a mat left with no panel over it comes back with none', () => {
+  const t = tableWithSheet({ tab: 'deckview', panel: 'closed', kind: null, backTo: false, token: 4 });
+  t.evaluate('tableDismissPanel()');
+  assert.deepStrictEqual(t.copy(t.evaluate('_did')), [['setTab', 'deckview'], ['close']]);
+});
+
+test('with nothing behind it, the sheet just closes', () => {
+  const t = tableWithSheet(null);
+  t.evaluate('tableDismissPanel()');
+  assert.deepStrictEqual(t.copy(t.evaluate('_did')), [['close']]);
+});
+
+test('the card’s entry is stamped once it has been pushed, and an entry nobody pushed is not', () => {
+  /* The stamp is what lets the close step Back (tableReturnByBack), so it
+   * has to land on the entry pushed for the sheet and on nothing else: the
+   * microtask runs after the opener's push, and finds the deck's own entry
+   * standing when there was no push at all. */
+  const t = loadTableMode();
+  t.evaluate(`
+    _tasks = [];
+    queueMicrotask = fn => _tasks.push(fn);
+    history = { state: { view: 'tab', tab: 'deckview' }, replaceState(s) { this.state = s; } };
+    tableCardReturn = { tab: 'deckview', panel: 'open', backTo: true, token: 7 };
+    tableStampCardEntry(tableCardReturn);
+    history.state = { view: 'card', cardName: 'Sol Ring' };   // openCardPage's push
+    _tasks.splice(0).forEach(fn => fn());
+  `);
+  assert.deepStrictEqual(t.copy(t.evaluate('history.state')), { view: 'card', cardName: 'Sol Ring', tableOver: 7 });
+  t.evaluate(`
+    history.state = { view: 'tab', tab: 'deckview' };
+    tableStampCardEntry(tableCardReturn);
+    _tasks.splice(0).forEach(fn => fn());
+  `);
+  assert.deepStrictEqual(t.copy(t.evaluate('history.state')), { view: 'tab', tab: 'deckview' },
+    'the deck’s own entry was stamped as if it were the card’s');
+});
+
+test('another tab opened over the sheet is opened, and the way back is not taken', () => {
+  const t = tableWithSheet({ tab: 'deckview', panel: 'open', kind: 'float', backTo: true, token: 4 });
+  t.evaluate(`tableModeBeforeTab('sets')`);
+  assert.deepStrictEqual(t.copy(t.evaluate('_did')), [['show', 'sets', null]],
+    'the sheet’s way back was taken for a tab it was not opened over');
+});
+
 // ── The Deck Builder's table: the commander, the slip and the bin ──────────
 
 /* A card's box on the mat, in the mat's pixels, unturned: its centre from its

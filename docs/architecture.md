@@ -95,7 +95,8 @@ mtgtools/
 │       ├── carddrag.js    # Carrying a card, or a handful: the lag, the lean, the fan, the pile that would take it
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches
 │       ├── card.js        # Card Detail tab (oracle text, rulings, prices, the printings of it
-│       │                  # on the shelf, alt-art printings)
+│       │                  # on the shelf, alt-art printings — a printing pressed swaps the
+│       │                  # card in place, in the tab or the modal it is in)
 │       ├── cardquery.js   # Scryfall query syntax, parsed and run against the local card cache
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks
@@ -133,7 +134,8 @@ mtgtools/
 │       │                  # at the head, and on the far rim a slip to add a card and a bin to
 │       │                  # drop one in, and a chip laying the deck a zone per category — zones
 │       │                  # moved, resized and renamed on the felt, a card carried between them
-│       │                  # moving category; window.tableMode for anything else
+│       │                  # moving category; the Card sheet closing back to the view it was
+│       │                  # opened over; window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
 │   ├── design/          # What was planned — briefs and PRDs, kept as context
