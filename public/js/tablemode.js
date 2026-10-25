@@ -42,9 +42,10 @@
 //         .table-rim   the four edges; the tabs lie on the two side ones —
 //                      the card tabs down the right, the rest and the
 //                      account in two groups down the left
-//         .table-mat   the playmat (or the theme's felt), where cards lie;
-//                      the Deck Builder's slip and bin are its children too,
-//                      laid out over the far rim above it
+//         .table-mat   the playmat (or the theme's felt), where cards lie,
+//                      and the landing shadow of the card in hand; the Deck
+//                      Builder's slip and bin are its children too, laid out
+//                      over the far rim above it
 //   .table-dim     the slight veil over the table while a panel floats
 //   .table-panel   the panel host — see "Panels" below
 //   .table-look    a card picked up to be looked at, facing the viewer
@@ -156,7 +157,9 @@
 // tableMode.layCards() lays a list of cards flat on the mat in tidy fanned
 // piles (tableLayout). Press one and it comes up off the felt at once, quickly
 // (TABLE_LIFT_MS), and leans towards you; drag it and it follows the pointer
-// in the table's plane; let go and it settles where it was put down. Let go
+// in the table's plane, with a soft shadow lying under it on the spot it
+// would land on if let go now (tableDropSpot, tableCastPose) — the very spot
+// it comes down onto when it is, so the shadow is never a guess. Let go
 // without having moved (tableIsDrag: under 5px) and it is picked up to be
 // looked at: it goes on rising from the hand to face you, large, over the
 // table, and a click or Escape puts it back where it lay — unless the card
@@ -275,9 +278,10 @@
 // the camera's easing, how large a card's picture is laid out and which file
 // it comes from, the lift, the screen-to-mat mapping through the camera, the
 // floating panel's box, the layout and its head band, what each tab lays and
-// how it is piled, where a re-laid card goes, when a panel tucks, and the
-// Deck Builder's slip and bin: when they show, the bin's hit on the rim, and
-// what a card put in it does to the deck.
+// how it is piled, where a re-laid card goes, when a panel tucks, where a
+// card in hand lands and its shadow lies, and the Deck Builder's slip and
+// bin: when they show, the bin's hit on the rim, and what a card put in it
+// does to the deck.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -1234,6 +1238,47 @@ function tableBinPose(t, held = TABLE_BIN_HELD_SHRINK) {
   };
 }
 
+/* Where a card in hand lands if it is let go now, as fractions of the mat:
+ * the point the hand closed on — `grab`, in the mat's pixels from the card's
+ * centre — put at `hit`, the pointer mapped onto the plane at the height the
+ * card is held at (which is what keeps the card under the pointer), with the
+ * card's centre kept on the mat. Let go, the card comes straight down onto
+ * this spot (tableRelease), and the landing shadow is drawn on it while the
+ * card is carried (tableCastWrite): one answer, asked once a frame, so the
+ * shadow is where the card will lie. Null for a pointer that missed the
+ * plane, or a mat with no size. */
+function tableDropSpot(hit, grab, width, height) {
+  if (!hit || !(width > 0) || !(height > 0)) return null;
+  const at = (n, size) => Math.min(1, Math.max(0, n / size));
+  return { x: at(hit.u - (Number(grab?.u) || 0), width), y: at(hit.v - (Number(grab?.v) || 0), height) };
+}
+
+/* The transform that lays something card-sized on the mat: `spot` = { x, y,
+ * turn } its centre as fractions of `mat` = { width, height } and the angle
+ * it lies at, `box` = { w, h } its size, `z` how high above the felt; and for
+ * a card in hand, how far it leans back towards the viewer and how small it
+ * has become going into the bin. One string, so a card settling eases every
+ * part of it at once — and one function, so a card and its landing shadow
+ * are laid by the same arithmetic. */
+function tableLieTransform(spot, box, mat, z, lean = 0, shrink = 1) {
+  return `translate3d(${(spot.x * mat.width - box.w / 2).toFixed(2)}px, ${(spot.y * mat.height - box.h / 2).toFixed(2)}px, ` +
+    `${z.toFixed(2)}px) rotate(${spot.turn}deg) rotateX(${lean.toFixed(2)}deg)` +
+    (shrink !== 1 ? ` scale(${shrink.toFixed(3)})` : '');
+}
+
+/* The landing shadow's pose, for a card that lands on `spot` at the angle
+ * `turn` and comes to rest `z` above the felt: the same place and the same
+ * angle — the card turns no further on the way down — lying flat, a hair
+ * under where the card itself will lie. Under, not on the felt: a card is put
+ * down on top of whatever it lands on, at its own height in the pile, and a
+ * shadow drawn on the felt would be hidden under the very cards it falls
+ * across, and drawn a few pixels off where the card comes to rest, by the
+ * perspective, the higher the pile. Half a gap under, so it lies above every
+ * other card and still under the card when it lands. */
+function tableCastPose(spot, turn, z) {
+  return { x: spot.x, y: spot.y, turn: Number(turn) || 0, z: Math.max(0, (Number(z) || 0) - TABLE_CARD_GAP / 2) };
+}
+
 // ── The switch ────────────────────────────────────────────────────────────
 
 /* Desktop only: the app's desktop breakpoint, and a pointer that hovers — the
@@ -1396,13 +1441,15 @@ function tableBuild() {
   /* The far edge holds no tabs: what lies on it, the Deck Builder's slip and
      bin, are the mat's own children, laid out over it (table.css), so that
      where they are is said in the mat's pixels like everything else the hand
-     meets on the table. */
+     meets on the table. The landing shadow is the mat's too, and lies under
+     the cards drawn after it. */
   scene.innerHTML = `
     <div class="table-camera" id="tableCamera">
     <div class="table-plane" id="tablePlane">
       <div class="table-rim table-rim--far"></div>
       <div class="table-rim table-rim--left" role="group" aria-label="Tabs on the left edge">${tableRimHtml('left')}</div>
       <div class="table-mat" id="tableMat">
+        <div class="table-cast" id="tableCast" hidden></div>
         <p class="table-hint" id="tableHint" hidden></p>
       </div>
       <div class="table-rim table-rim--right" role="group" aria-label="Tabs on the right edge">${tableRimHtml('right')}</div>
@@ -1474,6 +1521,7 @@ function tableBuild() {
     camera:     scene.querySelector('#tableCamera'),
     plane:      scene.querySelector('#tablePlane'),
     mat:        scene.querySelector('#tableMat'),
+    cast:       scene.querySelector('#tableCast'),
     hint:       scene.querySelector('#tableHint'),
     panelHdr:   panel.querySelector('.table-panel-hdr'),
     panelTitle: panel.querySelector('#tablePanelTitle'),
@@ -2298,12 +2346,8 @@ function tableSizeCard(card) {
  * eases every part of it at once. */
 function tableWriteCard(card, lift = 0, lean = 0, shrink = 1) {
   if (!card.el || !tableGeom) return;
-  const { width, height } = tableGeom.mat;
-  const { w, h } = tableCardBox(card);
   card.el.style.transform =
-    `translate3d(${(card.x * width - w / 2).toFixed(2)}px, ${(card.y * height - h / 2).toFixed(2)}px, ` +
-    `${(tableCardZ(card) + lift).toFixed(2)}px) rotate(${card.turn}deg) rotateX(${lean.toFixed(2)}deg)` +
-    (shrink !== 1 ? ` scale(${shrink.toFixed(3)})` : '');
+    tableLieTransform(card, tableCardBox(card), tableGeom.mat, tableCardZ(card) + lift, lean, shrink);
 }
 
 /* The picture a card is drawn from: its own, or Scryfall's large one of it
@@ -2447,6 +2491,9 @@ function tableOnCardDown(e) {
     /* How far it has gone over to the bin's look (tableBinProgress), and when
        that was last asked, for the length of the next frame. */
     binT: 0, binAt: performance.now(), over: false,
+    /* Where it would land if let go now (tableDropSpot), asked each frame
+       it is carried; the landing shadow is laid on it. */
+    land: null,
     start:   { x: e.clientX, y: e.clientY },
     pointer: { x: e.clientX, y: e.clientY },
     /* Where it lay, for a press that turns out to be a click: the card rises
@@ -2470,8 +2517,9 @@ function tableOnCardDown(e) {
  * placed so that the point the hand closed on is where the pointer's ray meets
  * the plane at the card's current height, through the camera as it is this
  * frame, so a card in hand stays under the pointer while the table pans or
- * zooms beneath it. Returns whether it is still rising, which is what asks
- * for another frame. */
+ * zooms beneath it. That place, kept on the mat, is where it would land
+ * (tableDropSpot), and the landing shadow is laid there in the same frame.
+ * Returns whether it is still rising, which is what asks for another frame. */
 function tableCarry(now) {
   const hold = tableHold;
   const card = hold.card;
@@ -2494,13 +2542,14 @@ function tableCarry(now) {
   hold.lift = rise + (hover - rise) * pose.k;
 
   const hit = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, tableCardZ(card) + hold.lift);
-  if (hit) {
-    const { width, height } = tableGeom.mat;
-    let u = Math.min(width, Math.max(0, hit.u - hold.grab.u));
-    let v = Math.min(height, Math.max(0, hit.v - hold.grab.v));
+  const { width, height } = tableGeom.mat;
+  const land = tableDropSpot(hit, hold.grab, width, height);
+  if (land) {
+    hold.land = land;
+    let u = land.x * width, v = land.y * height;
     /* The bin lies on the far rim, off the mat, so the card going in is
-       drawn towards it unheld by the mat's edges — where it is put down, if
-       it is let go somewhere else, is still on the mat. */
+       drawn towards it unheld by the mat's edges — the spot it would land
+       on, were it let go somewhere else, is still on the mat. */
     if (pose.k > 0) {
       const bin = tableBinRect();
       const bu = bin.left + bin.width / 2, bv = bin.top + bin.height / 2;
@@ -2516,11 +2565,32 @@ function tableCarry(now) {
      on the card would flatten the 3D context its picture is kept sharp by. */
   if (pose.k > 0) card.el?.style.setProperty('--table-bin-fade', pose.opacity.toFixed(3));
   else card.el?.style.removeProperty('--table-bin-fade');
+  tableCastWrite(hold.dragging && !hold.over ? hold : null);
   return rise !== tableLiftHeight(Infinity, motion) || hold.binT !== (hold.over ? 1 : 0);
 }
 
-/* Let go. A drag puts the card down where it is, in the card layer's own
- * time (table.css, .is-settling). A press that never became a drag is left to
+/* The landing shadow: laid where the card in hand would land — `hold.land`,
+ * the very spot tableRelease puts it down on — at the card's own angle and
+ * size, a hair under the height it will come to rest at (tableCastPose); or
+ * put away, for no hold. Written in the frame the card is, with no easing of
+ * its own, so it is never a frame behind the card and with cards still it
+ * simply tracks. One element, kept for the scene. */
+function tableCastWrite(hold) {
+  const cast = tableEls?.cast;
+  if (!cast) return;
+  if (!hold?.land || !tableGeom) { cast.hidden = true; return; }
+  const card = hold.card;
+  const box = tableCardBox(card);
+  const pose = tableCastPose(hold.land, card.turn, tableCardZ(card));
+  cast.style.width  = `${box.w.toFixed(2)}px`;
+  cast.style.height = `${box.h.toFixed(2)}px`;
+  cast.style.transform = tableLieTransform(pose, box, tableGeom.mat, pose.z);
+  cast.hidden = false;
+}
+
+/* Let go. The landing shadow goes, and a drag puts the card down on the
+ * spot the shadow lay on, in the card layer's own time (table.css,
+ * .is-settling). A press that never became a drag is left to
  * the card's own click, which comes straight after this: the card goes back
  * to where it lay, and — if the click will pick it up to look at it — the
  * box it is drawn in up here is kept for tableLookAt to rise from, so it goes
@@ -2532,6 +2602,7 @@ function tableRelease(e) {
   const hold = tableHold;
   if (!hold || (e && e.pointerId !== hold.id)) return;
   tableHold = null;
+  tableCastWrite(null);
   const card = hold.card;
   card.el?.style.removeProperty('--table-bin-fade');
   /* Let go over the bin: one copy of it out of the deck, and the card into
@@ -2546,6 +2617,10 @@ function tableRelease(e) {
   }
   if (hold.dragging) {
     tableSwallow = true;
+    /* Down onto the spot the landing shadow lay on — the one the card is
+       drawn over in hand, except while it is still easing back from the
+       bin's look, when it is drawn part of the way towards the bin. */
+    if (hold.land) { card.x = hold.land.x; card.y = hold.land.y; }
     tableMoved.set(card.key, { x: card.x, y: card.y, turn: card.turn });
   } else {
     card.x = hold.from.x;

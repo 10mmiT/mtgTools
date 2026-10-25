@@ -394,6 +394,24 @@ html[data-playmat] .table-mat {
 /* Picked up to be looked at: its place on the table is kept for it. */
 .table-card.is-looked { visibility: hidden; }
 
+/* The landing shadow: where the card in hand comes down if it is let go
+   now, card-sized and at its angle, a hair under the height it will lie at
+   — the script lays it there every frame the card moves, by the same
+   arithmetic it lays the card with (js/tablemode.js, tableCastPose). A plain
+   shape in the colour a card casts, softened at its edge by a drop shadow of
+   the same colour, with a card's corners. A leaf, so its filter flattens
+   nothing; it takes no pointer, and has no transition of its own, so it is
+   never a frame behind the hand. */
+.table-cast {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: var(--radius-card);
+  background: var(--card-cast);
+  filter: drop-shadow(0 0 6px var(--card-cast));
+  pointer-events: none;
+}
+.table-cast[hidden] { display: none; }
 
 /* Put in the bin: it goes into it shrinking, and fades as it goes — the
    script writes the bin's place and the shrink into its transform — in the
