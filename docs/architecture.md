@@ -43,7 +43,9 @@ mtgtools/
 │   ├── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
 │   └── tablemode.test.js    # Table mode — panel kinds, which tab stands on which edge and in
 │                            # which group, click or drag, the
-│                            # table's fit, the pan and the wheel's zoom and their easing, how
+│                            # table's fit, the lean, the wheel's zoom about the pointer and
+│                            # their easing, the edge bands, the hand and W A S D that move a
+│                            # zoomed view and how far it may go, how
 │                            # large a card's picture is decoded, the lift, the screen-to-mat
 │                            # mapping through the camera, the floating panel's box, the layout,
 │                            # what each tab lays and in which piles, where a re-laid card
@@ -130,7 +132,9 @@ mtgtools/
 │       ├── tablemode.js   # Table mode (experimental): the app as a 3D table seen from a seat — the
 │       │                  # switch, the table fitted to the window, the tabs lying down the rim's
 │       │                  # two sides round a wide mat, panes lifted into panels and put back, the
-│       │                  # camera panning and zooming over it with its cards kept sharp, cards
+│       │                  # camera zooming over it with its cards kept sharp — moved round a
+│       │                  # zoomed table by the window's edges, a hand on the felt and W A S D,
+│       │                  # never past the rim — cards
 │       │                  # picked up off the mat with a ringed mark where they will land, each
 │       │                  # tab's own cards laid there
 │       │                  # (read through a small getter beside each tab's renderer) with its
