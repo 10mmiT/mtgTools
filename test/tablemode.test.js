@@ -350,78 +350,167 @@ test('zooming back out to the whole table comes back to the rest view', () => {
   }
 });
 
+/* The margin past the rim, in window pixels, at a zoom, across a window `size` that way. */
+const margin = (zoom, size) => app.evaluate(`tablePanMargin(${zoom}, ${size})`);
+const range = zoom => app.copy(app.sandbox.tablePanRange(BOUNDS, zoom, W, H));
+/* The view pushed as far as it goes towards (sx, sy), each -1, 0 or 1. */
+const pushed = (zoom, sx, sy) =>
+  clampPan(state(720, 450, zoom, { panX: sx * 1e5, panY: sy * 1e5 }), state(720, 450, zoom), { strict: true });
+/* The table's four outer corners where the camera at `s` draws them on the
+ * screen: far left, far right, near left, near right. */
+const cornersOnScreen = s => {
+  const m = app.evaluate(`tablePlaneMatrix(${JSON.stringify({ ...FIT_GEOM, mat: { left: 0, top: 0 }, tilt: REST, camera: cam(s, 0) })})`);
+  const { width: pw, height: ph } = FIT_GEOM.plane;
+  return [[0, 0], [pw, 0], [0, ph], [pw, ph]].map(([u, v]) => app.copy(app.sandbox.tableProject(m, u, v, 0)));
+};
+
 test('at the whole table the view cannot be panned anywhere', () => {
-  const range = app.copy(app.sandbox.tablePanRange(BOUNDS, 1, 0, W, H));
-  assert.deepStrictEqual([range.x.lo, range.x.hi, range.y.lo, range.y.hi], [0, 0, 0, 0]);
+  const r = range(1);
+  assert.deepStrictEqual([r.x.lo, r.x.hi, r.y.lo, r.y.hi], [0, 0, 0, 0]);
+  assert.strictEqual(margin(1, W), 0, 'no margin past the rim at the whole table');
   for (const pan of [{ panX: 300, panY: -200 }, { panX: -1, panY: 1 }]) {
     const s = clampPan(state(720, 450, 1, pan), state(720, 450, 1));
     assert.deepStrictEqual([s.panX, s.panY], [0, 0], JSON.stringify(pan));
   }
-  /* And zoomed in too little for the table to fill the window across, the
-     view stays as centred across as the whole table is. */
-  const low = app.copy(app.sandbox.tablePanRange(BOUNDS, 1.1, 0, W, H));
-  assert.deepStrictEqual([low.x.lo, low.x.hi], [0, 0]);
-  assert.ok(low.y.lo < 0 && low.y.hi > 0, 'though it can go a little way down and up');
 });
 
-test('zoomed all the way in, every corner of the table can be reached and none of the room beyond it shows', () => {
-  const { width: pw, height: ph, radius } = FIT_GEOM.plane;
-  const k = radius * (1 - Math.SQRT1_2);
-  for (const zoom of [1.6, 2, 2.5]) {
-    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]) {
-      const s = clampPan(state(720, 450, zoom, { panX: sx * 1e5, panY: sy * 1e5 }), state(720, 450, zoom), { strict: true });
-      const corners = windowOnPlane(s);
-      for (const p of corners) {
-        assert.ok(p.u >= k - 1e-6 && p.u <= pw - k + 1e-6 && p.v >= k - 1e-6 && p.v <= ph - k + 1e-6,
-          `at ${zoom} pushed ${sx},${sy}: a window corner lies on the plane at ${p.u},${p.v} of ${pw}×${ph}`);
+test('a little past the whole table the view can already be taken across, wherever the table runs past the window', () => {
+  for (const zoom of [1.05, 1.1, 1.2, 1.3]) {
+    /* The table at its widest is wider than the window shows at this zoom. */
+    assert.ok((BOUNDS.right - BOUNDS.left) * zoom > W, `at ${zoom} the table runs past the window across`);
+    const r = range(zoom);
+    assert.ok(r.x.lo < 0 && r.x.hi > 0, `at ${zoom} the view goes left and right: ${JSON.stringify(r.x)}`);
+    assert.ok(r.y.lo < 0 && r.y.hi > 0, `and up and down: ${JSON.stringify(r.y)}`);
+  }
+  /* At 1.2, pushed all the way left, the near-left corner — the table's
+     widest point — is in view, the margin in from the window's left. */
+  const left = pushed(1.2, -1, 0);
+  const [, , nl] = cornersOnScreen(left);
+  assert.ok(left.panX < 0, `at 1.2 the view goes left: ${left.panX}`);
+  assert.ok(near(nl.x, margin(1.2, W), 1e-6), `and the near-left corner comes to the margin: ${nl.x}`);
+});
+
+test('the margin past the rim is 8% of the window, grown in over the first quarter of the zoom', () => {
+  assert.strictEqual(app.evaluate('TABLE_PAN_MARGIN'), 0.08);
+  assert.strictEqual(app.evaluate('TABLE_PAN_MARGIN_RAMP'), 0.25);
+  assert.ok(near(margin(1.25, W), 0.08 * W) && near(margin(2.5, W), 0.08 * W), 'all of it from 1.25');
+  assert.ok(near(margin(2.5, H), 0.08 * H), 'of the window that way');
+  assert.ok(near(margin(1.125, W), 0.04 * W), 'half of it halfway');
+  let last = -1;
+  for (let z = 1; z <= 2.5; z += 0.01) {
+    const m = margin(z, W);
+    assert.ok(m >= last, `it only grows as the zoom goes in: ${m} after ${last} at ${z}`);
+    last = m;
+  }
+  /* Pushed to each side, the rim's edge lands exactly the margin in from the
+     window's edge: across at the table's widest, its near edge; down at the
+     far and the near rim. */
+  for (const zoom of [1.5, 2, 2.5]) {
+    const mx = margin(zoom, W), my = margin(zoom, H);
+    const [fl, , nl] = cornersOnScreen(pushed(zoom, -1, 0));
+    assert.ok(near(Math.min(fl.x, nl.x), mx, 1e-6), `at ${zoom} the left rim is ${mx}px in: ${nl.x}`);
+    const [, fr, , nr] = cornersOnScreen(pushed(zoom, 1, 0));
+    assert.ok(near(Math.max(fr.x, nr.x), W - mx, 1e-6), `at ${zoom} the right rim is ${mx}px in: ${nr.x}`);
+    const [ft] = cornersOnScreen(pushed(zoom, 0, -1));
+    assert.ok(near(ft.y, my, 1e-6), `at ${zoom} the far rim is ${my}px down: ${ft.y}`);
+    const [, , nb] = cornersOnScreen(pushed(zoom, 0, 1));
+    assert.ok(near(nb.y, H - my, 1e-6), `at ${zoom} the near rim is ${my}px up: ${nb.y}`);
+  }
+});
+
+test('at 1.2, 1.5 and 2.5 every part of the table, the whole rim and every chip on it, can be had fully in view', () => {
+  /* The chips lie on the rim, inside the plane's outline: a view that holds
+     a corner of the plane, with the margin round it, holds every chip by it.
+     So each corner is pushed to, and must be in the window, the margin in,
+     with both rims that meet there in view all the way along. */
+  const corner = [[-1, -1, 0], [1, -1, 1], [-1, 1, 2], [1, 1, 3]];
+  for (const zoom of [1.2, 1.5, 2.5]) {
+    const mx = margin(zoom, W), my = margin(zoom, H);
+    for (const [sx, sy, i] of corner) {
+      const s = pushed(zoom, sx, sy);
+      const c = cornersOnScreen(s)[i];
+      assert.ok(c.x >= mx - 1e-6 && c.x <= W - mx + 1e-6 && c.y >= my - 1e-6 && c.y <= H - my + 1e-6,
+        `at ${zoom} pushed ${sx},${sy}: the corner is drawn at ${c.x},${c.y}, inside the margin`);
+      /* The rim along the side pushed to is in view from the corner to the
+         window's far end of it: the side's line, at every row in the window. */
+      const pts = cornersOnScreen(s);
+      const [a, b] = sx < 0 ? [pts[0], pts[2]] : [pts[1], pts[3]];
+      for (let t = 0; t <= 1; t += 0.125) {
+        const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+        if (y < 0 || y > H) continue;
+        assert.ok(x >= -1e-6 && x <= W + 1e-6, `at ${zoom} pushed ${sx},${sy}: the side rim at row ${y} is at ${x}, in the window`);
       }
-      /* The window stays inside the rest picture too, which is as far as the
-         lean ever took it: no further than the old camera reached. */
-      const c = cam(s, 0), a = under(c, 0, 0), b = under(c, W, H);
-      assert.ok(a.x >= -1e-6 && a.y >= -1e-6 && b.x <= W + 1e-6 && b.y <= H + 1e-6, 'inside the rest picture');
-      /* And the rim's edge is brought to the window's edge it was pushed
-         towards: the window's top at the table's far edge, its bottom at the
-         near edge, its side on the table's side at the window's top row. */
-      const top = under(c, 0, 0).y, bottom = under(c, 0, H).y;
-      const row = app.copy(app.sandbox.tableBoundsAt(BOUNDS, top));
-      if (sy < 0) assert.ok(near(top, BOUNDS.top, 1e-6), `at ${zoom} the far rim reaches the window's top`);
-      if (sy > 0) assert.ok(near(bottom, BOUNDS.bottom, 1e-6), `at ${zoom} the near rim reaches the window's bottom`);
-      if (zoom >= 1.6 && sx < 0) assert.ok(near(under(c, 0, 0).x, row.left, 1e-6), `at ${zoom} the left rim reaches the window's left`);
-      if (zoom >= 1.6 && sx > 0) assert.ok(near(under(c, W, 0).x, row.right, 1e-6), `at ${zoom} the right rim reaches the window's right`);
+    }
+    /* And the view is never taken so far that the table leaves the window's
+       middle: the margin is less than half the window. */
+    for (const [sx, sy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const c = cam(pushed(zoom, sx, sy), 0), mid = under(c, W / 2, H / 2);
+      assert.ok(mid.x >= BOUNDS.left && mid.x <= BOUNDS.right && mid.y >= BOUNDS.top && mid.y <= BOUNDS.bottom,
+        `at ${zoom} pushed ${sx},${sy}, the window's middle is still over the table: ${JSON.stringify(mid)}`);
     }
   }
 });
 
-test('the table’s outline is the plane’s corners, through the tilt, taken in by the rounding', () => {
-  assert.ok(BOUNDS.top < BOUNDS.bottom && BOUNDS.farLeft > BOUNDS.nearLeft && BOUNDS.farRight < BOUNDS.nearRight,
-    `a trapezoid narrower at the far edge: ${JSON.stringify(BOUNDS)}`);
-  assert.ok(near(BOUNDS.farLeft + BOUNDS.farRight, W, 1e-6) && near(BOUNDS.nearLeft + BOUNDS.nearRight, W, 1e-6),
-    'centred across the window');
-  assert.ok(BOUNDS.nearLeft > 0 && BOUNDS.nearRight < W && BOUNDS.bottom < H && BOUNDS.top > 0,
+test('the table’s outline is the box round the plane’s corners, through the tilt: across at its near edge', () => {
+  const corners = cornersOnScreen(state(720, 450, 1));
+  assert.ok(near(BOUNDS.left, corners[2].x, 1e-6) && near(BOUNDS.right, corners[3].x, 1e-6),
+    `across, where the table is widest, its near edge: ${JSON.stringify(BOUNDS)}`);
+  assert.ok(corners[0].x > BOUNDS.left && corners[1].x < BOUNDS.right, 'its far edge narrower');
+  assert.ok(near(BOUNDS.top, corners[0].y, 1e-6) && near(BOUNDS.bottom, corners[2].y, 1e-6), 'down, the far rim to the near rim');
+  assert.ok(near(BOUNDS.left + BOUNDS.right, W, 1e-6), 'centred across the window');
+  assert.ok(BOUNDS.left > 0 && BOUNDS.right < W && BOUNDS.bottom < H && BOUNDS.top > 0,
     'and inside the window at rest, as the fit lays it');
-  const halfway = app.copy(app.sandbox.tableBoundsAt(BOUNDS, (BOUNDS.top + BOUNDS.bottom) / 2));
-  assert.ok(near(halfway.left, (BOUNDS.farLeft + BOUNDS.nearLeft) / 2, 1e-9), 'a side is a straight line');
-  assert.deepStrictEqual(app.copy(app.sandbox.tableBoundsAt(BOUNDS, -500)),
-    { left: BOUNDS.farLeft, right: BOUNDS.farRight }, 'a row above the table is its far edge');
   assert.strictEqual(app.sandbox.tablePanBounds({ ...FIT_GEOM, plane: { ...FIT_GEOM.plane, width: 0 } }), null);
   assert.deepStrictEqual(app.copy(app.sandbox.tableClampPan({ zoom: 2, panX: 7, panY: 8 }, {}, null, W, H)),
     { panX: 7, panY: 8 }, 'with nothing measured the pan is left as it was asked');
 });
 
-test('a pan beyond the rim may only come back, never go further', () => {
-  /* A view left showing the room beyond the rim — zoomed in near its corner,
-     where nothing was held — can be panned back onto the table but not
-     further off it. */
-  const out = state(720, 450, 1.8, { panX: -400, panY: -300 });
-  const range = app.copy(app.sandbox.tablePanRange(BOUNDS, 1.8, -300, W, H));
-  assert.ok(out.panX < range.x.lo && out.panY < range.y.lo, 'the view starts outside');
-  const further = clampPan({ ...out, panX: -450, panY: -350 }, out);
-  assert.ok(near(further.panX, -400, 1e-9) && near(further.panY, -300, 1e-9), `held where it was: ${further.panX},${further.panY}`);
-  const back = clampPan({ ...out, panX: -380, panY: -280 }, out);
-  assert.ok(near(back.panX, -380, 1e-9) && near(back.panY, -280, 1e-9), 'free to come back');
+test('pushed into a far corner, a little of the room beyond the table shows there, and that is all', () => {
+  /* The table narrows towards its far side, and across the view is held to
+     its widest: pushed up and left, the window's top-left corner is off the
+     table, the price of reaching the near-left corner. */
+  const s = pushed(2.5, -1, -1);
+  const [fl] = cornersOnScreen(s);
+  assert.ok(fl.x > 0 && fl.y > 0, `the far-left corner is in view, with room past it: ${fl.x},${fl.y}`);
+  const onPlane = windowOnPlane(s);
+  assert.ok(onPlane[0].u < 0, 'the window’s top-left corner is past the rim');
+  assert.ok(onPlane[3].u > 0 && onPlane[3].v > 0, 'and its opposite corner on the table');
+});
+
+test('a pan past the margin may only come back, never go further', () => {
+  /* A view left showing more of the room beyond the rim than the margin —
+     zoomed in near its corner, where nothing was held — can be panned back
+     onto the table but not further off it. */
+  const r = range(1.8);
+  const out = state(720, 450, 1.8, { panX: r.x.lo - 100, panY: r.y.lo - 80 });
+  const further = clampPan({ ...out, panX: out.panX - 50, panY: out.panY - 50 }, out);
+  assert.ok(near(further.panX, out.panX, 1e-9) && near(further.panY, out.panY, 1e-9), `held where it was: ${further.panX},${further.panY}`);
+  const back = clampPan({ ...out, panX: out.panX + 20, panY: out.panY + 20 }, out);
+  assert.ok(near(back.panX, out.panX + 20, 1e-9) && near(back.panY, out.panY + 20, 1e-9), 'free to come back');
+  /* Inside the margin the pan is free both ways. */
+  const inside = state(720, 450, 1.8, { panX: r.x.lo + 10, panY: r.y.hi - 10 });
+  const free = clampPan({ ...inside, panX: r.x.lo + 2, panY: r.y.hi - 3 }, inside);
+  assert.ok(near(free.panX, r.x.lo + 2, 1e-9) && near(free.panY, r.y.hi - 3, 1e-9), 'and up to it, free');
   /* And resized, held to the range alone. */
   const strict = clampPan(out, out, { strict: true });
-  assert.ok(near(strict.panY, range.y.lo, 1e-9), `a resize asks the table alone: ${strict.panY}`);
+  assert.ok(near(strict.panX, r.x.lo, 1e-9) && near(strict.panY, r.y.lo, 1e-9), `a resize asks the table alone: ${strict.panY}`);
+});
+
+test('pushed to the margin, a zoom in about a point of the table still keeps that point exactly under the pointer', () => {
+  for (const zoom of [1.2, 1.5]) {
+    for (const [sx, sy] of [[-1, -1], [1, 1], [-1, 1], [1, 0]]) {
+      for (const [x, y] of [[300, 300], [720, 450], [W - 300, H - 200], [200, H - 150]]) {
+        let s = pushed(zoom, sx, sy);
+        const at = under(cam(s), x, y);
+        for (let z = zoom; z < 2.5; ) {
+          z = Math.min(2.5, z * 1.15);
+          s = clampPan(zoomAbout(s, z, x, y), s);
+          assert.ok(same(under(cam(s), x, y), at, 1e-6),
+            `from ${zoom} pushed ${sx},${sy}, about ${x},${y} at ${z}: ${JSON.stringify(under(cam(s), x, y))}`);
+        }
+      }
+    }
+  }
 });
 
 test('a hand on the felt pans the table one to one', () => {
@@ -444,39 +533,77 @@ test('a hand on the felt pans the table one to one', () => {
     { panX: 3, panY: 4 }, 'a hand that has not moved has not moved the table');
 });
 
+test('the edge band’s speed gathers on a smoothstep, all of it 60% of the way in', () => {
+  const ramp = t => app.evaluate(`tableEdgeRamp(${t})`);
+  assert.strictEqual(app.evaluate('TABLE_EDGE_FULL_AT'), 0.6);
+  assert.strictEqual(ramp(0), 0, 'nothing at the band’s inner edge');
+  assert.strictEqual(ramp(0.6), 1, 'all of it 60% of the way in');
+  assert.strictEqual(ramp(0.8), 1, 'and all the way out');
+  assert.strictEqual(ramp(1), 1);
+  assert.ok(near(ramp(0.3), 0.5), 'half of it halfway there');
+  assert.ok(ramp(0.45) > 0.75, `three quarters of the way there, most of it: ${ramp(0.45)}`);
+  let last = 0;
+  for (let t = 0; t <= 1; t += 0.01) {
+    const r = ramp(t);
+    assert.ok(r >= last - 1e-12 && r - last < 0.05, `it gathers smoothly at ${t}: ${last} to ${r}`);
+    last = r;
+  }
+  assert.ok(ramp(0.006) < 0.001, 'with no step where the band begins');
+  assert.strictEqual(ramp(-1), 0);
+  assert.strictEqual(ramp(NaN), 0);
+});
+
 test('the edges scroll the view: none in the middle, growing through the band, both ways in a corner', () => {
-  const edge = (x, y, w = W, h = H) => app.call('tableEdgeVelocity', x, y, w, h);
+  const edge = (x, y, w = W, h = H, z) => app.call('tableEdgeVelocity', x, y, w, h, z);
   const MAX = app.evaluate('TABLE_SCROLL_MAX');
-  assert.strictEqual(MAX, 900);
+  assert.strictEqual(MAX, 2200);
   assert.strictEqual(app.evaluate('tableEdgeBand(1440)'), 0.03 * 1440, 'three percent of a wide window');
   assert.strictEqual(app.evaluate('tableEdgeBand(900)'), 32, 'and never less than 32px');
   assert.deepStrictEqual(edge(720, 450), { vx: 0, vy: 0 }, 'the middle asks nothing');
   assert.deepStrictEqual(edge(W - 1 - 43.2, 450), { vx: 0, vy: 0 }, 'nor the band’s inner edge');
   assert.ok(near(edge(W - 1, 450).vx, MAX), 'the window’s last pixel is the most');
   assert.ok(near(edge(0, 450).vx, -MAX), 'the first, the most the other way');
-  assert.ok(near(edge(W - 1 - 21.6, 450).vx, MAX / 2), 'halfway into the band, half');
-  assert.ok(edge(W - 10, 450).vx > edge(W - 30, 450).vx, 'deeper is faster');
+  assert.ok(near(edge(W - 1 - 43.2 * 0.4, 450).vx, MAX), '60% of the way into the band, already the most');
+  assert.ok(near(edge(W - 1 - 43.2 * 0.7, 450).vx, MAX / 2), '30% of the way in, half');
+  assert.ok(edge(W - 25, 450).vx > edge(W - 35, 450).vx, 'deeper is faster');
   assert.ok(near(edge(720, H - 1).vy, MAX) && near(edge(720, 0).vy, -MAX), 'up and down the same, the far side up');
-  assert.ok(near(edge(720, H - 17).vy, MAX / 2), 'the 32px band down');
+  assert.ok(near(edge(720, H - 1 - 32 * 0.7).vy, MAX / 2), 'the 32px band down');
   const corner = edge(2, 3);
-  assert.ok(corner.vx < -800 && corner.vy < -800, `a corner scrolls both ways: ${JSON.stringify(corner)}`);
+  assert.ok(near(corner.vx, -MAX) && near(corner.vy, -MAX), `a corner scrolls both ways: ${JSON.stringify(corner)}`);
   for (const [x, y] of [[-1, 450], [W, 450], [720, H], [NaN, 450], [undefined, undefined]]) {
     assert.deepStrictEqual(edge(x, y), { vx: 0, vy: edge(720, y).vy }, `outside the window across, ${x},${y}, asks nothing across`);
   }
   assert.deepStrictEqual(edge(5, 5, 0, 0), { vx: 0, vy: 0 }, 'a window with no size asks nothing');
+  /* Zoomed in, faster by the square root of the zoom. */
+  assert.ok(near(edge(W - 1, 450, W, H, 2.5).vx, MAX * Math.sqrt(2.5)), 'at 2.5, √2.5 times as fast');
+  assert.ok(near(edge(0, 450, W, H, 1.44).vx, -MAX * 1.2), 'at 1.44, 1.2 times');
+});
+
+test('the top speed grows with the square root of the zoom', () => {
+  const speed = z => app.evaluate(`tableScrollSpeed(${z})`);
+  assert.strictEqual(speed(1), 2200, 'at the whole table, TABLE_SCROLL_MAX');
+  assert.ok(near(speed(2.5), 2200 * Math.sqrt(2.5)), `about 3500 at 2.5: ${speed(2.5)}`);
+  assert.ok(near(speed(1.21), 2200 * 1.1));
+  assert.strictEqual(speed(9), speed(2.5), 'a zoom past the range counts as its most');
+  assert.strictEqual(speed(NaN), 2200);
+  /* In the table's own distance — window pixels over the zoom — a little
+     slower zoomed in, so not dragging the way straight multiplying would. */
+  assert.ok(speed(2.5) / 2.5 > 2200 / 2.5 && speed(2.5) / 2.5 < 2200, 'between the two');
 });
 
 test('W A S D and the arrows ask the most speed their way, twice it with Shift, both at once on a diagonal', () => {
-  const keys = (held, fast) => app.copy(app.sandbox.tableKeyVelocity(held, fast));
+  const keys = (held, fast, zoom) => app.copy(app.sandbox.tableKeyVelocity(held, fast, zoom));
   assert.deepStrictEqual(keys([]), { vx: 0, vy: 0 });
-  assert.deepStrictEqual(keys(['right']), { vx: 900, vy: 0 });
-  assert.deepStrictEqual(keys(['left']), { vx: -900, vy: 0 });
-  assert.deepStrictEqual(keys(['up']), { vx: 0, vy: -900 }, 'up is the view moving up the table, to its far side');
-  assert.deepStrictEqual(keys(['down']), { vx: 0, vy: 900 });
-  assert.deepStrictEqual(keys(['up', 'left']), { vx: -900, vy: -900 }, 'a diagonal is both');
+  assert.deepStrictEqual(keys(['right']), { vx: 2200, vy: 0 });
+  assert.deepStrictEqual(keys(['left']), { vx: -2200, vy: 0 });
+  assert.deepStrictEqual(keys(['up']), { vx: 0, vy: -2200 }, 'up is the view moving up the table, to its far side');
+  assert.deepStrictEqual(keys(['down']), { vx: 0, vy: 2200 });
+  assert.deepStrictEqual(keys(['up', 'left']), { vx: -2200, vy: -2200 }, 'a diagonal is both');
   assert.deepStrictEqual(keys(['left', 'right']), { vx: 0, vy: 0 }, 'two ways against each other cancel');
-  assert.deepStrictEqual(keys(['down', 'right'], true), { vx: 1800, vy: 1800 }, 'Shift doubles it');
+  assert.deepStrictEqual(keys(['down', 'right'], true), { vx: 4400, vy: 4400 }, 'Shift doubles it');
   assert.strictEqual(app.evaluate('TABLE_SCROLL_FAST'), 2);
+  assert.deepStrictEqual(keys(['right'], false, 1.44), { vx: 2200 * 1.2, vy: 0 }, 'zoomed in, by the root of the zoom');
+  assert.ok(near(keys(['up'], true, 2.5).vy, -2 * 2200 * Math.sqrt(2.5)), 'and Shift on top of that');
 
   const dir = (e, focus) => app.sandbox.tablePanKeyDir(e, focus);
   assert.strictEqual(dir({ code: 'KeyW', key: 'w' }), 'up');
@@ -515,13 +642,16 @@ test('W A S D and the arrows ask the most speed their way, twice it with Shift, 
 });
 
 test('the view’s velocity eases in and out, and comes to a stop', () => {
+  /* A time constant of 0.07s: the gap is down to 1/e of itself in it. */
+  assert.strictEqual(app.evaluate('TABLE_SCROLL_EASE_S'), 0.07);
   const ease = app.evaluate('tableEaseFor(1000 / 60, TABLE_SCROLL_EASE)');
+  assert.ok(near(1 - app.evaluate('tableEaseFor(70, TABLE_SCROLL_EASE)'), Math.exp(-1), 1e-9), 'the gap is 1/e of itself after 70ms');
   const step = (v, t) => app.copy(app.sandbox.tableVelocityStep(v, t, ease));
   let v = { x: 0, y: 0 };
   let frames = 0, last = 0;
-  while (v.x !== 900 && frames < 200) {
-    v = step(v, { vx: 900, vy: -900 });
-    assert.ok(v.x > last && v.x <= 900, 'it gathers speed, never past what is asked');
+  while (v.x !== 2200 && frames < 200) {
+    v = step(v, { vx: 2200, vy: -2200 });
+    assert.ok(v.x > last && v.x <= 2200, 'it gathers speed, never past what is asked');
     assert.strictEqual(v.y, -v.x, 'each way alike');
     last = v.x;
     frames++;
@@ -666,12 +796,13 @@ const undrive = () => app.evaluate(`
 
 test('holding D moves the view right, and letting go eases it to a stop', () => {
   const run = drive({ zoom: 2.5, keys: ['right'] });
-  for (let i = 0; i < 30; i++) assert.strictEqual(run.frame(), true, 'it asks for another frame while it moves');
+  for (let i = 0; i < 10; i++) assert.strictEqual(run.frame(), true, 'it asks for another frame while it moves');
   const held = run.at();
-  /* Half a second at up to 900px a second, eased in: the view has travelled
-     several hundred window pixels, which is 1/2.5 as many of the rest
-     picture at zoom 2.5. */
-  assert.ok(held.panX > 100 && held.panX < 225, `half a second of D: ${held.panX}`);
+  /* A sixth of a second at up to 2200·√2.5 window pixels a second, eased in
+     over its first 0.07s: some 300 to 580 window pixels, which is 1/2.5 as
+     many of the rest picture at zoom 2.5. */
+  const top = 2200 * Math.sqrt(2.5) / 6 / 2.5;
+  assert.ok(held.panX > top * 0.5 && held.panX < top, `a sixth of a second of D: ${held.panX} of at most ${top}`);
   assert.strictEqual(held.panY, 0, 'and only across');
   run.release();
   let frames = 0;
@@ -684,9 +815,26 @@ test('holding D moves the view right, and letting go eases it to a stop', () => 
   /* With cards still, the speed is there at once and gone at once. */
   const still = drive({ zoom: 2, keys: ['up'], fast: true, motion: false });
   still.frame();
-  assert.ok(near(still.at().panY, -1800 / 60 / 2, 1e-6), `a frame of Shift+W at full speed: ${still.at().panY}`);
+  assert.ok(near(still.at().panY, -2 * 2200 * Math.SQRT2 / 60 / 2, 1e-6), `a frame of Shift+W at full speed: ${still.at().panY}`);
   still.release();
   assert.strictEqual(still.frame(), false, 'and stops dead');
+  undrive();
+});
+
+test('the view travels as far in a fifth of a second at 30 frames a second as at 60, and a stall counts as a tenth of one', () => {
+  assert.strictEqual(app.evaluate('TABLE_FRAME_MAX_MS'), 100);
+  const travel = (fps, seconds = 0.2) => {
+    const run = drive({ zoom: 2, keys: ['right'], motion: false });
+    for (let i = 0; i < Math.round(fps * seconds); i++) app.evaluate(`tableCameraAdvance(${1000 / fps}, false)`);
+    return run.at().panX;
+  };
+  const want = 2200 * Math.SQRT2 * 0.2 / 2;
+  for (const fps of [30, 60, 120]) {
+    assert.ok(near(travel(fps), want, 1e-6), `at ${fps} frames a second: ${travel(fps)} of ${want}`);
+  }
+  const run = drive({ zoom: 2, keys: ['right'], motion: false });
+  app.evaluate('tableCameraAdvance(500, false)');
+  assert.ok(near(run.at().panX, 2200 * Math.SQRT2 * 0.1 / 2, 1e-6), `a half-second stall moves it a tenth of a second’s worth: ${run.at().panX}`);
   undrive();
 });
 
@@ -696,8 +844,8 @@ test('against the rim the view stops, and the frame loop goes to sleep', () => {
   while (run.frame() && frames < 2000) frames++;
   assert.ok(frames < 2000, 'the loop stops itself with the keys still held');
   const s = run.at();
-  const range = app.copy(app.sandbox.tablePanRange(BOUNDS, 2.5, s.panY, W, H));
-  assert.ok(near(s.panX, range.x.lo, 1e-6) && near(s.panY, range.y.lo, 1e-6), `held at the far-left corner: ${JSON.stringify(s)}`);
+  const r = range(2.5);
+  assert.ok(near(s.panX, r.x.lo, 1e-6) && near(s.panY, r.y.lo, 1e-6), `held at the far-left corner, the margin past it: ${JSON.stringify(s)}`);
   assert.strictEqual(run.frame(), false, 'and another frame finds nothing to do');
   /* At the whole table the keys ask nothing at all. */
   const rest = drive({ zoom: 1, keys: ['right'] });

@@ -105,12 +105,19 @@
 //   the keys    W A S D, and the arrows when nothing that answers them has
 //               the focus, held (tablePanKeyDir, tableKeyVelocity).
 //
-// However it is moved, the view is held inside the table (tablePanBounds,
-// tablePanRange, tableClampPan): the rim's edge can be brought to the
-// window's edge on every side, and no further — so zoomed in, none of the
-// room beyond the table ever shows — while zoomed in too little for the table
-// to fill the window, the view stays as centred as the whole table is, and
-// zooming out to the whole table comes back to it.
+// However it is moved, the view is held near the table (tablePanBounds,
+// tablePanRange, tableClampPan): on every side the rim's edge can be brought
+// into the window and a margin past it, TABLE_PAN_MARGIN of the window, so
+// that every part of the table — the whole rim and every chip on it, the near
+// corners too — can be had fully in view, at any zoom past the whole table,
+// and the rim never ends jammed against the window's edge. Across, that is
+// measured where the table is widest, its near edge: the table narrows
+// towards its far side, so with the view pushed to a side near the top of the
+// table a little of the room beyond shows in that corner — the page's colour,
+// the price of reaching the near corners. Zooming out to the whole table
+// still comes back to the rest view: the margin grows in from nothing over
+// the first TABLE_PAN_MARGIN_RAMP of the zoom, and at 1 the table fills the
+// window and the rest view is the only one.
 //
 // The wheel, the keys and the pointer only set where the zoom and the lean
 // are *going*, and what velocity the view is asked for; a frame loop eases
@@ -432,32 +439,62 @@ const TABLE_SETTLED_ZOOM   = 0.0001;
 const TABLE_CAMERA_KEYS    = ['zoom', 'leanX', 'leanY'];
 const TABLE_CAMERA_REST    = Object.freeze({ zoom: 1, leanX: 0, leanY: 0, panX: 0, panY: 0 });
 
+/* How far past the rim the view may be taken (tablePanRange): far enough to
+ * bring the rim's edge TABLE_PAN_MARGIN of the window in from the window's
+ * edge on that side — 8% of the window across that way, in the window's own
+ * pixels at any zoom, so a rim chip pushed to the side is fully in view with
+ * room round it rather than jammed against the screen's edge. The margin
+ * grows in from nothing at the whole table to all of it at
+ * 1 + TABLE_PAN_MARGIN_RAMP (straight with the zoom): at 1 the rest view must
+ * be the only one, so that zooming out comes back to it, and a margin that
+ * only grows as the zoom goes in never holds a zoom in about the pointer. */
+const TABLE_PAN_MARGIN      = 0.08;
+const TABLE_PAN_MARGIN_RAMP = 0.25;
+
 /* Getting round a zoomed table. Three ways, each a velocity in the window's
  * pixels a second, eased in and out (tableVelocityStep) and added together:
  *
  *   the edges   the pointer resting in a band along an edge of the window —
  *               TABLE_EDGE_BAND_PX deep, or TABLE_EDGE_BAND_FRACTION of the
  *               window across that edge, whichever is deeper — scrolls the
- *               view that way, faster the deeper it is, up to
- *               TABLE_SCROLL_MAX at the window's very edge; a corner both
- *               ways (tableEdgeVelocity)
- *   the keys    W A S D, and the arrows, held: TABLE_SCROLL_MAX each way,
- *               TABLE_SCROLL_FAST times that with Shift (tableKeyVelocity)
+ *               view that way, faster the deeper it is (tableEdgeRamp): from
+ *               nothing at the band's inner edge, on a smoothstep, to the
+ *               top speed already TABLE_EDGE_FULL_AT of the way into it, so
+ *               the outer part of the band is all top speed and the pointer
+ *               need not be pinned to the window's last pixel to travel; a
+ *               corner both ways (tableEdgeVelocity)
+ *   the keys    W A S D, and the arrows, held: the top speed each way,
+ *               TABLE_SCROLL_FAST times it with Shift (tableKeyVelocity)
  *   the hand    a press on bare felt or wood, dragged, moves the table with
  *               it one to one (tableGrabPan) — a position, not a velocity
  *
- * The velocity closes TABLE_SCROLL_EASE of its gap to what is asked in a
- * sixtieth of a second — about a tenth of a second to get going and as long
- * to stop, so the view neither jerks into motion nor stops dead — and one
- * within TABLE_SETTLED_SPEED of it is there. Nine hundred pixels a second
- * crosses a desktop window in about a second and a half: quick enough to
- * travel, slow enough to stop where you meant. */
+ * The top speed is TABLE_SCROLL_MAX window pixels a second at zoom 1, times
+ * the square root of the zoom (tableScrollSpeed): 2200 crosses a desktop
+ * window in well under a second, and at 2.5 it is about 3500, so that the
+ * table — two and a half times as large on the screen — is still crossed
+ * quickly, a little faster in the table's own distance than straight
+ * multiplying would leave it slower.
+ *
+ * The velocity closes on what is asked with a time constant of
+ * TABLE_SCROLL_EASE_S — TABLE_SCROLL_EASE of the gap in a sixtieth of a
+ * second, compounded for other frame lengths (tableEaseFor) — so the view
+ * gets going and comes to a stop in a few hundredths of a second: no jerk
+ * into motion, no dead stop, and nothing sluggish at the higher speed. One
+ * within TABLE_SETTLED_SPEED of it is there.
+ *
+ * Every frame moves the view by the real time since the last, so nothing is
+ * lost at 30 or 60 frames a second; only a frame longer than
+ * TABLE_FRAME_MAX_MS — a stall, a tab coming back from the background — is
+ * counted as that long, so the view never lands somewhere in a single leap. */
 const TABLE_EDGE_BAND_PX       = 32;
 const TABLE_EDGE_BAND_FRACTION = 0.03;
-const TABLE_SCROLL_MAX         = 900;
+const TABLE_EDGE_FULL_AT       = 0.6;
+const TABLE_SCROLL_MAX         = 2200;
 const TABLE_SCROLL_FAST        = 2;
-const TABLE_SCROLL_EASE        = 0.15;
+const TABLE_SCROLL_EASE_S      = 0.07;
+const TABLE_SCROLL_EASE        = 1 - Math.exp(-TABLE_FRAME_MS / 1000 / TABLE_SCROLL_EASE_S);
 const TABLE_SETTLED_SPEED      = 1;
+const TABLE_FRAME_MAX_MS       = 100;
 
 /* What a pointer resting in an edge band may be over without the view
  * scrolling: a control lying on the table — a tab, the slider, the slip and
@@ -909,89 +946,89 @@ function tableZoomAbout(view, zoom, anchor, width, height, lean = TABLE_PAN_REST
   };
 }
 
-/* The table's outline in the rest picture — the picture the camera scales
- * and moves — from the geometry tableMeasure reads: the plane's four corners,
- * drawn through the perspective and the tilt with the camera at rest. Tilted
- * about its width, the table is a trapezoid there, its far edge across the
- * top narrower than its near edge across the bottom, and each side a straight
- * line between (tableBoundsAt).
- *
- * The corners are taken in from the plane's by the part of its rounded
- * corner, r·(1 − 1/√2), that leaves the window's corner on the curve itself
- * when the window is pushed into the table's corner: so the rim's edge comes
- * to the window's edges and not a pixel of the room beyond shows in the
- * corner. Null when there is no plane to measure. */
+/* The table's extent in the rest picture — the picture the camera scales
+ * and moves — from the geometry tableMeasure reads: the plane's four outer
+ * corners, drawn through the perspective and the tilt with the camera at
+ * rest. Tilted about its width, the table is a trapezoid there, its far edge
+ * across the top narrower than its near edge across the bottom; what the pan
+ * is held to is the box round it — down, the far rim to the near rim, and
+ * across, where it is widest, the near edge — so that every part of the
+ * table, its near corners and the chips by them among it, lies inside what
+ * the view can be taken to (tablePanRange). Null when there is no plane to
+ * measure. */
 function tablePanBounds({ perspective, origin, plane, tilt = TABLE_TILT_REST } = {}) {
   const w = Number(plane?.width) || 0, h = Number(plane?.height) || 0;
   if (!(w > 0 && h > 0) || !origin) return null;
-  const k = Math.min(w / 2, h / 2, Math.max(0, Number(plane.radius) || 0) * (1 - Math.SQRT1_2));
   const m = tablePlaneMatrix({
     perspective, origin, plane, tilt, mat: { left: 0, top: 0 }, camera: { zoom: 1, tx: 0, ty: 0 },
   });
-  const fl = tableProject(m, k, k), fr = tableProject(m, w - k, k);
-  const nl = tableProject(m, k, h - k), nr = tableProject(m, w - k, h - k);
+  const fl = tableProject(m, 0, 0), fr = tableProject(m, w, 0);
+  const nl = tableProject(m, 0, h), nr = tableProject(m, w, h);
   if (!fl || !fr || !nl || !nr) return null;
   return {
-    top: Math.max(fl.y, fr.y), bottom: Math.min(nl.y, nr.y),
-    farLeft: fl.x, farRight: fr.x, nearLeft: nl.x, nearRight: nr.x,
+    top:    Math.min(fl.y, fr.y),
+    bottom: Math.max(nl.y, nr.y),
+    left:   Math.min(fl.x, nl.x),
+    right:  Math.max(fr.x, nr.x),
   };
 }
 
-/* The table's left and right edges, in the rest picture, across the row `y`
- * of it — held to the table's own rows. */
-function tableBoundsAt(bounds, y) {
-  const depth = bounds.bottom - bounds.top;
-  const t = depth > 0 ? Math.min(1, Math.max(0, (y - bounds.top) / depth)) : 0;
-  return {
-    left:  bounds.farLeft  + (bounds.nearLeft  - bounds.farLeft)  * t,
-    right: bounds.farRight + (bounds.nearRight - bounds.farRight) * t,
-  };
+/* The margin the view may be taken past the rim at `zoom`, in window pixels,
+ * across a window `size` pixels that way: TABLE_PAN_MARGIN of it, grown in
+ * over the first TABLE_PAN_MARGIN_RAMP of the zoom from none at the whole
+ * table. It only grows as the zoom goes in, which is what lets a zoom in about
+ * the pointer go unheld (tableClampPan). */
+function tablePanMargin(zoom, size) {
+  const z = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(zoom) || 1));
+  const grown = Math.min(1, (z - 1) / TABLE_PAN_MARGIN_RAMP);
+  return TABLE_PAN_MARGIN * Math.max(0, Number(size) || 0) * grown;
 }
 
-/* How far the pan may go at `zoom`, an axis at a time, with the pan down the
- * window at `panY`: { x, y }, each { lo, hi, edgeLo, edgeHi }.
+/* How far the pan may go at `zoom`, an axis at a time: { x, y }, each
+ * { lo, hi, rimLo, rimHi, margin }.
  *
- * edgeLo and edgeHi are the pans that bring the rim's edge to the window's
- * edge on that side — no further, or the room beyond the table shows. Across,
- * the edge is the table's at the window's top row: the table widens towards
- * the viewer, so the top row is the narrowest the window holds, and the side
- * that touches the window there is inside it all the way down.
- *
- * lo and hi are those, or the rest view's 0 where that is further: zoomed in
- * only a little, the table cannot fill the window yet, and where it cannot
- * the view stays as centred as the whole table is — which is also what makes
- * the range at zoom 1 nothing but the rest view, and a zoom out to 1 come
- * back to it. */
-function tablePanRange(bounds, zoom, panY, width, height) {
+ * rimLo and rimHi are the pans that bring the rim's edge to the window's edge
+ * on that side, and `margin` how much further the view may go, in window
+ * pixels (tablePanMargin): lo and hi are the rim's pans taken that much
+ * further — a rest-picture pixel is `zoom` window pixels — or the rest view's
+ * 0 where that is further still. Zoomed in only a little, the table does not
+ * yet fill the window that way, and there the view stays as centred as the
+ * whole table is; which is also what makes the range at zoom 1, where the
+ * margin is none and the fitted table lies inside the window, nothing but the
+ * rest view, and a zoom out to 1 come back to it. Across, the bounds are the
+ * near edge's, the widest the table is, so a little past the whole table the
+ * view can already be taken across wherever the table runs past the window. */
+function tablePanRange(bounds, zoom, width, height) {
   const z = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(zoom) || 1));
   const axis = (low, high, size) => {
-    const half = size / (2 * z);
-    const edgeLo = low + half - size / 2, edgeHi = high - half - size / 2;
-    return { lo: Math.min(0, edgeLo), hi: Math.max(0, edgeHi), edgeLo, edgeHi };
+    const half = size / (2 * z), margin = tablePanMargin(z, size);
+    const rimLo = low + half - size / 2, rimHi = high - half - size / 2;
+    return {
+      lo: Math.min(0, rimLo - margin / z), hi: Math.max(0, rimHi + margin / z),
+      rimLo, rimHi, margin,
+    };
   };
-  const y = axis(bounds.top, bounds.bottom, height);
-  const top = height / 2 + (Number(panY) || 0) - height / (2 * z);
-  const row = tableBoundsAt(bounds, top);
-  return { x: axis(row.left, row.right, width), y };
+  return { x: axis(bounds.left, bounds.right, width), y: axis(bounds.top, bounds.bottom, height) };
 }
 
-/* The pan of `next` held inside the table, given `prev`, the camera before
- * this step: { panX, panY }. Down first, since which row of the table the
- * window's top lies on decides how far across it may go.
+/* The pan of `next` held near the table, given `prev`, the camera before this
+ * step: { panX, panY }, each axis on its own.
  *
- * Inside tablePanRange the pan is free. Outside it, what is held to is the
- * room beyond the rim the window shows on that side, measured on the screen:
+ * What is held to is the room the window shows past the rim on that side,
+ * measured on the screen, in window pixels. Up to the margin it is always
+ * allowed (tablePanRange). Past it, it is room the view was left showing —
+ * zoomed in about a point near the rim from a view that showed some — and
  *
  *   a pan, or a zoom in — it may shrink, never grow. A zoom in about a point
- *     inside the window shows nothing that was not there already, so this
- *     never holds it, and the point under the pointer stays exactly where it
- *     is however near the rim it was turned; but the view, once there, is
- *     panned only back towards the table. Over the room itself, it holds a
- *     zoom from showing more of it.
+ *     of the table shows less room past the rim on the screen, never more,
+ *     and the margin only grows with the zoom, so this never holds it: the
+ *     point under the pointer stays exactly where it is however near the rim
+ *     it was turned. Over the room itself, it holds a zoom from showing more
+ *     of it than the margin.
  *   a zoom out — it shrinks with the zoom's way back to 1, and is gone at 1,
  *     where the range is the rest view and nothing else.
- *   `strict` — none at all: the range alone (a resize, where the old view's
- *     measure means nothing in the new window).
+ *   `strict` — none past the margin: the range alone (a resize, where the old
+ *     view's measure means nothing in the new window).
  *
  * With no bounds — no table measured — the pan is left as it is asked. */
 function tableClampPan(next, prev, bounds, width, height, { strict = false } = {}) {
@@ -1000,15 +1037,18 @@ function tableClampPan(next, prev, bounds, width, height, { strict = false } = {
   const z1 = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(next.zoom) || 1));
   const z0 = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(prev?.zoom) || 1));
   const keep = strict ? 0 : z1 < z0 ? (z0 > 1 ? (z1 - 1) / (z0 - 1) : 0) : 1;
-  const was = tablePanRange(bounds, z0, prev?.panY, width, height);
-  const hold = (value, now, then, p0) => {
-    const room = over => keep * z0 * Math.max(0, over) / z1;
-    const lo = Math.min(now.lo, now.edgeLo - room(then.edgeLo - p0));
-    const hi = Math.max(now.hi, now.edgeHi + room(p0 - then.edgeHi));
+  const was = tablePanRange(bounds, z0, width, height);
+  const now = tablePanRange(bounds, z1, width, height);
+  const hold = (value, at, then, p0) => {
+    /* The room past the rim the view showed, kept by `keep`, against the
+       margin: whichever is more is what it may show now. */
+    const room = over => Math.max(at.margin, keep * z0 * Math.max(0, over)) / z1;
+    const lo = Math.min(at.lo, at.rimLo - room(then.rimLo - p0));
+    const hi = Math.max(at.hi, at.rimHi + room(p0 - then.rimHi));
     return Math.min(hi, Math.max(lo, value));
   };
-  const y = hold(panY, tablePanRange(bounds, z1, panY, width, height).y, was.y, Number(prev?.panY) || 0);
-  const x = hold(panX, tablePanRange(bounds, z1, y, width, height).x, was.x, Number(prev?.panX) || 0);
+  const x = hold(panX, now.x, was.x, Number(prev?.panX) || 0);
+  const y = hold(panY, now.y, was.y, Number(prev?.panY) || 0);
   return { panX: x || 0, panY: y || 0 };
 }
 
@@ -1036,30 +1076,49 @@ function tableEdgeBand(size) {
   return Math.max(TABLE_EDGE_BAND_PX, TABLE_EDGE_BAND_FRACTION * (Number(size) || 0));
 }
 
-/* The velocity a pointer at (x, y) asks of the view, in window pixels a
- * second: { vx, vy }, positive to scroll right and towards the viewer. None in
- * the middle of the window; in a band along an edge, that way, growing
- * straight with how deep into the band the pointer is, to TABLE_SCROLL_MAX on
- * the window's last pixel; in a corner, both ways at once. A pointer outside
- * the window — or not known — asks nothing. */
-function tableEdgeVelocity(x, y, width, height) {
+/* The top speed the view scrolls at, at `zoom`, in window pixels a second:
+ * TABLE_SCROLL_MAX times the square root of the zoom, so a table drawn larger
+ * is still got round quickly. */
+function tableScrollSpeed(zoom = 1) {
+  const z = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(zoom) || 1));
+  return TABLE_SCROLL_MAX * Math.sqrt(z);
+}
+
+/* How much of the top speed a pointer `t` of the way into an edge band asks —
+ * 0 at the band's inner edge, 1 at the window's — 0 to 1: a smoothstep that
+ * has arrived at all of it TABLE_EDGE_FULL_AT of the way in, so the speed
+ * gathers without a step where the band begins and the outer part of the
+ * band is all top speed. */
+function tableEdgeRamp(t) {
+  const u = Math.min(1, Math.max(0, (Number(t) || 0) / TABLE_EDGE_FULL_AT));
+  return u * u * (3 - 2 * u);
+}
+
+/* The velocity a pointer at (x, y) asks of the view at `zoom`, in window
+ * pixels a second: { vx, vy }, positive to scroll right and towards the
+ * viewer. None in the middle of the window; in a band along an edge, that
+ * way, growing with how deep into the band the pointer is (tableEdgeRamp) to
+ * the top speed (tableScrollSpeed); in a corner, both ways at once. A pointer
+ * outside the window — or not known — asks nothing. */
+function tableEdgeVelocity(x, y, width, height, zoom = 1) {
+  const speed = tableScrollSpeed(zoom);
   const axis = (at, size) => {
     const n = Number(at);
     if (!(size > 0) || !Number.isFinite(n) || n < 0 || n >= size) return 0;
     const band = tableEdgeBand(size);
-    const depth = d => Math.min(1, Math.max(0, 1 - d / band));
-    return TABLE_SCROLL_MAX * (depth(size - 1 - n) - depth(n)) || 0;
+    const depth = d => tableEdgeRamp(1 - d / band);
+    return speed * (depth(size - 1 - n) - depth(n)) || 0;
   };
   return { vx: axis(x, width), vy: axis(y, height) };
 }
 
-/* The velocity the keys held ask of the view: `held`, the directions held
- * ('up', 'down', 'left', 'right'), each TABLE_SCROLL_MAX that way —
- * TABLE_SCROLL_FAST times it with Shift — and two at once, both: up is
- * towards the table's far side, the view moving up it. */
-function tableKeyVelocity(held, fast = false) {
+/* The velocity the keys held ask of the view at `zoom`: `held`, the
+ * directions held ('up', 'down', 'left', 'right'), each the top speed that
+ * way (tableScrollSpeed) — TABLE_SCROLL_FAST times it with Shift — and two at
+ * once, both: up is towards the table's far side, the view moving up it. */
+function tableKeyVelocity(held, fast = false, zoom = 1) {
   const set = new Set(held || []);
-  const speed = TABLE_SCROLL_MAX * (fast ? TABLE_SCROLL_FAST : 1);
+  const speed = tableScrollSpeed(zoom) * (fast ? TABLE_SCROLL_FAST : 1);
   const way = (plus, minus) => ((set.has(plus) ? 1 : 0) - (set.has(minus) ? 1 : 0)) * speed || 0;
   return { vx: way('right', 'left'), vy: way('down', 'up') };
 }
@@ -1232,7 +1291,7 @@ function tableFitSize(view, { perspective, tilt = TABLE_TILT_REST, gutter = TABL
  * held to a tenth of a second, so a tab coming back from the background does
  * not land the view in a single jump. */
 function tableEaseFor(dt, ease) {
-  const frames = Math.min(100, Math.max(0, Number(dt) || 0)) / TABLE_FRAME_MS;
+  const frames = Math.min(TABLE_FRAME_MAX_MS, Math.max(0, Number(dt) || 0)) / TABLE_FRAME_MS;
   return 1 - Math.pow(1 - ease, frames);
 }
 
@@ -2549,7 +2608,9 @@ function tableCameraAdvance(dt, motion) {
     ? tableVelocityStep(tableVel, ask, tableEaseFor(dt, TABLE_SCROLL_EASE))
     : { x: ask.vx, y: ask.vy };
   if (tableVel.x || tableVel.y) {
-    const per = Math.min(100, Math.max(0, Number(dt) || 0)) / 1000 / next.zoom;
+    /* The real length of the frame, so no distance is lost at any frame
+       rate; held only for a stall (TABLE_FRAME_MAX_MS). */
+    const per = Math.min(TABLE_FRAME_MAX_MS, Math.max(0, Number(dt) || 0)) / 1000 / next.zoom;
     const moved = { ...next, panX: next.panX + tableVel.x * per, panY: next.panY + tableVel.y * per };
     const held = tableClampPan(moved, next, tableBounds, width, height);
     if (Math.abs(held.panX - moved.panX) > 1e-6) tableVel = { ...tableVel, x: 0 };
@@ -2572,11 +2633,11 @@ function tablePanAsk() {
   if (!tableGeom || !(tableAt.zoom > 1) || tableGrab || tableScaleHeld || tableLooked) return ask;
   const { width, height } = tableGeom.view;
   if (tableEdgeLive()) {
-    const edge = tableEdgeVelocity(tablePointer.x, tablePointer.y, width, height);
+    const edge = tableEdgeVelocity(tablePointer.x, tablePointer.y, width, height, tableAt.zoom);
     ask.vx += edge.vx;
     ask.vy += edge.vy;
   }
-  const keys = tableKeyVelocity(tableKeysHeld, tableKeysFast);
+  const keys = tableKeyVelocity(tableKeysHeld, tableKeysFast, tableAt.zoom);
   ask.vx += keys.vx;
   ask.vy += keys.vy;
   return ask;

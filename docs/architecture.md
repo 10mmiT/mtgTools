@@ -134,7 +134,7 @@ mtgtools/
 │       │                  # two sides round a wide mat, panes lifted into panels and put back, the
 │       │                  # camera zooming over it with its cards kept sharp — moved round a
 │       │                  # zoomed table by the window's edges, a hand on the felt and W A S D,
-│       │                  # never past the rim — cards
+│       │                  # no further than a margin past the rim — cards
 │       │                  # picked up off the mat with a ringed mark where they will land, each
 │       │                  # tab's own cards laid there
 │       │                  # (read through a small getter beside each tab's renderer) with its
