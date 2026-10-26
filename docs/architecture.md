@@ -53,7 +53,11 @@ mtgtools/
 │                            # and when its slip and bin show, the bin's hit on the far rim
 │                            # and what a card put in it does to the deck; its zones — how
 │                            # one fits its cards, the first layout, the kept rects, the
-│                            # zone a card is let go over, who may change them
+│                            # zone a card is let go over, who may change them; the card-size
+│                            # slider — its range and keeping, every layout at 50/100/150%
+│                            # (100% as before, none off the mat), moved cards kept, the
+│                            # pictures it asks for; the drawer's chips, its docked panel and
+│                            # what it leaves untucked; Add one through the builder's stepper
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -134,7 +138,10 @@ mtgtools/
 │       │                  # at the head, and on the far rim a slip to add a card and a bin to
 │       │                  # drop one in, and a chip laying the deck a zone per category — zones
 │       │                  # moved, resized and renamed on the felt, a card carried between them
-│       │                  # moving category; the Card sheet closing back to the view it was
+│       │                  # moving category — chips opening the builder's own Search, EDHREC
+│       │                  # and Lands drawer in a panel docked beside the table, and Add one on
+│       │                  # a card picked up to look at; a card-size slider on the far rim for
+│       │                  # every tab's cards; the Card sheet closing back to the view it was
 │       │                  # opened over; window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
