@@ -244,7 +244,17 @@
 //                  dbChangeQty by -1, or dbRemoveCard for the last) and the
 //                  card goes into the bin. "Remove one" under a card being
 //                  looked at does the same. The app's notice says what went;
-//                  there is no undo beyond the deck's history.
+//                  there is no undo beyond the deck's history. "Add one"
+//                  beside it puts one more copy in, by the builder's own
+//                  stepper (tableAddOne: dbChangeQty by +1), the count on the
+//                  card changing where it lies — never for a commander, which
+//                  the builder offers no second copy of.
+//   the drawer     Search, EDHREC and Lands, the builder's drawer's three tabs,
+//                  a chip each on the far rim right of the slip: the drawer
+//                  itself lent to a panel of its own docked to the left of the
+//                  window, beside the table, where a card added from it is
+//                  seen landing and the drawer stays as it was for the next.
+//                  See "The Deck Builder's drawer, on the table", below.
 //
 // A table card knows its deck card by its ref — board and name, the builder's
 // own key for it (dbCardRef) — carried from the getters through the source
@@ -257,6 +267,13 @@
 // label, resized by its grip, renamed in place; a card carried into another
 // zone moves into that category by the builder's own drop. Off, the piles are
 // exactly as they were. See "The Deck Builder's zones", its own section below.
+//
+// ── The card-size slider ─────────────────────────────────────────────────
+// On the far rim's left-hand end, on every tab that lays cards: the cards
+// drawn from half their size to half as large again, kept per browser
+// (TABLE_CARD_SCALE_*). At its rest, 100%, every layout is the one the table
+// has always laid; moved, it resizes the cards where they lie rather than
+// laying them again. See its own section below.
 //
 // ── For the next half: the API ────────────────────────────────────────────
 //
@@ -307,7 +324,9 @@
 // bin: when they show, the bin's hit on the rim, and what a card put in it
 // does to the deck — and its zones: how a zone fits its cards, how the zones
 // are laid out the first time and kept, which zone a card is let go over, and
-// who may change them.
+// who may change them; the card-size slider's range and keeping, the layouts
+// at its every size, and the pictures it asks for; the drawer's chips, where
+// its panel docks, and what it leaves untucked; and what Add one does.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -530,6 +549,28 @@ const TABLE_CARD_MIN_W = 72;
 const TABLE_CARD_MAX_W = 150;
 const TABLE_CARD_RATIO = 88 / 63;
 
+/* The card-size slider on the far rim: every card the table lays drawn at
+ * this share of the size above, from half of it to half as large again. 1
+ * is the size above exactly — the slider at rest lays every tab as the table
+ * always has, to the pixel (tableCardWidth). Kept per browser, like the
+ * switch and the Zones chip (TABLE_CARD_SCALE_KEY), and not per tab: a hand
+ * that wants bigger cards wants them on every tab. The range steps by
+ * TABLE_CARD_SCALE_STEP, and the − and + beside it by TABLE_CARD_SCALE_NUDGE,
+ * so ten presses cross the whole range.
+ *
+ * Larger is bounded by the mat as well as by the slider: a card grown past
+ * what a pile — and the commander's band above it — can lie on the mat whole
+ * in is grown only as far as that (tableCardWidthFor), never shrunk below
+ * the size at 1. TABLE_HEAD_PAD is the padding the layout keeps round the
+ * piles and above the head band, as a share of a card's width — the number
+ * tableLayout and tableHeadSpots pad by, and the reckoning counts. */
+const TABLE_CARD_SCALE_KEY   = 'mtgtools_table_card_scale';
+const TABLE_CARD_SCALE_MIN   = 0.5;
+const TABLE_CARD_SCALE_MAX   = 1.5;
+const TABLE_CARD_SCALE_STEP  = 0.05;
+const TABLE_CARD_SCALE_NUDGE = 0.1;
+const TABLE_HEAD_PAD         = 0.35;
+
 /* The fans the layout draws. A pile's slot is about this many times as wide as
  * it is tall, because a fan spreads sideways. The step between two cards in a
  * fan is at most TABLE_FAN_MAX of a card's width, and never under a third of
@@ -558,6 +599,33 @@ const TABLE_PANEL_MAX_VH = 0.8;
 const TABLE_PANEL_MIN_W  = 560;
 const TABLE_PANEL_GAP    = 12;
 
+/* The Deck Builder's drawer — Search, EDHREC and Lands, its three tabs —
+ * floated over the table in a panel of its own, opened by a chip each on the
+ * far rim (tableDrawerOpen). Narrower than a floating page: TABLE_DRAWER_VW
+ * of the window, held between TABLE_DRAWER_MIN_W and TABLE_DRAWER_MAX_W, and
+ * docked to one side, so the table it adds cards to stays in view beside it
+ * (tableDrawerBox). Each chip names the drawer's tab it opens (dbSetLeftTab's
+ * name for it), the label it wears and its icon, drawn in the sidebar's own
+ * hand (a 24-unit box, a 2.2 stroke, round ends): a lens for Search, as the
+ * sidebar's Scryfall Search wears; a rising line for EDHREC, what other
+ * decks run most; a mountain for Lands, as the sidebar's Mana Base wears.
+ * `look` is whether it is offered for a deck the user may only look at
+ * (tableDrawerChipsShown). */
+const TABLE_DRAWER_MIN_W = 420;
+const TABLE_DRAWER_MAX_W = 520;
+const TABLE_DRAWER_VW    = 0.34;
+const TABLE_DRAWER_ICON_OPEN =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const TABLE_DRAWER_TABS = Object.freeze([
+  { tab: 'search', label: 'Search', look: true,
+    icon: `${TABLE_DRAWER_ICON_OPEN}<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>` },
+  { tab: 'edhrec', label: 'EDHREC', look: true,
+    icon: `${TABLE_DRAWER_ICON_OPEN}<polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>` },
+  { tab: 'lands',  label: 'Lands',  look: false,
+    icon: `${TABLE_DRAWER_ICON_OPEN}<path d="M3 20l5-10 4 7 3-5 6 8H3z"/><line x1="3" y1="20" x2="21" y2="20"/></svg>` },
+]);
+
 /* What the mat says when there is nothing on it. */
 const TABLE_HINT = 'Choose a tab from the rim';
 
@@ -578,6 +646,15 @@ const TABLE_EMPTY_HINT = 'No cards to show';
 const TABLE_FEATURE_SHARE = 0.78;
 const TABLE_FEATURE_MAX   = 0.3;
 const TABLE_FEATURE_PAD   = 0.12;
+
+/* And how far the card-size slider may grow that card: no taller than
+ * TABLE_FEATURE_FIT of the mat, and with its lane no wider than
+ * TABLE_FEATURE_WIDE of it, so that at the slider's top it still lies whole
+ * on the mat and the sheet beside it keeps half the mat to be read in. At 1
+ * neither is reached: the lane is then at most TABLE_FEATURE_MAX of the mat
+ * and its padding. */
+const TABLE_FEATURE_FIT   = 0.96;
+const TABLE_FEATURE_WIDE  = 0.5;
 
 /* A card at the head of the mat — the Deck Builder's commander, or both of a
  * pair of partners — lies front and centre at the far side, a tenth larger
@@ -989,10 +1066,70 @@ function tableParseOrigin(value, width, height) {
   return { x: read(parts[0], width), y: read(parts[1], height) };
 }
 
-/* How wide a card is drawn on a mat this wide. */
-function tableCardWidth(matWidth) {
+/* How wide a card is drawn on a mat this wide, at `scale` of the table's own
+ * size (the card-size slider's, TABLE_CARD_SCALE_*). The bounds are the
+ * size's at 1, and the slider scales what they leave — so at 1 this is the
+ * width the table has always drawn, rounded the same way, and the slider's
+ * range is the same share of it on any window. */
+function tableCardWidth(matWidth, scale = 1) {
   const share = (Number(matWidth) || 0) * TABLE_CARD_SHARE;
-  return Math.round(Math.min(TABLE_CARD_MAX_W, Math.max(TABLE_CARD_MIN_W, share)));
+  const base = Math.min(TABLE_CARD_MAX_W, Math.max(TABLE_CARD_MIN_W, share));
+  return Math.round(base * tableCardScaleClamp(scale));
+}
+
+/* The width a card is drawn at on a mat of the given size, at `scale`, for
+ * the piles: tableCardWidth's, except that a card grown past 1 is grown no
+ * further than lets it lie on the mat whole — `head`, whether a commander
+ * lies at the head of the mat, decides how much of the mat's height the
+ * piles have. With no head, a card no taller than the mat; with one, the
+ * head band — its padding and the head card, TABLE_HEAD_SCALE times a card
+ * — and a whole card of pile below it, which is what tableLayout needs to
+ * keep every centre a half card inside the mat (its clamp). And no wider
+ * than the mat, nor the head card either. Never smaller than at 1: the cap
+ * only holds the growth back, so at 1 and below it is tableCardWidth. */
+function tableCardWidthFor(matWidth, matHeight, scale = 1, { head = false } = {}) {
+  const base = tableCardWidth(matWidth);
+  const want = tableCardWidth(matWidth, scale);
+  if (!(want > base)) return want;
+  const width = Math.max(0, Number(matWidth) || 0), height = Math.max(0, Number(matHeight) || 0);
+  const tall = head ? TABLE_HEAD_PAD + (TABLE_HEAD_SCALE + 1) * TABLE_CARD_RATIO : TABLE_CARD_RATIO;
+  const fit = Math.min(width / (head ? TABLE_HEAD_SCALE : 1), height / tall);
+  return Math.max(base, Math.min(want, Math.floor(fit)));
+}
+
+/* A value for the card-size slider: a number, held inside its range and put
+ * on its step — a stored string included — and 1, the table's own size, for
+ * anything that is not a number at all. Rounded to the hundredth after the
+ * step, so 0.55 is 0.55 and not the float the division left. */
+function tableCardScaleClamp(value) {
+  if (value == null || value === '') return 1;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 1;
+  const held = Math.min(TABLE_CARD_SCALE_MAX, Math.max(TABLE_CARD_SCALE_MIN, n));
+  return Math.round(Math.round(held / TABLE_CARD_SCALE_STEP) * TABLE_CARD_SCALE_STEP * 100) / 100;
+}
+
+/* The slider's kept value, guarded as the switch's is: storage that cannot
+ * be read is the table's own size. Nothing is kept for 1, so a browser that
+ * never moved the slider keeps nothing. */
+function readTableCardScale() {
+  try { return tableCardScaleClamp(localStorage.getItem(TABLE_CARD_SCALE_KEY)); }
+  catch { return 1; }
+}
+
+function rememberTableCardScale(scale) {
+  const s = tableCardScaleClamp(scale);
+  try {
+    if (s === 1) localStorage.removeItem(TABLE_CARD_SCALE_KEY);
+    else         localStorage.setItem(TABLE_CARD_SCALE_KEY, String(s));
+  } catch {}
+}
+
+/* Whether the slider lies on the far rim: on every tab that lays cards, for
+ * as long as that tab's cards are the ones on the mat (`scope`, the tab that
+ * laid them). A list laid through the API is nobody's tab, and has none. */
+function tableScaleShown(scope) {
+  return tableIsCardTab(scope);
 }
 
 /* Where each card lies on a mat of the given size, as fractions of it: the
@@ -1020,15 +1157,23 @@ function tableCardWidth(matWidth) {
  * At most TABLE_DECK_CARDS_MAX cards; a centre is kept far enough inside the mat
  * that the card does not hang off it, or into either band. Returns the card's
  * size in pixels too, since that is decided here — the size of a card in a
- * pile; a head card is drawn TABLE_HEAD_SCALE times it. */
-function tableLayout(cards, width, height, reserve = {}) {
+ * pile; a head card is drawn TABLE_HEAD_SCALE times it.
+ *
+ * `scale` is the card-size slider's (tableCardWidthFor): at 1 every answer
+ * is the one this has always given. Larger or smaller, everything below is
+ * worked out from the card's size and so follows it — the padding, the
+ * slots' fit, the rows a pile breaks onto and the overlap of a fan — and a
+ * card grown past what the mat holds whole is grown only that far. */
+function tableLayout(cards, width, height, reserve = {}, scale = 1) {
   const list = (cards || []).slice(0, TABLE_DECK_CARDS_MAX);
-  const w = tableCardWidth(width);
+  const below = Math.max(0, Number(reserve?.bottom) || 0);
+  const w = tableCardWidthFor(width, Math.max(0, (Number(height) || 0) - below), scale,
+    { head: list.some(card => card && card.head) });
   const h = w * TABLE_CARD_RATIO;
   if (!list.length || !(width > 0) || !(height > 0)) {
     return { width: w, height: h, spots: list.map(() => ({ x: 0.5, y: 0.5, turn: 0 })) };
   }
-  const pad   = w * 0.35;
+  const pad   = w * TABLE_HEAD_PAD;
   const spots = new Array(list.length);
 
   /* The head band first: what it holds decides where the piles may begin. */
@@ -1103,7 +1248,7 @@ function tableLayout(cards, width, height, reserve = {}) {
 function tableHeadSpots(count, width, height, w, h) {
   const n = Math.max(0, Math.floor(Number(count) || 0));
   if (!n || !(width > 0) || !(height > 0)) return { spots: [], bottom: 0 };
-  const pad = w * 0.35;
+  const pad = w * TABLE_HEAD_PAD;
   const W = w * TABLE_HEAD_SCALE, H = h * TABLE_HEAD_SCALE;
   const step = W + w * TABLE_HEAD_GAP;
   const y = Math.min(height / 2, pad + H / 2);
@@ -1129,19 +1274,25 @@ function tableFanRows(count, room, slotH, w, h) {
 }
 
 /* The size of the one card the Card tab lays, on a mat of the given size, and
- * the width of the lane it lies in down the mat's right-hand side. */
-function tableFeatureSize(matWidth, matHeight) {
+ * the width of the lane it lies in down the mat's right-hand side — at
+ * `scale`, the card-size slider's: smaller in proportion, and larger only
+ * as far as TABLE_FEATURE_FIT and TABLE_FEATURE_WIDE let it grow, never
+ * below its size at 1. At 1 it is the size it has always been. */
+function tableFeatureSize(matWidth, matHeight, scale = 1) {
   const width = Math.max(0, Number(matWidth) || 0), height = Math.max(0, Number(matHeight) || 0);
-  const w = Math.round(Math.min(height * TABLE_FEATURE_SHARE / TABLE_CARD_RATIO, width * TABLE_FEATURE_MAX));
+  const base = Math.min(height * TABLE_FEATURE_SHARE / TABLE_CARD_RATIO, width * TABLE_FEATURE_MAX);
+  const fit  = Math.min(height * TABLE_FEATURE_FIT / TABLE_CARD_RATIO,
+    width * TABLE_FEATURE_WIDE / (1 + 2 * TABLE_FEATURE_PAD));
+  const w = Math.round(Math.min(base * tableCardScaleClamp(scale), Math.max(base, fit)));
   return { w, h: w * TABLE_CARD_RATIO, lane: Math.round(w * (1 + 2 * TABLE_FEATURE_PAD)) };
 }
 
 /* tableLayout's answer for that card: in the middle of its lane, at the angle
  * its name gives it. More than one card would lie on top of it; nothing lays
  * more. */
-function tableFeatureLayout(cards, width, height) {
+function tableFeatureLayout(cards, width, height, scale = 1) {
   const list = (cards || []).slice(0, TABLE_DECK_CARDS_MAX);
-  const size = tableFeatureSize(width, height);
+  const size = tableFeatureSize(width, height, scale);
   const room = width > 0 && height > 0;
   const x = room ? Math.min(1, Math.max(0, (width - size.lane / 2) / width)) : 0.5;
   return {
@@ -1265,6 +1416,46 @@ function tablePlaceCards(cards, spots, moved) {
   return cards.map((card, i) => ({ ...(moved.get(card.key) || spots[i] || { x: 0.5, y: 0.5, turn: 0 }) }));
 }
 
+/* The cards on a mat of the given size laid at the card-size slider's
+ * `scale`: the size a card is drawn at, the Card tab's lane (0 for any other
+ * layout), and where each card lies — the layout's answer at that scale for
+ * every card no hand has moved, and for every card one has, the spot it was
+ * left on (tablePlaceCards, `moved` keyed as tableMoved is). A spot is a
+ * card's centre, so a moved card grown or shrunk by the slider is grown or
+ * shrunk about where it lies, and lies there still. The same answer whether
+ * the cards are being laid (tableDrawCards) or only resized and moved in
+ * place as the slider is dragged (tableRescaleCards). */
+function tableScaledPlaces(cards, width, height, scale = 1, moved = new Map(), feature = false) {
+  const layout = feature
+    ? tableFeatureLayout(cards, width, height, scale)
+    : tableLayout(cards, width, height, {}, scale);
+  return {
+    size: { w: layout.width, h: layout.height },
+    lane: layout.lane || 0,
+    places: tablePlaceCards(cards, layout.spots, moved),
+  };
+}
+
+/* How a card's picture is drawn, for cards `cardW` wide on the mat — the
+ * width the card-size slider has laid them at; a head card is drawn
+ * TABLE_HEAD_SCALE times it — under a camera at `zoom` on a screen of `dpr`
+ * device pixels to the pixel: `k`, how much larger than its card the picture
+ * is laid out (tableDecodeScale), and `large`, whether it is drawn from
+ * Scryfall's large file (tableNeedsLarge).
+ *
+ * The slider's scale is in the card's laid-out box, never in a transform: a
+ * card at 150% is laid out half as large again, and Firefox decodes a
+ * picture for the box it is laid out in (see TABLE_DECODE_STEP). So k stays
+ * the zoom's and the screen's, the same at every size — counting the scale
+ * in it as well would decode a 150% card for a card half as large again as
+ * it is — and what carries the slider is the width asked of tableNeedsLarge:
+ * a card grown past what the normal file holds sharp is drawn from the large
+ * one, at a zoom or a screen that never needed it for the table's own size. */
+function tableCardPicture(cardW, { head = false, zoom = 1, dpr = 1 } = {}) {
+  const widest = (Number(cardW) || 0) * (head ? TABLE_HEAD_SCALE : 1);
+  return { k: tableDecodeScale(zoom, dpr), large: tableNeedsLarge(widest, zoom, dpr) };
+}
+
 /* Whether a tab is one that lays cards. */
 function tableIsCardTab(tab) {
   return TABLE_CARD_TABS.includes(tab);
@@ -1340,9 +1531,17 @@ function tableReturnByBack({ ret, state }) {
  * for a tab with cards, not already tucked, and something done in its pane
  * no more than TABLE_TUCK_WINDOW ago — `actedAgo`, in milliseconds, Infinity
  * when nothing has been. Typing does not count as done: a filter applied
- * letter by letter would tuck the box being typed in. */
-function tableShouldAutoTuck({ kind, tab, tucked, actedAgo }) {
-  return kind === 'float' && tableIsCardTab(tab) && !tucked
+ * letter by letter would tuck the box being typed in.
+ *
+ * Never while the Deck Builder's drawer lies over the table in a panel of its
+ * own (`drawer`, tableDrawerOpen), and never that panel itself (kind
+ * 'drawer'): the drawer is where cards are being added from, one after
+ * another, and it is docked to the side so that each one is seen landing on
+ * the table beside it. Tucking it — or anything — out of the way of the
+ * cards it has just laid would take away the results the next one is to be
+ * picked from. */
+function tableShouldAutoTuck({ kind, tab, tucked, actedAgo, drawer = false }) {
+  return kind === 'float' && !drawer && tableIsCardTab(tab) && !tucked
       && Number(actedAgo) >= 0 && Number(actedAgo) <= TABLE_TUCK_WINDOW;
 }
 
@@ -1352,6 +1551,51 @@ function tableShouldAutoTuck({ kind, tab, tucked, actedAgo }) {
  * the table and not changed from it, as in the builder. */
 function tableToolsShown({ scope, deckOpen, canEdit }) {
   return scope === 'deckview' && !!deckOpen && !!canEdit;
+}
+
+/* Which of the drawer's chips lie on the far rim (TABLE_DRAWER_TABS): each
+ * by the slip's rule — the Deck Builder's cards on the mat, a deck open, one
+ * the user may edit — except that a chip marked `look` is there for a deck
+ * the user may only look at too, since Search and EDHREC are ways of looking
+ * as much as of adding, and the builder draws their results for such a deck
+ * without a + on them. { search, edhrec, lands }, each a boolean. */
+function tableDrawerChipsShown({ scope, deckOpen, canEdit }) {
+  const deck = scope === 'deckview' && !!deckOpen;
+  return Object.fromEntries(TABLE_DRAWER_TABS.map(chip => [chip.tab, deck && (chip.look || !!canEdit)]));
+}
+
+/* Where the drawer's panel goes in a window of `view` = { width, height }:
+ * docked to the left — the side away from the card tabs down the right edge
+ * — a gap clear of the left edge's tabs and the room their labels open into
+ * (`clear.left`, measured as for a floating panel, tableRimClear), so every
+ * tab on that edge is still in reach beside it; TABLE_DRAWER_VW of the
+ * window wide, held between TABLE_DRAWER_MIN_W and TABLE_DRAWER_MAX_W, so
+ * most of the table stays in view; from a gap below `clear.top` — the far
+ * rim's foot, so what lies on it stays in reach — to a gap above the
+ * window's foot, and above `clear.bottom` more, the height a tucked panel's
+ * bar lies in at the foot, which it would otherwise cover. Kept inside the
+ * window on one too narrow for all of that. */
+function tableDrawerBox(view, clear, gap = TABLE_PANEL_GAP) {
+  const room  = Math.max(0, view.width - 2 * gap);
+  const width = Math.min(room, TABLE_DRAWER_MAX_W, Math.max(TABLE_DRAWER_MIN_W, view.width * TABLE_DRAWER_VW));
+  const left  = Math.max(gap, Math.min((Number(clear.left) || 0) + gap, view.width - gap - width));
+  const top   = Math.max(gap, (Number(clear.top) || 0) + gap);
+  const foot  = Math.max(0, Number(clear.bottom) || 0);
+  return { left, top, width, height: Math.max(0, view.height - top - gap - foot) };
+}
+
+/* What a card being looked at offers besides Details, on the Deck Builder's
+ * table: Remove one for any card of a deck the user may edit (`toolsOn`, the
+ * slip and bin's rule) that the deck knows by its ref, and Add one for the
+ * same — except a commander, since the builder offers no second copy of one:
+ * its own stepper is not on a commander's menu (dbCardMenuItems), and a
+ * commander is one card. `ref` is the builder's, board first
+ * (dbCardRef: "board/name"). */
+function tableLookActions({ toolsOn, ref }) {
+  const deck = !!toolsOn && ref != null && String(ref) !== '';
+  const board = deck ? String(ref).split('/')[0] : '';
+  const commander = typeof DB_COMMANDER_BOARD === 'string' ? DB_COMMANDER_BOARD : 'commander';
+  return { remove: deck, add: deck && board !== commander };
 }
 
 /* Whether a point of the mat, { u, v } in the mat's own pixels, is inside a
@@ -1608,6 +1852,12 @@ let tableTools    = null;    // the Deck Builder's slip and bin, made once — s
 let tableToolsOn  = false;   // whether they lie on the mat now (tableToolsShown)
 let tableBinOver  = false;   // whether the card in hand is over the bin
 let tableArrival  = null;    // { name, x, y, until }: a card just added from the slip, on its way
+let tableCardScale = 1;      // the card-size slider's value, read from the browser as the table comes up
+let tableSlider   = null;    // { box, input, value, less, more }: the card-size slider, made with each scene
+let tableScaleHeld = false;  // whether a pointer is pressed on the slider, which the camera does not follow
+let tableScaleFrameId = 0;   // the frame the cards are next resized in, while the slider moves
+let tableDrawer   = null;    // { tab, el, mark, watch, paneWatch }: the builder's drawer, lying in its own panel
+let tableDrawerChips = null; // { box, buttons }: the drawer's chips on the far rim, made with each scene
 
 /* The sidebar button a rim entry stands for. */
 function tableNavId(entry) {
@@ -1725,8 +1975,8 @@ function tableBuild() {
      edge and shadow — and takes no pointer of its own, so js/cardlift.js never
      finds it to lift and a click on it is the button's. Under it, Details,
      and beside that — for a card of a deck the user may edit, on the Deck
-     Builder's table — Remove one: the two things on the window that are not
-     "put it back". */
+     Builder's table — Add one and Remove one (tableLookActions): the things
+     on the window that are not "put it back". */
   const look = document.createElement('div');
   look.className = 'table-look';
   look.id = 'tableLook';
@@ -1736,8 +1986,23 @@ function tableBuild() {
     <img class="card-img table-look-card" alt="" draggable="false">
     <div class="table-look-actions">
       <button type="button" class="btn-secondary table-look-details">Details</button>
+      <button type="button" class="btn-secondary table-look-add" hidden>Add one</button>
       <button type="button" class="btn-secondary table-look-remove" hidden>Remove one</button>
     </div>`;
+
+  /* The panel the Deck Builder's drawer is lent to (tableDrawerOpen): a
+     host and nothing else, since the drawer brings its own header — its
+     tabs, where its + puts a card, its ✕. Fixed, with no z-index and no
+     transform once it is up, so that, like the floating panel, it is
+     neither a stacking context nor a containing block, and anything the
+     drawer opens from inside it lands on the window as it does in the page;
+     after the panel in the page, so it lies over a tucked one. */
+  const drawerHost = document.createElement('section');
+  drawerHost.className = 'table-drawer';
+  drawerHost.id = 'tableDrawer';
+  drawerHost.hidden = true;
+  drawerHost.tabIndex = -1;
+  drawerHost.setAttribute('role', 'dialog');
 
   /* Straight after the page shell rather than at the end of the body, so the
      table comes first in the keyboard's order: what follows the shell is
@@ -1748,13 +2013,13 @@ function tableBuild() {
      page buys the table nothing in the stacking order. */
   const tools = tableToolsMake();
   const shell = document.querySelector('.site-main');
-  if (shell) shell.after(scene, dim, panel, look, tools.pop);
-  else body.append(scene, dim, panel, look, tools.pop);
+  if (shell) shell.after(scene, dim, panel, drawerHost, look, tools.pop);
+  else body.append(scene, dim, panel, drawerHost, look, tools.pop);
   scene.querySelector('#tableMat').append(tools.slip, tools.bin);
   tableToolsMount();
 
   tableEls = {
-    scene, dim, panel, look,
+    scene, dim, panel, look, drawerHost,
     camera:     scene.querySelector('#tableCamera'),
     plane:      scene.querySelector('#tablePlane'),
     mat:        scene.querySelector('#tableMat'),
@@ -1767,6 +2032,7 @@ function tableBuild() {
     lookBack:   look.querySelector('.table-look-back'),
     lookImg:    look.querySelector('img'),
     lookDetails: look.querySelector('.table-look-details'),
+    lookAdd:    look.querySelector('.table-look-add'),
     lookRemove: look.querySelector('.table-look-remove'),
   };
 
@@ -1796,9 +2062,13 @@ function tableBuild() {
   panelBody.addEventListener('input', () => { tableActedAt = 0; });
   tableEls.lookBack.addEventListener('click', () => tableLookAway());
   tableEls.lookDetails.addEventListener('click', () => tableOpenDetails());
+  tableEls.lookAdd.addEventListener('click', () => tableLookAdd());
   tableEls.lookRemove.addEventListener('click', () => tableLookRemove());
-  /* The Deck Builder's zones: their chips on the far rim, and their own
-     listeners on the mat. */
+  /* The card-size slider, and the Deck Builder's drawer chips, on the far
+     rim; the zones' chips beside the slip, and their own listeners on the
+     mat. */
+  tableScaleBuild();
+  tableDrawerBuild();
   tableZonesBuild();
 }
 
@@ -1904,7 +2174,10 @@ function tableFrame(now) {
  * where a card in hand is. */
 function tableOnPointerMove(e) {
   if (e.pointerType === 'touch') return;
-  tableAim(e.clientX, e.clientY);
+  /* Not while the card-size slider is pressed: the slider lies on the
+     table, and a camera that followed the hand dragging its thumb would
+     carry the slider out from under it. */
+  if (!tableScaleHeld) tableAim(e.clientX, e.clientY);
 
   const hold = tableHold;
   if (hold && e.pointerId === hold.id) {
@@ -1942,6 +2215,10 @@ function tableOnPointerOut(e) {
 function tableOnWheel(e) {
   if (e.ctrlKey || e.target.closest?.('.table-panel, .table-slip')) return;
   e.preventDefault();
+  /* Nor over the card-size slider, a control lying on the rim: a wheel
+     turned over it zooms nothing — and does nothing else, since there is
+     nothing behind the table to scroll either. */
+  if (e.target.closest?.('.table-scale')) return;
   tableAim(e.clientX, e.clientY);
   tableTo.zoom = tableWheelZoom(tableTo.zoom, e.deltaY, e.deltaMode, tableGeom.view.height);
   tableKick();
@@ -1963,6 +2240,9 @@ function tableIsTyping(el) {
  * held — Ctrl with any of them is the browser's own zoom. */
 function tableZoomKey(e) {
   if (e.ctrlKey || e.metaKey || e.altKey || tableIsTyping(e.target)) return false;
+  /* The card-size slider in hand keeps its keys: a range is no field being
+     typed in, but − and + beside it, and 0, are about the slider then. */
+  if (e.target?.closest?.('.table-scale')) return false;
   const factor = { '+': TABLE_ZOOM_KEY, '=': TABLE_ZOOM_KEY, '-': 1 / TABLE_ZOOM_KEY }[e.key];
   if (!factor && e.key !== '0') return false;
   if ((typeof modalIsOpen === 'function' && modalIsOpen()) || (typeof faqIsOpen === 'function' && faqIsOpen())) return false;
@@ -1984,6 +2264,7 @@ function tableOnResize() {
     tableMeasure();
     tableResizeCards();
     tableFitPanel();
+    tableDrawerFit();
     tableSlipPlace();
     tableKick();
   });
@@ -2006,15 +2287,26 @@ function tableOnKeyCapture(e) {
               || (typeof faqIsOpen === 'function' && faqIsOpen());
   if (dialog) { tableEscTaken = true; return; }
   if (tableLooked) { tableEscTaken = false; return; }
+  /* A field in the Deck Builder's drawer with something typed in it keeps
+     its Escape — the drawer's own, which closes the field's suggestions —
+     and the drawer stays up round it. */
+  if (tableDrawerKeepsEscape(e.target)) { tableEscTaken = true; return; }
   tableEscTaken = !!document.querySelector(
     '[data-drawer].open, .col-menu.open, .db-drawer-backdrop.open, .rss-panel.open');
 }
 
+/* Escape puts down whatever is in front: the card being looked at; then the
+ * Deck Builder's drawer, when the focus is in it or nothing else is up —
+ * it lies over everything on the table but that card; then the panel. */
 function tableOnKey(e) {
   if (e.defaultPrevented) return;
   if (e.key !== 'Escape') { tableZoomKey(e); return; }
   if (tableEscTaken) return;
   if (tableLooked) { tableLookAway(); return; }
+  if (tableDrawer && (!tablePanel || tableEls?.drawerHost.contains(document.activeElement))) {
+    tableDrawerClose();
+    return;
+  }
   if (tablePanel) tableDismissPanel();
 }
 
@@ -2022,6 +2314,7 @@ function tableOnKey(e) {
 function tableOnBlur() {
   if (tableHold) tableRelease({ pointerId: tableHold.id });
   if (tableZoneHold) tableZoneRelease({ pointerId: tableZoneHold.id });
+  tableScaleLetGo();
 }
 
 function tableListen(on) {
@@ -2031,6 +2324,8 @@ function tableListen(on) {
   window[method]('pointercancel', tableRelease);
   window[method]('pointerup', tableZoneRelease);
   window[method]('pointercancel', tableZoneRelease);
+  window[method]('pointerup', tableScaleLetGo);
+  window[method]('pointercancel', tableScaleLetGo);
   window[method]('pointerout', tableOnPointerOut);
   window[method]('resize', tableOnResize);
   window[method]('keydown', tableOnKeyCapture, true);
@@ -2081,6 +2376,7 @@ function tableModeEnter() {
   tableTo = { ...TABLE_CAMERA_REST };
   tableDecodeK = 1;
   tableHiRes = false;
+  tableCardScale = readTableCardScale();
   tableBuild();
   tableFitTable();
   tableMeasure();
@@ -2101,6 +2397,9 @@ function tableModeLeave() {
   if (!tableOn) return;
   if (tableHold) tableRelease({ pointerId: tableHold.id });
   tableLookAway(true);
+  /* The drawer first: it goes home into the Deck Builder's pane, which the
+     panel is about to put home in its turn. */
+  tableDrawerClose({ refocus: false });
   tableClosePanel({ quiet: true });
   tableCardReturn = null;   // the mode going away is not a way back to anything
   tableListen(false);
@@ -2108,11 +2407,14 @@ function tableModeLeave() {
   tableWatch = null;
   cancelAnimationFrame(tableFrameId);
   cancelAnimationFrame(tableResizeId);
+  cancelAnimationFrame(tableScaleFrameId);
   clearTimeout(tableRelayId);
-  tableFrameId = tableResizeId = tableFrameAt = tableRelayId = 0;
+  tableFrameId = tableResizeId = tableFrameAt = tableRelayId = tableScaleFrameId = 0;
+  tableScaleHeld = false;
   for (const card of tableCards) card.el = null;
   tableTools?.ac?.close();
-  for (const el of [tableEls.scene, tableEls.dim, tableEls.panel, tableEls.look, tableTools?.pop]) el?.remove();
+  for (const el of [tableEls.scene, tableEls.dim, tableEls.panel, tableEls.drawerHost, tableEls.look, tableTools?.pop]) el?.remove();
+  tableSlider = tableDrawerChips = null;
   tableToolsOn = tableBinOver = false;
   tableArrival = null;
   tableZoneHold = tableZoneEdit = tableZoneTarget = tableZoneLanding = tableZoneChips = null;
@@ -2176,7 +2478,7 @@ function tableOpenAppearance(btn) {
 /* Put the pane in the panel. The pane's place in the page is held by a
  * comment, so going home is one replace and needs no record of its
  * neighbours. Returns whether a pane is now showing. */
-function tableShowPane(tab, kind = tablePanelKind(tab)) {
+function tableShowPane(tab, kind = tablePanelKind(tab), { keepDrawer = false } = {}) {
   if (!tableOn) return false;
   const pane = document.getElementById(`tab-${tab}`);
   if (!pane) return false;
@@ -2247,6 +2549,13 @@ function tableShowPane(tab, kind = tablePanelKind(tab)) {
   tableRimSync();
   tableWatchPane(pane, tab);
   if (tableTuckOnOpen({ kind, from, to: tab, kept: tableTuckKept })) tableTuckPanel(true);
+  /* A page floating up over the table puts the Deck Builder's drawer away:
+     the drawer floats beside the table, never beside a page lying over it
+     — unless the page is about to be tucked again, as a view coming back
+     tucked is (`keepDrawer`, tableRestoreView). The Card sheet lies on the
+     mat, and the drawer stays over it. */
+  if (kind === 'float' && !tableTucked && !keepDrawer) tableDrawerClose();
+  tableDrawerFit();
   return true;
 }
 
@@ -2283,24 +2592,9 @@ const TABLE_FLOAT_PROPS = ['left', 'top', 'width', 'height', 'right', 'margin-in
 
 function tableFitPanel() {
   if (!tablePanel || tablePanel.kind !== 'float' || !tableEls) return;
-  const { camera, plane, panel } = tableEls;
+  const { panel } = tableEls;
   const view = { width: window.innerWidth, height: window.innerHeight };
-  const clear = { top: 0, left: 0, right: view.width };
-  const was = camera.style.transform;
-  camera.style.transform = 'none';
-  const pad = tableLabelPad();
-  for (const btn of plane.querySelectorAll('.table-tab')) {
-    if (btn.hidden) continue;
-    const face  = btn.querySelector('.table-tab-face');
-    const label = btn.querySelector('.table-tab-label');
-    const at = face.getBoundingClientRect();
-    const scale = face.offsetWidth ? at.width / face.offsetWidth : 1;
-    const reach = ((label?.scrollWidth || 0) + pad) * scale;
-    const edge = TABLE_RIM[Number(btn.dataset.rim)]?.edge;
-    if (edge === 'left')       clear.left  = Math.max(clear.left, at.right + reach);
-    else if (edge === 'right') clear.right = Math.min(clear.right, at.left - reach);
-  }
-  camera.style.transform = was;
+  const clear = tableRimClear(view);
   const box = tableFloatBox(view, clear, TABLE_PANEL_GAP + TABLE_PAN_REST * view.width);
   panel.style.left   = `${box.left.toFixed(1)}px`;
   panel.style.top    = `${box.top.toFixed(1)}px`;
@@ -2316,6 +2610,36 @@ function tableFitPanel() {
     panel.style.setProperty('--table-tuck-y',
       `${Math.max(0, view.height - TABLE_PANEL_GAP - header - box.top).toFixed(1)}px`);
   }
+}
+
+/* How far into the window the side edges' tabs reach, with the camera at
+ * rest: { top, left, right } as tableFloatBox and tableDrawerBox take them —
+ * the rightmost reach of the left edge's tabs and the leftmost of the right
+ * edge's, each chip and the room its label opens into, and 0 for the far
+ * edge, which holds no tabs — and `far`, the foot of the far rim, where the
+ * slider, the slip, the bin and the chips lie, for a panel that keeps them
+ * in reach (tableDrawerFit). Put back in the same task, so the rest pose is
+ * never drawn. See tableFitPanel for why the label's room is counted. */
+function tableRimClear(view) {
+  const { camera, plane } = tableEls;
+  const clear = { top: 0, left: 0, right: view.width, far: 0 };
+  const was = camera.style.transform;
+  camera.style.transform = 'none';
+  clear.far = plane.querySelector('.table-rim--far')?.getBoundingClientRect().bottom || 0;
+  const pad = tableLabelPad();
+  for (const btn of plane.querySelectorAll('.table-tab')) {
+    if (btn.hidden) continue;
+    const face  = btn.querySelector('.table-tab-face');
+    const label = btn.querySelector('.table-tab-label');
+    const at = face.getBoundingClientRect();
+    const scale = face.offsetWidth ? at.width / face.offsetWidth : 1;
+    const reach = ((label?.scrollWidth || 0) + pad) * scale;
+    const edge = TABLE_RIM[Number(btn.dataset.rim)]?.edge;
+    if (edge === 'left')       clear.left  = Math.max(clear.left, at.right + reach);
+    else if (edge === 'right') clear.right = Math.min(clear.right, at.left - reach);
+  }
+  camera.style.transform = was;
+  return clear;
 }
 
 /* The padding a tab's label opens with, in pixels: --space-3, the token
@@ -2355,6 +2679,7 @@ function tableClosePanel({ quiet = false } = {}) {
   dim.classList.remove('is-on');
   tableSyncLane();
   tableRimSync();
+  tableDrawerFit();
   if (!quiet) plane.querySelector(`.table-tab[data-tab="${tab}"]`)?.focus({ preventScroll: true });
 }
 
@@ -2403,8 +2728,8 @@ function tableDismissPanel() {
  * one — and the panel is then set to what it was, not to that guess. */
 function tableRestoreView(back) {
   if (back.panel === 'closed') { tableClosePanel(); return; }
-  tableShowPane(back.tab, back.kind || tablePanelKind(back.tab));
   const tuck = back.panel === 'tucked';
+  tableShowPane(back.tab, back.kind || tablePanelKind(back.tab), { keepDrawer: tuck });
   if (tuck !== tableTucked) tableTuckPanel(tuck);
 }
 
@@ -2432,7 +2757,10 @@ function tableTuckPanel(on, { byUser = false } = {}) {
     tableUntuck();
     dim.classList.add('is-on');
     panel.focus({ preventScroll: true });
+    /* Up again over the table, the page puts the drawer away (tableShowPane). */
+    tableDrawerClose({ refocus: false });
   }
+  tableDrawerFit();
 }
 
 /* The panel's tucked state put back to "not", with nothing else said — for
@@ -2621,11 +2949,19 @@ function tableQueueRelay(tab) {
   const wait = Math.min(TABLE_RELAY_MS, Math.max(0, tableRelaySince + TABLE_RELAY_MAX_MS - now));
   tableRelayId = setTimeout(() => {
     tableRelayId = 0;
-    if (!tableOn || tablePanel?.tab !== tab) return;
+    if (!tableOn) return;
+    /* The pane is watched while it is open in a panel, and the Deck
+       Builder's while its drawer lies over the table too (tableDrawerWatch):
+       a card added from the drawer is laid where it lands even with no panel
+       up to notice the deck redrawn. */
+    const inPanel = tablePanel?.tab === tab;
+    if (!inPanel && !(tab === 'deckview' && tableDrawer)) return;
     /* Nothing new to lay may still be a count changed in a zone's label. */
     if (!tableLayFor(tab)) { if (tab === 'deckview') tableZonesRefresh(); return; }
     const actedAgo = tableActedAt ? Date.now() - tableActedAt : Infinity;
-    if (tableShouldAutoTuck({ kind: tablePanel.kind, tab, tucked: tableTucked, actedAgo })) tableTuckPanel(true);
+    if (inPanel && tableShouldAutoTuck({
+      kind: tablePanel.kind, tab, tucked: tableTucked, actedAgo, drawer: !!tableDrawer,
+    })) tableTuckPanel(true);
     tableActedAt = 0;
   }, wait);
 }
@@ -2700,13 +3036,16 @@ function tableCardSrc(card) {
 function tableSharpen() {
   if (!tableEls) return;
   const zoom = Math.max(tableAt.zoom, tableTo.zoom);
-  const k = tableDecodeScale(zoom, window.devicePixelRatio);
+  /* tableCardSize is the size the slider has laid the cards at, so a card
+     grown by it asks for the large pictures by itself (tableCardPicture). */
+  const { k, large } = tableCardPicture(tableCardSize.w, {
+    head: tableCards.some(card => card.head), zoom, dpr: window.devicePixelRatio,
+  });
   if (k !== tableDecodeK) {
     tableDecodeK = k;
     tableEls.scene.style.setProperty('--table-card-k', String(k));
   }
-  const widest = tableCardSize.w * (tableCards.some(card => card.head) ? TABLE_HEAD_SCALE : 1);
-  if (tableHiRes || !tableNeedsLarge(widest, zoom, window.devicePixelRatio)) return;
+  if (tableHiRes || !large) return;
   tableHiRes = true;
   for (const card of tableCards) {
     const img = card.el?.isConnected && card.el.querySelector('.table-card-img');
@@ -2759,19 +3098,21 @@ function tableDrawCards() {
   for (const old of mat.querySelectorAll('.table-card')) old.remove();
   /* The slip and the bin lie on the far rim, not on the mat, so they take
      none of it from the piles; they are only shown or not for the cards
-     about to be laid. */
+     about to be laid. Nor do the card-size slider and the drawer's chips
+     beside them. */
   tableSyncTools();
+  tableScaleSync();
+  tableDrawerSyncChips();
   const { width, height } = tableGeom.mat;
   mat.toggleAttribute('data-many', !tableRestShadows(tableCards.length));
-  const layout = tableFeature
-    ? tableFeatureLayout(tableCards, width, height)
-    : tableLayout(tableCards, width, height);
-  tableCardSize = { w: layout.width, h: layout.height };
+  /* At the card-size slider's scale (tableScaledPlaces); at 1, the layout
+     the table has always laid. */
+  const { size, places } = tableScaledPlaces(tableCards, width, height, tableCardScale, tableMoved, tableFeature);
+  tableCardSize = size;
   /* Asked before the pictures are written, so a large card on a hi-dpi
      screen — the Card tab's — is drawn from the large picture straight away
      rather than from the normal one and then again. */
   tableSharpen();
-  const places = tablePlaceCards(tableCards, layout.spots, tableMoved);
   const cards = document.createDocumentFragment();
   tableCards.forEach((card, i) => {
     Object.assign(card, places[i]);
@@ -2797,7 +3138,7 @@ function tableDrawCards() {
 function tableSyncLane() {
   if (!tableEls) return;
   const lane = tablePanel?.kind === 'grow' && tableFeature && tableGeom
-    ? tableFeatureSize(tableGeom.mat.width, tableGeom.mat.height).lane : 0;
+    ? tableFeatureSize(tableGeom.mat.width, tableGeom.mat.height, tableCardScale).lane : 0;
   if (lane) tableEls.panel.style.setProperty('--table-sheet-lane', `${lane}px`);
   else tableEls.panel.style.removeProperty('--table-sheet-lane');
 }
@@ -2808,7 +3149,8 @@ function tableResizeCards() {
   /* The large card's place is worked out from the lane, which a new mat
      width moves, so it is laid again rather than resized where it was. */
   if (tableFeature) { tableDrawCards(); return; }
-  const w = tableCardWidth(tableGeom.mat.width);
+  const w = tableCardWidthFor(tableGeom.mat.width, tableGeom.mat.height, tableCardScale,
+    { head: tableCards.some(card => card.head) });
   tableCardSize = { w, h: w * TABLE_CARD_RATIO };
   tableSharpen();
   for (const card of tableCards) {
@@ -3060,8 +3402,11 @@ function tableLookAt(card, from = null) {
   lookImg.src = tableCardSrc(card);
   lookBack.setAttribute('aria-label', `Put ${card.name} back`);
   lookDetails.title = `Open ${card.name} on the Card tab`;
-  tableEls.lookRemove.hidden = !(tableToolsOn && card.ref);
+  const acts = tableLookActions({ toolsOn: tableToolsOn, ref: card.ref });
+  tableEls.lookRemove.hidden = !acts.remove;
   tableEls.lookRemove.title = `Take one ${card.name} out of the deck`;
+  tableEls.lookAdd.hidden = !acts.add;
+  tableEls.lookAdd.title = `Put one more ${card.name} in the deck`;
   look.classList.remove('is-up');
   look.hidden = false;
   /* Drawn first where the card lies, with no transition, then let go: the
@@ -3355,6 +3700,41 @@ function tableLookRemove() {
   tableBinCard(card, { x: card.x, y: card.y });
 }
 
+/* One more copy of a card in the open deck, through the builder's own
+ * stepper — dbChangeQty by +1, what its + on a row and on a card's menu
+ * press, which saves the deck and keeps its history — with the app's notice
+ * saying so in Remove one's words. Only what tableLookActions offers Add one
+ * for: a card the deck holds by its ref, in a deck the user may edit, and no
+ * commander. The mat is brought up to date from the deck at once
+ * (tableRelayDeck); the card's place is unchanged, so only the count on it is
+ * written (tablePatchCards), and nothing is laid again. Returns 'more', or
+ * null for a card nothing was added to. */
+function tableAddOne(card) {
+  if (!card?.ref || !tableLookActions({ toolsOn: tableToolsOn, ref: card.ref }).add) return null;
+  if (typeof dbFindCard !== 'function' || typeof dbChangeQty !== 'function') return null;
+  const row = dbFindCard(card.ref);
+  if (!row) return null;
+  /* dbChangeQty writes the count before anything it waits on, so the row
+     says the new one by the time the notice is written — and a count that
+     did not move is an add the builder refused, which says nothing. */
+  const before = row.qty || 1;
+  dbChangeQty(card.ref, 1);
+  const now = row.qty || 1;
+  if (!(now > before)) return null;
+  if (typeof showToast === 'function') showToast(`✓  Added one "${card.name}", ${now} in the deck`);
+  tableRelayDeck();
+  return 'more';
+}
+
+/* Add one, pressed under a card being looked at: one more copy, and the card
+ * still in hand, so a second press is a second copy — the count on it, under
+ * the card being looked at, is written as it goes, and the notice says it. */
+function tableLookAdd() {
+  const card = tableLooked;
+  if (!card) return;
+  tableAddOne(card);
+}
+
 /* A card added from the slip: one copy, through the builder's own add —
  * which files it in its category, saves the deck and keeps its history —
  * and the field cleared and kept for the next. The builder's own Add a card
@@ -3435,6 +3815,374 @@ function tableSlipKey(e) {
   e.preventDefault();
   tableTools.input.focus({ preventScroll: true });
   return true;
+}
+
+// ── The card-size slider ─────────────────────────────────────────────────
+// A chip lying on the far rim, at its left-hand end: − , a range, + and the
+// size it is at, from TABLE_CARD_SCALE_MIN to TABLE_CARD_SCALE_MAX of the
+// size the table lays its cards at. On every tab that lays cards
+// (tableScaleShown), and kept per browser (TABLE_CARD_SCALE_KEY).
+//
+// Every layout takes the size from it — the piles, the commander's head spot
+// (still a tenth larger than the piles), the zones' fit, the Card tab's one
+// card and the Decks tab — and a hand dragging it is answered every frame at
+// most, and cheaply: the cards are resized and moved where they are, never
+// made again (tableRescaleCards). A card a hand has moved keeps its centre and
+// grows or shrinks about it. A zone keeps its rect; its cards are fitted into
+// it again, closer together or piled as they grow.
+//
+// It is a control lying on the table, and the table leaves it alone: a press
+// on it is no card picked up and no zone taken in hand, the camera does not
+// follow the pointer while it is pressed, the wheel over it zooms nothing,
+// and its keys — the arrows, and − + 0 — are its own while it has the focus.
+
+/* The − and + beside the range, in the sidebar's own hand. */
+const TABLE_SCALE_LESS_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+const TABLE_SCALE_MORE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/>' +
+  '<line x1="5" y1="12" x2="19" y2="12"/></svg>';
+
+/* The slider, made with each scene and laid on the far rim (table.css). The
+ * range counts in whole percent, so the value it hands back is never a
+ * float's approximation of a step. Its range is the app's own .size-slider,
+ * the control every grid's card size is set with. */
+function tableScaleBuild() {
+  const box = document.createElement('div');
+  box.className = 'table-scale';
+  box.hidden = true;
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', 'Card size on the table');
+  const pct = n => Math.round(n * 100);
+  box.innerHTML = `
+    <button type="button" class="table-scale-step" data-scale-step="-1" title="Smaller cards" aria-label="Smaller cards">${TABLE_SCALE_LESS_ICON}</button>
+    <input type="range" class="size-slider table-scale-range" aria-label="Card size"
+           min="${pct(TABLE_CARD_SCALE_MIN)}" max="${pct(TABLE_CARD_SCALE_MAX)}" step="${pct(TABLE_CARD_SCALE_STEP)}">
+    <button type="button" class="table-scale-step" data-scale-step="1" title="Larger cards" aria-label="Larger cards">${TABLE_SCALE_MORE_ICON}</button>
+    <output class="table-scale-value" aria-hidden="true"></output>`;
+  const input = box.querySelector('input');
+  tableSlider = {
+    box, input,
+    value: box.querySelector('output'),
+    less:  box.querySelector('[data-scale-step="-1"]'),
+    more:  box.querySelector('[data-scale-step="1"]'),
+  };
+  /* A press on it is a press on a control: not a card or a zone picked up
+     off the mat under it — and, until it is let go, the camera stays where
+     it is (tableOnPointerMove). */
+  box.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    if (e.button === 0) tableScaleHeld = true;
+  });
+  input.addEventListener('input', () => tableSetCardScale(Number(input.value) / 100));
+  for (const btn of [tableSlider.less, tableSlider.more]) {
+    btn.addEventListener('click', () => tableSetCardScale(tableCardScale + Number(btn.dataset.scaleStep) * TABLE_CARD_SCALE_NUDGE));
+  }
+  tableFarStrip('left').append(box);
+  tableScaleWrite(tableCardScale);
+}
+
+/* One of the far rim's two strips either side of the slip (table.css): the
+ * left-hand one holds the slider and the Zones chips, the right-hand one the
+ * drawer's chips, so that the chips lying on the rim share its length rather
+ * than being laid over each other on a narrow window. Made the first time it
+ * is asked for in a scene, lying on the wood at the slip's height. */
+function tableFarStrip(side) {
+  const { mat } = tableEls;
+  let strip = mat.querySelector(`:scope > .table-far-${side}`);
+  if (!strip) {
+    strip = document.createElement('div');
+    strip.className = `table-far-${side}`;
+    strip.style.setProperty('--table-tools-z', `${tableToolsZ().toFixed(2)}px`);
+    mat.append(strip);
+  }
+  return strip;
+}
+
+/* The pointer let go of anywhere — or the window losing it — and the camera
+ * follows it again. */
+function tableScaleLetGo() {
+  tableScaleHeld = false;
+}
+
+/* The slider shown or not for the cards on the mat now — and, put away, it
+ * lets go of the focus. Asked every time cards are drawn. */
+function tableScaleSync() {
+  const t = tableSlider;
+  if (!t) return;
+  t.box.hidden = !tableScaleShown(tableScope);
+  if (t.box.hidden && t.box.contains(document.activeElement)) document.activeElement.blur();
+}
+
+/* The slider saying `scale`: the range, the readout, what a screen reader is
+ * told, and − or + switched off at either end. */
+function tableScaleWrite(scale) {
+  const t = tableSlider;
+  if (!t) return;
+  const pct = Math.round(scale * 100);
+  if (Number(t.input.value) !== pct) t.input.value = String(pct);
+  t.input.setAttribute('aria-valuetext', `${pct}%`);
+  t.value.textContent = `${pct}%`;
+  t.less.disabled = scale <= TABLE_CARD_SCALE_MIN;
+  t.more.disabled = scale >= TABLE_CARD_SCALE_MAX;
+}
+
+/* A new size from the slider: held in its range and on its step, said on
+ * the slider, kept for the browser, and the cards resized to it on the next
+ * frame — however many input events the frame brings, one resize. */
+function tableSetCardScale(value) {
+  const s = tableCardScaleClamp(value);
+  tableScaleWrite(s);
+  if (s === tableCardScale) return;
+  tableCardScale = s;
+  rememberTableCardScale(s);
+  if (!tableOn || tableScaleFrameId) return;
+  tableScaleFrameId = requestAnimationFrame(() => {
+    tableScaleFrameId = 0;
+    tableRescaleCards();
+  });
+}
+
+/* The cards on the mat resized to the slider's scale where they lie: each
+ * given the size and the place the layout gives it at that scale
+ * (tableScaledPlaces) — where a hand put it, for a card one has — and its
+ * element resized and moved, not made again; a card in hand is resized and
+ * left where the hand has it. The zones keep their rects and fit their cards
+ * to the new size; the pictures are asked to stay sharp for it; and the Card
+ * tab's sheet draws itself short of its card's new lane. */
+function tableRescaleCards() {
+  if (!tableOn || !tableEls || !tableGeom) return;
+  const { width, height } = tableGeom.mat;
+  const { size, places } = tableScaledPlaces(tableCards, width, height, tableCardScale, tableMoved, tableFeature);
+  tableCardSize = size;
+  tableCards.forEach((card, i) => {
+    if (tableHold?.card !== card) Object.assign(card, places[i]);
+    tableSizeCard(card);
+  });
+  tableSharpen();
+  /* With zones on, every card a zone holds is placed in it over the piles'
+     place — as when the cards are laid. */
+  tableZonesPlace();
+  for (const card of tableCards) if (tableHold?.card !== card) tableWriteCard(card);
+  if (tableHold) tableKick();
+  tableSyncLane();
+}
+
+// ── The Deck Builder's drawer, on the table ──────────────────────────────
+// The builder's drawer — Search, EDHREC and Lands, the three ways it has of
+// finding a card for the deck — opened from the table by a chip each on the
+// far rim, beside the Zones chip (TABLE_DRAWER_TABS, tableDrawerChipsShown).
+//
+// It is the drawer itself, not a copy and not the builder's whole page: the
+// element #dbSearchPanel is lent to a panel of its own, docked to the left of
+// the window (tableDrawerBox), the way a tab's pane is lent to the floating
+// panel — its place in the page held by a comment, and put back there when
+// it closes. Its tab is switched by the builder's own dbSetLeftTab, and its
+// search field is put in hand for Search. Everything it does is still the
+// builder's: its results, its + and where the + puts a card, the counts on
+// its tiles, its own ✕. The builder's whole pane is not floated over the
+// table for it, so there is no hunting for a drawer inside a page.
+//
+// A card added from it lands on the table beside it, in its pile or zone:
+// the builder's pane is watched while the drawer is out (tableDrawerWatch),
+// whether or not a panel is up to notice the deck redrawn. And the drawer
+// stays as it was — open, its results and its scroll where they were, so the
+// next card can be added from the same list — because nothing the table
+// does when cards are laid touches it, and no panel tucks itself away for
+// cards laid while it is out (tableShouldAutoTuck).
+//
+// The chip pressed again closes it, and another chip switches its tab. So do
+// its own ✕ and Escape — bar an Escape pressed in a field of it with something
+// typed in it, which is the field's (tableDrawerKeepsEscape). A page floating
+// up over the table puts it away: it lies beside the table, not beside a
+// page lying over it.
+
+/* The drawer's chips on the far rim, made with each scene: one per entry of
+ * TABLE_DRAWER_TABS, in the Zones chip's make, each saying by aria-expanded
+ * whether its tab is the one the drawer is lying open at. A press on them is
+ * a press on a control, not on the mat. */
+function tableDrawerBuild() {
+  const box = document.createElement('div');
+  box.className = 'table-drawer-chips';
+  box.dataset.tab = 'deckview';
+  box.hidden = true;
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', 'Find cards for this deck');
+  box.innerHTML = TABLE_DRAWER_TABS.map(chip => `
+    <button type="button" class="table-zone-chip table-drawer-chip" data-drawer-tab="${chip.tab}"
+            aria-expanded="false" aria-controls="tableDrawer" hidden
+            title="${esc(`The Deck Builder's ${chip.label}, beside the table`)}">${chip.icon}<span>${esc(chip.label)}</span></button>`).join('');
+  const buttons = new Map([...box.querySelectorAll('[data-drawer-tab]')].map(btn => [btn.dataset.drawerTab, btn]));
+  box.addEventListener('pointerdown', e => e.stopPropagation());
+  for (const [tab, btn] of buttons) btn.addEventListener('click', () => tableDrawerToggle(tab));
+  tableFarStrip('right').append(box);
+  tableDrawerChips = { box, buttons };
+}
+
+/* The chips' rules for the cards on the mat and the deck open now. */
+function tableDrawerShownNow() {
+  const deck = typeof dbDeck !== 'undefined' ? dbDeck : null;
+  return tableDrawerChipsShown({
+    scope: tableScope,
+    deckOpen: !!deck,
+    canEdit: !!deck && typeof isMyPlayer === 'function' && isMyPlayer(deck.playerId),
+  });
+}
+
+/* The chips shown and marked as the rules and the drawer say — asked every
+ * time cards are drawn, and as the drawer opens, closes and switches tab.
+ * The drawer itself is put away once its chips are gone: another tab's cards
+ * on the mat, or the deck closed. */
+function tableDrawerSyncChips() {
+  const chips = tableDrawerChips;
+  if (!chips) return;
+  const shown = tableDrawerShownNow();
+  chips.box.hidden = !Object.values(shown).some(Boolean);
+  for (const [tab, btn] of chips.buttons) {
+    btn.hidden = !shown[tab];
+    btn.setAttribute('aria-expanded', String(tableDrawer?.tab === tab));
+  }
+  if (tableDrawer && chips.box.hidden) tableDrawerClose({ refocus: false });
+}
+
+/* A chip pressed: its tab's drawer opened, or switched to — or, for the tab
+ * the drawer is already lying open at, the drawer put away. */
+function tableDrawerToggle(tab) {
+  if (tableDrawer?.tab === tab) tableDrawerClose();
+  else tableDrawerOpen(tab);
+}
+
+/* The drawer lent to its panel, at `tab`. The first time, the drawer is
+ * carried out of the builder's pane and opened by the builder's own
+ * dbOpenSearchPanel — which redraws what it shows against the deck as it is
+ * now, and says on the builder's strip that it is open — less the scrim it
+ * hangs behind itself in the page, since here the table is to be seen
+ * beside it. A page floating over the table is tucked to its header first,
+ * so the table is in view. Then its tab: switched by the builder, and the
+ * search field put in hand for Search; for the others, the panel itself, so
+ * that Escape and the keyboard start in it. Returns whether it is open. */
+function tableDrawerOpen(tab) {
+  if (!tableOn || !tableEls) return false;
+  const chip = TABLE_DRAWER_TABS.find(entry => entry.tab === tab);
+  const el = document.getElementById('dbSearchPanel');
+  if (!chip || !el || typeof dbSetLeftTab !== 'function' || !tableDrawerShownNow()[tab]) return false;
+  if (tableLooked) tableLookAway(true);
+  if (tablePanel?.kind === 'float' && !tableTucked) tableTuckPanel(true);
+  const host = tableEls.drawerHost;
+  if (!tableDrawer) {
+    const mark = document.createComment(' #dbSearchPanel is lying on the table ');
+    el.before(mark);
+    host.append(el);
+    tableDrawer = { tab, el, mark, watch: null, paneWatch: null };
+    if (typeof dbOpenSearchPanel === 'function') dbOpenSearchPanel();
+    else el.classList.add('open');
+    document.getElementById('dbSearchBackdrop')?.classList.remove('open');
+    tableDrawerWatch();
+    host.classList.remove('is-open');
+    host.hidden = false;
+    tableDrawerFit();
+    /* Read once so the closed state is drawn before the open one, as the
+       floating panel is. */
+    void host.offsetWidth;
+    host.classList.add('is-open');
+  }
+  tableDrawer.tab = tab;
+  if (typeof dbLeftTab === 'undefined' || dbLeftTab !== tab) dbSetLeftTab(tab);
+  host.setAttribute('aria-label', `Deck Builder: ${chip.label}`);
+  tableDrawerSyncChips();
+  const field = tab === 'search' ? document.getElementById('dbSearchInput') : null;
+  if (field && host.contains(field)) field.focus({ preventScroll: true });
+  else host.focus({ preventScroll: true });
+  return true;
+}
+
+/* The drawer put home, into the builder's pane where it came from, closed
+ * the builder's own way (dbCloseSearchPanel) — unless it is the builder that
+ * closed it, its ✕ or a way out of the tab, and it is closed already. The
+ * focus, if it was in the drawer, goes back to the chip that opened it. */
+function tableDrawerClose({ refocus = true } = {}) {
+  const d = tableDrawer;
+  if (!d) return;
+  tableDrawer = null;
+  d.watch?.disconnect();
+  d.paneWatch?.disconnect();
+  const host = tableEls?.drawerHost;
+  const hadFocus = !!host && host.contains(document.activeElement);
+  if (d.el.classList.contains('open')) {
+    if (typeof dbCloseSearchPanel === 'function') dbCloseSearchPanel();
+    else d.el.classList.remove('open');
+  }
+  if (d.mark.parentNode) {
+    d.mark.parentNode.insertBefore(d.el, d.mark);
+    d.mark.remove();
+  }
+  if (host) {
+    host.hidden = true;
+    host.classList.remove('is-open');
+    host.removeAttribute('aria-label');
+  }
+  tableDrawerSyncChips();
+  const chip = tableDrawerChips?.buttons.get(d.tab);
+  if (hadFocus && refocus && chip && !chip.hidden) chip.focus({ preventScroll: true });
+}
+
+/* What the table keeps an eye on while the drawer is out: the drawer, for
+ * the builder closing it (its ✕, the Lands tab's way out to the calculator)
+ * and for its own tabs pressed inside it, which the chips follow; and the
+ * builder's pane, for the deck redrawn by a card added from the drawer,
+ * which lays the table again (tableQueueRelay). The drawer's own redraws
+ * are not the pane's — it is out of the pane — so its results drawing
+ * themselves again lays nothing. */
+function tableDrawerWatch() {
+  const d = tableDrawer;
+  if (!d || typeof MutationObserver !== 'function') return;
+  d.watch = new MutationObserver(() => {
+    if (tableDrawer !== d) return;
+    if (!d.el.classList.contains('open')) { tableDrawerClose(); return; }
+    const now = typeof dbLeftTab !== 'undefined' ? dbLeftTab : d.tab;
+    if (now !== d.tab) { d.tab = now; tableDrawerSyncChips(); }
+  });
+  d.watch.observe(d.el, { attributes: true, attributeFilter: ['class'], subtree: true });
+  const pane = document.getElementById('tab-deckview');
+  if (pane) {
+    d.paneWatch = new MutationObserver(() => tableQueueRelay('deckview'));
+    d.paneWatch.observe(pane, { childList: true, subtree: true, characterData: true });
+  }
+}
+
+/* The drawer's panel fitted to the window (tableDrawerBox): clear of the
+ * left edge's tabs, measured as for a floating panel; below the far rim, so
+ * that what lies on it — the card-size slider, the slip, the Zones chips and
+ * the drawer's own chips — stays in reach while cards are being added; and
+ * above a tucked panel's bar at the window's foot, which it would otherwise
+ * lie over. */
+function tableDrawerFit() {
+  if (!tableDrawer || !tableEls) return;
+  const { drawerHost: host, panelHdr } = tableEls;
+  const view = { width: window.innerWidth, height: window.innerHeight };
+  const clear = tableRimClear(view);
+  clear.top = clear.far;
+  const tucked = tablePanel?.kind === 'float' && tableTucked;
+  clear.bottom = tucked ? panelHdr.offsetHeight + TABLE_PANEL_GAP : 0;
+  const box = tableDrawerBox(view, clear, TABLE_PANEL_GAP + TABLE_PAN_REST * view.width);
+  host.style.left   = `${box.left.toFixed(1)}px`;
+  host.style.top    = `${box.top.toFixed(1)}px`;
+  host.style.width  = `${box.width.toFixed(1)}px`;
+  host.style.height = `${box.height.toFixed(1)}px`;
+}
+
+/* Whether an Escape pressed with the focus on `target` is a field of the
+ * drawer's own to answer rather than the table's: a field being typed in,
+ * inside the drawer while it lies over the table, with something typed in
+ * it — the search box with a query in it. Its suggestions, open, close on
+ * that Escape; closed, nothing happens to it, and the drawer stays up. An
+ * empty field, or the focus anywhere else in the drawer, and Escape puts the
+ * drawer away. */
+function tableDrawerKeepsEscape(target) {
+  if (!tableDrawer || !target || !tableEls?.drawerHost.contains(target)) return false;
+  return tableIsTyping(target) && String(target.value ?? target.textContent ?? '').trim() !== '';
 }
 
 // ── The Deck Builder's zones ─────────────────────────────────────────────
@@ -3881,12 +4629,11 @@ function tableZoneDenormalise(list, width, height, min = { width: 0, height: 0 }
  * still has where it was, in its order, and a zone new since then in free
  * space after them. `changed` says whether that is other than what was kept,
  * which is when it is kept again. */
-function tableZoneReconcile(kept, zones, width, height, cardW, cardH, keepOut = null) {
+function tableZoneReconcile(kept, zones, width, height, cardW, cardH, keepOut = null, min = tableZoneMinSize(cardW, cardH)) {
   const list = zones || [];
   if (!Array.isArray(kept)) {
     return { rects: tableZoneAutoLayout(list, width, height, cardW, cardH, keepOut), changed: list.length > 0 };
   }
-  const min = tableZoneMinSize(cardW, cardH);
   const wanted = new Set(list.map(z => z.name));
   const rects = tableZoneDenormalise(kept, width, height, min).filter(r => wanted.has(r.name));
   const have = new Set(rects.map(r => r.name));
@@ -3899,6 +4646,20 @@ function tableZoneReconcile(kept, zones, width, height, cardW, cardH, keepOut = 
     changed = true;
   }
   return { rects, changed };
+}
+
+/* The smallest a kept zone is held to on a mat `width` wide, for cards
+ * cardW × cardH: tableZoneMinSize's, for the smaller of those cards and the
+ * cards the table lays there at the slider's 1 (tableCardWidth). So the
+ * card-size slider never changes a zone's rect — grown past 1, a zone sized
+ * for the table's own cards keeps its size and its cards close up or pile
+ * in it — while a window made smaller, which lays larger cards for the
+ * same zones, still grows a zone to hold one, as it always has. At 1 the two
+ * are the same cards. */
+function tableZoneMinFor(width, cardW, cardH) {
+  const base = tableCardWidth(width);
+  if (!((Number(cardW) || 0) > base)) return tableZoneMinSize(cardW, cardH);
+  return tableZoneMinSize(base, base * TABLE_CARD_RATIO);
 }
 
 /* Which zone a point of the mat — the pointer, mapped onto it — is over: the
@@ -4017,7 +4778,9 @@ function tableZonesBuild() {
   box.addEventListener('pointerdown', e => e.stopPropagation());
   toggle.addEventListener('click', () => tableZonesToggle());
   add.addEventListener('click', () => tableZoneAdd());
-  mat.append(box);
+  /* At the slip's end of the far rim's left-hand strip, beside the
+     card-size slider (tableFarStrip). */
+  tableFarStrip('left').append(box);
   mat.addEventListener('pointerdown', tableOnZoneDown);
   mat.addEventListener('dblclick', tableOnZoneDblClick);
   mat.addEventListener('keydown', tableOnZoneKey);
@@ -4025,14 +4788,14 @@ function tableZonesBuild() {
 }
 
 /* The chips shown, pressed and offered as the rules say — asked every time
- * cards are drawn. They lie on the wood at the slip's height. */
+ * cards are drawn. They lie on the wood at the slip's height, as the strip
+ * they are in does (tableFarStrip). */
 function tableZonesSyncChips(rules) {
   const chips = tableZoneChips;
   if (!chips) return;
   chips.box.hidden = !rules.toggle;
   chips.toggle.setAttribute('aria-pressed', String(rules.zones));
   chips.add.hidden = !rules.add;
-  chips.box.style.setProperty('--table-tools-z', `${tableToolsZ().toFixed(2)}px`);
 }
 
 /* Zones on, or off: the deck laid again in the other way. A rename in
@@ -4074,7 +4837,7 @@ function tableZonesPlace() {
   const laid = new Map();
   for (const card of tableCards) if (!card.head) laid.set(String(card.group), (laid.get(String(card.group)) || 0) + 1);
   const { rects, changed } = tableZoneReconcile(kept, names.map(name => ({ name, count: laid.get(name) || 0 })),
-    width, height, w, h, tableZoneKeepOut());
+    width, height, w, h, tableZoneKeepOut(), tableZoneMinFor(width, w, h));
   if (changed) tableZoneKeep(deck.id, rects);
 
   const before = new Map(tableZones.map(zone => [zone.name, zone]));
@@ -4390,7 +5153,7 @@ function tableZoneStep(now) {
   }
   const hit = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, zone.z0 + zone.topZ);
   if (hit) {
-    const min = tableZoneMinSize(tableCardSize.w, tableCardSize.h);
+    const min = tableZoneMinFor(W, tableCardSize.w, tableCardSize.h);
     zone.width  = clamp(hit.u + hold.grab.u - zone.left, min.width, W - zone.left);
     zone.height = clamp(hit.v + hold.grab.v - zone.top, min.height, H - zone.top);
   }

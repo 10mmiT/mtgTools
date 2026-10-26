@@ -548,8 +548,8 @@ html[data-playmat] .table-mat {
   filter: var(--card-shadow-raised);
   transition: transform var(--dur-card) var(--ease-tint);
 }
-/* Details, and Remove one beside it where the card can be taken out of a
-   deck (js/tablemode.js says when). Positioned, so they lie over the
+/* Details, and Add one and Remove one beside it where the card's copies in
+   a deck can be changed (js/tablemode.js, tableLookActions, says when). Positioned, so they lie over the
    window's button rather than under it; and come in once the card is on its
    way up, rather than waiting under an empty window for it. */
 .table-look-actions {
@@ -564,6 +564,7 @@ html[data-playmat] .table-mat {
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-sm);
 }
+.table-look-add[hidden],
 .table-look-remove[hidden] { display: none; }
 
 /* ── The Deck Builder's slip and bin ───────────────────────────────────
@@ -631,12 +632,15 @@ html[data-playmat] .table-mat {
   border-radius: var(--radius-md);
 }
 
-/* The bin: an icon tray, its icon drawn at the rim's chips' size. Held over,
-   it opens — its tab's accent on the icon and the foot, a little larger, the
+/* The bin: an icon tray, its icon drawn at the rim's chips' size, at the far
+   rim's right-hand end — out over the corner above the right edge's tabs, as
+   the card-size slider lies over the left one, which leaves the length of
+   rim between the slip and the bin to the drawer's chips. Held over, it
+   opens — its tab's accent on the icon and the foot, a little larger, the
    lid lifted — in the card layer's own time, so with cards still it changes
    without moving. */
 .table-bin {
-  right: var(--space-3);
+  right: calc(var(--space-3) - var(--table-rim-side) - 1px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -659,22 +663,112 @@ html[data-playmat] .table-mat {
 }
 .table-bin.is-over .table-bin-lid { transform: translateY(-1px) rotate(-24deg); }
 
+/* ── The far rim's two strips ──────────────────────────────────────────
+   Either side of the slip, a strip of the far rim the chips lying there
+   share, so that none of them is laid over another however narrow the
+   window, and so the table: the left-hand one from the corner above the left
+   edge's tabs to the slip — the card-size slider at its outer end and the
+   Zones chips at the slip's — and the right-hand one from the slip to the
+   bin, in the corner above the right edge's tabs — the drawer's chips. The
+   mat's children, laid out over the far rim as the slip is, at its height
+   (--table-tools-z, written by the script). A strip is wood: only the chips
+   on it take the pointer. */
+.table-far-left,
+.table-far-right {
+  position: absolute;
+  bottom: calc(100% + 1px + (var(--table-rim-far) - 2.5rem) / 2);
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  transform: translateZ(var(--table-tools-z, 0px));
+  pointer-events: none;
+}
+.table-far-left > *,
+.table-far-right > * { pointer-events: auto; }
+.table-far-left {
+  left: calc(var(--space-3) - var(--table-rim-side) - 1px);
+  right: calc(50% + min(20rem, 44%) / 2 + var(--space-3));
+  justify-content: space-between;
+}
+.table-far-right {
+  left: calc(50% + min(20rem, 44%) / 2 + var(--space-3));
+  right: calc(var(--space-3) - var(--table-rim-side) - 1px + var(--table-tool-h) + var(--space-2));
+  container: table-far-right / inline-size;
+}
+
+/* ── The card-size slider ──────────────────────────────────────────────
+   A chip lying at the outer end of the far rim's left-hand strip, out over
+   the corner above the left edge's tabs: −, the app's own size slider
+   (.size-slider), + and the size it is at. Made like the rim's other chips
+   — a surface, a hairline with a heavier foot, the small contact shadow.
+   Shown on every tab that lays cards (js/tablemode.js, tableScaleShown).
+   Where the strip runs short — a narrow window, with both Zones chips
+   beside it — the range gives up its length first. */
+.table-scale {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  height: 2.5rem;
+  padding: 0 var(--space-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  filter: drop-shadow(0 1px 1px var(--card-cast));
+}
+.table-scale[hidden] { display: none; }
+.table-scale-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  transition: color var(--dur-tint) var(--ease-tint);
+}
+.table-scale-step svg { width: 1rem; height: 1rem; }
+.table-scale-step:hover:not(:disabled),
+.table-scale-step:focus-visible { color: var(--text); }
+.table-scale-step:focus-visible,
+.table-scale-range:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 2px; }
+.table-scale-range { flex: 0 1 auto; min-width: 2.5rem; margin: 0; cursor: pointer; }
+.table-scale-step { flex: none; }
+/* The size it is at, in figures that keep their width as it changes, so the
+   chip does not twitch while the slider is dragged. */
+.table-scale-value {
+  flex: none;
+  min-width: 2.75rem;
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── The Deck Builder's zones ──────────────────────────────────────────
    The deck laid a zone per category, while the Zones chip is on
    (js/tablemode.js, tableZoneRules). Its two chips lie on the far rim,
-   left of the slip, made like the rim's tabs — a surface, a hairline with a
+   left of the slip, at the slip's end of the far rim's left-hand strip
+   (above), made like the rim's tabs — a surface, a hairline with a
    heavier foot, the small contact shadow — with their label always open,
    since they are not tabs to be told apart by an icon; the Zones chip
    pressed wears its tab's accent on its ink and its foot, as an open tab
-   does. They are the mat's children, laid out over the far rim as the slip
-   is, at its height. */
+   does. */
 .table-zone-chips {
-  position: absolute;
-  bottom: calc(100% + 1px + (var(--table-rim-far) - 2.5rem) / 2);
-  right: calc(50% + min(20rem, 44%) / 2 + var(--space-3));
   display: flex;
+  flex: none;
   gap: var(--space-2);
-  transform: translateZ(var(--table-tools-z, 0px));
 }
 .table-zone-chips[hidden],
 .table-zone-chip[hidden] { display: none; }
@@ -702,9 +796,40 @@ html[data-playmat] .table-mat {
 .table-zone-chip:hover,
 .table-zone-chip:focus-visible { color: var(--text); }
 .table-zone-chip:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 2px; }
-.table-zone-chip[aria-pressed="true"] {
+.table-zone-chip[aria-pressed="true"],
+.table-drawer-chip[aria-expanded="true"] {
   color: var(--accent, var(--primary));
   border-bottom-color: var(--accent, var(--primary));
+}
+
+/* The drawer's chips — Search, EDHREC, Lands — in the far rim's right-hand
+   strip, right of the slip, in the Zones chip's make (they wear its class),
+   opening the Deck Builder's drawer in a panel of its own beside the table
+   (js/tablemode.js, tableDrawerOpen). The one whose tab the drawer lies open
+   at wears its tab's accent, as the Zones chip pressed does.
+
+   On a window too narrow for the strip to hold all three with their words —
+   the strip is the rim's, so it is narrower as the table is — the words fold
+   away and the chips are their icons, as the side edges' tabs are; the
+   words stay each chip's name to a screen reader, and its title says it to
+   the pointer. */
+.table-drawer-chips {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+}
+.table-drawer-chips[hidden],
+.table-drawer-chip[hidden] { display: none; }
+@container table-far-right (width < 20rem) {
+  .table-drawer-chip { padding: 0 var(--space-2); }
+  .table-drawer-chip > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 /* A zone: a rectangle lying on the felt, a faint wash and a hairline of the
@@ -922,6 +1047,48 @@ html[data-playmat] .table-mat {
 .table-panel[data-kind="grow"].is-open {
   transform: translateZ(var(--table-sheet-z, 0px)) scale(1);
   opacity: 1;
+}
+
+/* The Deck Builder's drawer, lent to a panel of its own (js/tablemode.js,
+   tableDrawerOpen): docked to the left of the window, narrower than a
+   floating page, with the table undimmed beside it — the cards added from
+   it are to be seen landing. The script writes its box (tableDrawerBox).
+   Fixed, with no z-index, and no transform once it is up — it rises in by
+   `translate`, which ends at none — so, like the floating panel, it is
+   neither a stacking context nor a containing block, and what the drawer
+   opens from inside it lands on the window as it does in the page; it comes
+   after the panel in the page, so it lies over a tucked one. Lifted off the
+   table, so a modal's shadow.
+
+   The drawer inside it is the builder's own .db-drawer, which in the page is
+   a fixed panel off the window's right edge, slid out of sight until it is
+   opened: here it simply fills its host. */
+.table-drawer {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+  background: var(--surface-1);
+  user-select: text;
+  opacity: 0;
+  translate: calc(-1 * var(--space-4)) 0;
+  transition: opacity   var(--dur-panel) var(--ease-tint),
+              translate var(--dur-panel) var(--ease-panel);
+}
+.table-drawer[hidden] { display: none; }
+.table-drawer.is-open { opacity: 1; translate: none; }
+.table-drawer:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: -2px; }
+html[data-tablemode] .table-drawer > .db-drawer {
+  position: static;
+  flex: 1;
+  min-height: 0;
+  width: auto;
+  height: auto;
+  border-left: 0;
+  transform: none;
+  transition: none;
 }
 
 /* The table behind a floating panel, dimmed a little. It takes no pointer,
