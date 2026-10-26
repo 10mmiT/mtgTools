@@ -1,8 +1,9 @@
 /* Table mode: the decisions inside it.
  *
  * Which kind of panel a tab opens in, when a press becomes a drag, how the
- * table is fitted to the window, where the camera pans and zooms for a pointer
- * and a wheel, how fast a card comes up, which point of the mat is under a
+ * table is fitted to the window, how the camera leans for a pointer, zooms
+ * for a wheel and is moved round a zoomed table by the edges, a hand and the
+ * keys, and how far it may go, how fast a card comes up, which point of the mat is under a
  * point of the screen through all of that, and where cards lie — each is written in public/js/tablemode.js as a
  * function of its inputs so that it can be asserted here rather than eyeballed
  * in a browser — and so is what each tab lays on the mat, through the
@@ -190,93 +191,422 @@ test('five pixels in any direction is a drag', () => {
 // ── Panning and zooming ──────────────────────────────────────────────────
 
 const W = 1440, H = 900;
-const pan = (x, y, w = W, h = H) => app.call('tablePanTarget', x, y, w, h);
-/* The camera for a pointer at (x, y), at a zoom, with the lean at rest the
- * table uses unless one is asked for. */
-const camera = (x, y, zoom = 1, lean) =>
-  app.copy(app.sandbox.tableCamera({ zoom, ...pan(x, y) }, W, H, lean));
-/* Where a point of the rest picture is drawn by a camera, and which point of
- * the rest picture is under a window point. */
-const draw  = (cam, x, y) => ({ x: cam.zoom * x + cam.tx, y: cam.zoom * y + cam.ty });
-const under = (cam, x, y) => ({ x: (x - cam.tx) / cam.zoom, y: (y - cam.ty) / cam.zoom });
 const REST = 24;
 const LEAN = 0.02;
+const lean = (x, y, w = W, h = H) => app.call('tableLeanTarget', x, y, w, h);
+/* A camera's state: a zoom, the lean for a pointer at (x, y), and a pan. */
+const state = (x, y, zoom = 1, pan = {}) => ({ zoom, ...lean(x, y), panX: 0, panY: 0, ...pan });
+const cam = (s, l = LEAN) => app.copy(app.sandbox.tableCamera(s, W, H, l));
+/* The state after a zoom from `s` to `zoom` about the window point (x, y). */
+const zoomAbout = (s, zoom, x, y, l = LEAN) =>
+  ({ ...s, zoom, ...app.copy(app.sandbox.tableZoomAbout(s, zoom, { x, y }, W, H, l)) });
+/* The camera for a pointer at (x, y), zoomed in about it from the whole table. */
+const camera = (x, y, zoom = 1, l = LEAN) => cam(zoomAbout(state(x, y, 1), zoom, x, y, l), l);
+/* Where a point of the rest picture is drawn by a camera, and which point of
+ * the rest picture is under a window point. */
+const draw  = (c, x, y) => ({ x: c.zoom * x + c.tx, y: c.zoom * y + c.ty });
+const under = (c, x, y) => ({ x: (x - c.tx) / c.zoom, y: (y - c.ty) / c.zoom });
+const same  = (a, b, eps = 1e-9) => near(a.x, b.x, eps) && near(a.y, b.y, eps);
+
+/* The table as tableFitSize fits it to a 1440×900 window, in the
+ * stylesheet's perspective, with the plane's 8px corner: the outline the pan
+ * is held inside. */
+const FIT = app.copy(app.sandbox.tableFitSize({ width: W, height: H }, { perspective: 1400, top: 8 + LEAN * H }));
+const FIT_GEOM = {
+  perspective: 1400,
+  origin: { x: W / 2, y: H / 2 },
+  plane: { left: FIT.left, top: FIT.top, origin: { x: FIT.width / 2, y: FIT.height / 2 },
+           width: FIT.width, height: FIT.height, radius: 8 },
+};
+const BOUNDS = app.copy(app.sandbox.tablePanBounds(FIT_GEOM));
+const clampPan = (next, prev = next, opts) =>
+  ({ ...next, ...app.copy(app.sandbox.tableClampPan(next, prev, BOUNDS, W, H, opts)) });
+/* The window's four corners, as points of the plane — in its own pixels from
+ * its top-left outer corner — for a camera state. */
+const windowOnPlane = s => {
+  const m = app.evaluate(`tablePlaneMatrix(${JSON.stringify({ ...FIT_GEOM, mat: { left: 0, top: 0 }, tilt: REST, camera: cam(s, 0) })})`);
+  return [[0, 0], [W, 0], [0, H], [W, H]].map(([x, y]) => app.copy(app.sandbox.tableUnproject(m, x, y, 0)));
+};
 
 test('a pointer in the middle of the window leaves the camera at rest', () => {
-  assert.deepStrictEqual(pan(720, 450), { panX: 0, panY: 0 });
-  assert.deepStrictEqual(app.copy(app.evaluate('TABLE_CAMERA_REST')), { zoom: 1, panX: 0, panY: 0 });
-  assert.deepStrictEqual(camera(720, 450), { zoom: 1, tx: 0, ty: 0 }, 'and the picture where it is drawn');
+  assert.deepStrictEqual(lean(720, 450), { leanX: 0, leanY: 0 });
+  assert.deepStrictEqual(app.copy(app.evaluate('TABLE_CAMERA_REST')), { zoom: 1, leanX: 0, leanY: 0, panX: 0, panY: 0 });
+  assert.deepStrictEqual(cam(state(720, 450)), { zoom: 1, tx: 0, ty: 0 }, 'and the picture where it is drawn');
   assert.strictEqual(app.evaluate('TABLE_TILT_REST'), REST);
   assert.strictEqual(app.evaluate('TABLE_PAN_REST'), LEAN);
 });
 
-test('at zoom 1 the camera slides only 2% of the window, as a head leans', () => {
+test('at zoom 1 the camera leans only 2% of the window, as a head leans', () => {
   for (const [x, y] of [[0, 0], [W, 0], [0, H], [W, H]]) {
-    const cam = camera(x, y);
-    assert.strictEqual(cam.zoom, 1);
-    assert.ok(near(Math.abs(cam.tx), LEAN * W) && near(Math.abs(cam.ty), LEAN * H),
-      `${x},${y} slides ${cam.tx},${cam.ty}`);
+    const c = cam(state(x, y));
+    assert.strictEqual(c.zoom, 1);
+    assert.ok(near(Math.abs(c.tx), LEAN * W) && near(Math.abs(c.ty), LEAN * H), `${x},${y} slides ${c.tx},${c.ty}`);
   }
   // Leaning right shows you more of the right: the picture slides left.
-  assert.ok(camera(W, 450).tx < 0 && camera(0, 450).tx > 0, 'the picture slides away from the lean');
-  assert.ok(camera(720, H).ty < 0 && camera(720, 0).ty > 0, 'up and down the same');
-  assert.ok(near(camera(1080, 450).tx, -LEAN * W / 2), 'halfway to the edge is half the slide');
+  assert.ok(cam(state(W, 450)).tx < 0 && cam(state(0, 450)).tx > 0, 'the picture slides away from the lean');
+  assert.ok(cam(state(720, H)).ty < 0 && cam(state(720, 0)).ty > 0, 'up and down the same');
+  assert.ok(near(cam(state(1080, 450)).tx, -LEAN * W / 2), 'halfway to the edge is half the slide');
 });
 
-test('a pointer outside the window cannot pan the camera further', () => {
-  const corner = camera(W, H, 2);
-  for (const [x, y] of [[5000, 5000], [1e9, 1e9]]) assert.deepStrictEqual(camera(x, y, 2), corner);
-  assert.deepStrictEqual(camera(-5000, -5000, 2), camera(0, 0, 2));
-  assert.deepStrictEqual(pan(720, -400), pan(720, 0), 'each axis is clamped on its own');
-  assert.deepStrictEqual(pan(10, 10, 0, 0), { panX: 0, panY: 0 }, 'a window with no size is the middle');
-  assert.deepStrictEqual(pan(NaN, undefined), pan(0, 0),
-    'an unreadable pointer is the window corner it falls back to, not a pan of NaN');
+test('a pointer outside the window cannot lean the camera further', () => {
+  assert.deepStrictEqual(lean(5000, 5000), lean(W, H));
+  assert.deepStrictEqual(lean(-5000, -5000), lean(0, 0));
+  assert.deepStrictEqual(lean(720, -400), lean(720, 0), 'each axis is clamped on its own');
+  assert.deepStrictEqual(lean(10, 10, 0, 0), { leanX: 0, leanY: 0 }, 'a window with no size is the middle');
+  assert.deepStrictEqual(lean(NaN, undefined), lean(0, 0),
+    'an unreadable pointer is the window corner it falls back to, not a lean of NaN');
 });
 
-test('zoomed in, the pointer at an edge or a corner brings that part of the table into view', () => {
-  /* The table at rest fills the window to within a gutter (tableFitSize), so
-     every part of it is a point of the rest picture inside the window. */
-  const range = zoom => camera(0, 450, zoom).tx - camera(W, 450, zoom).tx;
-  assert.ok(range(1) <= 0.05 * W, `at zoom 1 the slide is a few percent: ${range(1)}`);
-  assert.ok(range(2.5) >= 1.5 * W, `at 2.5 it reaches the whole picture, ${1.5 * W}px wider than the window: ${range(2.5)}`);
-  for (const [x, y] of [[0, 0], [W, 0], [0, H], [W, H], [0, 450], [W, 450], [720, 0], [720, H]]) {
-    for (const zoom of [1.5, 2, 2.5]) {
-      const cam = camera(x, y, zoom);
-      const seen = draw(cam, x, y);   // the same corner of the rest picture
-      assert.ok(seen.x >= -1e-9 && seen.x <= W + 1e-9 && seen.y >= -1e-9 && seen.y <= H + 1e-9,
-        `at ${zoom}, pointing at ${x},${y} shows that part of the table: drawn at ${seen.x},${seen.y}`);
-      /* And not much past it: what shows beyond the table is the lean's band
-         and the gutter, zoomed. */
-      assert.ok(Math.abs(seen.x - x) <= (LEAN * W + 8) * zoom && Math.abs(seen.y - y) <= (LEAN * H + 8) * zoom + 1e-9,
-        `at ${zoom}, ${x},${y} is drawn ${seen.x - x},${seen.y - y} from the window's edge`);
+test('the lean fades out over the first 15% of the zoom, with no step anywhere', () => {
+  const blend = z => app.evaluate(`tableLeanBlend(${z})`);
+  assert.strictEqual(app.evaluate('TABLE_LEAN_FADE'), 1.15);
+  assert.strictEqual(blend(1), 1, 'all of it at the whole table');
+  assert.strictEqual(blend(1.15), 0, 'none from 1.15');
+  assert.strictEqual(blend(2.5), 0);
+  assert.ok(near(blend(1.075), 0.5), 'half of it halfway');
+  let last = 1;
+  for (let z = 1; z <= 1.2; z += 0.001) {
+    const b = blend(z);
+    assert.ok(b <= last + 1e-12 && last - b < 0.02, `falls smoothly at ${z}: ${last} to ${b}`);
+    last = b;
+  }
+  // Smoothstep's ends are flat: it leaves and arrives without a kink.
+  assert.ok(1 - blend(1.0015) < 0.001 && blend(1.1485) < 0.001, 'it eases out of 1 and into 0');
+  // So the pointer's lean shrinks with the zoom, and is gone at 1.15.
+  const slide = z => cam(state(W, 450, z)).tx - cam(state(0, 450, z)).tx;
+  assert.ok(near(slide(1), -2 * LEAN * W));
+  assert.ok(Math.abs(slide(1.05)) < Math.abs(slide(1)) && Math.abs(slide(1.1)) < Math.abs(slide(1.05)));
+  assert.strictEqual(slide(1.15), 0);
+});
+
+test('zoomed in, the pointer moving about the window leaves the view where it is', () => {
+  for (const zoom of [1.15, 1.5, 2, 2.5]) {
+    for (const pan of [{}, { panX: 120, panY: -80 }]) {
+      const still = cam(state(720, 450, zoom, pan));
+      for (const [x, y] of [[0, 0], [W, H], [300, 820], [1100, 120], [W, 450]]) {
+        assert.deepStrictEqual(cam(state(x, y, zoom, pan)), still, `at ${zoom}, a pointer at ${x},${y}`);
+      }
     }
   }
 });
 
-test('zooming never moves the point of the table under the pointer', () => {
-  for (const [x, y] of [[720, 450], [100, 80], [1300, 820], [37, 640], [W, H]]) {
-    const at = under(camera(x, y, 1), x, y);
-    for (const zoom of [1.01, 1.3, 2, 2.5]) {
-      const now = under(camera(x, y, zoom), x, y);
-      assert.ok(near(now.x, at.x, 1e-9) && near(now.y, at.y, 1e-9),
-        `${x},${y} at zoom ${zoom}: ${now.x},${now.y} against ${at.x},${at.y}`);
+test('the pan is the point of the rest picture at the window’s middle, at any zoom', () => {
+  for (const zoom of [1, 1.5, 2.5]) {
+    for (const [panX, panY] of [[0, 0], [100, -50], [-230, 140]]) {
+      const c = cam(state(720, 450, zoom, { panX, panY }));
+      assert.ok(same(under(c, W / 2, H / 2), { x: W / 2 + panX, y: H / 2 + panY }),
+        `at ${zoom} with ${panX},${panY}: ${JSON.stringify(under(c, W / 2, H / 2))}`);
     }
   }
 });
 
-test('with cards still, the camera does not lean, and still reaches a zoomed table’s corners', () => {
-  for (const [x, y] of [[0, 0], [W, H], [300, 820]]) {
-    assert.deepStrictEqual(camera(x, y, 1, 0), { zoom: 1, tx: 0, ty: 0 }, `${x},${y} at zoom 1`);
-    const seen = draw(camera(x, y, 2.5, 0), x, y);
-    assert.ok(near(seen.x, x, 1e-9) && near(seen.y, y, 1e-9), 'zoomed, the window’s corner shows the picture’s');
+test('zooming about a point never moves the point of the table under it, wherever the view is', () => {
+  const starts = [state(720, 450), state(100, 80, 1.6, { panX: -140, panY: -90 }),
+                  state(1300, 820, 2.2, { panX: 210, panY: 160 }), state(W, H)];
+  for (const s of starts) {
+    for (const [x, y] of [[720, 450], [100, 80], [1300, 820], [37, 640], [W - 1, H - 1]]) {
+      const at = under(cam(s), x, y);
+      for (const zoom of [1, 1.01, 1.07, 1.3, 2, 2.5]) {
+        const now = under(cam(zoomAbout(s, zoom, x, y)), x, y);
+        assert.ok(same(now, at), `from ${JSON.stringify(s)} about ${x},${y} to ${zoom}: ${JSON.stringify(now)} against ${JSON.stringify(at)}`);
+      }
+    }
   }
+  /* Through the lean's fading too: the pointer at an edge leans the view
+     fully at 1 and not at all at 1.15, and the zoom counts that in. */
+  const leaning = state(W - 1, 450);
+  assert.ok(same(under(cam(zoomAbout(leaning, 1.15, W - 1, 450)), W - 1, 450), under(cam(leaning), W - 1, 450)));
+  assert.deepStrictEqual(app.copy(app.sandbox.tableZoomAbout(state(0, 0, 1.4, { panX: 5, panY: 6 }), 2, null, W, H)),
+    { panX: 5, panY: 6 }, 'with no anchor the pan is left as it was');
+});
+
+test('a wheel turned over the table zooms about the pointer step after step, held inside the table', () => {
+  /* Each frame of a zoom, the pan put right about the pointer and held in the
+     table, as tableCameraAdvance does: over the table, a zoom in is never held. */
+  for (const [x, y] of [[720, 450], [420, 300], [1100, 650], [300, 760]]) {
+    let s = state(x, y);
+    const at = under(cam(s), x, y);
+    for (const dy of [-100, -100, -37, -300, -4, -100]) {
+      const zoom = app.evaluate(`tableWheelZoom(${s.zoom}, ${dy}, 0)`);
+      s = clampPan(zoomAbout(s, zoom, x, y), s);
+      assert.ok(same(under(cam(s), x, y), at, 1e-6), `${x},${y} at ${zoom}: ${JSON.stringify(under(cam(s), x, y))}`);
+    }
+  }
+});
+
+test('zooming back out to the whole table comes back to the rest view', () => {
+  for (const [x, y] of [[0, 0], [W - 1, H - 1], [200, 700], [720, 450]]) {
+    let s = clampPan(state(x, y, 2.5, { panX: -9999, panY: 9999 }), state(x, y, 2.5), { strict: true });
+    let last = Infinity;
+    for (let zoom = 2.5; zoom > 1; ) {
+      zoom = Math.max(1, zoom / 1.1);
+      s = clampPan(zoomAbout(s, zoom, x, y), s);
+      const off = Math.hypot(s.panX, s.panY);
+      assert.ok(off <= last + 1e-9, `the view comes back towards the middle all the way: ${off} after ${last}`);
+      last = off;
+    }
+    assert.strictEqual(s.zoom, 1);
+    assert.deepStrictEqual({ panX: s.panX, panY: s.panY }, { panX: 0, panY: 0 }, `about ${x},${y}`);
+  }
+});
+
+test('at the whole table the view cannot be panned anywhere', () => {
+  const range = app.copy(app.sandbox.tablePanRange(BOUNDS, 1, 0, W, H));
+  assert.deepStrictEqual([range.x.lo, range.x.hi, range.y.lo, range.y.hi], [0, 0, 0, 0]);
+  for (const pan of [{ panX: 300, panY: -200 }, { panX: -1, panY: 1 }]) {
+    const s = clampPan(state(720, 450, 1, pan), state(720, 450, 1));
+    assert.deepStrictEqual([s.panX, s.panY], [0, 0], JSON.stringify(pan));
+  }
+  /* And zoomed in too little for the table to fill the window across, the
+     view stays as centred across as the whole table is. */
+  const low = app.copy(app.sandbox.tablePanRange(BOUNDS, 1.1, 0, W, H));
+  assert.deepStrictEqual([low.x.lo, low.x.hi], [0, 0]);
+  assert.ok(low.y.lo < 0 && low.y.hi > 0, 'though it can go a little way down and up');
+});
+
+test('zoomed all the way in, every corner of the table can be reached and none of the room beyond it shows', () => {
+  const { width: pw, height: ph, radius } = FIT_GEOM.plane;
+  const k = radius * (1 - Math.SQRT1_2);
+  for (const zoom of [1.6, 2, 2.5]) {
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]) {
+      const s = clampPan(state(720, 450, zoom, { panX: sx * 1e5, panY: sy * 1e5 }), state(720, 450, zoom), { strict: true });
+      const corners = windowOnPlane(s);
+      for (const p of corners) {
+        assert.ok(p.u >= k - 1e-6 && p.u <= pw - k + 1e-6 && p.v >= k - 1e-6 && p.v <= ph - k + 1e-6,
+          `at ${zoom} pushed ${sx},${sy}: a window corner lies on the plane at ${p.u},${p.v} of ${pw}×${ph}`);
+      }
+      /* The window stays inside the rest picture too, which is as far as the
+         lean ever took it: no further than the old camera reached. */
+      const c = cam(s, 0), a = under(c, 0, 0), b = under(c, W, H);
+      assert.ok(a.x >= -1e-6 && a.y >= -1e-6 && b.x <= W + 1e-6 && b.y <= H + 1e-6, 'inside the rest picture');
+      /* And the rim's edge is brought to the window's edge it was pushed
+         towards: the window's top at the table's far edge, its bottom at the
+         near edge, its side on the table's side at the window's top row. */
+      const top = under(c, 0, 0).y, bottom = under(c, 0, H).y;
+      const row = app.copy(app.sandbox.tableBoundsAt(BOUNDS, top));
+      if (sy < 0) assert.ok(near(top, BOUNDS.top, 1e-6), `at ${zoom} the far rim reaches the window's top`);
+      if (sy > 0) assert.ok(near(bottom, BOUNDS.bottom, 1e-6), `at ${zoom} the near rim reaches the window's bottom`);
+      if (zoom >= 1.6 && sx < 0) assert.ok(near(under(c, 0, 0).x, row.left, 1e-6), `at ${zoom} the left rim reaches the window's left`);
+      if (zoom >= 1.6 && sx > 0) assert.ok(near(under(c, W, 0).x, row.right, 1e-6), `at ${zoom} the right rim reaches the window's right`);
+    }
+  }
+});
+
+test('the table’s outline is the plane’s corners, through the tilt, taken in by the rounding', () => {
+  assert.ok(BOUNDS.top < BOUNDS.bottom && BOUNDS.farLeft > BOUNDS.nearLeft && BOUNDS.farRight < BOUNDS.nearRight,
+    `a trapezoid narrower at the far edge: ${JSON.stringify(BOUNDS)}`);
+  assert.ok(near(BOUNDS.farLeft + BOUNDS.farRight, W, 1e-6) && near(BOUNDS.nearLeft + BOUNDS.nearRight, W, 1e-6),
+    'centred across the window');
+  assert.ok(BOUNDS.nearLeft > 0 && BOUNDS.nearRight < W && BOUNDS.bottom < H && BOUNDS.top > 0,
+    'and inside the window at rest, as the fit lays it');
+  const halfway = app.copy(app.sandbox.tableBoundsAt(BOUNDS, (BOUNDS.top + BOUNDS.bottom) / 2));
+  assert.ok(near(halfway.left, (BOUNDS.farLeft + BOUNDS.nearLeft) / 2, 1e-9), 'a side is a straight line');
+  assert.deepStrictEqual(app.copy(app.sandbox.tableBoundsAt(BOUNDS, -500)),
+    { left: BOUNDS.farLeft, right: BOUNDS.farRight }, 'a row above the table is its far edge');
+  assert.strictEqual(app.sandbox.tablePanBounds({ ...FIT_GEOM, plane: { ...FIT_GEOM.plane, width: 0 } }), null);
+  assert.deepStrictEqual(app.copy(app.sandbox.tableClampPan({ zoom: 2, panX: 7, panY: 8 }, {}, null, W, H)),
+    { panX: 7, panY: 8 }, 'with nothing measured the pan is left as it was asked');
+});
+
+test('a pan beyond the rim may only come back, never go further', () => {
+  /* A view left showing the room beyond the rim — zoomed in near its corner,
+     where nothing was held — can be panned back onto the table but not
+     further off it. */
+  const out = state(720, 450, 1.8, { panX: -400, panY: -300 });
+  const range = app.copy(app.sandbox.tablePanRange(BOUNDS, 1.8, -300, W, H));
+  assert.ok(out.panX < range.x.lo && out.panY < range.y.lo, 'the view starts outside');
+  const further = clampPan({ ...out, panX: -450, panY: -350 }, out);
+  assert.ok(near(further.panX, -400, 1e-9) && near(further.panY, -300, 1e-9), `held where it was: ${further.panX},${further.panY}`);
+  const back = clampPan({ ...out, panX: -380, panY: -280 }, out);
+  assert.ok(near(back.panX, -380, 1e-9) && near(back.panY, -280, 1e-9), 'free to come back');
+  /* And resized, held to the range alone. */
+  const strict = clampPan(out, out, { strict: true });
+  assert.ok(near(strict.panY, range.y.lo, 1e-9), `a resize asks the table alone: ${strict.panY}`);
+});
+
+test('a hand on the felt pans the table one to one', () => {
+  for (const zoom of [1.3, 2, 2.5]) {
+    const s = state(720, 450, zoom, { panX: 40, panY: -25 });
+    const from = { x: 500, y: 400 }, to = { x: 431, y: 467 };
+    const after = { ...s, ...app.copy(app.sandbox.tableGrabPan(s, from, to, zoom)) };
+    assert.ok(same(under(cam(after), to.x, to.y), under(cam(s), from.x, from.y)),
+      `at ${zoom} the rest point under the hand stays under it`);
+    /* So the point of the mat under it does too, at any height. */
+    const m0 = app.evaluate(`tablePlaneMatrix(${JSON.stringify({ ...FIT_GEOM, mat: { left: 0, top: 0 }, tilt: REST, camera: cam(s) })})`);
+    const m1 = app.evaluate(`tablePlaneMatrix(${JSON.stringify({ ...FIT_GEOM, mat: { left: 0, top: 0 }, tilt: REST, camera: cam(after) })})`);
+    for (const z of [0, 96]) {
+      const a = app.copy(app.sandbox.tableUnproject(m0, from.x, from.y, z));
+      const b = app.copy(app.sandbox.tableUnproject(m1, to.x, to.y, z));
+      assert.ok(Math.hypot(a.u - b.u, a.v - b.v) < 1e-6, `at ${zoom}, ${z}px up: ${JSON.stringify(a)} against ${JSON.stringify(b)}`);
+    }
+  }
+  assert.deepStrictEqual(app.copy(app.sandbox.tableGrabPan({ panX: 3, panY: 4 }, { x: 1, y: 1 }, { x: 1, y: 1 }, 2)),
+    { panX: 3, panY: 4 }, 'a hand that has not moved has not moved the table');
+});
+
+test('the edges scroll the view: none in the middle, growing through the band, both ways in a corner', () => {
+  const edge = (x, y, w = W, h = H) => app.call('tableEdgeVelocity', x, y, w, h);
+  const MAX = app.evaluate('TABLE_SCROLL_MAX');
+  assert.strictEqual(MAX, 900);
+  assert.strictEqual(app.evaluate('tableEdgeBand(1440)'), 0.03 * 1440, 'three percent of a wide window');
+  assert.strictEqual(app.evaluate('tableEdgeBand(900)'), 32, 'and never less than 32px');
+  assert.deepStrictEqual(edge(720, 450), { vx: 0, vy: 0 }, 'the middle asks nothing');
+  assert.deepStrictEqual(edge(W - 1 - 43.2, 450), { vx: 0, vy: 0 }, 'nor the band’s inner edge');
+  assert.ok(near(edge(W - 1, 450).vx, MAX), 'the window’s last pixel is the most');
+  assert.ok(near(edge(0, 450).vx, -MAX), 'the first, the most the other way');
+  assert.ok(near(edge(W - 1 - 21.6, 450).vx, MAX / 2), 'halfway into the band, half');
+  assert.ok(edge(W - 10, 450).vx > edge(W - 30, 450).vx, 'deeper is faster');
+  assert.ok(near(edge(720, H - 1).vy, MAX) && near(edge(720, 0).vy, -MAX), 'up and down the same, the far side up');
+  assert.ok(near(edge(720, H - 17).vy, MAX / 2), 'the 32px band down');
+  const corner = edge(2, 3);
+  assert.ok(corner.vx < -800 && corner.vy < -800, `a corner scrolls both ways: ${JSON.stringify(corner)}`);
+  for (const [x, y] of [[-1, 450], [W, 450], [720, H], [NaN, 450], [undefined, undefined]]) {
+    assert.deepStrictEqual(edge(x, y), { vx: 0, vy: edge(720, y).vy }, `outside the window across, ${x},${y}, asks nothing across`);
+  }
+  assert.deepStrictEqual(edge(5, 5, 0, 0), { vx: 0, vy: 0 }, 'a window with no size asks nothing');
+});
+
+test('W A S D and the arrows ask the most speed their way, twice it with Shift, both at once on a diagonal', () => {
+  const keys = (held, fast) => app.copy(app.sandbox.tableKeyVelocity(held, fast));
+  assert.deepStrictEqual(keys([]), { vx: 0, vy: 0 });
+  assert.deepStrictEqual(keys(['right']), { vx: 900, vy: 0 });
+  assert.deepStrictEqual(keys(['left']), { vx: -900, vy: 0 });
+  assert.deepStrictEqual(keys(['up']), { vx: 0, vy: -900 }, 'up is the view moving up the table, to its far side');
+  assert.deepStrictEqual(keys(['down']), { vx: 0, vy: 900 });
+  assert.deepStrictEqual(keys(['up', 'left']), { vx: -900, vy: -900 }, 'a diagonal is both');
+  assert.deepStrictEqual(keys(['left', 'right']), { vx: 0, vy: 0 }, 'two ways against each other cancel');
+  assert.deepStrictEqual(keys(['down', 'right'], true), { vx: 1800, vy: 1800 }, 'Shift doubles it');
+  assert.strictEqual(app.evaluate('TABLE_SCROLL_FAST'), 2);
+
+  const dir = (e, focus) => app.sandbox.tablePanKeyDir(e, focus);
+  assert.strictEqual(dir({ code: 'KeyW', key: 'w' }), 'up');
+  assert.strictEqual(dir({ code: 'KeyA', key: 'a' }), 'left');
+  assert.strictEqual(dir({ code: 'KeyS', key: 's' }), 'down');
+  assert.strictEqual(dir({ code: 'KeyD', key: 'D', shiftKey: true }), 'right', 'Shift is no other shortcut');
+  assert.strictEqual(dir({ code: 'KeyW', key: 'z' }), 'up', 'by its place on the keyboard, whatever it is labelled');
+  assert.strictEqual(dir({ code: '', key: 's' }), 'down', 'or by its letter, where no place is named');
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey']) {
+    assert.strictEqual(dir({ code: 'KeyD', key: 'd', [mod]: true }), null, `${mod} is somebody else’s`);
+  }
+  assert.strictEqual(dir({ code: 'KeyD', key: 'd' }, 'field'), null, 'a field keeps its letters');
+  assert.strictEqual(dir({ code: 'KeyD', key: 'd' }, 'control'), 'right', 'a button does not');
+  assert.strictEqual(dir({ code: 'ArrowRight', key: 'ArrowRight' }), 'right');
+  assert.strictEqual(dir({ code: 'ArrowUp', key: 'ArrowUp' }), 'up');
+  assert.strictEqual(dir({ code: 'ArrowUp', key: 'ArrowUp' }, 'control'), null, 'a control keeps its arrows');
+  assert.strictEqual(dir({ code: 'ArrowUp', key: 'ArrowUp' }, 'field'), null);
+  for (const key of ['+', '-', '0', '/', 'Escape', 'Enter', 'q']) {
+    assert.strictEqual(dir({ code: '', key }), null, `${key} is not a pan`);
+  }
+  assert.strictEqual(dir(null), null);
+
+  /* What the focus is on. */
+  const scene = { contains: el => !!el.inScene };
+  const el = (tagName, extra = {}) => ({ tagName, matches: sel => sel.split(',').map(s => s.trim()).includes(tagName.toLowerCase()), ...extra });
+  const kind = e => app.sandbox.tableFocusKind(e, scene);
+  assert.strictEqual(kind(null), 'free', 'nothing is the page');
+  assert.strictEqual(kind(el('INPUT', { type: 'text' })), 'field');
+  assert.strictEqual(kind(el('INPUT', { type: 'range', inScene: true })), 'field', 'the card-size slider is an input');
+  assert.strictEqual(kind(el('TEXTAREA')), 'field');
+  assert.strictEqual(kind(el('SELECT')), 'field');
+  assert.strictEqual(kind(el('DIV', { isContentEditable: true })), 'field');
+  assert.strictEqual(kind(el('BUTTON', { inScene: true })), 'control', 'a tab or a card on the table');
+  assert.strictEqual(kind(el('DIV', { inScene: true })), 'free', 'the bare table');
+  assert.strictEqual(kind(el('DIV')), 'control', 'anything off the table, a panel among them');
+});
+
+test('the view’s velocity eases in and out, and comes to a stop', () => {
+  const ease = app.evaluate('tableEaseFor(1000 / 60, TABLE_SCROLL_EASE)');
+  const step = (v, t) => app.copy(app.sandbox.tableVelocityStep(v, t, ease));
+  let v = { x: 0, y: 0 };
+  let frames = 0, last = 0;
+  while (v.x !== 900 && frames < 200) {
+    v = step(v, { vx: 900, vy: -900 });
+    assert.ok(v.x > last && v.x <= 900, 'it gathers speed, never past what is asked');
+    assert.strictEqual(v.y, -v.x, 'each way alike');
+    last = v.x;
+    frames++;
+  }
+  assert.ok(frames > 5, `it does not start at full speed: ${frames} frames`);
+  assert.ok(frames < 60, `and is at full speed within a second: ${frames} frames`);
+  frames = 0;
+  while (v.x !== 0 && frames < 200) { v = step(v, { vx: 0, vy: 0 }); frames++; }
+  assert.ok(frames > 5 && frames < 60, `it stops smoothly, and does stop: ${frames} frames`);
+  assert.deepStrictEqual(v, { x: 0, y: 0 });
+  assert.deepStrictEqual(step({ x: NaN }, null), { x: 0, y: 0 }, 'nothing readable is standing still');
+});
+
+test('the edges stand still over a control on the table, and over anything off it', () => {
+  const scene = { contains: e => !!e?.inScene };
+  /* An element by what it is and what it is inside: closest() finds the first
+     of them that a part of the selector names. */
+  const el = (chain, inScene = true) => ({
+    inScene,
+    closest: sel => (chain.some(c => sel.split(',').map(s => s.trim()).includes(c)) ? {} : null),
+  });
+  const paused = e => app.sandbox.tableScrollPaused(e, scene);
+  assert.strictEqual(paused(el(['.table-mat'])), false, 'bare felt scrolls');
+  assert.strictEqual(paused(el(['.table-plane'])), false, 'and bare wood');
+  assert.strictEqual(paused(el(['.table-card', 'button'])), false, 'and a card lying at the edge');
+  for (const control of ['.table-tab', '.table-scale', '.table-slip', '.table-bin', '.table-zone-label',
+                         '.table-zone-grip', '.table-zone-chips', '.table-drawer-chips', '.table-panel']) {
+    assert.strictEqual(paused(el([control])), true, `${control} keeps the view still`);
+  }
+  assert.strictEqual(paused(el(['.table-panel-hdr'], false)), true, 'the tucked bar, off the table');
+  assert.strictEqual(paused(el(['.table-drawer'], false)), true, 'and the docked drawer');
+  assert.strictEqual(paused(null), true, 'and a pointer not known');
+
+  const grab = (e, button) => app.sandbox.tableGrabbable(e, scene, button);
+  assert.strictEqual(grab(el(['.table-mat']), 0), true, 'bare felt can be taken hold of');
+  assert.strictEqual(grab(el(['.table-plane']), 0), true, 'and bare wood');
+  assert.strictEqual(grab(el(['.table-card', 'button']), 0), false, 'a card pressed is a card picked up');
+  assert.strictEqual(grab(el(['.table-zone-label']), 0), false, 'a zone’s label carries the zone');
+  assert.strictEqual(grab(el(['.table-zone-grip']), 0), false, 'and its grip resizes it');
+  assert.strictEqual(grab(el(['.table-tab']), 0), false);
+  assert.strictEqual(grab(el(['.table-card', 'button']), 1), true, 'the middle button takes hold over a card');
+  assert.strictEqual(grab(el(['.table-tab']), 1), true, 'and anywhere on the table');
+  assert.strictEqual(grab(el(['.table-slip', 'input']), 1), false, 'but a field, where it pastes');
+  assert.strictEqual(grab(el(['.table-panel']), 1), false, 'or a page lying on the table');
+  assert.strictEqual(grab(el(['.table-mat']), 2), false, 'the other button is the menu’s');
+  assert.strictEqual(grab(el(['.table-mat'], false), 1), false, 'nothing off the table');
+});
+
+test('the camera eases its zoom and lean to their targets, carries the pan, and says when it has arrived', () => {
+  let at = app.copy(app.evaluate('TABLE_CAMERA_REST'));
+  at = { ...at, panX: 37, panY: -12 };
+  const to = { zoom: 2.5, ...lean(W, 0) };
+  let frames = 0, settled = false, last = Infinity;
+  while (!settled && frames < 500) {
+    const step = app.copy(app.evaluate(`tableCameraStep(${JSON.stringify(at)}, ${JSON.stringify(to)})`));
+    const gap = Math.abs(to.zoom - step.at.zoom) + Math.abs(to.leanX - step.at.leanX);
+    assert.ok(gap <= last, 'every frame closes on the target, never past it');
+    last = gap;
+    at = step.at;
+    settled = step.settled;
+    frames++;
+  }
+  assert.ok(settled, 'the loop stops itself');
+  assert.ok(frames < 120, `and within two seconds of frames, not ${frames}`);
+  assert.deepStrictEqual(at, { ...to, panX: 37, panY: -12 }, 'and arrives exactly, not a hair short, the pan as it was');
+  const again = app.copy(app.evaluate(`tableCameraStep(${JSON.stringify(at)}, ${JSON.stringify(to)})`));
+  assert.deepStrictEqual(again, { at, settled: true }, 'a camera already there is settled');
+});
+
+test('the lean eases about a quarter more gently than the zoom', () => {
+  const zoomEase = app.evaluate('TABLE_ZOOM_EASE'), panEase = app.evaluate('TABLE_PAN_EASE');
+  assert.strictEqual(zoomEase, 0.12, 'the zoom keeps up with the wheel as it did');
+  assert.strictEqual(panEase, 0.09, 'the lean closes a quarter less of its gap a frame');
+  /* One frame from rest towards a zoomed, leaning target: each part closes its own share. */
+  const to = { zoom: 2, leanX: 1, leanY: -1 };
+  const { at } = app.copy(app.evaluate(`tableCameraStep(TABLE_CAMERA_REST, ${JSON.stringify(to)})`));
+  assert.ok(near(at.zoom, 1 + zoomEase), `the zoom closes ${zoomEase} of its gap, not ${at.zoom - 1}`);
+  assert.ok(near(at.leanX, panEase) && near(at.leanY, -panEase), 'and each lean closes its own share');
 });
 
 test('the camera holds its zoom inside the range, whatever it is asked', () => {
-  assert.strictEqual(camera(720, 450, 0.2).zoom, 1);
-  assert.strictEqual(camera(720, 450, 9).zoom, 2.5);
-  assert.strictEqual(camera(720, 450, NaN).zoom, 1);
-  assert.deepStrictEqual(app.copy(app.sandbox.tableCamera({ zoom: 2, panX: 1, panY: 1 }, 0, 0)), { zoom: 2, tx: 0, ty: 0 },
+  assert.strictEqual(cam(state(720, 450, 0.2)).zoom, 1);
+  assert.strictEqual(cam(state(720, 450, 9)).zoom, 2.5);
+  assert.strictEqual(cam(state(720, 450, NaN)).zoom, 1);
+  assert.deepStrictEqual(app.copy(app.sandbox.tableCamera({ zoom: 2, leanX: 1, leanY: 1, panX: 9, panY: 9 }, 0, 0)), { zoom: 2, tx: 0, ty: 0 },
     'a window with no size has nothing to pan across');
 });
 
@@ -300,37 +630,6 @@ test('the wheel zooms smoothly by how far it turned, in pixels, lines or pages',
   assert.strictEqual(key(1.6, 0), 1.6, 'a factor that is not one is no zoom');
 });
 
-test('the camera eases to its target and says when it has arrived', () => {
-  let at = app.copy(app.evaluate('TABLE_CAMERA_REST'));
-  const to = { zoom: 2.5, ...pan(W, 0) };
-  let frames = 0, settled = false, last = Infinity;
-  while (!settled && frames < 500) {
-    const step = app.copy(app.evaluate(`tableCameraStep(${JSON.stringify(at)}, ${JSON.stringify(to)})`));
-    const gap = Math.abs(to.zoom - step.at.zoom) + Math.abs(to.panX - step.at.panX);
-    assert.ok(gap <= last, 'every frame closes on the target, never past it');
-    last = gap;
-    at = step.at;
-    settled = step.settled;
-    frames++;
-  }
-  assert.ok(settled, 'the loop stops itself');
-  assert.ok(frames < 120, `and within two seconds of frames, not ${frames}`);
-  assert.deepStrictEqual(at, to, 'and arrives exactly, not a hair short');
-  const again = app.copy(app.evaluate(`tableCameraStep(${JSON.stringify(to)}, ${JSON.stringify(to)})`));
-  assert.deepStrictEqual(again, { at: to, settled: true }, 'a camera already there is settled');
-});
-
-test('the pan eases about a quarter more gently than the zoom', () => {
-  const zoomEase = app.evaluate('TABLE_ZOOM_EASE'), panEase = app.evaluate('TABLE_PAN_EASE');
-  assert.strictEqual(zoomEase, 0.12, 'the zoom keeps up with the wheel as it did');
-  assert.strictEqual(panEase, 0.09, 'the pan closes a quarter less of its gap a frame');
-  /* One frame from rest towards a zoomed, panned target: each part closes its own share. */
-  const to = { zoom: 2, panX: 1, panY: -1 };
-  const { at } = app.copy(app.evaluate(`tableCameraStep(TABLE_CAMERA_REST, ${JSON.stringify(to)})`));
-  assert.ok(near(at.zoom, 1 + zoomEase), `the zoom closes ${zoomEase} of its gap, not ${at.zoom - 1}`);
-  assert.ok(near(at.panX, panEase) && near(at.panY, -panEase), 'and each pan closes its own share');
-});
-
 test('the camera takes the same time to arrive at any refresh rate', () => {
   const ease = dt => app.evaluate(`tableEaseFor(${dt}, 0.12)`);
   assert.ok(near(ease(1000 / 60), 0.12), 'a sixtieth of a second closes the stated share');
@@ -341,6 +640,89 @@ test('the camera takes the same time to arrive at any refresh rate', () => {
   assert.strictEqual(ease(-5), 0, 'nor is a clock that ran backwards');
   assert.strictEqual(ease(5000), ease(100), 'a frame after a long sleep is held to a tenth of a second');
   assert.ok(ease(100) < 1, 'so the camera never lands in a single jump');
+});
+
+/* The frame loop's camera, driven in the sandbox: the table measured as it is
+ * fitted, the keys held through the same set the key handlers fill, and a
+ * frame of tableCameraAdvance at a time. */
+function drive({ zoom = 2, pan = {}, keys = [], fast = false, motion = true } = {}) {
+  app.evaluate(`
+    tableGeom = { view: { width: ${W}, height: ${H} } };
+    tableBounds = ${JSON.stringify(BOUNDS)};
+    tableAt = { ...TABLE_CAMERA_REST, zoom: ${zoom}, ...${JSON.stringify(pan)} };
+    tableTo = { zoom: ${zoom}, leanX: 0, leanY: 0 };
+    tableVel = { x: 0, y: 0 };
+    tablePointer = null; tableGrab = null; tableHold = null; tableZoneHold = null; tableLooked = null;
+    tableKeysHeld = new Set(${JSON.stringify(keys)}); tableKeysFast = ${fast};`);
+  const frame = () => app.evaluate(`tableCameraAdvance(TABLE_FRAME_MS, ${motion})`);
+  const at = () => app.copy(app.evaluate('({ ...tableAt, vel: tableVel })'));
+  const release = () => app.evaluate('tableKeysHeld.clear()');
+  return { frame, at, release };
+}
+/* And the sandbox put back as it was, for the tests after. */
+const undrive = () => app.evaluate(`
+  tableAnchor = null; tableGeom = null; tableBounds = null; tableKeysHeld = new Set();
+  tableAt = { ...TABLE_CAMERA_REST }; tableTo = { zoom: 1, leanX: 0, leanY: 0 }; tableVel = { x: 0, y: 0 };`);
+
+test('holding D moves the view right, and letting go eases it to a stop', () => {
+  const run = drive({ zoom: 2.5, keys: ['right'] });
+  for (let i = 0; i < 30; i++) assert.strictEqual(run.frame(), true, 'it asks for another frame while it moves');
+  const held = run.at();
+  /* Half a second at up to 900px a second, eased in: the view has travelled
+     several hundred window pixels, which is 1/2.5 as many of the rest
+     picture at zoom 2.5. */
+  assert.ok(held.panX > 100 && held.panX < 225, `half a second of D: ${held.panX}`);
+  assert.strictEqual(held.panY, 0, 'and only across');
+  run.release();
+  let frames = 0;
+  while (run.frame() && frames < 200) frames++;
+  const stopped = run.at();
+  assert.ok(frames > 3 && frames < 60, `it eases to a stop: ${frames} frames`);
+  assert.ok(stopped.panX > held.panX, 'gliding on a little as it does');
+  assert.deepStrictEqual(stopped.vel, { x: 0, y: 0 });
+
+  /* With cards still, the speed is there at once and gone at once. */
+  const still = drive({ zoom: 2, keys: ['up'], fast: true, motion: false });
+  still.frame();
+  assert.ok(near(still.at().panY, -1800 / 60 / 2, 1e-6), `a frame of Shift+W at full speed: ${still.at().panY}`);
+  still.release();
+  assert.strictEqual(still.frame(), false, 'and stops dead');
+  undrive();
+});
+
+test('against the rim the view stops, and the frame loop goes to sleep', () => {
+  const run = drive({ zoom: 2.5, keys: ['left', 'up'] });
+  let frames = 0;
+  while (run.frame() && frames < 2000) frames++;
+  assert.ok(frames < 2000, 'the loop stops itself with the keys still held');
+  const s = run.at();
+  const range = app.copy(app.sandbox.tablePanRange(BOUNDS, 2.5, s.panY, W, H));
+  assert.ok(near(s.panX, range.x.lo, 1e-6) && near(s.panY, range.y.lo, 1e-6), `held at the far-left corner: ${JSON.stringify(s)}`);
+  assert.strictEqual(run.frame(), false, 'and another frame finds nothing to do');
+  /* At the whole table the keys ask nothing at all. */
+  const rest = drive({ zoom: 1, keys: ['right'] });
+  assert.strictEqual(rest.frame(), false);
+  assert.deepStrictEqual([rest.at().panX, rest.at().panY], [0, 0]);
+  undrive();
+});
+
+test('a zoom eased over frames stays about its anchor, the lean’s fading counted in', () => {
+  app.evaluate(`
+    tableGeom = { view: { width: ${W}, height: ${H} } };
+    tableBounds = ${JSON.stringify(BOUNDS)};
+    tableAt = { ...TABLE_CAMERA_REST, ...tableLeanTarget(1100, 300, ${W}, ${H}) };
+    tableTo = { zoom: 2.2, ...tableLeanTarget(1100, 300, ${W}, ${H}) };
+    tableVel = { x: 0, y: 0 }; tableKeysHeld = new Set(); tablePointer = null;
+    tableAnchor = { x: 1100, y: 300 };`);
+  const view = () => app.copy(app.evaluate(`tableCamera(tableAt, ${W}, ${H}, TABLE_PAN_REST)`));
+  const at = under(view(), 1100, 300);
+  let frames = 0;
+  while (app.evaluate('tableCameraAdvance(TABLE_FRAME_MS, true)') && frames < 300) {
+    assert.ok(same(under(view(), 1100, 300), at, 1e-6), `frame ${frames}: ${JSON.stringify(under(view(), 1100, 300))}`);
+    frames++;
+  }
+  assert.ok(near(app.evaluate('tableAt.zoom'), 2.2, 1e-12) && same(under(view(), 1100, 300), at, 1e-6), 'and when it arrives');
+  undrive();
 });
 
 // ── Sharp pictures on a zoomed table ─────────────────────────────────────
@@ -532,6 +914,8 @@ const GEOM = {
 };
 const MAT = { width: 872, height: 573 };
 const AT_REST = { tilt: REST, camera: { zoom: 1, tx: 0, ty: 0 } };
+/* A camera zoomed in about a pointer at (x, y) from the whole table, as the
+ * wheel turned there leaves it, leaning towards the pointer. */
 const view = (x, y, zoom) => ({ tilt: REST, camera: camera(x, y, zoom) });
 const VIEWS = [AT_REST, view(0, 0, 1), view(1440, 900, 1), view(300, 820, 1.4), view(100, 60, 2.5), view(1400, 880, 2)];
 const matrix = v => app.evaluate(`tablePlaneMatrix(${JSON.stringify({ ...GEOM, ...v })})`);
@@ -602,20 +986,22 @@ test('the screen-to-mat mapping is the ray from the eye meeting the tilted plane
 });
 
 test('a wheel step leaves the point of the mat under the pointer where it was', () => {
+  /* Step after step, in and out, each zoom about the pointer from wherever
+     the last left the view — the pan is state now, not the pointer's. */
   for (const [x, y] of [[720, 450], [210, 160], [1250, 800], [40, 870]]) {
-    let zoom = 1;
-    const before = unproject(matrix(view(x, y, zoom)), x, y);
+    let s = state(x, y);
+    const before = unproject(matrix({ tilt: REST, camera: cam(s) }), x, y);
+    const held0 = unproject(matrix({ tilt: REST, camera: cam(s) }), x, y, 96);
     for (const dy of [-100, -100, -37, -300, 120, -4]) {
-      zoom = app.evaluate(`tableWheelZoom(${zoom}, ${dy}, 0)`);
-      const now = unproject(matrix(view(x, y, zoom)), x, y);
+      s = zoomAbout(s, app.evaluate(`tableWheelZoom(${s.zoom}, ${dy}, 0)`), x, y);
+      const now = unproject(matrix({ tilt: REST, camera: cam(s) }), x, y);
       assert.ok(Math.hypot(now.u - before.u, now.v - before.v) < 1e-6,
-        `${x},${y} at zoom ${zoom}: ${now.u},${now.v} against ${before.u},${before.v}`);
+        `${x},${y} at zoom ${s.zoom}: ${now.u},${now.v} against ${before.u},${before.v}`);
+      /* At a card's height too: a card held while the wheel turns stays
+         under the hand. */
+      const held = unproject(matrix({ tilt: REST, camera: cam(s) }), x, y, 96);
+      assert.ok(Math.hypot(held.u - held0.u, held.v - held0.v) < 1e-6, 'and at a held card’s height');
     }
-    /* At a card's height too: a card held while the wheel turns stays under
-       the hand. */
-    const held0 = unproject(matrix(view(x, y, 1)), x, y, 96);
-    const held1 = unproject(matrix(view(x, y, 2.2)), x, y, 96);
-    assert.ok(Math.hypot(held1.u - held0.u, held1.v - held0.v) < 1e-6, 'and at a held card’s height');
   }
 });
 
