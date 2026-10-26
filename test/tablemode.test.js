@@ -1996,3 +1996,293 @@ test('the script is served before main.js, which tells it about every tab', () =
   assert.ok(setTab.trimEnd().endsWith('tableModeAfterTab(tab);\n}'), 'and the table is told last');
   assert.match(main, /tableModeStateLoaded\(\)/, 'and when the first state has arrived');
 });
+
+// ── The card-size slider ──────────────────────────────────────────────────
+
+test('the card-size slider is held to its range and its step, and kept per browser', () => {
+  const clamp = v => app.sandbox.tableCardScaleClamp(v);
+  for (const nothing of [undefined, null, '', 'big', NaN, Infinity]) {
+    assert.strictEqual(clamp(nothing), 1, `${String(nothing)} is the table’s own size`);
+  }
+  assert.strictEqual(clamp(1), 1);
+  assert.strictEqual(clamp(0), 0.5, 'no smaller than half');
+  assert.strictEqual(clamp(-3), 0.5);
+  assert.strictEqual(clamp('0.2'), 0.5, 'a stored string is read as the number it says');
+  assert.strictEqual(clamp(9), 1.5, 'no larger than half as large again');
+  assert.strictEqual(clamp(0.56), 0.55, 'put on its step');
+  assert.strictEqual(clamp('1.24'), 1.25);
+  assert.strictEqual(clamp(0.55), 0.55, 'and a step is the number it says, not a float near it');
+  assert.strictEqual(clamp(1 + 3 * 0.1), 1.3);
+
+  const fresh = loadTableMode();
+  const key = fresh.evaluate('TABLE_CARD_SCALE_KEY');
+  assert.strictEqual(key, 'mtgtools_table_card_scale');
+  assert.strictEqual(fresh.sandbox.readTableCardScale(), 1, 'a browser that never moved it lays the table’s own size');
+  fresh.sandbox.rememberTableCardScale(1.3);
+  assert.strictEqual(fresh.store.get(key), '1.3');
+  assert.strictEqual(fresh.sandbox.readTableCardScale(), 1.3);
+  fresh.sandbox.rememberTableCardScale(1);
+  assert.ok(!fresh.store.has(key), 'nothing is kept for the table’s own size');
+  fresh.store.set(key, '7');
+  assert.strictEqual(fresh.sandbox.readTableCardScale(), 1.5, 'a kept value out of range is held to it');
+  fresh.store.set(key, 'nonsense');
+  assert.strictEqual(fresh.sandbox.readTableCardScale(), 1);
+
+  const locked = loadTableMode({ storage: false });
+  assert.strictEqual(locked.sandbox.readTableCardScale(), 1, 'storage that cannot be read is the table’s own size');
+  assert.doesNotThrow(() => locked.sandbox.rememberTableCardScale(0.7), 'and storage that cannot be written is no exception');
+});
+
+test('at 100% every layout is the one the table has always laid', () => {
+  const R = 88 / 63;
+  for (let w = 0; w <= 2600; w += 37) {
+    const before = Math.round(Math.min(150, Math.max(72, w * 0.1)));
+    assert.strictEqual(app.sandbox.tableCardWidth(w), before, `card width on a ${w}px mat`);
+    assert.strictEqual(app.sandbox.tableCardWidth(w, 1), before);
+    assert.strictEqual(app.sandbox.tableCardWidthFor(w, 600, 1, { head: true }), before);
+  }
+  for (const [W, H] of [[MAT.width, MAT.height], [1102, 827], [764, 686], [1500, 420], [400, 300]]) {
+    for (const list of [cards(60, i => `g${i % 6}`), deckList(1, 99, 7), deckList(2, 200, 9), cards(30)]) {
+      const at = scale => app.copy(app.evaluate(`tableLayout(${JSON.stringify(list)}, ${W}, ${H}, {}, ${scale})`));
+      assert.deepStrictEqual(at(1), layout(list, W, H), `${list.length} cards on ${W}×${H}`);
+    }
+    const feature = app.call('tableFeatureSize', W, H, 1);
+    const w = Math.round(Math.min(H * 0.78 / R, W * 0.3));
+    assert.deepStrictEqual(feature, { w, h: w * R, lane: Math.round(w * 1.24) }, `the Card tab’s card on ${W}×${H}`);
+    assert.deepStrictEqual(app.call('tableFeatureSize', W, H), feature);
+  }
+});
+
+test('at 50%, 100% and 150% every card — the commander a tenth larger still — lies whole on the mat', () => {
+  /* The mats the table is fitted to at 1440×900, 1280×800 and 1024×768, a
+     big window's, a short one's, and the suite's own. */
+  const mats = [MAT, { width: 1102, height: 827 }, { width: 984, height: 721 }, { width: 764, height: 686 },
+    { width: 1900, height: 1180 }, { width: 700, height: 420 }];
+  const lists = [cards(60, i => `g${i % 6}`), deckList(1, 99, 7), deckList(2, 200, 9), cards(30), deckList(1, 12, 1)];
+  for (const mat of mats) {
+    const base = app.sandbox.tableCardWidth(mat.width);
+    for (const list of lists) {
+      for (const scale of [0.5, 1, 1.5]) {
+        const laid = app.copy(app.evaluate(`tableLayout(${JSON.stringify(list)}, ${mat.width}, ${mat.height}, {}, ${scale})`));
+        if (scale < 1) assert.strictEqual(laid.width, Math.round(Math.min(150, Math.max(72, mat.width * 0.1)) * scale));
+        if (scale > 1) assert.ok(laid.width >= base, 'larger is never smaller than the table’s own size');
+        if (scale === 1.5 && mat.height >= 600) assert.ok(laid.width > base * 1.4, `room enough on ${mat.width}×${mat.height} to grow`);
+        for (let i = 0; i < list.length; i++) {
+          const box = boxOf(list, laid, i, mat);
+          const where = `${list[i].name} of ${list.length} at ${scale * 100}% on ${mat.width}×${mat.height}`;
+          assert.ok(box.left >= -1e-6 && box.right <= mat.width + 1e-6, `${where} runs off the side`);
+          assert.ok(box.top >= -1e-6 && box.bottom <= mat.height + 1e-6, `${where} runs off the end`);
+        }
+        const heads = list.map((c, i) => (c.head ? i : -1)).filter(i => i >= 0);
+        for (const i of heads) assert.ok(near(boxOf(list, laid, i, mat).w, laid.width * HEAD_SCALE), 'the head keeps its tenth');
+      }
+    }
+    /* The Card tab's one card, at the slider's top: whole on the mat, its lane
+       leaving the sheet half the mat. */
+    const one = [{ name: 'Sol Ring' }];
+    for (const scale of [0.5, 1, 1.5]) {
+      const f = app.copy(app.evaluate(`tableFeatureLayout(${JSON.stringify(one)}, ${mat.width}, ${mat.height}, ${scale})`));
+      const x = f.spots[0].x * mat.width, y = f.spots[0].y * mat.height;
+      assert.ok(x + f.width / 2 <= mat.width + 1e-6 && x - f.width / 2 >= -1e-6, `the Card tab’s card at ${scale}`);
+      assert.ok(y + f.height / 2 <= mat.height + 1e-6 && y - f.height / 2 >= -1e-6);
+      if (scale > 1) assert.ok(f.lane <= mat.width * 0.5 + 1 || f.width === app.call('tableFeatureSize', mat.width, mat.height, 1).w);
+    }
+    const small = app.call('tableFeatureSize', mat.width, mat.height, 0.5).w;
+    const own = app.call('tableFeatureSize', mat.width, mat.height, 1).w;
+    assert.ok(Math.abs(small - own / 2) <= 0.5, 'and half its size at 50%');
+  }
+});
+
+test('a card a hand moved keeps its centre at any size, and the rest take the layout’s place at it', () => {
+  const list = app.copy(app.evaluate(`tableKeyCards(${JSON.stringify(deckList(1, 40, 4))}, 'deckview')`));
+  const moved = new Map([[list[5].key, { x: 0.91, y: 0.12, turn: 7 }], [list[0].key, { x: 0.2, y: 0.8, turn: -3 }]]);
+  for (const scale of [0.5, 1, 1.5]) {
+    const got = app.sandbox.tableScaledPlaces(list, 1102, 827, scale, moved, false);
+    const laid = app.copy(app.evaluate(`tableLayout(${JSON.stringify(list)}, 1102, 827, {}, ${scale})`));
+    assert.deepStrictEqual(plain(got.size), { w: laid.width, h: laid.height });
+    list.forEach((card, i) => {
+      assert.deepStrictEqual(plain(got.places[i]), plain(moved.get(card.key) || laid.spots[i]),
+        `${card.name} at ${scale * 100}%`);
+    });
+  }
+  const feature = app.sandbox.tableScaledPlaces([{ key: 'card:x#1', name: 'Sol Ring' }], 1102, 827, 1.5, new Map(), true);
+  assert.strictEqual(feature.size.w, app.call('tableFeatureSize', 1102, 827, 1.5).w, 'the Card tab’s card at its own size');
+  assert.ok(feature.lane > 0);
+});
+
+test('a card grown by the slider is drawn from the larger picture it needs, and decoded for its own box', () => {
+  const at100 = app.sandbox.tableCardWidthFor(1102, 827, 1), at150 = app.sandbox.tableCardWidthFor(1102, 827, 1.5);
+  assert.strictEqual(at100, 110);
+  assert.strictEqual(at150, 165);
+  const pic = (w, o) => plain(app.sandbox.tableCardPicture(w, o));
+  /* The scale is in the box the card is laid out in, which is what Firefox
+     decodes for, so k is the zoom's and the screen's at any size … */
+  assert.deepStrictEqual(pic(at100, { zoom: 1, dpr: 1 }), { k: 1, large: false });
+  assert.deepStrictEqual(pic(at150, { zoom: 1, dpr: 1 }), { k: 1, large: false }, 'a 1x screen at rest never needs them');
+  assert.strictEqual(pic(at150, { zoom: 1.5, dpr: 2 }).k, pic(at100, { zoom: 1.5, dpr: 2 }).k);
+  assert.strictEqual(pic(at100, { zoom: 1.5, dpr: 2 }).k, app.sandbox.tableDecodeScale(1.5, 2));
+  /* … and the width the slider grew is what asks for the large file. */
+  assert.strictEqual(pic(at100, { zoom: 1.5, dpr: 2 }).large, false, 'the table’s own size, on the normal picture');
+  assert.strictEqual(pic(at150, { zoom: 1.5, dpr: 2 }).large, true, 'grown half as large again, it needs the large one');
+  assert.strictEqual(pic(at100, { zoom: 1, dpr: 2, head: true }).large, false);
+  assert.strictEqual(pic(at150, { zoom: 1.2, dpr: 2, head: true }).large, true, 'and the commander, a tenth larger, sooner');
+  assert.strictEqual(pic(at150, { zoom: 1.2, dpr: 2 }).large, false);
+});
+
+test('the slider leaves every zone’s rect as it is, and only a smaller window still grows one', () => {
+  const W = 1102, H = 827;
+  const base = app.sandbox.tableCardWidth(W), baseH = base * 88 / 63;
+  const min = (w, h) => plain(app.sandbox.tableZoneMinFor(W, w, h));
+  assert.deepStrictEqual(min(base, baseH), plain(app.sandbox.tableZoneMinSize(base, baseH)), 'at 100%, as it always was');
+  assert.deepStrictEqual(min(base * 1.5, baseH * 1.5), plain(app.sandbox.tableZoneMinSize(base, baseH)),
+    'at 150%, a zone sized for the table’s own cards is not grown');
+  assert.deepStrictEqual(min(base / 2, baseH / 2), plain(app.sandbox.tableZoneMinSize(base / 2, baseH / 2)));
+
+  const rects = [
+    { name: 'Creatures', left: 12, top: 300, width: 140, height: 200 },
+    { name: 'Lands', left: 400, top: 300, width: 300, height: 220 },
+  ];
+  const kept = app.call('tableZoneNormalise', rects, W, H);
+  const zones = rects.map(r => ({ name: r.name, count: 12 }));
+  for (const scale of [0.5, 1, 1.5]) {
+    const w = base * scale, h = baseH * scale;
+    const got = app.copy(app.evaluate(`tableZoneReconcile(${JSON.stringify(kept)}, ${JSON.stringify(zones)}, ${W}, ${H}, ${w}, ${h}, null, tableZoneMinFor(${W}, ${w}, ${h}))`));
+    assert.strictEqual(got.changed, false);
+    got.rects.forEach((r, i) => {
+      for (const k of ['left', 'top', 'width', 'height']) assert.ok(near(r[k], rects[i][k], 1e-6), `${r.name}.${k} at ${scale * 100}%`);
+    });
+    /* Its cards fitted to the new size inside it: larger cards close up or pile. */
+    const fit = app.call('tableZoneFit', 12, rects[1].width, rects[1].height, w, h);
+    assert.ok(['grid', 'overlap', 'stack'].includes(fit.mode));
+  }
+  const tight = app.call('tableZoneFit', 12, 300, 220, base * 1.5, baseH * 1.5);
+  const loose = app.call('tableZoneFit', 12, 300, 220, base * 0.5, baseH * 0.5);
+  assert.ok(tight.visible < loose.visible, 'bigger cards in the same zone show less of each');
+});
+
+test('the slider lies on every tab that lays cards, and the drawer’s chips on the Deck Builder’s', () => {
+  const sb = app.sandbox;
+  for (const tab of app.copy(app.evaluate('TABLE_CARD_TABS'))) assert.strictEqual(sb.tableScaleShown(tab), true, tab);
+  for (const tab of ['available', 'lands', 'pick', 'admin', '', null]) assert.strictEqual(sb.tableScaleShown(tab), false, String(tab));
+
+  const chips = o => plain(sb.tableDrawerChipsShown({ scope: 'deckview', deckOpen: true, canEdit: true, ...o }));
+  assert.deepStrictEqual(chips({}), { search: true, edhrec: true, lands: true }, 'a deck the user may edit: all three');
+  assert.deepStrictEqual(chips({ canEdit: false }), { search: true, edhrec: true, lands: false },
+    'somebody else’s deck can still be searched and asked of EDHREC, to look');
+  assert.deepStrictEqual(chips({ deckOpen: false }), { search: false, edhrec: false, lands: false }, 'no deck, no drawer');
+  for (const scope of ['collections', 'players', 'card', '']) {
+    assert.deepStrictEqual(chips({ scope }), { search: false, edhrec: false, lands: false }, `not on ${scope || 'the API’s'} cards`);
+  }
+  assert.deepStrictEqual(app.copy(app.evaluate('TABLE_DRAWER_TABS.map(t => t.tab)')), ['search', 'edhrec', 'lands'],
+    'the drawer’s own three tabs, by the builder’s names for them');
+  assert.match(read('public/js/deckview-panels.js'), /const DB_LEFT_TABS = \['search', 'edhrec', 'lands'\]/);
+});
+
+test('cards laid from the drawer tuck nothing away: not the drawer’s panel, and not a panel under it', () => {
+  const auto = o => app.sandbox.tableShouldAutoTuck({ kind: 'float', tab: 'deckview', tucked: false, actedAgo: 100, ...o });
+  assert.strictEqual(auto({}), true, 'a page floating over the table still tucks for what the user did in it');
+  assert.strictEqual(auto({ drawer: true }), false, 'not while the drawer lies over the table');
+  assert.strictEqual(auto({ kind: 'drawer' }), false, 'and the drawer’s own panel never');
+  assert.strictEqual(auto({ kind: 'drawer', drawer: true, tab: 'scryfall' }), false);
+});
+
+test('the drawer’s panel is docked clear of the left edge’s tabs, narrow, and above a tucked bar', () => {
+  const box = (view, clear) => plain(app.sandbox.tableDrawerBox(view, { top: 0, left: 0, right: view.width, bottom: 0, ...clear }, 12));
+  const wide = box({ width: 1440, height: 900 }, { left: 230 });
+  assert.ok(wide.width >= 420 && wide.width <= 520, `${wide.width} wide`);
+  assert.strictEqual(wide.left, 242, 'a gap right of the tabs and the room their labels open into');
+  assert.strictEqual(wide.top, 12);
+  assert.strictEqual(wide.height, 900 - 24);
+  assert.ok(wide.left + wide.width < 1440 / 2 + 100, 'most of the table stays in view beside it');
+  assert.strictEqual(box({ width: 2560, height: 1440 }, { left: 200 }).width, 520, 'never wider than its ceiling');
+  assert.strictEqual(box({ width: 1000, height: 800 }, { left: 200 }).width, 420, 'nor narrower than its floor');
+  const tucked = box({ width: 1440, height: 900 }, { left: 230, bottom: 60 });
+  assert.strictEqual(tucked.height, 900 - 24 - 60, 'a tucked panel’s bar at the foot is left uncovered');
+  const below = box({ width: 1440, height: 900 }, { left: 230, top: 88 });
+  assert.strictEqual(below.top, 100, 'hung below the far rim, so the slider, the slip and the chips stay in reach');
+  assert.strictEqual(below.height, 900 - 100 - 12);
+  const tiny = box({ width: 400, height: 300 }, { left: 300 });
+  assert.ok(tiny.left >= 12 && tiny.left + tiny.width <= 400 - 12 + 1e-9, 'kept inside a window too narrow for it');
+});
+
+test('Escape in the drawer’s search field with a query in it is the field’s, and anywhere else puts the drawer away', () => {
+  const t = loadTableMode();
+  const sb = t.sandbox;
+  t.evaluate('tableEls = { drawerHost: { contains: el => !!el && el.inDrawer } }');
+  const field = (value, o = {}) => ({ tagName: 'INPUT', type: 'text', value, inDrawer: true, ...o });
+  assert.strictEqual(sb.tableDrawerKeepsEscape(field('t:goblin')), false, 'no drawer out, nothing of its own');
+  t.evaluate('tableDrawer = { tab: "search" }');
+  assert.strictEqual(sb.tableDrawerKeepsEscape(field('t:goblin')), true, 'a query typed: the field’s');
+  assert.strictEqual(sb.tableDrawerKeepsEscape(field('   ')), false, 'nothing typed: the drawer goes');
+  assert.strictEqual(sb.tableDrawerKeepsEscape(field('x', { inDrawer: false })), false, 'a field elsewhere is not the drawer’s');
+  assert.strictEqual(sb.tableDrawerKeepsEscape({ tagName: 'BUTTON', inDrawer: true }), false, 'a button in it: the drawer goes');
+  assert.strictEqual(sb.tableDrawerKeepsEscape(field('x', { type: 'checkbox' })), false);
+});
+
+test('Add one goes through the builder’s own stepper, says what it did, and is never offered for a commander', () => {
+  const sb = app.sandbox;
+  const acts = o => plain(sb.tableLookActions({ toolsOn: true, ref: 'main/Forest', ...o }));
+  assert.deepStrictEqual(acts({}), { remove: true, add: true });
+  assert.deepStrictEqual(acts({ ref: 'maybe/Forest' }), { remove: true, add: true }, 'a card on any other board too');
+  assert.deepStrictEqual(acts({ ref: 'commander/Atraxa' }), { remove: true, add: false },
+    'the builder offers no second copy of a commander');
+  assert.deepStrictEqual(acts({ toolsOn: false }), { remove: false, add: false }, 'nothing for a deck the user may not edit');
+  assert.deepStrictEqual(acts({ ref: null }), { remove: false, add: false }, 'nor for a card that is not the deck’s');
+
+  const calls = [];
+  const deck = new Map([['main/Forest', { qty: 3 }], ['main/Sol Ring', { qty: 1 }], ['commander/Atraxa', { qty: 1 }], ['main/Stuck', { qty: 2 }]]);
+  const globals = {
+    dbFindCard: ref => deck.get(ref),
+    dbChangeQty: (ref, d) => { calls.push(['qty', ref, d]); if (ref !== 'main/Stuck') deck.get(ref).qty += d; },
+    dbRemoveCard: ref => calls.push(['remove', ref]),
+    showToast: text => calls.push(['toast', text]),
+  };
+  const before = new Map(Object.keys(globals).map(k => [k, Object.getOwnPropertyDescriptor(sb, k)]));
+  Object.assign(sb, globals);
+  try {
+    app.evaluate('tableToolsOn = true');
+    assert.strictEqual(sb.tableAddOne({ name: 'Forest', ref: 'main/Forest' }), 'more');
+    assert.strictEqual(sb.tableAddOne({ name: 'Sol Ring', ref: 'main/Sol Ring' }), 'more');
+    assert.strictEqual(sb.tableAddOne({ name: 'Atraxa', ref: 'commander/Atraxa' }), null, 'not the commander');
+    assert.strictEqual(sb.tableAddOne({ name: 'Gone', ref: 'main/Gone' }), null, 'nor a card the deck no longer holds');
+    assert.strictEqual(sb.tableAddOne({ name: 'Plains' }), null);
+    assert.strictEqual(sb.tableAddOne({ name: 'Stuck', ref: 'main/Stuck' }), null, 'an add the builder refused says nothing');
+    assert.deepStrictEqual(plain(calls), [
+      ['qty', 'main/Forest', 1], ['toast', '✓  Added one "Forest", 4 in the deck'],
+      ['qty', 'main/Sol Ring', 1], ['toast', '✓  Added one "Sol Ring", 2 in the deck'],
+      ['qty', 'main/Stuck', 1],
+    ]);
+    assert.strictEqual(deck.get('main/Forest').qty, 4);
+    app.evaluate('tableToolsOn = false');
+    assert.strictEqual(sb.tableAddOne({ name: 'Forest', ref: 'main/Forest' }), null, 'nothing for a deck the user may not edit');
+  } finally {
+    app.evaluate('tableToolsOn = false');
+    for (const [k, d] of before) { if (d) Object.defineProperty(sb, k, d); else delete sb[k]; }
+  }
+});
+
+test('the slider’s own input is left to it, and the drawer is lent rather than copied', () => {
+  const js = read('public/js/tablemode.js');
+  const fn = name => js.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))[0];
+  assert.match(fn('tableOnWheel'), /closest\?\.\('\.table-scale'\)\) return;/, 'the wheel over it zooms nothing');
+  assert.ok(fn('tableOnWheel').indexOf('preventDefault') < fn('tableOnWheel').indexOf("'.table-scale'"),
+    'and does nothing else either');
+  assert.match(fn('tableZoomKey'), /closest\?\.\('\.table-scale'\)\) return false;/, '− + 0 are its own while it has the focus');
+  assert.match(fn('tableOnPointerMove'), /if \(!tableScaleHeld\) tableAim/, 'the camera does not follow a hand on it');
+  assert.match(fn('tableScaleBuild'), /addEventListener\('pointerdown', e => \{\s*e\.stopPropagation\(\);/,
+    'a press on it picks nothing up off the mat');
+  assert.match(fn('tableSetCardScale'), /requestAnimationFrame/, 'resized once a frame however many inputs');
+  assert.ok(!/tableDrawCards|tableCardEl/.test(fn('tableRescaleCards')), 'and resized in place, never made again');
+
+  assert.match(fn('tableDrawerOpen'), /getElementById\('dbSearchPanel'\)/);
+  assert.match(fn('tableDrawerOpen'), /createComment\(/, 'its place in the page held, as a pane’s is');
+  assert.ok(!/cloneNode/.test(fn('tableDrawerOpen')), 'never cloned');
+  assert.match(fn('tableDrawerOpen'), /dbSetLeftTab\(tab\)/, 'switched by the builder’s own call');
+  assert.match(fn('tableDrawerClose'), /insertBefore\(d\.el, d\.mark\)/, 'and put back where it came from');
+  const css = read('public/css/table.css');
+  assert.match(css, /html\[data-tablemode\] \.table-drawer > \.db-drawer \{[^}]*position: static;[^}]*transform: none;/,
+    'the builder’s fixed, slid-away drawer simply fills its host on the table');
+  for (const rule of ['.table-scale', '.table-scale[hidden]', '.table-drawer-chips', '.table-drawer[hidden]', '.table-look-add[hidden]', '.table-far-left', '.table-far-right']) {
+    assert.ok(css.includes(rule), `table.css has no ${rule}`);
+  }
+});
