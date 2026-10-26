@@ -74,23 +74,55 @@
 // ── Panning and zooming ──────────────────────────────────────────────────
 // The table never changes its angle. What moves is the camera over it: the
 // picture of the table slides and zooms, the way a camera on a rail with a
-// zoom lens would see it. Where the pointer is over the window is where the
-// camera pans to (tablePanTarget, tableCamera) — at zoom 1 only a little, as
-// if leaning your head; zoomed in, far enough that the pointer at an edge or
-// a corner of the window brings that edge or corner of the table into view.
-// The wheel over the table zooms, from the whole table to TABLE_ZOOM_MAX of
-// it, and so do + − and 0 on the keyboard; the zoom is about the point under
-// the pointer, which the pan's one rule holds still by itself (tableCamera).
-// The zoom is the session's, in memory, and starts at 1 each time.
+// zoom lens would see it (tableCamera). The wheel over the table zooms, from
+// the whole table to TABLE_ZOOM_MAX of it, and so do + − and 0 on the
+// keyboard; the zoom is about the point under the pointer, held exactly
+// still for every frame of the zoom's easing (tableZoomAbout). The zoom and
+// where the view has been taken are the session's, in memory, and start at
+// the whole table each time.
 //
-// The pointer and the wheel only set where the camera is *going*; a frame
-// loop eases it there (tableCameraStep) and stops itself when it arrives, so
-// a pointer resting still costs nothing. No CSS transition is involved: a
-// transition restarted on every pointer move never gets to finish. When cards
-// may not move — the "Cards move" switch, or an operating system asking for
-// less motion, both answered by cardMotionOn() — the camera jumps rather
-// than eases, and the lean at rest goes: zoomed in, it still pans to follow
-// the pointer, because that is the only way round a zoomed table.
+// At the whole table the pointer only leans the view, a little, as if you
+// leant your head that way (tableLeanTarget). Zoomed in, the lean fades out
+// over the first few percent of the zoom (tableLeanBlend) and the pointer
+// moving about the window leaves the view where it is: a zoomed table slid
+// by every movement of the hand slides too far, too fast. The view is a
+// state of its own instead, the pan, and three things move it:
+//
+//   the edges   the pointer resting in a band along an edge of the window
+//               scrolls the view that way, faster the deeper into the band,
+//               both ways in a corner (tableEdgeVelocity) — but not while it
+//               is over a control lying on the table, or a page over it, so
+//               reaching for a tab does not carry it away
+//               (tableScrollPaused). A card or a zone carried into a band
+//               scrolls it too, which is how a card is taken to a part of
+//               the table out of sight: it is put back under the pointer
+//               every frame the camera moves, as it always was.
+//   a hand      a press on bare felt or wood, dragged, moves the table under
+//               it one to one, the point under the hand staying under it
+//               (tableGrabPan); the middle button takes hold of it
+//               anywhere, over a card too (tableGrabbable). A press that
+//               moved it at all is no click on anything.
+//   the keys    W A S D, and the arrows when nothing that answers them has
+//               the focus, held (tablePanKeyDir, tableKeyVelocity).
+//
+// However it is moved, the view is held inside the table (tablePanBounds,
+// tablePanRange, tableClampPan): the rim's edge can be brought to the
+// window's edge on every side, and no further — so zoomed in, none of the
+// room beyond the table ever shows — while zoomed in too little for the table
+// to fill the window, the view stays as centred as the whole table is, and
+// zooming out to the whole table comes back to it.
+//
+// The wheel, the keys and the pointer only set where the zoom and the lean
+// are *going*, and what velocity the view is asked for; a frame loop eases
+// each there (tableCameraStep, tableVelocityStep, tableCameraAdvance) and
+// stops itself when they arrive — or when a rim stops the view — so a
+// pointer resting still costs nothing. No CSS transition is involved: a
+// transition restarted on every pointer move never gets to finish. When
+// cards may not move — the "Cards move" switch, or an operating system
+// asking for less motion, both answered by cardMotionOn() — the zoom jumps
+// rather than eases, a velocity starts and stops at once, and the lean goes;
+// the edges, a hand and the keys still pan, because they are the way round a
+// zoomed table.
 //
 // Zoomed in, the cards are drawn larger than the pictures the browser would
 // decode for them, so they are laid out larger and scaled back to keep them
@@ -315,8 +347,10 @@
 //
 // The decisions are written as functions of their inputs and asserted in
 // test/tablemode.test.js: the panel kind per tab, which tab stands on which
-// edge and in which group, the drag threshold, the table's fit to the window, the pointer-to-pan mapping, the wheel's zoom and
-// the camera's easing, how large a card's picture is laid out and which file
+// edge and in which group, the drag threshold, the table's fit to the window, the lean and its fading, the wheel's zoom and
+// the camera's easing, the zoom about the pointer with the view where it is,
+// how the edges, a hand and the keys move the view and when they may, and
+// how far it may go, how large a card's picture is laid out and which file
 // it comes from, the lift, the screen-to-mat mapping through the camera, the
 // floating panel's box, the layout and its head band, what each tab lays and
 // how it is piled, where a re-laid card goes, when a panel tucks, where a
@@ -346,12 +380,14 @@ const TABLE_TILT_REST = 24;
  * lies on it, leaving the window. */
 const TABLE_FIT_GUTTER = 8;
 
-/* How far the camera slides at zoom 1 with the pointer at an edge of the
+/* How far the camera leans at zoom 1 with the pointer at an edge of the
  * window, as a fraction of the window — 2%, which reads as a head leaning
- * rather than the table sliding. Zoomed in, the slide grows by itself until
- * the pointer at an edge of the window brings that edge of the table into
- * view (tableCamera). */
+ * rather than the table sliding. The lean is the pointer's alone and only
+ * near the whole table: it fades out over the first TABLE_LEAN_FADE of the
+ * zoom (tableLeanBlend), and zoomed in the pointer moving about the middle of
+ * the window leaves the view where it is (tableCamera). */
 const TABLE_PAN_REST = 0.02;
+const TABLE_LEAN_FADE = 1.15;
 
 /* How far the camera zooms: from the whole table (1) to two and a half times
  * it. A wheel zooms by TABLE_ZOOM_PER_PX for every pixel it turns — a mouse's
@@ -369,26 +405,81 @@ const TABLE_ZOOM_KEY      = 1.25;
 /* How much of the way to the target the camera closes in a sixtieth of a
  * second — a frame on an ordinary screen; a faster screen closes less per
  * frame and a slower one more, by tableEaseFor(), so the camera takes the same
- * time to arrive at any refresh rate. The zoom and the pan close at their own
+ * time to arrive at any refresh rate. The zoom and the lean close at their own
  * rates. The zoom answers a wheel the hand has just turned and should keep up
- * with it. The pan follows every movement of the pointer, so it is the one
+ * with it. The lean follows every movement of the pointer, so it is the one
  * that is felt as the table sliding about: at the zoom's rate it set off
  * sharply enough to read as a lurch, so it closes about a quarter less. That
- * costs the zoom about the pointer nothing: which point of the table is under
- * a still pointer does not depend on the zoom (tableCamera), so the two can
- * arrive at different times.
+ * costs the zoom about the pointer nothing: the pan is put right for every
+ * frame of the zoom about the point it was turned at (tableZoomAbout), the
+ * lean of that frame counted in, so the two can arrive at different times.
  *
- * And how near counts as there: a pan within a ten-thousandth of its range
+ * And how near counts as there: a lean within a ten-thousandth of its range
  * and a zoom within a ten-thousandth of a step — each under a fifth of a pixel
  * on any desktop window, zoomed all the way in — leave the frame loop nothing
- * to draw, and it stops. */
+ * to draw, and it stops.
+ *
+ * The camera is { zoom, leanX, leanY, panX, panY }: the zoom; the lean, the
+ * pointer's place as a fraction -1 to 1 across and down the window, eased
+ * towards; and the pan, the point of the rest picture at the middle of the
+ * window, in the rest picture's pixels from its middle — state, moved only by
+ * the edges, a hand on the felt, the keys and the zoom about a point. */
 const TABLE_FRAME_MS       = 1000 / 60;
 const TABLE_ZOOM_EASE      = 0.12;
 const TABLE_PAN_EASE       = 0.09;
 const TABLE_SETTLED_PAN    = 0.0001;
 const TABLE_SETTLED_ZOOM   = 0.0001;
-const TABLE_CAMERA_KEYS    = ['zoom', 'panX', 'panY'];
-const TABLE_CAMERA_REST    = Object.freeze({ zoom: 1, panX: 0, panY: 0 });
+const TABLE_CAMERA_KEYS    = ['zoom', 'leanX', 'leanY'];
+const TABLE_CAMERA_REST    = Object.freeze({ zoom: 1, leanX: 0, leanY: 0, panX: 0, panY: 0 });
+
+/* Getting round a zoomed table. Three ways, each a velocity in the window's
+ * pixels a second, eased in and out (tableVelocityStep) and added together:
+ *
+ *   the edges   the pointer resting in a band along an edge of the window —
+ *               TABLE_EDGE_BAND_PX deep, or TABLE_EDGE_BAND_FRACTION of the
+ *               window across that edge, whichever is deeper — scrolls the
+ *               view that way, faster the deeper it is, up to
+ *               TABLE_SCROLL_MAX at the window's very edge; a corner both
+ *               ways (tableEdgeVelocity)
+ *   the keys    W A S D, and the arrows, held: TABLE_SCROLL_MAX each way,
+ *               TABLE_SCROLL_FAST times that with Shift (tableKeyVelocity)
+ *   the hand    a press on bare felt or wood, dragged, moves the table with
+ *               it one to one (tableGrabPan) — a position, not a velocity
+ *
+ * The velocity closes TABLE_SCROLL_EASE of its gap to what is asked in a
+ * sixtieth of a second — about a tenth of a second to get going and as long
+ * to stop, so the view neither jerks into motion nor stops dead — and one
+ * within TABLE_SETTLED_SPEED of it is there. Nine hundred pixels a second
+ * crosses a desktop window in about a second and a half: quick enough to
+ * travel, slow enough to stop where you meant. */
+const TABLE_EDGE_BAND_PX       = 32;
+const TABLE_EDGE_BAND_FRACTION = 0.03;
+const TABLE_SCROLL_MAX         = 900;
+const TABLE_SCROLL_FAST        = 2;
+const TABLE_SCROLL_EASE        = 0.15;
+const TABLE_SETTLED_SPEED      = 1;
+
+/* What a pointer resting in an edge band may be over without the view
+ * scrolling: a control lying on the table — a tab, the slider, the slip and
+ * bin, a zone's label and grip, the chips — or a page over it. Reaching for a
+ * tab at the window's edge must not carry it away. Over anything outside the
+ * scene altogether — a floating panel, the tucked bar, the docked drawer, a
+ * popover — the view is still too (tableScrollPaused). */
+const TABLE_SCROLL_PAUSE = '.table-tab, .table-scale, .table-slip, .table-bin, .table-zone-label, ' +
+  '.table-zone-grip, .table-zone-rename, .table-zone-chips, .table-drawer-chips, .table-panel, ' +
+  '.table-drawer, .table-look';
+
+/* And what a press of the main button cannot take hold of the table by: all
+ * of the above, and a card — a card pressed is a card picked up. The middle
+ * button takes hold of it anywhere, a card included, but for a field, where
+ * the middle button is the system's paste (tableGrabbable). */
+const TABLE_GRAB_BLOCK = `${TABLE_SCROLL_PAUSE}, .table-card, button, input, select, textarea, a[href], [contenteditable]`;
+
+/* The keys that pan, by the key's place on the keyboard rather than its
+ * letter — the W A S D a hand finds on any layout — and the arrows, which
+ * pan only while nothing that answers them has the focus (tablePanKeyDir). */
+const TABLE_PAN_KEYS   = Object.freeze({ KeyW: 'up', KeyA: 'left', KeyS: 'down', KeyD: 'right' });
+const TABLE_PAN_ARROWS = Object.freeze({ ArrowUp: 'up', ArrowLeft: 'left', ArrowDown: 'down', ArrowRight: 'right' });
 
 /* A press that moves less than this, in screen pixels, is a click: the card is
  * picked up to look at rather than carried. Five is what a hand wobbles by. */
@@ -740,16 +831,26 @@ function tableIsDrag(dx, dy, threshold = TABLE_DRAG_START) {
   return Math.hypot(Number(dx) || 0, Number(dy) || 0) >= threshold;
 }
 
-/* Where the camera's pan wants to be for a pointer at (x, y) in a window of
- * the given size: panX and panY, the pointer's place as a fraction running -1
- * to 1 across and down the window, clamped, so the answer is bounded whatever
- * it is asked. What a pan of that much does to the picture is tableCamera's. */
-function tablePanTarget(x, y, width, height) {
+/* Where the camera's lean wants to be for a pointer at (x, y) in a window of
+ * the given size: leanX and leanY, the pointer's place as a fraction running
+ * -1 to 1 across and down the window, clamped, so the answer is bounded
+ * whatever it is asked. What a lean of that much does to the picture is
+ * tableCamera's. */
+function tableLeanTarget(x, y, width, height) {
   const fraction = (along, size) =>
     (size > 0 ? Math.min(1, Math.max(-1, (Number(along) || 0) / size * 2 - 1)) : 0);
   /* `|| 0` is the sign of nothing: the middle of the window would otherwise
-   * answer -0, the same place written as a different number. */
-  return { panX: fraction(x, width) || 0, panY: fraction(y, height) || 0 };
+     answer -0, the same place written as a different number. */
+  return { leanX: fraction(x, width) || 0, leanY: fraction(y, height) || 0 };
+}
+
+/* How much of the lean is left at `zoom`: all of it at the whole table, none
+ * from TABLE_LEAN_FADE in, and a smoothstep between — so the lean goes as the
+ * wheel turns, with no zoom at which it can be felt switching off, and the
+ * zoom about the pointer counts it out frame by frame (tableZoomAbout). */
+function tableLeanBlend(zoom) {
+  const t = Math.min(1, Math.max(0, ((Number(zoom) || 1) - 1) / (TABLE_LEAN_FADE - 1)));
+  return 1 - t * t * (3 - 2 * t);
 }
 
 /* The camera, as what it does to the picture of the table: { zoom, tx, ty },
@@ -758,41 +859,166 @@ function tablePanTarget(x, y, width, height) {
  * perspective, which is what a camera sliding over a table and zooming its
  * lens does, and why the table's angle never changes while it pans.
  *
- * `view` is { zoom, panX, panY } (tableCameraStep eases it), `lean` the slide
- * at zoom 1 with the pointer at an edge, as a fraction of the window.
+ * `view` is the camera's state (TABLE_CAMERA_REST says its parts), `lean` the
+ * slide at zoom 1 with the pointer at an edge, as a fraction of the window.
+ * Two things move the picture, and they are added:
  *
- * The pan is built from one rule: the pointer at a fraction f of the way
- * across the window is over the point of the rest picture that far across a
- * band reaching `lean` of the window past each side — at every zoom. So:
+ *   the pan     the rest picture's point (size/2 + pan) is drawn at the
+ *               window's middle, at every zoom — so at the pan's rest, 0, the
+ *               zoom is about the middle of the window, and a pan of p rest
+ *               pixels moves the picture zoom·p window pixels;
+ *   the lean    the picture slides `lean` of the window the other way from
+ *               the pointer, as if you leant your head that way — at zoom 1;
+ *               zoomed in it fades (tableLeanBlend), and the pointer moving
+ *               about the window then leaves the view where it is.
  *
- *   at zoom 1 the picture slides `lean` of the window the other way from the
- *   pointer, as if you leant your head that way;
- *   zoomed in, the slide grows with the zoom, and the pointer at an edge of
- *   the window brings that edge of the band — and the table inside it — into
- *   view, the corners reaching the table's corners;
- *   and zooming with the pointer still never moves the point under it, since
- *   which point that is does not depend on the zoom: zoom about the pointer
- *   is not a second rule but this one, held.
- *
- * With the band's half-width H = size · (½ + lean), the rest point under the
- * pointer is size/2 + f·H, so the picture moves by
- *   t = (1 − zoom) · size/2 − f · (zoom · H − size/2). */
-function tableCamera({ zoom = 1, panX = 0, panY = 0 } = {}, width = 0, height = 0, lean = TABLE_PAN_REST) {
+ * So the picture moves by
+ *   t = (1 − zoom) · size/2 − zoom · pan − f · lean · size · blend(zoom). */
+function tableCamera({ zoom = 1, leanX = 0, leanY = 0, panX = 0, panY = 0 } = {}, width = 0, height = 0, lean = TABLE_PAN_REST) {
   const z = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(zoom) || 1));
-  const shift = (f, size) => {
+  const slide = Math.max(0, Number(lean) || 0) * tableLeanBlend(z);
+  const shift = (f, pan, size) => {
     if (!(size > 0)) return 0;
-    const half = size * (0.5 + Math.max(0, Number(lean) || 0));
-    return (1 - z) * size / 2 - (Number(f) || 0) * (z * half - size / 2) || 0;
+    return (1 - z) * size / 2 - z * (Number(pan) || 0) - (Number(f) || 0) * slide * size || 0;
   };
-  return { zoom: z, tx: shift(panX, width), ty: shift(panY, height) };
+  return { zoom: z, tx: shift(leanX, panX, width), ty: shift(leanY, panY, height) };
+}
+
+/* The pan that keeps the point of the table under `anchor` — a window point,
+ * the pointer the wheel was turned at — exactly where it is when the camera
+ * `view` goes to `zoom`: the rest picture's point under the anchor now, drawn
+ * there at the new zoom too. The camera only scales and moves the flat
+ * picture, so the rest picture's point standing still is the mat's point
+ * standing still, at any height above it. `view` carries the lean as it will
+ * be after the step, so what is held still is the zoom's doing alone and the
+ * lean moves the picture as it would have; its fading with the zoom is counted
+ * in. Answers { panX, panY }, to be held inside the table (tableClampPan). */
+function tableZoomAbout(view, zoom, anchor, width, height, lean = TABLE_PAN_REST) {
+  const before = tableCamera(view, width, height, lean);
+  const bare   = tableCamera({ ...view, zoom, panX: 0, panY: 0 }, width, height, lean);
+  /* The new picture moves by bare − zoom·pan; it should move by whatever puts
+     the anchor's rest point, (a − t)/zoom before, back under a. */
+  const solve = (a, t, base) => {
+    const want = a - bare.zoom * (a - t) / before.zoom;
+    return (base - want) / bare.zoom || 0;
+  };
+  const x = Number(anchor?.x), y = Number(anchor?.y);
+  return {
+    panX: Number.isFinite(x) ? solve(x, before.tx, bare.tx) : Number(view.panX) || 0,
+    panY: Number.isFinite(y) ? solve(y, before.ty, bare.ty) : Number(view.panY) || 0,
+  };
+}
+
+/* The table's outline in the rest picture — the picture the camera scales
+ * and moves — from the geometry tableMeasure reads: the plane's four corners,
+ * drawn through the perspective and the tilt with the camera at rest. Tilted
+ * about its width, the table is a trapezoid there, its far edge across the
+ * top narrower than its near edge across the bottom, and each side a straight
+ * line between (tableBoundsAt).
+ *
+ * The corners are taken in from the plane's by the part of its rounded
+ * corner, r·(1 − 1/√2), that leaves the window's corner on the curve itself
+ * when the window is pushed into the table's corner: so the rim's edge comes
+ * to the window's edges and not a pixel of the room beyond shows in the
+ * corner. Null when there is no plane to measure. */
+function tablePanBounds({ perspective, origin, plane, tilt = TABLE_TILT_REST } = {}) {
+  const w = Number(plane?.width) || 0, h = Number(plane?.height) || 0;
+  if (!(w > 0 && h > 0) || !origin) return null;
+  const k = Math.min(w / 2, h / 2, Math.max(0, Number(plane.radius) || 0) * (1 - Math.SQRT1_2));
+  const m = tablePlaneMatrix({
+    perspective, origin, plane, tilt, mat: { left: 0, top: 0 }, camera: { zoom: 1, tx: 0, ty: 0 },
+  });
+  const fl = tableProject(m, k, k), fr = tableProject(m, w - k, k);
+  const nl = tableProject(m, k, h - k), nr = tableProject(m, w - k, h - k);
+  if (!fl || !fr || !nl || !nr) return null;
+  return {
+    top: Math.max(fl.y, fr.y), bottom: Math.min(nl.y, nr.y),
+    farLeft: fl.x, farRight: fr.x, nearLeft: nl.x, nearRight: nr.x,
+  };
+}
+
+/* The table's left and right edges, in the rest picture, across the row `y`
+ * of it — held to the table's own rows. */
+function tableBoundsAt(bounds, y) {
+  const depth = bounds.bottom - bounds.top;
+  const t = depth > 0 ? Math.min(1, Math.max(0, (y - bounds.top) / depth)) : 0;
+  return {
+    left:  bounds.farLeft  + (bounds.nearLeft  - bounds.farLeft)  * t,
+    right: bounds.farRight + (bounds.nearRight - bounds.farRight) * t,
+  };
+}
+
+/* How far the pan may go at `zoom`, an axis at a time, with the pan down the
+ * window at `panY`: { x, y }, each { lo, hi, edgeLo, edgeHi }.
+ *
+ * edgeLo and edgeHi are the pans that bring the rim's edge to the window's
+ * edge on that side — no further, or the room beyond the table shows. Across,
+ * the edge is the table's at the window's top row: the table widens towards
+ * the viewer, so the top row is the narrowest the window holds, and the side
+ * that touches the window there is inside it all the way down.
+ *
+ * lo and hi are those, or the rest view's 0 where that is further: zoomed in
+ * only a little, the table cannot fill the window yet, and where it cannot
+ * the view stays as centred as the whole table is — which is also what makes
+ * the range at zoom 1 nothing but the rest view, and a zoom out to 1 come
+ * back to it. */
+function tablePanRange(bounds, zoom, panY, width, height) {
+  const z = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(zoom) || 1));
+  const axis = (low, high, size) => {
+    const half = size / (2 * z);
+    const edgeLo = low + half - size / 2, edgeHi = high - half - size / 2;
+    return { lo: Math.min(0, edgeLo), hi: Math.max(0, edgeHi), edgeLo, edgeHi };
+  };
+  const y = axis(bounds.top, bounds.bottom, height);
+  const top = height / 2 + (Number(panY) || 0) - height / (2 * z);
+  const row = tableBoundsAt(bounds, top);
+  return { x: axis(row.left, row.right, width), y };
+}
+
+/* The pan of `next` held inside the table, given `prev`, the camera before
+ * this step: { panX, panY }. Down first, since which row of the table the
+ * window's top lies on decides how far across it may go.
+ *
+ * Inside tablePanRange the pan is free. Outside it, what is held to is the
+ * room beyond the rim the window shows on that side, measured on the screen:
+ *
+ *   a pan, or a zoom in — it may shrink, never grow. A zoom in about a point
+ *     inside the window shows nothing that was not there already, so this
+ *     never holds it, and the point under the pointer stays exactly where it
+ *     is however near the rim it was turned; but the view, once there, is
+ *     panned only back towards the table. Over the room itself, it holds a
+ *     zoom from showing more of it.
+ *   a zoom out — it shrinks with the zoom's way back to 1, and is gone at 1,
+ *     where the range is the rest view and nothing else.
+ *   `strict` — none at all: the range alone (a resize, where the old view's
+ *     measure means nothing in the new window).
+ *
+ * With no bounds — no table measured — the pan is left as it is asked. */
+function tableClampPan(next, prev, bounds, width, height, { strict = false } = {}) {
+  const panX = Number(next?.panX) || 0, panY = Number(next?.panY) || 0;
+  if (!bounds) return { panX, panY };
+  const z1 = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(next.zoom) || 1));
+  const z0 = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(prev?.zoom) || 1));
+  const keep = strict ? 0 : z1 < z0 ? (z0 > 1 ? (z1 - 1) / (z0 - 1) : 0) : 1;
+  const was = tablePanRange(bounds, z0, prev?.panY, width, height);
+  const hold = (value, now, then, p0) => {
+    const room = over => keep * z0 * Math.max(0, over) / z1;
+    const lo = Math.min(now.lo, now.edgeLo - room(then.edgeLo - p0));
+    const hi = Math.max(now.hi, now.edgeHi + room(p0 - then.edgeHi));
+    return Math.min(hi, Math.max(lo, value));
+  };
+  const y = hold(panY, tablePanRange(bounds, z1, panY, width, height).y, was.y, Number(prev?.panY) || 0);
+  const x = hold(panX, tablePanRange(bounds, z1, y, width, height).x, was.x, Number(prev?.panX) || 0);
+  return { panX: x || 0, panY: y || 0 };
 }
 
 /* One frame of the camera easing towards its target: the zoom closes
- * `zoomEase` of its gap and each of the two pans `panEase` of its own, and one
- * already within reach of its target snaps to it. `settled` is true when all
- * three have arrived, which is what stops the frame loop. */
+ * `zoomEase` of its gap and each of the two leans `panEase` of its own, and
+ * one already within reach of its target snaps to it. `settled` is true when
+ * all three have arrived, which is what stops the frame loop. The pan is
+ * state, not a target, and is carried through as it is. */
 function tableCameraStep(at, to, zoomEase = TABLE_ZOOM_EASE, panEase = TABLE_PAN_EASE) {
-  const next = {};
+  const next = { ...at };
   let settled = true;
   for (const key of TABLE_CAMERA_KEYS) {
     const gap   = to[key] - at[key];
@@ -803,6 +1029,113 @@ function tableCameraStep(at, to, zoomEase = TABLE_ZOOM_EASE, panEase = TABLE_PAN
     settled = false;
   }
   return { at: next, settled };
+}
+
+/* How deep an edge band is across a window `size` pixels in that direction. */
+function tableEdgeBand(size) {
+  return Math.max(TABLE_EDGE_BAND_PX, TABLE_EDGE_BAND_FRACTION * (Number(size) || 0));
+}
+
+/* The velocity a pointer at (x, y) asks of the view, in window pixels a
+ * second: { vx, vy }, positive to scroll right and towards the viewer. None in
+ * the middle of the window; in a band along an edge, that way, growing
+ * straight with how deep into the band the pointer is, to TABLE_SCROLL_MAX on
+ * the window's last pixel; in a corner, both ways at once. A pointer outside
+ * the window — or not known — asks nothing. */
+function tableEdgeVelocity(x, y, width, height) {
+  const axis = (at, size) => {
+    const n = Number(at);
+    if (!(size > 0) || !Number.isFinite(n) || n < 0 || n >= size) return 0;
+    const band = tableEdgeBand(size);
+    const depth = d => Math.min(1, Math.max(0, 1 - d / band));
+    return TABLE_SCROLL_MAX * (depth(size - 1 - n) - depth(n)) || 0;
+  };
+  return { vx: axis(x, width), vy: axis(y, height) };
+}
+
+/* The velocity the keys held ask of the view: `held`, the directions held
+ * ('up', 'down', 'left', 'right'), each TABLE_SCROLL_MAX that way —
+ * TABLE_SCROLL_FAST times it with Shift — and two at once, both: up is
+ * towards the table's far side, the view moving up it. */
+function tableKeyVelocity(held, fast = false) {
+  const set = new Set(held || []);
+  const speed = TABLE_SCROLL_MAX * (fast ? TABLE_SCROLL_FAST : 1);
+  const way = (plus, minus) => ((set.has(plus) ? 1 : 0) - (set.has(minus) ? 1 : 0)) * speed || 0;
+  return { vx: way('right', 'left'), vy: way('down', 'up') };
+}
+
+/* One frame of the view's velocity closing on what is asked of it: `ease` of
+ * the gap (tableEaseFor, from TABLE_SCROLL_EASE), and the rest of the way
+ * once within TABLE_SETTLED_SPEED — so it gets going and comes to a stop
+ * smoothly, and does stop. */
+function tableVelocityStep(v, target, ease) {
+  const step = (a, b) => {
+    const from = Number(a) || 0, to = Number(b) || 0;
+    return Math.abs(to - from) <= TABLE_SETTLED_SPEED ? to : from + (to - from) * ease;
+  };
+  return { x: step(v?.x, target?.vx), y: step(v?.y, target?.vy) };
+}
+
+/* A hand on the felt: the pan after the pointer has gone from `from` to `to`
+ * at `zoom`. The picture moves with the pointer one to one — a window pixel
+ * of hand is a window pixel of table, which is 1/zoom of the rest picture —
+ * so the point of the table under the hand stays under it. */
+function tableGrabPan(pan, from, to, zoom) {
+  const z = Math.min(TABLE_ZOOM_MAX, Math.max(TABLE_ZOOM_MIN, Number(zoom) || 1));
+  return {
+    panX: (Number(pan?.panX) || 0) - ((Number(to?.x) || 0) - (Number(from?.x) || 0)) / z || 0,
+    panY: (Number(pan?.panY) || 0) - ((Number(to?.y) || 0) - (Number(from?.y) || 0)) / z || 0,
+  };
+}
+
+/* Whether the view keeps still for a pointer resting in an edge band over
+ * `el`: anything but the table itself — a control lying on it
+ * (TABLE_SCROLL_PAUSE), or anything outside `scene` — and nothing known. */
+function tableScrollPaused(el, scene) {
+  if (!el || !scene?.contains?.(el)) return true;
+  return !!el.closest?.(TABLE_SCROLL_PAUSE);
+}
+
+/* Whether a press of `button` on `el` takes hold of the table to pan it: the
+ * main button on bare felt or wood (TABLE_GRAB_BLOCK), the middle one on
+ * anything on the table but a field or a page lying on it. */
+function tableGrabbable(el, scene, button) {
+  if (!el || !scene?.contains?.(el)) return false;
+  if (button === 1) return !el.closest?.('.table-panel, .table-drawer, input, textarea, select, [contenteditable]');
+  return button === 0 && !el.closest?.(TABLE_GRAB_BLOCK);
+}
+
+/* A key, as the way it pans: { dir, arrow } — W A S D by their place on the
+ * keyboard, or by their letter where the browser names no place — or null. */
+function tablePanKeyOf(e) {
+  const code = e?.code || `Key${String(e?.key || '').toUpperCase()}`;
+  if (TABLE_PAN_KEYS[code]) return { dir: TABLE_PAN_KEYS[code], arrow: false };
+  const arrow = TABLE_PAN_ARROWS[e?.key];
+  return arrow ? { dir: arrow, arrow: true } : null;
+}
+
+/* Which way a key pressed pans, or null. `focus` is where the keyboard's focus
+ * is (tableFocusKind): in a 'field' — anything typed into, the slider, any
+ * input — no key pans; on a 'control', the letters do and the arrows are the
+ * control's; and 'free', on the page or bare table, both. A modifier other
+ * than Shift is somebody else's shortcut. */
+function tablePanKeyDir(e, focus = 'free') {
+  if (!e || e.ctrlKey || e.metaKey || e.altKey || focus === 'field') return null;
+  const key = tablePanKeyOf(e);
+  if (!key || (key.arrow && focus !== 'free')) return null;
+  return key.dir;
+}
+
+/* What the focus is on, as tablePanKeyDir asks it: a 'field' (an input of any
+ * kind, a select, a text area, something editable), 'free' (nothing, the page
+ * itself, or something in `scene` that answers no keys) or a 'control'. */
+function tableFocusKind(el, scene) {
+  const doc = typeof document === 'object' ? document : null;
+  if (!el || el === doc?.body || el === doc?.documentElement) return 'free';
+  const tag = String(el.tagName || '').toUpperCase();
+  if (el.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return 'field';
+  if (scene?.contains?.(el) && !el.matches?.('button, a[href], [tabindex], summary')) return 'free';
+  return 'control';
 }
 
 /* A zoom moved by `factor`, held inside the range. */
@@ -1810,7 +2143,14 @@ let tableOn       = false;
 let tableEls      = null;    // the elements this file put into the page
 let tableGeom     = null;    // their untransformed geometry, see tableMeasure()
 let tableAt       = { ...TABLE_CAMERA_REST };   // where the camera is
-let tableTo       = { ...TABLE_CAMERA_REST };   // where it is going
+let tableTo       = { zoom: 1, leanX: 0, leanY: 0 };   // where its zoom and lean are going
+let tableBounds   = null;    // the table's outline in the rest picture, see tablePanBounds()
+let tableVel      = { x: 0, y: 0 };   // the view's velocity, window pixels a second
+let tableAnchor   = null;    // { x, y }: the window point the zoom is about
+let tablePointer  = null;    // { x, y, el }: the pointer over the window, null once it has left it
+let tableKeysHeld = new Set();   // the ways the keys held pan, see tablePanKeyDir()
+let tableKeysFast = false;   // whether Shift is held with them
+let tableGrab     = null;    // { id, last, moved }: a hand on the felt, panning the table
 let tableFrameId  = 0;
 let tableFrameAt  = 0;       // when the last frame ran, while frames are running
 let tableResizeId = 0;
@@ -2039,6 +2379,8 @@ function tableBuild() {
   /* Listeners on the elements go with them when the scene is taken down. */
   tableEls.plane.addEventListener('click', tableOnPlaneClick);
   scene.addEventListener('wheel', tableOnWheel, { passive: false });
+  scene.addEventListener('pointerdown', tableOnGrabDown, true);
+  scene.addEventListener('mousedown', tableOnGrabMouseDown, true);
   tableEls.mat.addEventListener('pointerdown', tableOnCardDown);
   tableEls.mat.addEventListener('dragstart', e => e.preventDefault());
   panel.querySelector('[data-table-close]').addEventListener('click', () => tableDismissPanel());
@@ -2111,6 +2453,11 @@ function tableMeasure() {
       left: plane.offsetLeft,
       top:  plane.offsetTop,
       origin: tableParseOrigin(planeStyle.transformOrigin, plane.offsetWidth, plane.offsetHeight),
+      /* Its border box and its corner's rounding, for the table's outline
+         the pan is held inside (tablePanBounds). */
+      width:  plane.offsetWidth,
+      height: plane.offsetHeight,
+      radius: parseFloat(planeStyle.borderTopLeftRadius) || 0,
     },
     mat: {
       left:   plane.clientLeft + mat.offsetLeft + mat.clientLeft,
@@ -2119,11 +2466,12 @@ function tableMeasure() {
       height: mat.clientHeight,
     },
   };
+  tableBounds = tablePanBounds({ ...tableGeom, tilt: TABLE_TILT_REST });
 }
 
 /* The camera's transform for where it is now. The lean at rest is a motion of
- * its own, so it goes when cards may not move; the pan that reaches the edges
- * of a zoomed table is how the table is got round, and stays. */
+ * its own, so it goes when cards may not move; the pan, which is how a zoomed
+ * table is got round, stays. */
 function tableCam() {
   const { width, height } = tableGeom.view;
   return tableCamera(tableAt, width, height, cardMotionOn() ? TABLE_PAN_REST : 0);
@@ -2137,10 +2485,12 @@ function tableKick() {
   if (!tableFrameId) tableFrameId = requestAnimationFrame(tableFrame);
 }
 
-/* One frame: the camera closes on its target — or jumps there, when cards may
- * not move — and a card in hand is put back under the pointer for wherever
- * the camera now is, at the height it has risen to. The loop asks for
- * another frame only while something is still on its way. */
+/* One frame: the camera moves on (tableCameraAdvance) and a card in hand is
+ * put back under the pointer for wherever the camera now is, at the height it
+ * has risen to — which is all it takes for a card carried into an edge band
+ * to stay under the hand while the view scrolls beneath it, and to come down
+ * on the spot its landing mark is drawn on in the same frame. The loop asks
+ * for another frame only while something is still on its way. */
 function tableFrame(now) {
   tableFrameId = 0;
   if (!tableOn) return;
@@ -2148,16 +2498,9 @@ function tableFrame(now) {
      asleep before it. */
   const dt = tableFrameAt ? now - tableFrameAt : TABLE_FRAME_MS;
   tableFrameAt = now;
-  let more = false;
-  if (cardMotionOn()) {
-    const step = tableCameraStep(tableAt, tableTo,
-      tableEaseFor(dt, TABLE_ZOOM_EASE), tableEaseFor(dt, TABLE_PAN_EASE));
-    tableAt = step.at;
-    more = !step.settled;
-  } else {
-    tableAt = { ...tableTo };
-  }
+  let more = tableCameraAdvance(dt, cardMotionOn());
   tableEls.camera.style.transform = tableCameraTransform(tableCam());
+  tablePanCursor();
   tableSharpen();
   if (tableHold && tableCarry(now)) more = true;
   if (tableZoneHold && tableZoneStep(now)) more = true;
@@ -2170,14 +2513,114 @@ function tableFrame(now) {
   else tableFrameAt = 0;
 }
 
-/* The pointer, anywhere over the window: where the camera is panning to, and
- * where a card in hand is. */
+/* The camera's part of a frame, `dt` milliseconds after the last: answers
+ * whether it is still on its way.
+ *
+ * The zoom and the lean close on their targets — or jump there, when cards may
+ * not move. A zoom that changed is about its anchor: the pan is put right for
+ * it (tableZoomAbout) and held inside the table (tableClampPan). Then the
+ * velocity the edges and the keys ask (tablePanAsk) is closed on — or taken
+ * at once, with cards still — and carried into the pan for the length of the
+ * frame, a window pixel of it 1/zoom of the rest picture; held inside the
+ * table again, where a rim stops it the velocity that way is spent, so a
+ * pointer resting in a band against the rim leaves the loop asleep. */
+function tableCameraAdvance(dt, motion) {
+  const prev = tableAt;
+  const { width, height } = tableGeom.view;
+  const lean = motion ? TABLE_PAN_REST : 0;
+  let more = false;
+  let next;
+  if (motion) {
+    const step = tableCameraStep(prev, tableTo,
+      tableEaseFor(dt, TABLE_ZOOM_EASE), tableEaseFor(dt, TABLE_PAN_EASE));
+    next = step.at;
+    more = !step.settled;
+  } else {
+    next = { ...prev, ...tableTo };
+  }
+  if (next.zoom !== prev.zoom) {
+    const anchor = tableAnchor || { x: width / 2, y: height / 2 };
+    const pan = tableZoomAbout({ ...next, zoom: prev.zoom }, next.zoom, anchor, width, height, lean);
+    next = { ...next, ...tableClampPan({ ...next, ...pan }, prev, tableBounds, width, height) };
+  }
+
+  const ask = tablePanAsk();
+  tableVel = motion
+    ? tableVelocityStep(tableVel, ask, tableEaseFor(dt, TABLE_SCROLL_EASE))
+    : { x: ask.vx, y: ask.vy };
+  if (tableVel.x || tableVel.y) {
+    const per = Math.min(100, Math.max(0, Number(dt) || 0)) / 1000 / next.zoom;
+    const moved = { ...next, panX: next.panX + tableVel.x * per, panY: next.panY + tableVel.y * per };
+    const held = tableClampPan(moved, next, tableBounds, width, height);
+    if (Math.abs(held.panX - moved.panX) > 1e-6) tableVel = { ...tableVel, x: 0 };
+    if (Math.abs(held.panY - moved.panY) > 1e-6) tableVel = { ...tableVel, y: 0 };
+    next = { ...next, ...held };
+    if (tableVel.x || tableVel.y) more = true;
+  }
+  tableAt = next;
+  return more;
+}
+
+/* The velocity asked of the view now, { vx, vy } in window pixels a second:
+ * the edge band the pointer is in, when it may scroll (tableEdgeLive), and
+ * the keys held. Nothing at the whole table, where there is nowhere to go;
+ * nothing while a hand is on the felt, which pans one to one and would slip
+ * against a scroll; nothing while the card-size slider is pressed or a card
+ * is being looked at. */
+function tablePanAsk() {
+  const ask = { vx: 0, vy: 0 };
+  if (!tableGeom || !(tableAt.zoom > 1) || tableGrab || tableScaleHeld || tableLooked) return ask;
+  const { width, height } = tableGeom.view;
+  if (tableEdgeLive()) {
+    const edge = tableEdgeVelocity(tablePointer.x, tablePointer.y, width, height);
+    ask.vx += edge.vx;
+    ask.vy += edge.vy;
+  }
+  const keys = tableKeyVelocity(tableKeysHeld, tableKeysFast);
+  ask.vx += keys.vx;
+  ask.vy += keys.vy;
+  return ask;
+}
+
+/* Whether the pointer's edge band scrolls the view now. Carrying a card or a
+ * zone it always does — that is how a card is taken to a part of the table
+ * out of sight — but for a card held over the bin, which lies on the rim and
+ * must stay under it to be let go into. A card pressed and not yet carried
+ * does not: it may be about to be looked at. Otherwise, as long as the
+ * pointer is over the table itself and not a control on it. */
+function tableEdgeLive() {
+  const p = tablePointer;
+  if (!p) return false;
+  if (tableHold) return tableHold.dragging && !tableHold.over;
+  if (tableZoneHold) return tableZoneHold.dragging;
+  return !tableScrollPaused(p.el, tableEls.scene);
+}
+
+/* The scene says whether a hand can take hold of the table — zoomed in, when
+ * there is somewhere to pan it — and whether one has, and table.css shows a
+ * hand open or closed for it. Written only when it changes. */
+function tablePanCursor() {
+  const scene = tableEls?.scene;
+  if (!scene) return;
+  const state = tableGrab ? 'held' : tableAt.zoom > 1 ? 'ready' : '';
+  if ((scene.dataset.pan || '') === state) return;
+  if (state) scene.dataset.pan = state;
+  else delete scene.dataset.pan;
+}
+
+/* The pointer, anywhere over the window: where it is, for the edge bands and
+ * the zoom; where the lean is aimed; where a card or a zone in hand is; and,
+ * with a hand on the felt, the table moved with it. */
 function tableOnPointerMove(e) {
   if (e.pointerType === 'touch') return;
-  /* Not while the card-size slider is pressed: the slider lies on the
-     table, and a camera that followed the hand dragging its thumb would
-     carry the slider out from under it. */
-  if (!tableScaleHeld) tableAim(e.clientX, e.clientY);
+  tablePointer = { x: e.clientX, y: e.clientY, el: e.target };
+  /* A hand on the felt moves the table, and the lean is held where it was
+     so that nothing else moves it under the hand. Nor while the card-size
+     slider is pressed: the slider lies on the table, and a camera that
+     followed the hand dragging its thumb would carry the slider out from
+     under it. */
+  if (tableGrab) { if (e.pointerId === tableGrab.id) tableGrabMove(e); }
+  else if (!tableScaleHeld) tableAim(e.clientX, e.clientY);
 
   const hold = tableHold;
   if (hold && e.pointerId === hold.id) {
@@ -2188,30 +2631,86 @@ function tableOnPointerMove(e) {
   tableKick();
 }
 
-/* The pan aimed at a window point, the zoom left as it is. */
+/* The lean aimed at a window point, the zoom left as it is. */
 function tableAim(x, y) {
   const { width, height } = tableGeom.view;
-  tableTo = { ...tableTo, ...tablePanTarget(x, y, width, height) };
+  tableTo = { ...tableTo, ...tableLeanTarget(x, y, width, height) };
 }
 
-/* The pointer leaving the window altogether: the camera comes back to the
- * middle, at whatever zoom it is. */
+/* The pointer leaving the window altogether: the lean comes back to the
+ * middle, and the edges stop scrolling — the view stays where it is. */
 function tableOnPointerOut(e) {
   if (e.relatedTarget) return;
-  tableTo = { ...tableTo, panX: 0, panY: 0 };
+  tableTo = { ...tableTo, leanX: 0, leanY: 0 };
+  tablePointer = null;
+  tableKick();
+}
+
+/* A press that takes hold of the table: the main button on bare felt or wood
+ * while zoomed in, or the middle one on almost anything on it
+ * (tableGrabbable) — asked before anything on the table hears the press, since
+ * the chips and the slip keep theirs to themselves. At the whole table there
+ * is nothing to pan, and a press there is what it always was. The middle
+ * button's press is nobody else's — not a card's, not the browser's
+ * autoscroll; the main button's goes on as a press on the felt does, so a
+ * field with the focus still loses it. */
+function tableOnGrabDown(e) {
+  if (e.pointerType === 'touch' || tableGrab || tableHold || tableZoneHold || tableLooked) return;
+  if (!(tableAt.zoom > 1) || !tableGrabbable(e.target, tableEls.scene, e.button)) return;
+  if (e.button === 1) { e.preventDefault(); e.stopPropagation(); }
+  tableGrab = { id: e.pointerId, last: { x: e.clientX, y: e.clientY }, moved: false };
+  try { tableEls.scene.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
+  tablePanCursor();
+}
+
+/* The middle button's mousedown is the browser's autoscroll; a press the
+ * table took hold of by it is not. */
+function tableOnGrabMouseDown(e) {
+  if (e.button === 1 && tableGrab) e.preventDefault();
+}
+
+/* The hand moved: the table with it, one to one, inside its rim. Written
+ * straight into the camera — a hand is a position, nothing to ease towards —
+ * and drawn on the next frame with everything else. */
+function tableGrabMove(e) {
+  const grab = tableGrab;
+  const to = { x: e.clientX, y: e.clientY };
+  if (to.x === grab.last.x && to.y === grab.last.y) return;
+  grab.moved = true;
+  const { width, height } = tableGeom.view;
+  const next = { ...tableAt, ...tableGrabPan(tableAt, grab.last, to, tableAt.zoom) };
+  tableAt = { ...tableAt, ...tableClampPan(next, tableAt, tableBounds, width, height) };
+  grab.last = to;
+}
+
+/* The hand let go. A press that moved the table at all, however little, was
+ * a pan and not a click: the click it ends in is swallowed before anything
+ * hears it. The swallow is taken down again straight after, for a press that
+ * ends in no click. */
+function tableGrabRelease(e) {
+  const grab = tableGrab;
+  if (!grab || (e && e.pointerId !== grab.id)) return;
+  tableGrab = null;
+  try { tableEls?.scene.releasePointerCapture(grab.id); } catch { /* already released */ }
+  if (grab.moved) {
+    const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };
+    window.addEventListener('click', swallow, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 0);
+  }
+  tablePanCursor();
   tableKick();
 }
 
 /* The wheel over the table zooms the camera, about the point under the
- * pointer (see tableCamera: the pan aimed at the pointer is what holds that
- * point still). Only over the table — the scene is where this listens, and the
- * floating panel, its tucked bar and the card being looked at are not in it —
- * and not over the Card tab's sheet, which lies on the mat but is a page that
- * scrolls. The wheel's own default is taken: there is nothing behind the
- * table to scroll, and a sideways swipe would otherwise go back a page. A
- * held Ctrl is the browser's own zoom, and is left to it. Nor over the Deck
- * Builder's slip, which is a field being typed in; its suggestions float
- * outside the scene and are never asked. */
+ * pointer: the anchor the frame loop keeps that point still about while the
+ * zoom eases (tableZoomAbout). Only over the table — the scene is where this
+ * listens, and the floating panel, its tucked bar and the card being looked
+ * at are not in it — and not over the Card tab's sheet, which lies on the mat
+ * but is a page that scrolls. The wheel's own default is taken: there is
+ * nothing behind the table to scroll, and a sideways swipe would otherwise go
+ * back a page. A held Ctrl is the browser's own zoom, and is left to it. Nor
+ * over the Deck Builder's slip, which is a field being typed in; its
+ * suggestions float outside the scene and are never asked. */
 function tableOnWheel(e) {
   if (e.ctrlKey || e.target.closest?.('.table-panel, .table-slip')) return;
   e.preventDefault();
@@ -2219,7 +2718,8 @@ function tableOnWheel(e) {
      turned over it zooms nothing — and does nothing else, since there is
      nothing behind the table to scroll either. */
   if (e.target.closest?.('.table-scale')) return;
-  tableAim(e.clientX, e.clientY);
+  if (!tableGrab) tableAim(e.clientX, e.clientY);
+  tableAnchor = { x: e.clientX, y: e.clientY };
   tableTo.zoom = tableWheelZoom(tableTo.zoom, e.deltaY, e.deltaMode, tableGeom.view.height);
   tableKick();
 }
@@ -2236,8 +2736,9 @@ function tableIsTyping(el) {
 }
 
 /* + and = zoom in, − zooms out and 0 goes back to the whole table, about
- * wherever the camera is aimed. Not while a dialog is up, nor with a modifier
- * held — Ctrl with any of them is the browser's own zoom. */
+ * the pointer where it is over the window, or about the window's middle when
+ * it is not. Not while a dialog is up, nor with a modifier held — Ctrl with
+ * any of them is the browser's own zoom. */
 function tableZoomKey(e) {
   if (e.ctrlKey || e.metaKey || e.altKey || tableIsTyping(e.target)) return false;
   /* The card-size slider in hand keeps its keys: a range is no field being
@@ -2246,9 +2747,43 @@ function tableZoomKey(e) {
   const factor = { '+': TABLE_ZOOM_KEY, '=': TABLE_ZOOM_KEY, '-': 1 / TABLE_ZOOM_KEY }[e.key];
   if (!factor && e.key !== '0') return false;
   if ((typeof modalIsOpen === 'function' && modalIsOpen()) || (typeof faqIsOpen === 'function' && faqIsOpen())) return false;
+  const { width, height } = tableGeom.view;
+  const p = tablePointer;
+  tableAnchor = p && p.x >= 0 && p.y >= 0 && p.x < width && p.y < height
+    ? { x: p.x, y: p.y } : { x: width / 2, y: height / 2 };
   tableTo.zoom = factor ? tableZoomBy(tableTo.zoom, factor) : TABLE_ZOOM_MIN;
   tableKick();
   return true;
+}
+
+/* W A S D, and the arrows, pan the view while they are held — the ways held
+ * kept in tableKeysHeld and turned into a velocity every frame
+ * (tableKeyVelocity) — when tablePanKeyDir says the key is the table's. Not
+ * while a dialog is up or a card is being looked at. The arrows' own default,
+ * scrolling whatever would scroll, is taken; a letter has none outside a
+ * field. Shift, pressed or let go on its own, changes the speed of the keys
+ * already held. Answers whether the key was taken. */
+function tablePanKeyDown(e) {
+  tableKeysFast = !!e.shiftKey;
+  if (e.key === 'Shift') { if (tableKeysHeld.size) tableKick(); return false; }
+  if (tableLooked || (typeof modalIsOpen === 'function' && modalIsOpen())
+      || (typeof faqIsOpen === 'function' && faqIsOpen())) return false;
+  const dir = tablePanKeyDir(e, tableFocusKind(document.activeElement, tableEls?.scene));
+  if (!dir) return false;
+  if (tablePanKeyOf(e)?.arrow) e.preventDefault();
+  tableKeysHeld.add(dir);
+  tableKick();
+  return true;
+}
+
+/* A key let go stops its way, wherever the focus has gone since and whatever
+ * is held with it, so a key can never be left panning; the velocity eases
+ * down from there. */
+function tablePanKeyUp(e) {
+  tableKeysFast = !!e.shiftKey;
+  const key = tablePanKeyOf(e);
+  if (key) tableKeysHeld.delete(key.dir);
+  tableKick();
 }
 
 /* A resize changes every size the scene is drawn in, so the table is fitted
@@ -2262,6 +2797,10 @@ function tableOnResize() {
     if (!tableOn) return;
     tableFitTable();
     tableMeasure();
+    /* The table is fitted to the new window, so where the view may go is
+       asked again of it alone. */
+    const { width, height } = tableGeom.view;
+    tableAt = { ...tableAt, ...tableClampPan(tableAt, tableAt, tableBounds, width, height, { strict: true }) };
     tableResizeCards();
     tableFitPanel();
     tableDrawerFit();
@@ -2300,7 +2839,7 @@ function tableOnKeyCapture(e) {
  * it lies over everything on the table but that card; then the panel. */
 function tableOnKey(e) {
   if (e.defaultPrevented) return;
-  if (e.key !== 'Escape') { tableZoomKey(e); return; }
+  if (e.key !== 'Escape') { if (!tablePanKeyDown(e)) tableZoomKey(e); return; }
   if (tableEscTaken) return;
   if (tableLooked) { tableLookAway(); return; }
   if (tableDrawer && (!tablePanel || tableEls?.drawerHost.contains(document.activeElement))) {
@@ -2310,11 +2849,17 @@ function tableOnKey(e) {
   if (tablePanel) tableDismissPanel();
 }
 
-/* The window losing the pointer mid-drag: the card is put down where it is. */
+/* The window losing the pointer mid-drag: the card is put down where it is,
+ * and a hand on the felt lets go. Losing the keyboard lets go of every key —
+ * their key-ups go to whatever has the focus now — and the edges stop. */
 function tableOnBlur() {
   if (tableHold) tableRelease({ pointerId: tableHold.id });
   if (tableZoneHold) tableZoneRelease({ pointerId: tableZoneHold.id });
+  if (tableGrab) tableGrabRelease({ pointerId: tableGrab.id });
   tableScaleLetGo();
+  tableKeysHeld.clear();
+  tablePointer = null;
+  tableKick();
 }
 
 function tableListen(on) {
@@ -2326,10 +2871,13 @@ function tableListen(on) {
   window[method]('pointercancel', tableZoneRelease);
   window[method]('pointerup', tableScaleLetGo);
   window[method]('pointercancel', tableScaleLetGo);
+  window[method]('pointerup', tableGrabRelease);
+  window[method]('pointercancel', tableGrabRelease);
   window[method]('pointerout', tableOnPointerOut);
   window[method]('resize', tableOnResize);
   window[method]('keydown', tableOnKeyCapture, true);
   window[method]('keydown', tableOnKey);
+  window[method]('keyup', tablePanKeyUp);
   window[method]('blur', tableOnBlur);
 }
 
@@ -2373,7 +2921,10 @@ function tableModeEnter() {
   tableScrollY = window.scrollY || 0;
   document.documentElement.dataset.tablemode = '';
   tableAt = { ...TABLE_CAMERA_REST };
-  tableTo = { ...TABLE_CAMERA_REST };
+  tableTo = { zoom: TABLE_CAMERA_REST.zoom, leanX: 0, leanY: 0 };
+  tableVel = { x: 0, y: 0 };
+  tableAnchor = tablePointer = tableGrab = null;
+  tableKeysHeld.clear();
   tableDecodeK = 1;
   tableHiRes = false;
   tableCardScale = readTableCardScale();
@@ -2420,7 +2971,9 @@ function tableModeLeave() {
   tableZoneHold = tableZoneEdit = tableZoneTarget = tableZoneLanding = tableZoneChips = null;
   tableZones = [];
   tableEls = null;
-  tableGeom = null;
+  tableGeom = tableBounds = null;
+  tableGrab = tablePointer = null;
+  tableKeysHeld.clear();
   tableOn = false;
   delete document.documentElement.dataset.tablemode;
   window.scrollTo(0, tableScrollY);

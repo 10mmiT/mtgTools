@@ -68,6 +68,26 @@ html[data-tablemode] body::after { display: none; }
   transform-origin: 0 0;
 }
 
+/* The RSS panel folded away is no width at all and a hairline of border,
+   standing over the table's right edge — over the deepest pixels of the edge
+   band there, which would keep the view still as anything off the table does
+   (tableScrollPaused). Folded, it is nothing to reach for, so it takes no
+   pointer; open, it is the panel it always was. */
+html[data-tablemode] .rss-panel:not(.open) { pointer-events: none; }
+
+/* Zoomed in, bare felt and wood can be taken hold of and the table dragged
+   round under the hand: an open hand over them, which everything on the
+   table that is pressed for something else — a card, a tab, a chip, a zone's
+   label — overrides with its own. While the table is held, a closed hand
+   wherever it has been dragged to: nothing on the table takes the pointer
+   then — the press is the scene's, captured, so nothing is lost — and so
+   nothing on it shows a cursor of its own, or opens a label under a hand
+   that is only passing over it. The script says which (data-pan,
+   tablePanCursor). */
+.table-scene[data-pan="ready"] { cursor: grab; }
+.table-scene[data-pan="held"] { cursor: grabbing; }
+.table-scene[data-pan="held"] * { pointer-events: none; }
+
 /* The table: a grid of rim, mat and rim, in wood. The border is the table's
    outer edge, a darker band round the board, and the outline just inside it
    a hairline of light along that edge's inner lip, the board's bevel
