@@ -1,5 +1,5 @@
 /* Design tokens — theme variables and the per-tab accent colours.
-   File 1 of 5 in load order; later files may override earlier ones.
+   File 1 of 6 in load order; later files may override earlier ones.
 
    Raw colour values (#hex, rgb(), rgba(), hsl()) are permitted in THIS FILE
    ONLY. Everywhere else colour comes from a var(--token). Two exemptions,
@@ -157,6 +157,10 @@
      than when it is being held above it. */
   --card-shadow-rest:   drop-shadow(0 3px 6px var(--card-cast));
   --card-shadow-raised: drop-shadow(0 8px 16px var(--card-cast));
+  /* Held high off the table mode's mat (js/tablemode.js lifts a card in hand
+     96px, where the grid's lift is a few): the same light, from further up,
+     so the shadow falls further and spreads wider. */
+  --card-shadow-held:   drop-shadow(0 14px 26px var(--card-cast));
 
   /* How far a card comes off the table when it is picked up, and how much
      bigger it looks for being nearer the eye. Both are small: a card in a
@@ -414,6 +418,47 @@
   --scrim: rgb(14 16 19 / .86);
   --mat:   #171b20;             /* Deck Builder felt surface */
 
+  /* The wood of table mode's table (css/table.css): the board, and the
+     darker band round its edge and round the mat set into it. Table mode is
+     the one thing in the app drawn as furniture, so it is the one place a
+     theme says what its furniture is made of — dark, oiled walnut in a dim
+     room here, the grain drawn from the two of them. Neither carries text:
+     the tabs standing on the rim are surfaces of their own. */
+  --table-wood:      #2e241d;
+  --table-wood-edge: #1b1511;
+  /* The wood's grain, from a photograph rather than drawn: a texture under
+     public/textures/ (its README says where each one is from), tiled across
+     the board with the colour above as its fallback and drawn-on grain
+     under it (css/table.css). The url is relative to this file, and
+     table.css, where it is used, sits beside it, so it names the same
+     picture whichever file a browser resolves it against. The dark themes
+     lie on dark walnut, the light ones on oak. A photograph is brighter than
+     the room a dark theme is, so it is dimmed by --table-wood-tint, a flat
+     veil of the room's own dark laid over it; --table-wood-lit is the
+     hairline of light just inside the dark edge band, the board's bevel. */
+  --table-wood-img:  url('../textures/table-wood-dark.webp');
+  --table-wood-tint: rgb(10 11 13 / .45);
+  --table-wood-lit:  rgb(255 255 255 / .07);
+  /* The landing mark a card in hand lays where it will land (css/table.css,
+     .table-cast): a ring in --table-land-ink with a hairline of
+     --table-land-halo inside it, and a faint wash of the ink. The ink is the
+     theme's --primary — the table's accent, there being no tab's colour on
+     it — which is near-white on the dark felts and near-black on the light
+     ones; the halo is the page's colour, its opposite, so where the art
+     under the mark is the ink's own colour the halo carries the edge. Both
+     pairs are measured (scripts/check-contrast.js, the mark role). */
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 16%, transparent);
+  /* The Deck Builder's zones on the table (css/table.css, .table-zone): a
+     faint wash of the theme's ink over the felt and a hairline of it round
+     the edge — the room's own text colour, made thin, so a zone reads as a
+     region of the felt rather than a surface lying on it. The hairline is
+     measured against the felt (scripts/check-contrast.js, chrome), and
+     drawn heavier in the contrast theme, where a boundary is a real one. */
+  --table-zone-fill: rgb(231 234 238 / .035);
+  --table-zone-line: rgb(231 234 238 / .22);
+
   /* Overlay shadows. Flat surfaces get a hairline instead — there is
      deliberately no --shadow-raised. */
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
@@ -496,6 +541,17 @@ html[data-theme="dusk"] {
 
   --scrim: rgb(18 16 16 / .86);
   --mat:   #1c1815;
+  --table-wood:      #33261c;
+  --table-wood-edge: #1f1710;
+  /* The same walnut, under a warmer veil. */
+  --table-wood-img:  url('../textures/table-wood-dark.webp');
+  --table-wood-tint: rgb(22 14 8 / .42);
+  --table-wood-lit:  rgb(255 240 220 / .07);
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 16%, transparent);
+  --table-zone-fill: rgb(238 234 229 / .035);
+  --table-zone-line: rgb(238 234 229 / .22);
 
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .30), 0 1px 3px rgb(0 0 0 / .15);
   --shadow-modal:   0 16px 48px -8px rgb(0 0 0 / .40);
@@ -564,6 +620,19 @@ html[data-theme="light"] {
 
   --scrim: rgb(245 246 248 / .92);
   --mat:   #e9ecf1;
+  /* A lit room's table: a lighter oak, so the board is a step below the page
+     rather than a hole in it. */
+  --table-wood:      #a8835f;
+  --table-wood-edge: #7b5c40;
+  /* Oak, in a lit room: no veil to speak of. */
+  --table-wood-img:  url('../textures/table-wood-light.webp');
+  --table-wood-tint: rgb(0 0 0 / .04);
+  --table-wood-lit:  rgb(255 255 255 / .22);
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 12%, transparent);
+  --table-zone-fill: rgb(20 24 29 / .035);
+  --table-zone-line: rgb(20 24 29 / .2);
 
   /* Light themes carry roughly half the shadow alpha. */
   --shadow-overlay: 0 4px 16px -2px rgb(0 0 0 / .14), 0 1px 3px rgb(0 0 0 / .08);
@@ -636,6 +705,17 @@ html[data-theme="sepia"] {
 
   --scrim: rgb(247 243 236 / .92);
   --mat:   #ece4d6;
+  --table-wood:      #a27b55;
+  --table-wood-edge: #785739;
+  /* The same oak, warmed a little towards the paper. */
+  --table-wood-img:  url('../textures/table-wood-light.webp');
+  --table-wood-tint: rgb(110 70 20 / .10);
+  --table-wood-lit:  rgb(255 248 230 / .22);
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 12%, transparent);
+  --table-zone-fill: rgb(31 27 21 / .04);
+  --table-zone-line: rgb(31 27 21 / .2);
 
   /* Half alpha like the other light theme, warmed to match the paper. */
   --shadow-overlay: 0 4px 16px -2px rgb(60 40 10 / .16), 0 1px 3px rgb(60 40 10 / .09);
@@ -713,6 +793,23 @@ html[data-theme="contrast"] {
      than their page, so it is dark art that costs them, and it costs more. */
   --scrim: rgb(0 0 0 / .90);
   --mat:   #0f0f0f;
+  /* The edge is lighter than the board here, not darker: a dark band round a
+     dark table on a black page is no edge at all, and this theme is the one
+     where the table's outline has to be seen rather than inferred. */
+  --table-wood:      #3f2f21;
+  --table-wood-edge: #9a7a58;
+  /* No photograph here: grain is texture behind the tabs lying on the rim,
+     and texture behind controls is what this theme exists to take away. The
+     board stays the flat colour with the faint drawn grain, and the edge
+     band above is what carries its outline. */
+  --table-wood-img:  none;
+  --table-wood-tint: transparent;
+  --table-wood-lit:  rgb(255 255 255 / .30);
+  --table-land-ink:  var(--primary);
+  --table-land-halo: var(--bg);
+  --table-land-fill: color-mix(in srgb, var(--primary) 18%, transparent);
+  --table-zone-fill: rgb(255 255 255 / .06);
+  --table-zone-line: rgb(255 255 255 / .5);
 
   /* Each of these leads with a hairline ring, which no other palette needs.
      An overlay carries a shadow and no border (§4.5), and that works because

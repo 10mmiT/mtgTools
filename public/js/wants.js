@@ -188,6 +188,8 @@ async function renderWantList() {
   }
 
   if (!allWants.size) {
+    _wantExportRows    = [];   // nothing is on screen, so nothing is exported
+    _wantExportPlayers = [];
     container.innerHTML = `<div class="empty-state" style="padding:var(--space-6)">
       No want lists yet — select a player above and start adding cards.
     </div>`;
@@ -392,6 +394,21 @@ async function renderWantList() {
   }).join('');
 
   container.innerHTML = `<div class="sf-grid">${tiles}</div>`;
+}
+
+/* The want lists on show, one per player — the player filter applied, each
+ * list's cards in the tab's sort — read off the rows the last render kept for
+ * Export, so that whatever else lays out the same cards cannot come to show a
+ * different set of them: table mode's mat (js/tablemode.js). A card two
+ * players want is on both their lists. */
+function wantShownLists() {
+  return _wantExportPlayers
+    .filter(p => !wantFilterPlayer || p.id === wantFilterPlayer)
+    .map(p => ({
+      key: p.id, label: p.name,
+      cards: _wantExportRows.filter(([, wanters]) => wanters.has(p.id)).map(([name]) => name),
+    }))
+    .filter(list => list.cards.length);
 }
 
 // ── Export (CSV / PDF) ───────────────────────────────────────────────────

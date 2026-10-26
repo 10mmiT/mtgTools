@@ -29,6 +29,11 @@ let _cardForDeck = null;
 let _cardPrints    = [];
 let _cardPrintCard = null;
 let _cardPrintsAt  = '';
+/* And which card view the gallery is part of — 'cardDetail' for the Card tab,
+   'cardModalDetail' for the modal — or '' for a gallery drawn somewhere that
+   is neither, which goes on navigating as it always has. A tile looked at from
+   inside a card view swaps that same view's printing (cardSwapPrinting). */
+let _cardPrintHost = '';
 
 // Convert "{2}{W}{U/P}{T}" → mana-font icons. The app's one rule for that is
 // renderMana (js/state.js) — every slash dropped, so {G/U/P} is ms-gup, and
@@ -103,13 +108,32 @@ function openCardByName(name, forDeck = null) {
     }
   }
   // Fallback: full-page tab
+  openCardPage(name, forDeck);
+}
+
+/* The card on the Card tab itself rather than in the modal, whatever the
+ * window's width — openCardByName's fallback, and the way in for a caller
+ * that wants the tab: table mode's "Details" (js/tablemode.js), where the tab
+ * is a sheet lying on the table and a modal over it would hide the table. */
+function openCardPage(name, forDeck = null) {
+  _cardForDeck = forDeck;
   setTab('card', false);
   history.pushState({ view: 'card', cardName: name }, '', '#card=' + encodeURIComponent(name));
   loadCard({ name }, 'cardDetail');
 }
 
+/* The card the Card tab last drew — { name, id, imageUrl } — or null before it
+ * has drawn one. The modal's card is not it: the modal is a look at a card
+ * from somewhere else, and closes. Kept for whatever lays the tab's card out
+ * beside it: table mode's mat (js/tablemode.js). */
+let _cardShown = null;
+
+function cardDetailShown() { return _cardShown; }
+
 /* A printing, looked at. Never a choice — the tiles that choose do not come
-   here — so this is one of the doors that clears the deck behind it. */
+   here — so this is one of the doors that clears the deck behind it. The
+   gallery's own tiles, inside a card view, swap that view in place instead
+   (cardSwapPrinting); this is the way in from elsewhere. */
 function openCardById(id) {
   _cardForDeck = null;
   if (_useModal()) {
@@ -123,6 +147,58 @@ function openCardById(id) {
   setTab('card', false);
   history.pushState({ view: 'card', cardId: id }, '', '#cardid=' + encodeURIComponent(id));
   loadCard({ id }, 'cardDetail');
+}
+
+/* A printing tile pressed inside a card view that is already showing: the
+ * same view, the same place, the printing swapped — its picture, set line,
+ * prices, rulings and gallery all of the chosen one.
+ *
+ * Not openCardById(), which is the door into a card from somewhere else. On
+ * the desktop that door is the modal, so a tile on the Card tab used to open
+ * the printing in a modal over the tab it was pressed in — two cards on
+ * screen where the press asked for one changed — and in table mode it left
+ * the large card on the mat beside the sheet still showing the old printing.
+ * Here the view the tile is in is the view that changes; no modal opens, and
+ * none closes.
+ *
+ * The history entry is replaced, never pushed: looking along a card's
+ * printings is one visit to the card, so Back leaves the card rather than
+ * walking back through every printing glanced at — and the entry is the
+ * card's still, which is what table mode's close reads (tableReturnByBack,
+ * js/tablemode.js). The hash names the printing shown, so a reload or a
+ * copied link opens the one on screen.
+ *
+ * Still a look and never a choice: a gallery choosing for a deck presses
+ * cardChoosePrinting() instead, so this clears the deck behind it as the
+ * other look doors do.
+ *
+ * The table's large card follows by itself: renderCard() writes the new
+ * printing into cardDetailShown() and then redraws the tab's pane, and the
+ * table watches that pane and lays its card again when it changes
+ * (tableWatchPane, js/tablemode.js) — the card's id is part of what it is
+ * keyed by, so a new printing is a new card to lay. */
+function cardSwapPrinting(id, hostId) {
+  _cardForDeck = null;
+  const hash = '#cardid=' + encodeURIComponent(id);
+  /* The entry's other fields are kept — table mode stamps the Card sheet's
+     entry with a token it closes by (tableStampCardEntry, js/tablemode.js),
+     and a printing looked at is the same visit — while the card's name goes,
+     since the id now says which card, and a name left beside it would be read
+     first on the way back (main.js's popstate handler). */
+  const kept = { ...(history.state || {}) };
+  delete kept.cardName;
+  if (hostId === 'cardModalDetail') {
+    history.replaceState({ ...kept, view: 'card-modal', cardId: id }, '', hash);
+    loadCard({ id }, 'cardModalDetail');
+    return;
+  }
+  if (hostId === 'cardDetail') {
+    history.replaceState({ ...kept, view: 'card', cardId: id }, '', hash);
+    loadCard({ id }, 'cardDetail');
+    return;
+  }
+  // A gallery outside both views has no view to swap; it navigates.
+  openCardById(id);
 }
 
 async function loadCard({ name, id }, hostId = 'cardDetail') {
@@ -214,6 +290,8 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
   const cmUrl = card.purchase_uris?.cardmarket;
   const sfUrl = card.scryfall_uri;
 
+  if (hostId === 'cardDetail') _cardShown = { name: card.name, id: card.id || null, imageUrl: front };
+
   const rId = `${hostId}-rulings`;
   const pId = `${hostId}-prints`;
   host.innerHTML = `
@@ -242,7 +320,7 @@ async function renderCard(card, seq, hostId = 'cardDetail') {
 
   // Rulings + printings load async (independent of each other)
   loadRulings(card, seq, rId);
-  loadPrints(card, seq, pId);
+  loadPrints(card, seq, pId, hostId);
 }
 
 function cardFaceBlock(f) {
@@ -508,7 +586,11 @@ function cardPrintingSnapshot(print, today = new Date().toISOString().slice(0, 1
    it splits a printing into one tile per finish, for the same reason twice
    over — a foil is a different thing to run and a different thing to pay for,
    and the same thing to look at; and it changes what a press does. */
-function cardPrintsHtml(prints, { currentId = '', currentFinish = '', forDeck = null } = {}) {
+/* `hostId` is the card view the gallery is drawn in, when it is drawn in
+   one: a tile there swaps that view's printing in place (cardSwapPrinting)
+   rather than going off to open the printing, which on the desktop is the
+   modal over the view the tile was pressed in. */
+function cardPrintsHtml(prints, { currentId = '', currentFinish = '', forDeck = null, hostId = '' } = {}) {
   return prints.flatMap(p => {
     const img = p.image_uris?.normal || p.image_uris?.large || p.card_faces?.[0]?.image_uris?.normal;
     const label = `${esc(p.set_name)} #${esc(p.collector_number || '')}`;
@@ -528,6 +610,7 @@ function cardPrintsHtml(prints, { currentId = '', currentFinish = '', forDeck = 
          in the press, as it is not named in the snapshot the press takes. */
       const press = forDeck
         ? `cardChoosePrinting('${p.id}'${finish ? `, '${jsAttr(finish)}'` : ''})`
+        : hostId ? `cardSwapPrinting('${p.id}', '${jsAttr(hostId)}')`
         : `openCardById('${p.id}')`;
       const named = finish ? `${label} (${esc(finish)})` : label;
       const title = forDeck ? `Run ${named} in ${esc(forDeck.deckName || 'this deck')}` : label;
@@ -576,6 +659,7 @@ function _cardPaintPrints() {
        on the ordinary tile, never on the foil beside it. */
     currentFinish: chosen?.finish || '',
     forDeck:   _cardForDeck,
+    hostId:    _cardPrintHost,
   });
 }
 
@@ -641,7 +725,8 @@ async function cardAllPrints(url, { strict = false } = {}) {
   return out;
 }
 
-async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
+/* `hostId` is the card view the section belongs to — see _cardPrintHost. */
+async function loadPrints(card, seq, sectionId = 'cardDetail-prints', hostId = '') {
   const el = document.getElementById(sectionId);
   if (!card.prints_search_uri) { if (el) el.style.display = 'none'; return; }
   const prints = await cardAllPrints(card.prints_search_uri);
@@ -651,5 +736,6 @@ async function loadPrints(card, seq, sectionId = 'cardDetail-prints') {
   _cardPrints    = prints;
   _cardPrintCard = card;
   _cardPrintsAt  = sectionId;
+  _cardPrintHost = hostId;
   _cardPaintPrints();
 }

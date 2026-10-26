@@ -971,17 +971,17 @@ function mountSortControl(containerId, view, fieldKeys, apply, def) {
      fixed-width popover pinned to either of its edges leaves the window —
      off the right at one end of the row and off the left at the other.
 
-     So it is offered its right edge and then clamped to the window, which is
-     the kebab menus' two lines without their `position: fixed`. Staying
+     So it is offered its right edge and then clamped to what it can be seen
+     in — the window, or less where an ancestor clips (popoverBounds) — which
+     is the kebab menus' two lines without their `position: fixed`. Staying
      absolute is the point: the popover travels with the strip when the page
      scrolls under it, and needs no close-on-scroll to hide the fact that it
      does not. */
-  const EDGE = 4;   // px of daylight left between the popover and the window
+  const EDGE = 4;   // px of daylight left between the popover and what shows it
   function place() {
     const wrap = menu.offsetParent?.getBoundingClientRect() || btn.getBoundingClientRect();
     const w = menu.offsetWidth;
-    const room = Math.max(EDGE, window.innerWidth - EDGE - w);
-    const left = Math.min(room, Math.max(EDGE, btn.getBoundingClientRect().right - w));
+    const left = clampPopoverLeft(btn.getBoundingClientRect().right - w, w, popoverBounds(menu), EDGE);
     menu.style.left  = (left - wrap.left) + 'px';
     menu.style.right = 'auto';
   }
@@ -1057,6 +1057,81 @@ function mountSortControl(containerId, view, fieldKeys, apply, def) {
   return { sync: draw, set: next => commit(next) };
 }
 
+// ── Where a popover can be seen ─────────────────────────────────────────────
+// The popovers hung from a button here — Sort, Columns, a deck category's "⋯"
+// — are `position: absolute` on purpose: they travel with the strip when the
+// page scrolls under them. The price is that anything above them that clips
+// cuts them off, and the placement used to ask only the window whether it had
+// room. In the page that was the same question, since nothing between a strip
+// and the window clips sideways. Table mode changed the answer: a tab's pane
+// is lent to a floating panel that hides its overflow and scrolls its body
+// (css/table.css says why), so a menu opened near the panel's left edge was
+// placed inside the window and drawn half outside the panel, its items' first
+// words cut off.
+//
+// So the room is measured against what actually shows the popover: the window,
+// narrowed to every ancestor that clips sideways. Nothing here knows about
+// table mode — a pane that is lent to a panel is simply a pane with a clipping
+// ancestor — and a page with none gets the window, which is exactly what the
+// placement asked before.
+
+/* The horizontal span, in viewport pixels, a popover can be seen in.
+ *
+ * The walk starts at the popover's containing block, not its parent: an
+ * absolutely placed box is clipped by an ancestor's overflow only from its
+ * containing block up, so a non-positioned ancestor between the two cannot
+ * hide it and must not narrow it. A box that has none (fixed, or not being
+ * displayed) is clipped by the window alone.
+ *
+ * The body and the root are skipped. Their overflow is handed to the viewport
+ * rather than clipping on their own box, and the viewport is the window the
+ * span starts as — table mode's `body { overflow: hidden }` is exactly this.
+ *
+ * A clipping ancestor lends its padding box: `clientLeft`/`clientWidth` leave
+ * out the border and a scrollbar, which hide a popover as surely as the
+ * ancestor's edge does. */
+function popoverBounds(el) {
+  let left = 0, right = window.innerWidth;
+  const root = document.documentElement, body = document.body;
+  for (let a = el.offsetParent; a && a !== body && a !== root; a = a.parentElement) {
+    if (getComputedStyle(a).overflowX === 'visible') continue;
+    const r = a.getBoundingClientRect();
+    left  = Math.max(left,  r.left + a.clientLeft);
+    right = Math.min(right, r.left + a.clientLeft + a.clientWidth);
+  }
+  return { left, right };
+}
+
+/* Where a popover `width` wide goes, wanting to start at `want`, inside
+ * `bounds` with `edge` pixels of daylight on each side. One wider than the
+ * room it has starts at the left edge of it: its first words are what it is
+ * read by, and those are what a clipped end would take. With the window as the
+ * bounds this is the sort control's clamp as it always was. */
+function clampPopoverLeft(want, width, bounds, edge = 0) {
+  const lo = bounds.left + edge;
+  const hi = bounds.right - edge - width;
+  return hi < lo ? lo : Math.min(hi, Math.max(lo, want));
+}
+
+/* For a popover the stylesheet places — a `.col-menu` hanging from its
+ * button's right edge — and that is only to be moved if that place cannot be
+ * seen. Called once it is open, since a popover that is not displayed has no
+ * size. Where the stylesheet's place fits, the popover is left exactly where
+ * it was, with no inline style written; where it does not, it is moved
+ * sideways just far enough, and the stylesheet's place is handed back the next
+ * time it opens. */
+function keepPopoverInView(menu, edge = 4) {
+  menu.style.left = menu.style.right = '';
+  const cb = menu.offsetParent;
+  if (!cb) return;
+  const r = menu.getBoundingClientRect();
+  const left = clampPopoverLeft(r.left, r.width, popoverBounds(menu), edge);
+  if (Math.abs(left - r.left) < 0.5) return;
+  /* `left` is measured from the containing block's padding edge. */
+  menu.style.left  = (left - cb.getBoundingClientRect().left - cb.clientLeft) + 'px';
+  menu.style.right = 'auto';
+}
+
 // ── Per-view persisted column visibility ────────────────────────────────────
 const _colState = readPrefs('mtgtools_cols');
 // colDefs: [{key,label,default}]. Returns {key:bool}
@@ -1093,7 +1168,13 @@ function mountColumnMenu(containerId, view, colDefs, apply) {
     </div>`;
   const btn  = host.querySelector('.col-menu-btn');
   const menu = host.querySelector('.col-menu');
-  btn.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
+  /* It hangs from the button's right edge, as the stylesheet says, unless
+     that edge is too near the left of what shows it — a Columns button at the
+     start of a strip in a narrow panel — in which case it is moved in. */
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (menu.classList.toggle('open')) keepPopoverInView(menu);
+  });
   menu.addEventListener('click', e => e.stopPropagation());
   menu.querySelectorAll('input[data-col]').forEach(cb => {
     cb.addEventListener('change', () => { toggleCol(view, cb.dataset.col, colDefs); apply(); });

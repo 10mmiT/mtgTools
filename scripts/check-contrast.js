@@ -126,19 +126,23 @@ function colourOf(palette, token) {
 }
 
 // ── What is measured ──────────────────────────────────────────────────
-/* Four roles, four floors. `body` is running text the user reads — the AAA
+/* Five roles, five floors. `body` is running text the user reads — the AAA
  * target in the contrast theme. `ui` is every other piece of text: labels,
  * status, badges, text on a fill. `subtle` is placeholder and disabled text,
  * which WCAG exempts but which should still be findable. `chrome` is not
  * text at all — hairlines and focus borders. A hairline is deliberately
  * faint in this design (a divider, not an edge), so its floor is only
  * "distinguishable from the surface"; in the contrast theme it is a real
- * 3:1 boundary, which is why that palette's --border is visibly lighter. */
+ * 3:1 boundary, which is why that palette's --border is visibly lighter.
+ * `mark` is a graphic that has to be seen rather than merely found — table
+ * mode's landing mark — held to WCAG's 3:1 for non-text graphics in every
+ * theme. */
 const FLOORS = {
   body:   { normal: 4.5,  contrast: 7   },
   ui:     { normal: 4.5,  contrast: 4.5 },
   subtle: { normal: 3,    contrast: 4.5 },
   chrome: { normal: 1.15, contrast: 3   },
+  mark:   { normal: 3,    contrast: 3   },
 };
 
 const SURFACES = ['--bg', '--surface-1', '--surface-2', '--surface-3', '--mat'];
@@ -255,6 +259,16 @@ function pairs(palette) {
   add('chrome', '--border', '--surface-1', 'hairline divider');
   add('chrome', '--border', '--bg', 'hairline on the page');
   add('chrome', '--border-strong', '--surface-1', 'focused input, active tile');
+
+  /* Table mode's landing mark: its ring on the bare felt, and against the
+   * hairline inside it — which is what carries the ring over card art or a
+   * playmat the ring's own colour, so the two of them together read on any
+   * backdrop the way the veil's extremes stand for any art above. */
+  add('mark', '--table-land-ink', '--mat', 'landing mark on the felt');
+  add('mark', '--table-land-ink', '--table-land-halo', 'landing mark against its own halo, over art');
+  /* And the Deck Builder's zones: the hairline round each, on the felt it
+   * lies on, as its alpha composites it there. */
+  add('chrome', { token: '--table-zone-line', over: '--mat' }, '--mat', 'a zone’s hairline on the felt');
 
   return out.map(p => ({ ...p, palette }));
 }

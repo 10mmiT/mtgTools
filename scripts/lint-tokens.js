@@ -63,6 +63,7 @@ const CSS_FILES = [
   'public/css/layout.css',
   'public/css/components.css',
   'public/css/tabs.css',
+  'public/css/table.css',
 ];
 const MARKUP_FILES = ['public/index.html', 'public/login.html'];
 const JS_DIR = 'public/js';

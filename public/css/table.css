@@ -1,0 +1,1154 @@
+/* Table mode — the experimental table the whole app becomes, seen from a seat.
+   File 6 of 6 in load order; later files may override earlier ones.
+
+   Its own file rather than a block in tabs.css, because it is not a tab's: it
+   is a second way of holding all of them. Every rule here is either the
+   switch's row in the Appearance popover or hangs off html[data-tablemode],
+   which js/tablemode.js sets and clears, so with the mode off none of this
+   matches anything and the app is exactly what it was.
+
+   What is here is the geometry and the look. What moves is not: the camera's
+   pan and zoom are written by the script every frame they change, cards are
+   placed by it, and the decisions behind both are in that file. So is the
+   table's size: the script fits it to the window and hands the box over as
+   --table-x/-y/-w/-h. The one number the two share is the rest tilt, which
+   the script hands over as --table-tilt so that the table it maps the
+   pointer onto and the table drawn here lean away by the same angle.
+
+   Nothing in a 3D scene may flatten what it holds by accident. overflow,
+   opacity under 1 and filter each turn an element into a flat picture of its
+   children, so none of them is set on the plane, the rim or the mat — only on
+   leaves, where there is nothing left to flatten. */
+
+/* ── The switch ────────────────────────────────────────────────────────
+   Offered only where it can be honoured: the desktop width, and a pointer
+   that hovers. The same query as tableModeQuery() in js/tablemode.js, which
+   ignores the stored answer everywhere this hides the row. */
+.table-mode-row { display: none; }
+@media (width >= 900px) and (hover: hover) {
+  .table-mode-row { display: flex; }
+}
+
+/* ── The page, put away ────────────────────────────────────────────────
+   Not shown as a page while the table is up: the sidebar and the shell that
+   holds the panes. The panes are not removed — the one being read is carried
+   into a panel and back — and the rest are where they always were, hidden as
+   they always are. The page's own playmat layers go too: the table is drawn
+   over the whole window, and its mat carries the art itself. */
+html[data-tablemode] .tab-bar,
+html[data-tablemode] .site-main { display: none; }
+html[data-tablemode] body { overflow: hidden; }
+html[data-tablemode] body::before,
+html[data-tablemode] body::after { display: none; }
+
+/* ── The scene ─────────────────────────────────────────────────────────
+   The room the table stands in: the window, in the page's own background,
+   clipping whatever a zoomed camera carries past its edges. */
+.table-scene {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  user-select: none;
+}
+
+/* The eye. A perspective at 1400px is a seat at arm's length from the near
+   edge, which keeps the far edge readable at a 24° lean; js/tablemode.js
+   reads both values back off the computed style rather than repeating them,
+   so this is the one place they are said. Its own transform is the camera's
+   pan and zoom, written by the script about its top-left corner: being the
+   element's own and not the plane's, it moves and scales the flat picture
+   the perspective has made, so the table slides and grows without its angle
+   changing. Not preserve-3d, for the same reason. */
+.table-camera {
+  position: absolute;
+  inset: 0;
+  perspective: 1400px;
+  perspective-origin: 50% 50%;
+  transform-origin: 0 0;
+}
+
+/* The RSS panel folded away is no width at all and a hairline of border,
+   standing over the table's right edge — over the deepest pixels of the edge
+   band there, which would keep the view still as anything off the table does
+   (tableScrollPaused). Folded, it is nothing to reach for, so it takes no
+   pointer; open, it is the panel it always was. */
+html[data-tablemode] .rss-panel:not(.open) { pointer-events: none; }
+
+/* Zoomed in, bare felt and wood can be taken hold of and the table dragged
+   round under the hand: an open hand over them, which everything on the
+   table that is pressed for something else — a card, a tab, a chip, a zone's
+   label — overrides with its own. While the table is held, a closed hand
+   wherever it has been dragged to: nothing on the table takes the pointer
+   then — the press is the scene's, captured, so nothing is lost — and so
+   nothing on it shows a cursor of its own, or opens a label under a hand
+   that is only passing over it. The script says which (data-pan,
+   tablePanCursor). */
+.table-scene[data-pan="ready"] { cursor: grab; }
+.table-scene[data-pan="held"] { cursor: grabbing; }
+.table-scene[data-pan="held"] * { pointer-events: none; }
+
+/* The table: a grid of rim, mat and rim, in wood. The border is the table's
+   outer edge, a darker band round the board, and the outline just inside it
+   a hairline of light along that edge's inner lip, the board's bevel
+   (--table-wood-lit). The board itself is painted in four layers, top first:
+   a flat veil of the room's own light (--table-wood-tint — a photograph is
+   brighter than a dark theme's dim room); the theme's wood, a photograph
+   tiled across it (--table-wood-img, public/textures/); faint lines of
+   grain drawn in the wood token mixed towards the edge, which the
+   photograph covers and which are the grain wherever there is none — the
+   high-contrast theme, or a picture still loading or gone; and the wood's
+   flat colour under all of it. A tile is --table-wood-tile across in the
+   plane's own pixels, about a hand's span of a real board at rest: big
+   enough that the repeat is not seen along a rim, small enough that the
+   grain is grain and not stripes. Every edge shows the photograph's grain
+   in the one direction it was taken in — a background cannot be turned,
+   and a turned copy per edge is a second picture to ship for a hairline of
+   rim. Its box is the one the script fits to the window; the fallback is
+   only ever drawn by a script that has not run.
+
+   The rim's sizes, said once here for the grid and for what lies on the rim:
+   a side edge is one chip wide — the chip and a hair of wood either side —
+   because its labels open over the mat rather than into room kept for them
+   on the wood, which leaves the mat nearly the table's whole width. The far
+   edge is as deep as the Deck Builder's slip and bin (--table-tool-h) and a
+   little wood round them, which is all it holds. */
+.table-plane {
+  --table-rim-side:  3.5rem;
+  --table-rim-far:   4.25rem;
+  --table-tool-h:    3.5rem;
+  --table-wood-tile: 512px;
+  position: absolute;
+  left: var(--table-x, 6vw);
+  top: var(--table-y, 12vh);
+  width: var(--table-w, 88vw);
+  height: var(--table-h, 76vh);
+  display: grid;
+  grid-template-columns: var(--table-rim-side) minmax(0, 1fr) var(--table-rim-side);
+  grid-template-rows: var(--table-rim-far) minmax(0, 1fr) 2.25rem;
+  grid-template-areas:
+    "far  far  far"
+    "left mat  right"
+    "near near near";
+  border: 6px solid var(--table-wood-edge);
+  border-radius: var(--radius-md);
+  outline: 1px solid var(--table-wood-lit);
+  outline-offset: -7px;
+  background-color: var(--table-wood);
+  background-image:
+    linear-gradient(var(--table-wood-tint), var(--table-wood-tint)),
+    var(--table-wood-img, none),
+    repeating-linear-gradient(94deg,
+      transparent 0 22px,
+      color-mix(in srgb, var(--table-wood-edge) 28%, transparent) 22px 23px,
+      transparent 23px 41px);
+  background-size: auto, var(--table-wood-tile) var(--table-wood-tile), auto;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--table-tilt, 24deg));
+}
+
+/* ── The rim ───────────────────────────────────────────────────────────
+   The two side edges with tabs on them, and the far and near ones without —
+   the far one is where the Deck Builder's slip and bin lie, below. The tabs
+   lie flat on the wood, so an edge has nothing standing up off it and is
+   drawn as one flat picture parallel to the table's plane, like the mat
+   beside it. That is also what lets a tab's label, opened over its
+   neighbour, be stacked above it by an ordinary z-index.
+
+   A side edge's picture lies --table-rim-z above the wood (written by the
+   script: above the highest card on the mat), because its labels open over
+   the mat's edge and must be drawn over the cards lying there, and found
+   first by the pointer. The edge itself takes no pointer — only its chips
+   do — so the strip of it over the mat's edge never stands between a hand
+   and a card. A card in hand is held far higher, and passes over it.
+
+   Each side edge stands its tabs in groups (js/tablemode.js, TABLE_RIM), a
+   column at each end of it: the far group from the far corner down, the
+   near group from the near corner up, and whatever the edge has to spare
+   between the two. */
+.table-rim {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2);
+}
+.table-rim--far   { grid-area: far; }
+.table-rim--left,
+.table-rim--right {
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
+  transform: translateZ(var(--table-rim-z, 0px));
+  pointer-events: none;
+}
+.table-rim--left  { grid-area: left; }
+.table-rim--right { grid-area: right; }
+.table-rim--near  { grid-area: near; }
+.table-rim-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A tab lying on the rim, in two parts. The button is a slot: the room the
+   tab may open into, fixed, so a tab opening never moves another. It draws
+   nothing and takes no pointer itself. The chip lying in it, the face, is
+   what is seen and what is pressed — a click on it is the button's, since it
+   is the button's own child.
+
+   The slot is the rim's width, which is a chip's, and the chip lies in it
+   against the outer edge; its label opens inwards, out of the slot and over
+   the mat's edge, by its words and the --space-3 it opens with — which
+   js/tablemode.js counts the same way, to keep a floating panel clear of a
+   label opened beside it (tableFitPanel). Lifted above the tabs below it
+   while it shows, so a label never opens under a neighbour's chip. */
+.table-tab {
+  position: relative;
+  display: block;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  pointer-events: none;
+}
+.table-tab[hidden] { display: none; }
+.table-tab:hover,
+.table-tab:focus-visible { z-index: 1; }
+/* The ring goes round what is seen, not round the empty slot. */
+.table-tab:focus-visible { outline: none; }
+.table-tab:focus-visible .table-tab-face {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 2px;
+}
+
+/* The chip: something lying on the wood rather than a control floating over
+   it. Flat in colour, a surface and a hairline like the sidebar's buttons,
+   foreshortened with the table because it lies in its plane, and with the
+   small, tight shadow a thin thing lying on a surface casts round its foot —
+   from the same light the cards' shadows fall from, in the colour a card
+   casts (--card-cast), since a tab lies on this table just as a card does.
+   A drop shadow, as the cards' are, because it hugs the chip's corners.
+
+   At rest it is square and shows its icon, drawn at the collapsed sidebar's
+   size: the icon's box is the chip's full inner width and the icon is
+   centred in it, which is what keeps the icon exactly where it is when the
+   label opens beside it. The accent marks the open tab, collapsed or not —
+   its tab's own, which it gets from data-tab through the same per-tab rules
+   the sidebar's buttons do. */
+.table-tab-face {
+  position: absolute;
+  top: 0;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  filter: drop-shadow(0 1px 1px var(--card-cast));
+  pointer-events: auto;
+  cursor: pointer;
+  transition: color        var(--dur-tint) var(--ease-tint),
+              border-color var(--dur-tint) var(--ease-tint);
+}
+.table-rim--left  .table-tab-face { left: 0; }
+.table-rim--right .table-tab-face { right: 0; flex-direction: row-reverse; }
+.table-tab-face svg {
+  flex: none;
+  width: calc(2.5rem - 2px);
+  height: 1.25rem;
+}
+.table-tab:hover .table-tab-face,
+.table-tab:focus-visible .table-tab-face { color: var(--text); }
+.table-tab[aria-expanded="true"] .table-tab-face {
+  color: var(--accent, var(--primary));
+  border-bottom-color: var(--accent, var(--primary));
+}
+
+/* The label: folded away to nothing at rest, and opened beside the icon
+   while the tab is pointed at or focused — growing the chip, which grows
+   into its own slot and moves nothing else, as the label fades in and slides
+   the last few pixels out from behind the icon. In the sidebar's own time
+   for its labels (layout.css, .tab-btn-label). The space at its far end
+   opens with it, so folded it leaves no gap behind. A label too long for its
+   slot ends in an ellipsis rather than leaving the slot. */
+.table-tab-label {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0;
+  opacity: 0;
+  translate: calc(-1 * var(--space-2)) 0;
+  transition: max-width var(--dur-base) var(--ease-tint),
+              padding   var(--dur-base) var(--ease-tint),
+              opacity   var(--dur-base) var(--ease-tint),
+              translate var(--dur-base) var(--ease-tint);
+}
+.table-rim--right .table-tab-label { translate: var(--space-2) 0; }
+.table-tab:hover .table-tab-label,
+.table-tab:focus-visible .table-tab-label {
+  max-width: 12rem;
+  padding-inline-end: var(--space-3);
+  opacity: 1;
+  translate: none;
+}
+.table-rim--right .table-tab:hover .table-tab-label,
+.table-rim--right .table-tab:focus-visible .table-tab-label {
+  padding-inline: var(--space-3) 0;
+}
+
+/* ── The mat ───────────────────────────────────────────────────────────
+   The playmat, when there is one — the same --playmat-src the page's own
+   background layers paint, switched by the same data-playmat — and otherwise
+   the theme's felt, the colour the Deck Builder's mat is. Unveiled, unlike the
+   page's: the page veils the art because text runs over it, and on the table
+   what lies on the art is cards. The one line of text that can, the hint
+   below, carries its own surface instead. */
+.table-mat {
+  grid-area: mat;
+  position: relative;
+  transform-style: preserve-3d;
+  border: 1px solid var(--table-wood-edge);
+  border-radius: var(--radius-md);
+  background: var(--mat);
+}
+html[data-playmat] .table-mat {
+  background-image: var(--playmat-src, none);
+  background-size: cover;
+  background-position: center;
+}
+/* Asked for less data, given less — the same answer the page's layers give. */
+@media (prefers-reduced-data: reduce) {
+  html[data-playmat] .table-mat { background-image: none; }
+}
+
+/* What the mat says when nothing is lying on it. A quiet chip rather than a
+   heading: it is a hint, and the rim around it is where the answer is. */
+.table-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.table-hint[hidden] { display: none; }
+
+/* ── Cards on the mat ──────────────────────────────────────────────────
+   A card is a button, so a keyboard can pick one up to look at, and its
+   picture is the app's own .card-img — the card's corner, its lit and shaded
+   edges and its shadow, from components.css, the same as everywhere else. The
+   picture takes no pointer: js/cardlift.js lifts whatever .card-img is under
+   the pointer, and on the table the hand does the lifting.
+
+   Where a card lies is its transform, written by the script. It moves with no
+   transition while it is in hand, because it is following a hand; let go, it
+   comes down in the card layer's own time on plain deceleration — the curve
+   the lift and the travel use. Not --ease-land, the one with the ring in it:
+   that is the sound of a dropped card landing in a pile, and the app keeps
+   exactly one rule allowed to make it (test/tokens.test.js). */
+.table-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 0;
+  background: none;
+  border-radius: var(--radius-card);
+  cursor: grab;
+  touch-action: none;
+  /* A 3D context of its own, for the picture's sake: see below. Nothing on
+     the card may flatten it, so its shadow is the picture's and not its own. */
+  transform-style: preserve-3d;
+  transition: none;
+}
+
+/* The picture, laid out --table-card-k times the card's size and scaled back
+   down to it about its corner. The camera's zoom and the screen's device
+   pixels are invisible to Firefox's image decoder through the tilted table,
+   so a picture laid out at the card's size is decoded for zoom 1 on a 1x
+   screen however far the camera zooms, and drawn blurred (js/tablemode.js,
+   TABLE_DECODE_STEP, has the measurement). Laid out larger, it is decoded
+   larger — because the card is a 3D context, which makes the picture a face
+   of the scene whose own scale-down the decoder does not count. The script
+   sets the factor from the zoom and the device pixel ratio; on a 1x screen at
+   rest it is 1, and this is the picture as it always was.
+
+   Everything else the picture draws is in its own, larger pixels, so it is
+   drawn that many times larger to come out the same size: the lit and shaded
+   edges .card-img gives every card, and its shadow. The shadows are the
+   tokens' own, --card-shadow-rest and --card-shadow-held (tokens.css), with
+   their lengths multiplied out; a custom property cannot be scaled where it
+   is used, so the geometry is restated here, and it is the tokens' to change.
+
+   Only the shadow is let ease, and only while the card is in hand or coming
+   down (the two rules below): when the factor changes, the edges and the
+   shadow change with it in the same frame, and eased they would visibly
+   shrink and grow back. */
+.table-card-img {
+  --k: var(--table-card-k, 1);
+  width: calc(100% * var(--k));
+  height: calc(100% * var(--k));
+  /* A card's picture is a card's shape already; a deck's commander art on the
+     Decks tab is a landscape crop, and is cut to the card rather than squashed
+     into it. */
+  object-fit: cover;
+  pointer-events: none;
+  transform-origin: 0 0;
+  transform: scale(calc(1 / var(--k)));
+  border-top-width: calc(1px * var(--k));
+  border-bottom-width: calc(1px * var(--k));
+  filter: drop-shadow(0 calc(3px * var(--k)) calc(6px * var(--k)) var(--card-cast));
+  transition: none;
+}
+/* More cards than the table draws shadows for (js/tablemode.js,
+   TABLE_SHADOWS_MAX): lying still, a card casts none, because a filter on
+   every one of a deck's cards is most of what the table costs to draw. Held
+   or coming down, a card is not lying still, and the rules below give it its
+   shadow back — eased in as it rises and out as it comes to rest, in the
+   times those rules give. Before them, so that they win. */
+.table-mat[data-many] .table-card-img { filter: none; }
+/* In hand: the deeper shadow of something held well above the table rather
+   than lying on it — which the card has whether or not it is allowed to rise.
+   It grows in the time the card takes to rise (TABLE_LIFT_MS, 110ms, in
+   js/tablemode.js), from the press. */
+/* Over the bin, a card in hand fades a little — on its picture, a leaf, so
+   nothing is flattened that is kept 3D for its sharpness; the script eases
+   --table-bin-fade with the rest of that look (js/tablemode.js,
+   tableBinPose), and it is not set anywhere else. */
+.table-card-img { opacity: var(--table-bin-fade, 1); }
+.table-card.is-held { cursor: grabbing; }
+.table-card.is-held .table-card-img {
+  filter: drop-shadow(0 calc(14px * var(--k)) calc(26px * var(--k)) var(--card-cast));
+  transition: filter calc(var(--motion) * .11s) var(--ease-tint);
+}
+.table-card.is-settling { transition: transform var(--dur-card) var(--ease-tint); }
+/* Coming down, it lays its shadow back in .card-img's own time for it. */
+.table-card.is-settling .table-card-img { transition: filter calc(var(--motion) * .18s) var(--ease-tint); }
+/* Picked up to be looked at: its place on the table is kept for it. */
+.table-card.is-looked { visibility: hidden; }
+
+/* The landing mark: where the card in hand comes down if it is let go now,
+   card-sized, at its angle and with its corners — the script lays it in the
+   card's own landing pose every frame the card moves, and draws it above the
+   piles it falls across without moving it on the screen (js/tablemode.js,
+   tableCastTransform). Not a shadow: a shadow is dark, and dark vanishes on
+   the dark felts and under a card held over it. A mark instead — a 2px ring
+   in the theme's ink, a hairline of the page's colour inside it so the ring
+   still reads where the art under it is the ink's own colour, and a faint
+   wash of the ink over what it covers (--table-land-*, tokens.css). The ring
+   is an outline, outside the box, so the box the mark is measured by is the
+   card's. A leaf; it takes no pointer, and has no transition of its own, so
+   it is never a frame behind the hand. */
+.table-cast {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px solid var(--table-land-halo);
+  border-radius: var(--radius-card);
+  outline: 2px solid var(--table-land-ink);
+  background: var(--table-land-fill);
+  pointer-events: none;
+}
+.table-cast[hidden] { display: none; }
+
+/* Put in the bin: it goes into it shrinking, and fades as it goes — the
+   script writes the bin's place and the shrink into its transform — in the
+   card layer's own time, so with cards still it is simply gone. A card with
+   copies to spare comes back where it lay, fading in rather than sliding
+   back out of the bin. Fading flattens the card's 3D context for as long as
+   it lasts, which a card on its way out of sight can spare. */
+.table-card.is-binned {
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-card) var(--ease-tint),
+              opacity   var(--dur-card) var(--ease-tint);
+}
+.table-card.is-unbinning { transition: opacity var(--dur-card) var(--ease-tint); }
+
+/* A card with no picture is a plain face with its name on it — not a card
+   pretending to be one, and not a dark gap either: the name is set where a
+   card's own name is, along the top, at a size that survives the table's
+   tilt, and wraps rather than running off the face. */
+.table-card-blank {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  text-align: left;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+}
+
+/* A card standing for several copies — the deck's thirty Islands are one card
+   on the mat — says how many on its lower-left corner, where a fan or a
+   zone's overlap leaves the card showing: a small chip on the app's surface,
+   in its text, lying on the card. A child of the card, so it is carried,
+   lifted and laid down with it. The card is a 3D context, so the chip is a
+   face beside the picture and is lifted the hair --table-face-z off it
+   (js/tablemode.js, TABLE_FACE_Z: under the next card up); it fades with
+   the picture over the bin. It takes no pointer: pressing it is pressing
+   the card. */
+.table-card-qty {
+  position: absolute;
+  left: 6%;
+  bottom: 4.5%;
+  padding: 0 var(--space-1);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateZ(var(--table-face-z, 0px));
+  opacity: var(--table-bin-fade, 1);
+}
+
+/* ── A card picked up to be looked at ──────────────────────────────────
+   Above the table and anything floating over it, below the app's own dialogs
+   and the card preview. Behind the card, the whole window is the button that
+   puts it back; under it, Details. The window's button draws no ring of its
+   own round the window: the card is what it is about, so the card is what
+   wears its focus. */
+.table-look {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+.table-look[hidden] { display: none; }
+.table-look-back {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-out;
+}
+.table-look-back:focus-visible { outline: none; }
+.table-look-back:focus-visible ~ .table-look-card {
+  outline: 2px solid var(--accent, var(--primary));
+  outline-offset: 4px;
+}
+/* Shorter than the window by Details and the gap above it. */
+.table-look-card {
+  position: relative;
+  height: min(74vh, 84vw);
+  width: auto;
+  aspect-ratio: 63 / 88;
+  pointer-events: none;
+  filter: var(--card-shadow-raised);
+  transition: transform var(--dur-card) var(--ease-tint);
+}
+/* Details, and Add one and Remove one beside it where the card's copies in
+   a deck can be changed (js/tablemode.js, tableLookActions, says when). Positioned, so they lie over the
+   window's button rather than under it; and come in once the card is on its
+   way up, rather than waiting under an empty window for it. */
+.table-look-actions {
+  position: relative;
+  display: flex;
+  gap: var(--space-2);
+  opacity: 0;
+  transition: opacity var(--dur-card) var(--ease-tint);
+}
+.table-look.is-up .table-look-actions { opacity: 1; }
+.table-look-actions .btn-secondary {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.table-look-add[hidden],
+.table-look-remove[hidden] { display: none; }
+
+/* ── The Deck Builder's slip and bin ───────────────────────────────────
+   Two things lying on the far rim above the deck's cards while a deck the
+   user may edit is laid there (js/tablemode.js, tableToolsShown): a slip to
+   add a card by name, in the middle of the rim, and a bin to drop one in,
+   towards its right-hand end. They are the mat's children, laid out above
+   its top edge — their foot the mat's border and half the rim's spare depth
+   above it, so they lie centred in the far rim — which keeps their boxes in
+   the mat's own pixels, as everything the hand meets on the table is. Both
+   lie on the wood, in the table's plane — a hair above it, --table-tools-z,
+   written by the script — and are made like the rim's chips — a surface, a hairline with a heavier foot, and the
+   small contact shadow of a thin thing lying on the wood — since they lie on
+   this table as the chips do. Their box is laid out without a transform of
+   its own beyond that height, because the script reads it off offsetTop and
+   friends: the bin is hit-tested against it, and a card added from the slip
+   comes in from it. They carry data-tab="deckview" for the Deck Builder's
+   accent. */
+.table-slip,
+.table-bin {
+  position: absolute;
+  bottom: calc(100% + 1px + (var(--table-rim-far) - var(--table-tool-h)) / 2);
+  height: var(--table-tool-h);
+  box-sizing: border-box;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  filter: drop-shadow(0 1px 1px var(--card-cast));
+  transform: translateZ(var(--table-tools-z, 0px));
+}
+.table-slip[hidden],
+.table-bin[hidden] { display: none; }
+
+/* The slip: a paper slip with a field on it, centred without a transform —
+   see above. The scene takes no text selection; a field being typed in
+   does. */
+.table-slip {
+  left: 0;
+  right: 0;
+  width: min(20rem, 44%);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  padding: var(--space-2);
+  user-select: text;
+}
+.table-slip-field.autocomplete-wrap { flex: 1; min-width: 0; }
+.table-slip-input { width: 100%; }
+
+/* Its suggestions, flat over the window rather than tilted with the table,
+   hung from below the slip wherever the slip is drawn — the slip lies at the
+   top of the window, so the list drops down over the table: the script
+   places the host — no height of its own, so it takes no pointer — and the
+   app's own dropdown hangs down from it. Over the table and anything
+   floating over it, under a card being looked at. */
+.table-slip-pop {
+  position: fixed;
+  z-index: 30;
+  height: 0;
+}
+.table-slip-pop .table-slip-drop {
+  top: 0;
+  bottom: auto;
+  border-radius: var(--radius-md);
+}
+
+/* The bin: an icon tray, its icon drawn at the rim's chips' size, at the far
+   rim's right-hand end — out over the corner above the right edge's tabs, as
+   the card-size slider lies over the left one, which leaves the length of
+   rim between the slip and the bin to the drawer's chips. Held over, it
+   opens — its tab's accent on the icon and the foot, a little larger, the
+   lid lifted — in the card layer's own time, so with cards still it changes
+   without moving. */
+.table-bin {
+  right: calc(var(--space-3) - var(--table-rim-side) - 1px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--table-tool-h);
+  color: var(--text-muted);
+  transition: color        var(--dur-tint) var(--ease-tint),
+              border-color var(--dur-tint) var(--ease-tint),
+              transform    calc(var(--motion) * .15s) var(--ease-tint);
+}
+.table-bin svg { width: 1.5rem; height: 1.5rem; }
+.table-bin-lid {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  transition: transform calc(var(--motion) * .15s) var(--ease-tint);
+}
+.table-bin.is-over {
+  color: var(--accent, var(--primary));
+  border-color: var(--accent, var(--primary));
+  transform: translateZ(var(--table-tools-z, 0px)) scale(1.12);
+}
+.table-bin.is-over .table-bin-lid { transform: translateY(-1px) rotate(-24deg); }
+
+/* ── The far rim's two strips ──────────────────────────────────────────
+   Either side of the slip, a strip of the far rim the chips lying there
+   share, so that none of them is laid over another however narrow the
+   window, and so the table: the left-hand one from the corner above the left
+   edge's tabs to the slip — the card-size slider at its outer end and the
+   Zones chips at the slip's — and the right-hand one from the slip to the
+   bin, in the corner above the right edge's tabs — the drawer's chips. The
+   mat's children, laid out over the far rim as the slip is, at its height
+   (--table-tools-z, written by the script). A strip is wood: only the chips
+   on it take the pointer. */
+.table-far-left,
+.table-far-right {
+  position: absolute;
+  bottom: calc(100% + 1px + (var(--table-rim-far) - 2.5rem) / 2);
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  transform: translateZ(var(--table-tools-z, 0px));
+  pointer-events: none;
+}
+.table-far-left > *,
+.table-far-right > * { pointer-events: auto; }
+.table-far-left {
+  left: calc(var(--space-3) - var(--table-rim-side) - 1px);
+  right: calc(50% + min(20rem, 44%) / 2 + var(--space-3));
+  justify-content: space-between;
+}
+.table-far-right {
+  left: calc(50% + min(20rem, 44%) / 2 + var(--space-3));
+  right: calc(var(--space-3) - var(--table-rim-side) - 1px + var(--table-tool-h) + var(--space-2));
+  container: table-far-right / inline-size;
+}
+
+/* ── The card-size slider ──────────────────────────────────────────────
+   A chip lying at the outer end of the far rim's left-hand strip, out over
+   the corner above the left edge's tabs: −, the app's own size slider
+   (.size-slider), + and the size it is at. Made like the rim's other chips
+   — a surface, a hairline with a heavier foot, the small contact shadow.
+   Shown on every tab that lays cards (js/tablemode.js, tableScaleShown).
+   Where the strip runs short — a narrow window, with both Zones chips
+   beside it — the range gives up its length first. */
+.table-scale {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  height: 2.5rem;
+  padding: 0 var(--space-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  filter: drop-shadow(0 1px 1px var(--card-cast));
+}
+.table-scale[hidden] { display: none; }
+.table-scale-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  transition: color var(--dur-tint) var(--ease-tint);
+}
+.table-scale-step svg { width: 1rem; height: 1rem; }
+.table-scale-step:hover:not(:disabled),
+.table-scale-step:focus-visible { color: var(--text); }
+.table-scale-step:focus-visible,
+.table-scale-range:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 2px; }
+.table-scale-range { flex: 0 1 auto; min-width: 2.5rem; margin: 0; cursor: pointer; }
+.table-scale-step { flex: none; }
+/* The size it is at, in figures that keep their width as it changes, so the
+   chip does not twitch while the slider is dragged. */
+.table-scale-value {
+  flex: none;
+  min-width: 2.75rem;
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The Deck Builder's zones ──────────────────────────────────────────
+   The deck laid a zone per category, while the Zones chip is on
+   (js/tablemode.js, tableZoneRules). Its two chips lie on the far rim,
+   left of the slip, at the slip's end of the far rim's left-hand strip
+   (above), made like the rim's tabs — a surface, a hairline with a
+   heavier foot, the small contact shadow — with their label always open,
+   since they are not tabs to be told apart by an icon; the Zones chip
+   pressed wears its tab's accent on its ink and its foot, as an open tab
+   does. */
+.table-zone-chips {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+}
+.table-zone-chips[hidden],
+.table-zone-chip[hidden] { display: none; }
+.table-zone-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  height: 2.5rem;
+  padding: 0 var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  filter: drop-shadow(0 1px 1px var(--card-cast));
+  cursor: pointer;
+  transition: color        var(--dur-tint) var(--ease-tint),
+              border-color var(--dur-tint) var(--ease-tint);
+}
+.table-zone-chip svg { flex: none; width: 1.25rem; height: 1.25rem; }
+.table-zone-chip:hover,
+.table-zone-chip:focus-visible { color: var(--text); }
+.table-zone-chip:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 2px; }
+.table-zone-chip[aria-pressed="true"],
+.table-drawer-chip[aria-expanded="true"] {
+  color: var(--accent, var(--primary));
+  border-bottom-color: var(--accent, var(--primary));
+}
+
+/* The drawer's chips — Search, EDHREC, Lands — in the far rim's right-hand
+   strip, right of the slip, in the Zones chip's make (they wear its class),
+   opening the Deck Builder's drawer in a panel of its own beside the table
+   (js/tablemode.js, tableDrawerOpen). The one whose tab the drawer lies open
+   at wears its tab's accent, as the Zones chip pressed does.
+
+   On a window too narrow for the strip to hold all three with their words —
+   the strip is the rim's, so it is narrower as the table is — the words fold
+   away and the chips are their icons, as the side edges' tabs are; the
+   words stay each chip's name to a screen reader, and its title says it to
+   the pointer. */
+.table-drawer-chips {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+}
+.table-drawer-chips[hidden],
+.table-drawer-chip[hidden] { display: none; }
+@container table-far-right (width < 20rem) {
+  .table-drawer-chip { padding: 0 var(--space-2); }
+  .table-drawer-chip > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A zone: a rectangle lying on the felt, a faint wash and a hairline of the
+   theme's ink (--table-zone-fill, --table-zone-line), under its cards. The
+   script lays it out at its size and places it, and the height its label
+   and grip lie at over its cards, --table-zone-top. It takes no pointer —
+   pressed, its empty felt is felt — only its label and its grip do. A 3D
+   context of its own, for those two to lie above its cards; nothing on it
+   may flatten it. */
+.table-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  background: var(--table-zone-fill);
+  border: 1px solid var(--table-zone-line);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+/* A card in hand over it, to be put into it: lit in its tab's accent, the
+   hairline drawn twice as heavy by an outline just inside it. */
+.table-zone.is-target {
+  border-color: var(--accent, var(--primary));
+  outline: 1px solid var(--accent, var(--primary));
+  outline-offset: -2px;
+}
+/* Let go, it comes down where it was put in the card layer's own time,
+   with its cards. */
+.table-zone.is-settling { transition: transform var(--dur-card) var(--ease-tint); }
+
+/* Its label: a small chip lying on the felt in the band across the zone's
+   top — its name, cut short by an ellipsis rather than leaving the zone, and
+   its count. Pressed and dragged, it carries the zone. */
+.table-zone-label {
+  position: absolute;
+  left: var(--table-zone-pad);
+  top: calc((var(--table-zone-head) - var(--table-zone-label-h)) / 2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  max-width: calc(100% - 2 * var(--table-zone-pad));
+  height: var(--table-zone-label-h);
+  padding: 0 var(--space-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateZ(var(--table-zone-top, 0px));
+  pointer-events: auto;
+}
+.table-zone[data-editable] .table-zone-label { cursor: grab; }
+.table-zone.is-lifted .table-zone-label { cursor: grabbing; }
+.table-zone-label:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 2px; }
+.table-zone-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.table-zone-count { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* The rename field, laid over the label where it lies, as wide as a name
+   wants. The scene takes no text selection; a field being typed in does. */
+.table-zone-rename {
+  position: absolute;
+  left: var(--table-zone-pad);
+  top: calc((var(--table-zone-head) - var(--table-zone-label-h)) / 2 - 2px);
+  box-sizing: border-box;
+  width: min(14rem, calc(100% - 2 * var(--table-zone-pad)));
+  min-width: 8rem;
+  height: calc(var(--table-zone-label-h) + 4px);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  transform: translateZ(var(--table-zone-top, 0px));
+  pointer-events: auto;
+  user-select: text;
+}
+.table-zone.is-renaming .table-zone-label { visibility: hidden; }
+
+/* Its grip: three dots in the corner, in a 2rem square that takes the
+   pointer — over 24px on the screen even at the mat's far edge, where the
+   table is drawn smallest. Only on a zone that may be changed. */
+.table-zone-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: none;
+  align-items: flex-end;
+  justify-content: flex-end;
+  width: 2rem;
+  height: 2rem;
+  padding: var(--space-1);
+  box-sizing: border-box;
+  color: var(--text-muted);
+  transform: translateZ(var(--table-zone-top, 0px));
+  pointer-events: auto;
+  cursor: nwse-resize;
+}
+.table-zone[data-editable] .table-zone-grip { display: flex; }
+.table-zone-grip svg { width: .75rem; height: .75rem; fill: currentColor; }
+.table-zone-grip:hover,
+.table-zone.is-resizing .table-zone-grip { color: var(--text); }
+
+/* ── Panels ────────────────────────────────────────────────────────────
+   One host for a tab's page, in one of two kinds — see js/tablemode.js. The
+   header is the drawer's own (.drawer-hdr), and the body scrolls, holding the
+   pane with the padding the page's shell gives it. */
+.table-panel {
+  display: flex;
+  flex-direction: column;
+  user-select: text;
+}
+.table-panel[hidden] { display: none; }
+.table-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4);
+}
+
+/* The header's title is a button that works only while the panel is tucked
+   (js/tablemode.js) — the rest of the time it is the drawer's title and looks
+   nothing like a control. "Show table" is offered only by a tab with cards. */
+.table-panel-title {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+/* Not base.css's half-faded, not-allowed button: switched off here is not
+   unavailable, it is a title. */
+.table-panel-title:disabled { opacity: 1; cursor: default; }
+.table-panel-tuck {
+  display: none;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+.table-panel[data-cards] .table-panel-tuck { display: inline-flex; }
+
+/* Floating: lifted off the table and facing the viewer, so a modal's shadow
+   and no border. It is absolute rather than fixed and carries no transform at
+   rest, which leaves it neither a stacking context nor a containing block:
+   a drawer opened from the pane inside it is pinned to the window and stacked
+   over its scrim, as it is in the page. The rise into place is `translate`,
+   and it ends at none for the same reason.
+
+   The box below is the default. Once the rim can be measured the script
+   writes its own over it — the same ceiling, but hung below the far edge's
+   tabs and between the side ones, so every tab stays in reach while a page
+   floats (tableFloatBox in js/tablemode.js). */
+.table-panel[data-kind="float"] {
+  position: absolute;
+  top: 10vh;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(900px, 70vw);
+  height: 80vh;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+  opacity: 0;
+  translate: 0 var(--space-4);
+  transition: opacity   var(--dur-panel) var(--ease-tint),
+              translate var(--dur-panel) var(--ease-panel);
+}
+.table-panel[data-kind="float"].is-open { opacity: 1; translate: none; }
+
+/* Tucked: slid down until its header is all that is left in the window, at
+   the foot of it — the script hands over how far as --table-tuck-y — with the
+   table undimmed above it. The page under the header is still laid out at the
+   panel's size, so nothing in it reflows, and it is made invisible once the
+   slide is over, so the keyboard cannot reach into what nobody can see. The
+   header is the way back: all of it is pressable. */
+.table-panel[data-kind="float"].is-open.is-tucked { translate: 0 var(--table-tuck-y, 0px); }
+.table-panel.is-tucked .table-panel-hdr,
+.table-panel.is-tucked .table-panel-title { cursor: pointer; }
+.table-panel.is-tucked .table-panel-tuck { display: none; }
+.table-panel .table-panel-body { transition: visibility 0s; }
+.table-panel.is-tucked .table-panel-body {
+  visibility: hidden;
+  transition: visibility 0s var(--dur-panel);
+}
+
+/* Growing: a sheet lying on the mat, in the table's plane, unfolding out of
+   the edge whose tab opened it. Flat, because it is lying down: a hairline
+   and a surface, and no shadow. It lies just above every card on the mat, at
+   the height the script hands over as --table-sheet-z. */
+.table-panel[data-kind="grow"] {
+  position: absolute;
+  inset: var(--space-3);
+  /* Short of the lane the Card tab's card lies in beside it, when one does
+     (--table-sheet-lane, written by the script; nothing otherwise). */
+  right: calc(var(--space-3) + var(--table-sheet-lane, 0px));
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transform-origin: 50% 0;
+  transform: translateZ(var(--table-sheet-z, 0px)) scale(.04);
+  opacity: 0;
+  transition: transform var(--dur-panel) var(--ease-panel),
+              opacity   var(--dur-tint)  var(--ease-tint);
+}
+.table-panel[data-kind="grow"][data-edge="left"]  { transform-origin: 0 50%; }
+.table-panel[data-kind="grow"][data-edge="right"] { transform-origin: 100% 50%; }
+.table-panel[data-kind="grow"].is-open {
+  transform: translateZ(var(--table-sheet-z, 0px)) scale(1);
+  opacity: 1;
+}
+
+/* The Deck Builder's drawer, lent to a panel of its own (js/tablemode.js,
+   tableDrawerOpen): docked to the left of the window, narrower than a
+   floating page, with the table undimmed beside it — the cards added from
+   it are to be seen landing. The script writes its box (tableDrawerBox).
+   Fixed, with no z-index, and no transform once it is up — it rises in by
+   `translate`, which ends at none — so, like the floating panel, it is
+   neither a stacking context nor a containing block, and what the drawer
+   opens from inside it lands on the window as it does in the page; it comes
+   after the panel in the page, so it lies over a tucked one. Lifted off the
+   table, so a modal's shadow.
+
+   The drawer inside it is the builder's own .db-drawer, which in the page is
+   a fixed panel off the window's right edge, slid out of sight until it is
+   opened: here it simply fills its host. */
+.table-drawer {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+  background: var(--surface-1);
+  user-select: text;
+  opacity: 0;
+  translate: calc(-1 * var(--space-4)) 0;
+  transition: opacity   var(--dur-panel) var(--ease-tint),
+              translate var(--dur-panel) var(--ease-panel);
+}
+.table-drawer[hidden] { display: none; }
+.table-drawer.is-open { opacity: 1; translate: none; }
+.table-drawer:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: -2px; }
+html[data-tablemode] .table-drawer > .db-drawer {
+  position: static;
+  flex: 1;
+  min-height: 0;
+  width: auto;
+  height: auto;
+  border-left: 0;
+  transform: none;
+  transition: none;
+}
+
+/* The table behind a floating panel, dimmed a little. It takes no pointer,
+   so the rim stays in reach: another tab can be pressed straight from here,
+   and the open one pressed again to put its page down. */
+.table-dim {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-panel) var(--ease-tint), visibility 0s var(--dur-panel);
+}
+.table-dim.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--dur-panel) var(--ease-tint), visibility 0s;
+}
+
+/* ── Panes in a panel ──────────────────────────────────────────────────
+   The few page rules that assume a pane is the page. Each is answered here,
+   and only for a pane in a panel.
+
+   The Deck Builder's readout is pinned to the foot of the window in the page,
+   clear of the sidebar; in a panel it is pinned to the foot of the panel.
+   Sticky needs its own left and right let go, or the sidebar's width would be
+   read as how far to keep it from the panel's edge. */
+html[data-tablemode] .table-panel .db-stats-bar {
+  position: sticky;
+  left: auto;
+  right: auto;
+  bottom: 0;
+}
+
+/* The Deck Builder's control column pushes the mat aside on a wide window and
+   goes above it on a narrow one (tabs.css, .db-body), because below 900px
+   there is nothing left to push into. A panel is never wider than 900px, so a
+   pane in one is always on the narrow side of that line however wide the
+   window is: it takes the narrow answer. Pushed aside instead, the mat is left
+   too thin for the list view's fixed columns and the card names go to nothing. */
+html[data-tablemode] .table-panel .db-body { flex-direction: column; }
+html[data-tablemode] .table-panel .db-menu { order: -1; flex: 0 0 auto; align-self: stretch; }

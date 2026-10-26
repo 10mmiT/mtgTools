@@ -64,8 +64,25 @@ async function _sfPump() {
  * this function answers for the names it is handed, however many there are. */
 const CARD_DB_BATCH = 500;
 
+/* Which card live Scryfall answered each asked name with, for a batch it was
+ * asked about: its `data` holds the cards found in the order the identifiers
+ * were sent, with the ones it could not find left out and listed in
+ * `not_found`. Read as pairs so that a card Scryfall has renamed since a
+ * collection was imported — "________ Goblin" is "_____ Goblin" now, and the
+ * bulk copy only knows the new name — can still be filed under the name the
+ * collection calls it. Nothing at all when the counts do not add up, rather
+ * than a guess. */
+function scryfallAnswers(asked, data, notFound) {
+  const missing = new Set((notFound || []).map(id => id?.name));
+  const found = asked.filter(name => !missing.has(name.split(' // ')[0]));
+  if (found.length !== (data || []).length) return [];
+  return found.map((name, i) => [name, data[i]]);
+}
+
 // Returns an array of Scryfall-shaped card objects for `names` (any length).
-async function fetchCardCollection(names) {
+// `renamed`, where given, is filled with asked name → card for every card live
+// Scryfall answered under a name other than the one asked — see scryfallAnswers.
+async function fetchCardCollection(names, renamed = null) {
   if (!names.length) return [];
   const cards = [];
   const remaining = [];
@@ -97,7 +114,13 @@ async function fetchCardCollection(names) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifiers: batch.map(n => ({ name: n.split(' // ')[0] })) }),
       });
-      if (res.ok) cards.push(...((await res.json()).data || []));
+      if (res.ok) {
+        const json = await res.json();
+        cards.push(...(json.data || []));
+        for (const [name, card] of scryfallAnswers(batch, json.data, json.not_found)) {
+          if (renamed && card?.name !== name && card?.name !== name.split(' // ')[0]) renamed.set(name, card);
+        }
+      }
     } catch {}
   }
   return cards;
@@ -173,20 +196,26 @@ async function ensureScryfallImages(names) {
   const missing = names.filter(n => !scryfallCache.has(n) || !scryfallMetaCache.has(n));
   if (!missing.length) return;
 
-  const cards = await fetchCardCollection(missing);
-  for (const card of cards) {
+  /* A card Scryfall knows by a newer name is filed under both: its own, and
+     the one it was asked for by, which is the name the rest of the app will
+     look it up with. */
+  const renamed = new Map();
+  const cards = await fetchCardCollection(missing, renamed);
+  const file = (name, card) => {
     const face = card.card_faces?.[0];
-    scryfallCache.set(card.name,
+    scryfallCache.set(name,
       card.image_uris?.normal    || face?.image_uris?.normal    || null);
-    scryfallArtCache.set(card.name,
+    scryfallArtCache.set(name,
       card.image_uris?.art_crop  || face?.image_uris?.art_crop  || null);
-    scryfallFacesCache.set(card.name, _scryfallFaces(card));
+    scryfallFacesCache.set(name, _scryfallFaces(card));
     /* One reading of a Scryfall card into meta, in js/sortui.js. This used to
        be a second copy of that object literal, which is how a field added for
        one reader — the search's oracle text — would have reached the cards
        fetched by the search tab and not the ones fetched here. */
-    scryfallMetaCache.set(card.name, cardMetaOf(card));
-  }
+    scryfallMetaCache.set(name, cardMetaOf(card));
+  };
+  for (const card of cards) file(card.name, card);
+  for (const [name, card] of renamed) file(name, card);
   // Mark any still-missing names so we don't retry them (both caches, so
   // metadata-driven sorts/columns don't keep re-requesting unresolved cards)
   for (const name of missing) {

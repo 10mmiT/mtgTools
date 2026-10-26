@@ -40,7 +40,26 @@ mtgtools/
 │   ├── collection*.test.js  # Collections — imports, CSVs, owners, which printings are held
 │   ├── deck*.test.js        # The Decks tab and the builder — boards, folders, privacy, history,
 │   │                        # ownership, legality, mana, lands, printings, the optimizer, export
-│   └── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
+│   ├── archidektpace, setindex, wants  # Import pacing, the set-index sweep, the want list
+│   └── tablemode.test.js    # Table mode — panel kinds, which tab stands on which edge and in
+│                            # which group, click or drag, the
+│                            # table's fit, the lean, the wheel's zoom about the pointer and
+│                            # their easing, the edge bands, the hand and W A S D that move a
+│                            # zoomed view and how far it may go, how
+│                            # large a card's picture is decoded, the lift, the screen-to-mat
+│                            # mapping through the camera, the floating panel's box, the layout,
+│                            # what each tab lays and in which piles, where a re-laid card
+│                            # goes, when a panel tucks, where a card in hand lands and its
+│                            # landing mark lies — drawn above the piles without moving on
+│                            # screen; the Deck Builder's commander at the head of the mat,
+│                            # and when its slip and bin show, the bin's hit on the far rim
+│                            # and what a card put in it does to the deck; its zones — how
+│                            # one fits its cards, the first layout, the kept rects, the
+│                            # zone a card is let go over, who may change them; the card-size
+│                            # slider — its range and keeping, every layout at 50/100/150%
+│                            # (100% as before, none off the mat), moved cards kept, the
+│                            # pictures it asks for; the drawer's chips, its docked panel and
+│                            # what it leaves untucked; Add one through the builder's stepper
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -53,6 +72,7 @@ mtgtools/
 │   ├── login.html     # Password login page
 │   ├── fonts/         # Inter, vendored — the app renders the same with no route out
 │   ├── vendor/        # mana-font and jsPDF, vendored for the same reason
+│   ├── textures/      # Table mode's wood, two CC0 Poly Haven photographs, vendored too
 │   ├── css/           # Loaded in this order; later files may override earlier
 │   │   ├── tokens.css     # The only file allowed raw colours: five theme palettes,
 │   │   │                  # the type/spacing/radius scales, the motion vocabulary
@@ -61,7 +81,11 @@ mtgtools/
 │   │   ├── base.css       # Element defaults and shared text utilities
 │   │   ├── layout.css     # Page shell, header, navigation, sections, the wide width
 │   │   ├── components.css # Controls and widgets shared across tabs
-│   │   └── tabs.css       # Rules owned by a single tab
+│   │   ├── tabs.css       # Rules owned by a single tab
+│   │   └── table.css      # Table mode (experimental): the switch's row, and the
+│   │                      # scene, rim, mat, panels and cards — all behind
+│   │                      # html[data-tablemode]. Last, so a pane lying in a
+│   │                      # panel can be told what the page used to tell it
 │   └── js/
 │       ├── playmat.js     # Loaded in <head>: paints the background before first paint, and its picker
 │       ├── motion.js      # Loaded in <head>: resolves the card-motion preference against the OS
@@ -77,7 +101,8 @@ mtgtools/
 │       ├── carddrag.js    # Carrying a card, or a handful: the lag, the lean, the fan, the pile that would take it
 │       ├── scryfall.js    # Card data access: local-first lookups w/ live fallback, rate-limited proxy fetch, caches
 │       ├── card.js        # Card Detail tab (oracle text, rulings, prices, the printings of it
-│       │                  # on the shelf, alt-art printings)
+│       │                  # on the shelf, alt-art printings — a printing pressed swaps the
+│       │                  # card in place, in the tab or the modal it is in)
 │       ├── cardquery.js   # Scryfall query syntax, parsed and run against the local card cache
 │       ├── collections.js # Collection CRUD and results rendering
 │       ├── players.js     # Players and decks
@@ -104,6 +129,24 @@ mtgtools/
 │       ├── deckview-optimize.js # Deck Builder: picking a printing for every card at once — the three modes, the admissible pool, the preview and the bulk apply
 │       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
+│       ├── tablemode.js   # Table mode (experimental): the app as a 3D table seen from a seat — the
+│       │                  # switch, the table fitted to the window, the tabs lying down the rim's
+│       │                  # two sides round a wide mat, panes lifted into panels and put back, the
+│       │                  # camera zooming over it with its cards kept sharp — moved round a
+│       │                  # zoomed table by the window's edges, a hand on the felt and W A S D,
+│       │                  # no further than a margin past the rim — cards
+│       │                  # picked up off the mat with a ringed mark where they will land, each
+│       │                  # tab's own cards laid there
+│       │                  # (read through a small getter beside each tab's renderer) with its
+│       │                  # panel tucked out of their way — the Deck Builder's with its commander
+│       │                  # at the head, and on the far rim a slip to add a card and a bin to
+│       │                  # drop one in, and a chip laying the deck a zone per category — zones
+│       │                  # moved, resized and renamed on the felt, a card carried between them
+│       │                  # moving category — chips opening the builder's own Search, EDHREC
+│       │                  # and Lands drawer in a panel docked beside the table, and Add one on
+│       │                  # a card picked up to look at; a card-size slider on the far rim for
+│       │                  # every tab's cards; the Card sheet closing back to the view it was
+│       │                  # opened over; window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
 ├── docs/
 │   ├── design/          # What was planned — briefs and PRDs, kept as context

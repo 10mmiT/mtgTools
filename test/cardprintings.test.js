@@ -188,6 +188,8 @@ function loadGallery({ runs = null, accept = true } = {}) {
       return el('prints').innerHTML;
     },
     section_: () => el('prints').innerHTML,
+    /** What a host element holds now — the Card tab's `cardDetail`, say. */
+    host: id => el(id).innerHTML,
     /** The card detail once a door's fetch has come back and been drawn. Every
      *  stub here answers in promises alone, so one turn of the event loop is
      *  the whole of the asynchronous half. */
@@ -508,6 +510,91 @@ test('and a press with no deck behind it chooses nothing', async () => {
   await app.section(null);
   assert.strictEqual(app.answer(`cardChoosePrinting('${RAV.id}')`), false);
   assert.deepStrictEqual(app.chosen(), [], 'a gallery with no deck told one about a printing');
+});
+
+// ── Looking along the printings, in place ─────────────────────────────────
+// A tile in a gallery that is part of a card view — the Card tab's, or the
+// modal's — swaps that view's printing where it stands. It used to go through
+// openCardById(), whose desktop door is the modal: pressed on the Card tab, it
+// opened the printing in a modal over the tab, and in table mode it left the
+// large card on the mat beside the sheet showing the printing you had left.
+
+/** The history as the tests read it back: every push, replace and step back,
+ *  in order, with the length a real one would have. */
+const HISTORY = `history = {
+  state: { view: 'card', cardName: 'Sol Ring' }, length: 3, calls: [],
+  pushState(s, _, h)    { this.calls.push(['push', s, h]); this.state = s; this.length++; },
+  replaceState(s, _, h) { this.calls.push(['replace', s, h]); this.state = s; },
+  back()                { this.calls.push(['back']); },
+}`;
+
+/** One turn of the event loop — every stub here answers in promises alone. */
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('a gallery inside the Card tab swaps the tab’s printing rather than navigating', async () => {
+  const app = loadGallery();
+  app.run(`_cardForDeck = null`);
+  await app.run(`loadPrints(${JSON.stringify(CARD)}, _cardReqSeq, 'prints', 'cardDetail')`);
+  assert.deepStrictEqual(presses(app.section_()),
+    PRINTS.map(p => `cardSwapPrinting('${p.id}', 'cardDetail')`));
+});
+
+test('and one inside the modal swaps the modal’s', async () => {
+  const app = loadGallery();
+  app.run(`_cardForDeck = null`);
+  await app.run(`loadPrints(${JSON.stringify(CARD)}, _cardReqSeq, 'prints', 'cardModalDetail')`);
+  assert.deepStrictEqual(presses(app.section_()),
+    PRINTS.map(p => `cardSwapPrinting('${p.id}', 'cardModalDetail')`));
+});
+
+test('a gallery choosing for a deck still chooses, whichever view it is in', async () => {
+  // The rule the look-at tiles changed under is not theirs to change: a tile
+  // that chooses for a deck is a choice wherever it is drawn.
+  const app = loadGallery();
+  app.run(`_cardForDeck = ${JSON.stringify(CTX)}`);
+  await app.run(`loadPrints(${JSON.stringify(CARD)}, _cardReqSeq, 'prints', 'cardDetail')`);
+  for (const press of presses(app.section_())) assert.match(press, /^cardChoosePrinting\(/);
+});
+
+test('a printing pressed on the Card tab is drawn there, with no modal, and the entry replaced', async () => {
+  const app = loadGallery();
+  app.run(HISTORY);
+  app.run(`loadCard({ name: 'Sol Ring' }, 'cardDetail')`);
+  await settle();
+  app.run(`cardSwapPrinting('${RAV.id}', 'cardDetail')`);
+  await settle();
+  assert.match(app.host('cardDetail'), /Ravnica: City of Guilds \(RAV\) · #266/,
+    'the tab is not showing the printing pressed');
+  assert.strictEqual(app.answer('cardDetailShown().id'), RAV.id,
+    'what the table lays beside the sheet is still the old printing');
+  assert.strictEqual(app.answer('modalIsOpen()'), false, 'a modal opened over the tab');
+  assert.strictEqual(app.host('cardModalDetail'), '', 'the modal was drawn into');
+  assert.deepStrictEqual(app.answer('history.calls'),
+    [['replace', { view: 'card', cardId: RAV.id }, `#cardid=${RAV.id}`]],
+    'the printing was pushed onto the history rather than replacing the card’s entry');
+  assert.strictEqual(app.answer('history.length'), 3, 'Back would walk through the printings');
+});
+
+test('and one pressed in the modal is drawn in the modal, which stays the one entry', async () => {
+  const app = loadGallery();
+  app.run(`openCardByName('Sol Ring')`);
+  await settle();
+  app.run(HISTORY);
+  app.run(`history.state = { view: 'card-modal', cardName: 'Sol Ring' }`);
+  app.run(`cardSwapPrinting('${LEA.id}', 'cardModalDetail')`);
+  await settle();
+  assert.match(app.host('cardModalDetail'), /Limited Edition Alpha \(LEA\) · #270/);
+  assert.deepStrictEqual(app.answer('history.calls'),
+    [['replace', { view: 'card-modal', cardId: LEA.id }, `#cardid=${LEA.id}`]]);
+  assert.strictEqual(app.host('cardDetail'), '', 'the Card tab behind the modal was drawn into');
+});
+
+test('a swap is a look, so it clears a deck left over like the other look doors', async () => {
+  const app = loadGallery();
+  app.run(HISTORY);
+  app.run(`_cardForDeck = ${JSON.stringify(CTX)}`);
+  app.run(`cardSwapPrinting('${RAV.id}', 'cardDetail')`);
+  assert.strictEqual(app.answer('_cardForDeck'), null);
 });
 
 // ── The tab ───────────────────────────────────────────────────────────────
