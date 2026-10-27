@@ -145,7 +145,13 @@ same rules, so the suite passes on both.
   onclick handlers, attributes and CSS `url()`, so the server checks them on the way in
   (`isId`, `isHexColor`, `isHttpUrl`/`isImageUrl`, `readNumber`, inside
   `deckProblem`/`playerProblem`/`collectionProblem`/`cardProblem`). A new stored field
-  needs a validator there.
+  needs a validator there. A playmat URL sent to PUT /prefs must be https art on
+  `cards.scryfall.io`, mirroring `playmatUrlOk` in `public/js/playmat.js`.
+- **`req.params` is already decoded** by Express. Never call `decodeURIComponent` on it
+  again: that threw on any `%` left in a name and answered 500.
+- **The calendar keys a day by person name**, not player id. `writeState` moves a renamed
+  player's days to the new name (`carryRenamedAvailability`), so a rename made any other
+  way would orphan them. "Today" is UTC.
 - **Card shapes go through their helpers**: deck cards via
   `readPrinting`/`writePrinting`/`deckCardRow`, collection cards via
   `readCollectionCards`/`writeCollectionCards`/`addCardPrinting`. `PRINTING_FIELDS` order
@@ -291,12 +297,3 @@ and `wontfix`. Fuller skill configuration is in `docs/agents/` where it exists l
 There's no `CONTEXT.md` glossary or `docs/adr/` yet; if they appear, read them before
 working in the area they cover.
 
-## Known gaps
-
-Small issues found but not fixed — not intended design:
-
-- PUT /prefs stores `playmatUrl` without validation.
-- `routes/state.js`, `routes/decks.js` and `routes/available.js` decode `req.params` a
-  second time, so a '%' in an id gives a 500 (`routes/proxy.js` has the fixed pattern).
-- Availability is keyed by player name, so renaming a player orphans their future days;
-  "today" is UTC.

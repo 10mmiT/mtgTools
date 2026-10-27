@@ -71,16 +71,38 @@ function writeState(data, checkVersion) {
     if (checkVersion !== undefined && (row?.version || 0) !== checkVersion) {
       const err = new Error('Conflict'); err.status = 409; throw err;
     }
-    let before = new Set();
-    try { before = deckIdsOf(JSON.parse(row?.value_json || '{}').players); } catch {}
+    let stored = [];
+    try { stored = JSON.parse(row?.value_json || '{}').players || []; } catch {}
+    const before = deckIdsOf(stored);
     db.prepare(`
       INSERT INTO app_state (key, value_json, version) VALUES ('state', ?, 1)
       ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, version = version + 1
     `).run(JSON.stringify({ players }));
     const after = deckIdsOf(players);
     history.forgetDecks([...before].filter(id => !after.has(id)));
+    carryRenamedAvailability(stored, players);
     return (db.prepare('SELECT version FROM app_state WHERE key = ?').get('state')?.version || 1);
   })();
+}
+
+/* The calendar keys a day by the name it was marked under, not by a player
+ * id, so a player renamed in the blob would leave their marked days under the
+ * old name — still shown, and no longer theirs to unmark. Their days move with
+ * the name, in the write that renamed them. Through a placeholder first, so two
+ * players who swap names in one write swap days rather than pooling them; and
+ * where the new name had already marked a day, the old name's copy of it goes. */
+function carryRenamedAvailability(stored, players) {
+  const nameOf = p => (typeof p?.name === 'string' ? p.name.trim() : '');
+  const was = new Map(stored.filter(p => p?.id && nameOf(p)).map(p => [p.id, nameOf(p)]));
+  const renames = players
+    .filter(p => p?.id && nameOf(p) && was.has(p.id) && was.get(p.id) !== nameOf(p))
+    .map(p => ({ id: p.id, from: was.get(p.id), to: nameOf(p) }));
+  if (!renames.length) return;
+  const move  = db.prepare('UPDATE OR IGNORE availability SET person_name = ? WHERE person_name = ?');
+  const purge = db.prepare('DELETE FROM availability WHERE person_name = ?');
+  const held  = r => `\u0000rename:${r.id}`;
+  for (const r of renames) { move.run(held(r), r.from); purge.run(r.from); }
+  for (const r of renames) { move.run(r.to, held(r));   purge.run(held(r)); }
 }
 
 /* The revision a poll asks with — "is there anything newer than this?".
@@ -647,7 +669,7 @@ router.post('/players/:playerId/wants', requirePlayerAccess, express.json(), (re
 });
 
 router.delete('/players/:playerId/wants/:cardName', requirePlayerAccess, (req, res) => {
-  const name     = decodeURIComponent(req.params.cardName);
+  const name     = req.params.cardName;
   const appState = readState();
   const player   = appState.players.find(p => p.id === req.params.playerId);
   if (!player) return res.status(404).json({ error: 'Player not found' });
@@ -757,7 +779,7 @@ router.post('/collections', requireAuth, express.json({ limit: '10mb' }), (req, 
  * to say a different name is what an owner change would otherwise cost. */
 router.put('/collections/:key/owner', requireAuth, express.json(), (req, res) => {
   const sess  = getSession(req);
-  const key   = decodeURIComponent(req.params.key);
+  const key   = req.params.key;
   if (!db.prepare('SELECT 1 FROM collections WHERE key = ?').get(key)) {
     return res.status(404).json({ error: 'Collection not found' });
   }
@@ -771,7 +793,7 @@ router.put('/collections/:key/owner', requireAuth, express.json(), (req, res) =>
 });
 
 router.delete('/collections/:key', requireAuth, (req, res) => {
-  const key = decodeURIComponent(req.params.key);
+  const key = req.params.key;
   if (!mayChangeCollection(getSession(req), key)) return res.status(403).json({ error: NOT_YOURS });
   // An import still gathering pages for this collection has to go too, or it
   // would finish minutes later and put the collection back.
@@ -797,7 +819,7 @@ router.delete('/collections/:key', requireAuth, (req, res) => {
 const IMPORT_SOURCES = new Set(['archidekt']);
 
 router.post('/collections/:key/import', requireAuth, express.json(), (req, res) => {
-  const key = decodeURIComponent(req.params.key);
+  const key = req.params.key;
   const { name, source, id, color, restart } = req.body || {};
   if (!name || !source) return res.status(400).json({ error: 'name and source required' });
   if (!IMPORT_SOURCES.has(source)) {
@@ -835,7 +857,7 @@ router.get('/imports', requireAuth, (req, res) => res.json({ imports: imports.li
  * that is the difference between "not now" and "never mind", and a resume
  * button in front of a job nobody wants is worse than no button. */
 router.delete('/imports/:key', requireAuth, (req, res) => {
-  const key = decodeURIComponent(req.params.key);
+  const key = req.params.key;
   // Stopping one, and above all forgetting its pages, is changing the shelf.
   if (!mayChangeCollection(getSession(req), key)) return res.status(403).json({ error: NOT_YOURS });
   const gone = req.query.forget ? imports.clearImport(key) : imports.cancelImport(key);

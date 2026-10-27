@@ -63,7 +63,7 @@ router.post('/api/calendars/:id/toggle', requireAuth, express.json(), (req, res)
 
 router.delete('/api/calendars/:id/persons/:name', requireAuth, (req, res) => {
   const sess = getSession(req);
-  const name = decodeURIComponent(req.params.name);
+  const name = req.params.name;
   if (sess && sess.role !== 'admin') {
     const appState    = readState();
     const linked      = sess.playerId ? appState.players.find(p => p.id === sess.playerId) : null;
