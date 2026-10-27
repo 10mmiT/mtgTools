@@ -708,3 +708,47 @@ test('somebody else’s deck gets no + at all', () => {
   assert.ok(!tab.run(`dbDrawerTile('Doom Blade', { img: '', canAdd: false })`)
     .includes('dbAddFromDrawer'));
 });
+
+// ── The boards beside the deck, for table mode's side table ──────────────
+// What js/tablemode.js lays on its side table is read through a getter beside
+// the mat's own (dbShownPiles): the boards that are neither the deck nor its
+// head, every card of each, whatever the mat is showing.
+
+test('the side table reads every card of each board beside the deck, by name, whatever the mat is showing', () => {
+  const tab = loadTab([
+    ...DECK,
+    { card_name: 'Swords to Plowshares', category: 'Removal', board: 'side', qty: 2 },
+    { card_name: 'Duress', category: 'Removal', board: 'side' },
+    { card_name: 'Sol Ring', category: 'Ramp', board: 'maybe', qty: 3 },
+    { card_name: 'Atraxa', category: 'Creatures', board: 'commander' },
+  ]);
+  assert.strictEqual(tab.answer('dbSideBoardPiles()'), null, 'a deck not yet painted has no boards to read');
+  tab.paint();
+  const piles = tab.answer('dbSideBoardPiles()');
+  assert.deepStrictEqual(piles.map(p => [p.board, p.label, p.hint]), [
+    ['maybe', 'Maybeboard', 'Cards you are considering'],
+    ['side',  'Sideboard',  'Cards you swap in between games'],
+  ], 'every board but the mainboard and the head of the deck, in the order DB_BOARDS lists them');
+  assert.deepStrictEqual(piles[1].cards.map(c => [c.name, c.ref, c.qty]), [
+    ['Duress', 'side/Duress', 1],
+    ['Swords to Plowshares', 'side/Swords to Plowshares', 2],
+  ], 'each board’s cards by name, known by their refs, with their copies');
+  assert.deepStrictEqual(piles[0].cards.map(c => c.ref), ['maybe/Sol Ring'],
+    'the maybeboard’s Sol Ring, not the deck’s');
+  assert.ok(piles.every(p => p.cards.every(c => 'image' in c)), 'each with the picture the mat would draw it with');
+
+  /* The builder's own board switches are off (none shown), and a filter that
+     hides every card empties the mat — and leaves the side table as it was. */
+  tab.run('_dbMatchesFilter = () => false');
+  tab.paint();
+  assert.deepStrictEqual(tab.answer('dbShownPiles()'), [], 'the filter empties the mat…');
+  assert.deepStrictEqual(tab.answer('dbSideBoardPiles()').map(p => p.cards.length), [1, 2], '…and not the boards beside it');
+
+  tab.run(`dbCards = dbCards.filter(c => c.board !== 'maybe')`);
+  tab.paint();
+  assert.deepStrictEqual(tab.answer('dbSideBoardPiles()')[0], { board: 'maybe', label: 'Maybeboard', hint: 'Cards you are considering', cards: [] },
+    'a board with nothing on it is still a board, for a card to be put on');
+
+  tab.run(`dbDeck = { id: 'd2', playerId: 'p1', name: 'Another deck', commander: '' }`);
+  assert.strictEqual(tab.answer('dbSideBoardPiles()'), null, 'and the boards of a deck painted before are not this one’s');
+});

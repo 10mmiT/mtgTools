@@ -2427,6 +2427,21 @@ test('zones are offered on the Deck Builder’s table, and only the user’s own
     ['Creatures', 'Lands', 'New category'], 'an empty one given a zone keeps it; one the deck no longer has does not');
 });
 
+test('a zone moved by its label onto the bin is the bin’s to delete, but never Uncategorised with cards in it', () => {
+  const takes = o => app.sandbox.tableZoneBinAction({
+    mode: 'move', dragging: true, overBin: true, name: 'Ramp', count: 9, canEdit: true, ...o });
+  assert.strictEqual(takes({}), true, 'a zone carried by its label, the pointer over the bin');
+  assert.strictEqual(takes({ overBin: false }), false, 'anywhere else it is only moved');
+  assert.strictEqual(takes({ mode: 'resize' }), false, 'a zone being resized is never binned');
+  assert.strictEqual(takes({ dragging: false }), false, 'a press that never became a drag is not a drop');
+  assert.strictEqual(takes({ canEdit: false }), false, 'somebody else’s deck loses no category');
+  assert.strictEqual(takes({ name: 'Uncategorised', count: 3 }), false,
+    'Uncategorised with cards in it would only fill again, so the bin refuses it');
+  assert.strictEqual(takes({ name: 'Uncategorised', count: 0 }), true, 'an empty one may go');
+  assert.strictEqual(takes({ name: 'Uncategorised', count: undefined }), true, 'no count is no cards');
+  assert.strictEqual(takes({ count: 0 }), true, 'an empty zone of any other name may go too');
+});
+
 test('the Zones chip is kept per browser, and unreadable storage is just "off"', () => {
   const app2 = loadTableMode();
   assert.strictEqual(app2.evaluate('readTableZones()'), false, 'off until it is turned on');
@@ -2456,6 +2471,284 @@ test('the zones and their cards keep under the landing mark and the rim, however
   assert.match(css, /\.table-zone-grip\s*\{[^}]*width:\s*2rem;[^}]*height:\s*2rem/, 'its grip is a 2rem square to press');
   assert.match(read('public/js/tablemode.js'), /cardCarryDrop\(\[card\.ref\], place\)/,
     'a card goes into a zone through the builder’s own drop');
+});
+
+// ── The Deck Builder's side table ─────────────────────────────────────────
+
+const SIDE = {
+  share: app.evaluate('TABLE_SIDE_SHARE'),
+  gap:   app.evaluate('TABLE_SIDE_GAP'),
+};
+
+/* The pair as tableFitPair fits it to a window, and where its corners are
+ * drawn at rest: the matrix of tablePlaneMatrix with the mat at the plane's
+ * corner, so u, v are the plane's own pixels and the side table's corners are
+ * points of the same plane past its right-hand edge. */
+function fittedPair(view, perspective = 1400, top = 30) {
+  const box = app.copy(app.sandbox.tableFitSize(view, { perspective, top }));
+  const pair = app.call('tableFitPair', box, { side: true });
+  const m = app.sandbox.tablePlaneMatrix({
+    perspective, origin: { x: view.width / 2, y: view.height / 2 },
+    plane: { left: pair.left, top: pair.top, origin: { x: pair.width / 2, y: pair.height / 2 } },
+    mat: { left: 0, top: 0 },
+  });
+  const at = (u, v) => app.copy(app.sandbox.tableProject(m, u, v, 0));
+  const sideLeft = pair.width + pair.side.gap, sideRight = sideLeft + pair.side.width;
+  return { box, pair, at, sideLeft, sideRight };
+}
+
+test('with the side table up the pair is fitted as the one table was, the side table a third of the table, in one plane', () => {
+  for (const view of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }, { width: 1280, height: 800 }, { width: 2560, height: 1440 }, { width: 960, height: 1000 }]) {
+    const { box, pair, at, sideLeft, sideRight } = fittedPair(view);
+    const what = `${view.width}×${view.height}`;
+    assert.ok(near(pair.side.width, pair.width * SIDE.share, 1e-9), `${what}: the side table is a third of the table, ${JSON.stringify(pair)}`);
+    assert.strictEqual(pair.side.gap, SIDE.gap, 'with the gap of bare room between them');
+    assert.ok(near(pair.width + pair.side.gap + pair.side.width, box.width, 1e-9), 'and the three are the box the one table was fitted to');
+    assert.ok(pair.width < box.width, 'so the table is the narrower for it');
+    assert.strictEqual(pair.left, box.left, 'the pair keeps the one table’s place: it is what is centred now');
+    assert.strictEqual(pair.top, box.top, 'one far edge');
+    assert.strictEqual(pair.height, box.height, 'one depth');
+    /* Drawn at rest: the pair's near corners at the window's bottom corners,
+       its far edge at the room asked, as the one table's were. */
+    const g = 8;
+    const nl = at(0, pair.height), nr = at(sideRight, pair.height);
+    assert.ok(near(nl.x, g, 1e-6) && near(nl.y, view.height - g, 1e-6), `${what}: near left ${JSON.stringify(nl)}`);
+    assert.ok(near(nr.x, view.width - g, 1e-6) && near(nr.y, view.height - g, 1e-6), `${what}: the side table's near right ${JSON.stringify(nr)}`);
+    assert.ok(near(at(sideRight, 0).y, 30, 1e-6) && near(at(0, 0).y, 30, 1e-6), 'the far edge of both at the room asked for');
+    /* In one plane, on one edge: the table's near right and the side table's
+       near left are on one line, with bare room between them. */
+    const tr = at(pair.width, pair.height), sl = at(sideLeft, pair.height);
+    assert.ok(near(tr.y, sl.y, 1e-6), 'the two near edges are one line');
+    assert.ok(sl.x > tr.x, 'and the side table stands apart, to the right');
+  }
+});
+
+test('with the side table down the fit, the outline and the card in hand are the one table’s, to the pixel', () => {
+  const box = app.copy(app.sandbox.tableFitSize({ width: 1440, height: 900 }, { perspective: 1400, top: 26 }));
+  assert.deepStrictEqual(app.call('tableFitPair', box), { ...box, side: null });
+  assert.deepStrictEqual(app.call('tableFitPair', box, { side: false }), { ...box, side: null });
+  assert.strictEqual(app.sandbox.tableFitPair(null, { side: true }), null, 'no box, no pair');
+  /* The outline: without a span, or with one short of the plane, the plane's own. */
+  assert.deepStrictEqual(app.call('tablePanBounds', { ...FIT_GEOM, plane: { ...FIT_GEOM.plane, span: undefined } }), BOUNDS);
+  assert.deepStrictEqual(app.call('tablePanBounds', { ...FIT_GEOM, plane: { ...FIT_GEOM.plane, span: 10 } }), BOUNDS);
+  /* A card in hand: no reach is the mat, as it always was. */
+  for (const [hit, grab] of [[{ u: 300, v: 200 }, { u: 10, v: -4 }], [{ u: -50, v: 900 }, null], [{ u: 2000, v: -3 }, { u: 0, v: 0 }]]) {
+    assert.deepStrictEqual(app.call('tableDropSpot', hit, grab, 872, 573), app.call('tableDropSpot', hit, grab, 872, 573, null));
+  }
+  const css = read('public/css/table.css');
+  assert.match(css, /\.table-side\[hidden\]\s*\{\s*display:\s*none;\s*\}/, 'and the side table is not drawn at all');
+});
+
+test('the outline the view is held inside runs on over the side table, and at the whole table the rest view is still the only one', () => {
+  const view = { width: W, height: H };
+  const box = app.copy(app.sandbox.tableFitSize(view, { perspective: 1400, top: 8 + LEAN * H }));
+  const pair = app.call('tableFitPair', box, { side: true });
+  const plane = { left: pair.left, top: pair.top, origin: { x: pair.width / 2, y: pair.height / 2 }, width: pair.width, height: pair.height };
+  const geom = { perspective: 1400, origin: { x: W / 2, y: H / 2 }, plane };
+  const alone = app.call('tablePanBounds', geom);
+  const both = app.call('tablePanBounds', { ...geom, plane: { ...plane, span: pair.width + pair.side.gap + pair.side.width } });
+  assert.ok(both.right > alone.right + 100, `the side table is inside the outline: ${alone.right} → ${both.right}`);
+  assert.ok(near(both.right, W - 8, 1e-6), 'reaching the window’s edge at rest, where its near corner is drawn');
+  assert.strictEqual(both.left, alone.left);
+  assert.strictEqual(both.top, alone.top);
+  assert.strictEqual(both.bottom, alone.bottom);
+  const rest = app.copy(app.sandbox.tablePanRange(both, 1, W, H));
+  assert.deepStrictEqual([rest.x.lo, rest.x.hi, rest.y.lo, rest.y.hi], [0, 0, 0, 0], 'the pair fills the window at 1');
+  const zoomed = app.copy(app.sandbox.tablePanRange(both, 2.5, W, H));
+  const short = app.copy(app.sandbox.tablePanRange(alone, 2.5, W, H));
+  assert.ok(zoomed.x.hi > short.x.hi, 'zoomed in, the view can be taken on over the side table');
+});
+
+test('a card in hand is drawn under the pointer over both tables, and lands, if on the mat, on the mat', () => {
+  const reach = { left: 0, top: 0, right: 1100, bottom: 573 };
+  const over = app.call('tableDropSpot', { u: 1000, v: 300 }, { u: 0, v: 0 }, 872, 573, reach);
+  assert.ok(near(over.x * 872, 1000) && near(over.y * 573, 300), `past the mat’s edge, under the pointer: ${JSON.stringify(over)}`);
+  const held = app.call('tableDropSpot', { u: 1500, v: 900 }, { u: 0, v: 0 }, 872, 573, reach);
+  assert.ok(near(held.x * 872, 1100) && near(held.y * 573, 573), 'and held to the reach past it');
+  const land = app.call('tableDropSpot', { u: 1000, v: 300 }, { u: 0, v: 0 }, 872, 573);
+  assert.strictEqual(land.x, 1, 'where it lands on the mat is still the mat’s');
+});
+
+test('the side table’s felt is a region per board, the sideboard’s at the far half and the maybeboard’s at the near, each laying its cards inside it', () => {
+  const pile = (board, n = 0) => ({ board, label: board, hint: '', cards: Array.from({ length: n }, (_, i) => ({ name: `${board}${i}`, ref: `${board}/${board}${i}` })) });
+  const order = piles => app.call('tableSideBoards', piles).map(p => p.board);
+  assert.deepStrictEqual(order([pile('maybe'), pile('side')]), ['side', 'maybe'], 'the sideboard first, whatever order the builder lists them');
+  assert.deepStrictEqual(order([pile('maybe'), pile('considering'), pile('side')]), ['side', 'maybe', 'considering'],
+    'and a board added to DB_BOARDS is a region too, after them in their order');
+  assert.deepStrictEqual(order([pile('maybe'), { label: 'x', cards: [] }, null]), ['maybe'], 'no board, no region; no sideboard, the rest');
+  assert.deepStrictEqual(order(null), []);
+
+  const w = 75, h = 105;
+  for (const [counts, W, H] of [[[15, 3], 165, 780], [[0, 0], 165, 780], [[40, 2], 140, 600], [[4, 9, 1], 220, 900]]) {
+    const regions = app.call('tableSideLayout', counts, W, H, w, h);
+    const what = `${counts} on ${W}×${H}`;
+    assert.strictEqual(regions.length, counts.length, `${what}: a region per board`);
+    for (let i = 1; i < regions.length; i++) {
+      assert.ok(regions[i].top >= regions[i - 1].top + regions[i - 1].height + ZONE.gap - 1e-9, `${what}: region ${i} lies below region ${i - 1}, apart`);
+    }
+    for (const [i, r] of regions.entries()) {
+      assert.ok(r.left >= 0 && r.top >= 0 && r.left + r.width <= W + 1e-9 && r.top + r.height <= H + 1e-9, `${what}: region ${i} on the felt`);
+      assert.ok(near(r.height, regions[0].height) && near(r.width, regions[0].width), 'the felt shared out evenly');
+      assertFitInside(r, counts[i], r.width, r.height, w, h, `${what}: region ${i}`);
+    }
+    const share = (H - ZONE.gap) / counts.length;
+    assert.ok(regions[0].top < share && regions.at(-1).top + regions.at(-1).height > H - share, 'the first at the far end, the last at the near');
+  }
+  assert.deepStrictEqual(app.call('tableSideLayout', [], 165, 780, w, h), [], 'no boards, no regions');
+});
+
+test('a point of the plane is over the table, a region of the side table, the side table’s rim, or nothing', () => {
+  const geom = {
+    width: 700, height: 500,
+    side: { left: 800, top: 0, width: 160, height: 500 },
+    box: { left: 744, top: -74, width: 272, height: 616 },
+    boards: ['side', 'maybe'],
+  };
+  const at = (u, v, g = geom) => app.call('tableSideTarget', { u, v }, g);
+  assert.deepStrictEqual(at(100, 100), { table: 'main' });
+  assert.deepStrictEqual(at(700, 500), { table: 'main' }, 'the mat’s edge counts');
+  assert.deepStrictEqual(at(850, 100), { table: 'side', board: 'side' }, 'the far half of the side table’s felt is the sideboard’s');
+  assert.deepStrictEqual(at(850, 249), { table: 'side', board: 'side' });
+  assert.deepStrictEqual(at(850, 251), { table: 'side', board: 'maybe' }, 'the near half the maybeboard’s');
+  assert.deepStrictEqual(at(959, 499), { table: 'side', board: 'maybe' });
+  assert.deepStrictEqual(at(780, 100), { table: 'side', board: null }, 'its rim is the side table, and no region of it');
+  assert.deepStrictEqual(at(870, -40), { table: 'side', board: null });
+  assert.strictEqual(at(720, 100), null, 'the room between the two is neither');
+  assert.strictEqual(at(-20, 100), null, 'nor is the table’s own rim');
+  assert.strictEqual(at(1100, 100), null);
+  assert.deepStrictEqual(at(850, 100, { ...geom, boards: [] }), { table: 'side', board: null }, 'a felt with no regions is still the side table');
+  assert.strictEqual(app.sandbox.tableSideTarget(null, geom), null, 'a pointer that missed the plane is over nothing');
+  assert.strictEqual(at(100, 100, { ...geom, side: null }), null, 'and with no side table up, nothing is asked');
+
+  /* Through every view the table is seen in, by the pointer mapped through
+     the camera — the side table is the plane's, so the mat's mapping runs on
+     across it. */
+  for (const v of VIEWS) {
+    const m = matrix(v);
+    for (const [u, w, want] of [[400, 300, 'main'], [880, 120, 'side'], [880, 400, 'maybe'], [760, 200, null], [720, 200, undefined]]) {
+      const p = project(m, u, w, 0);
+      const got = app.copy(app.sandbox.tableSideTarget(unproject(m, p.x, p.y, 0), geom));
+      const said = got ? (got.table === 'main' ? 'main' : got.board) : undefined;
+      assert.strictEqual(said, want, `${u},${w} through ${JSON.stringify(v)}`);
+    }
+  }
+});
+
+test('a card let go between the tables asks the deck for a board, the mainboard or a zone’s pile — and nothing else', () => {
+  const place = o => app.sandbox.tableSidePlace({ move: true, ...o });
+  const region = board => ({ table: 'side', board });
+  const mat = { table: 'main' };
+  assert.strictEqual(place({ ref: 'main/Sol Ring', target: region('side') }), 'side', 'a card of the deck over the sideboard: that board alone');
+  assert.strictEqual(place({ ref: 'main/Sol Ring', target: region('maybe') }), 'maybe');
+  assert.strictEqual(place({ ref: 'side/Duress', target: mat }), 'main', 'a card of the side table over the mat: back into the category it kept');
+  assert.strictEqual(place({ ref: 'side/Duress', target: mat, zone: 'Removal' }), 'main/Removal', 'over a zone, that zone’s pile');
+  assert.strictEqual(place({ ref: 'maybe/Fire // Ice', target: mat, zone: 'Odd/Name' }), 'main/Odd/Name', 'a name or a category with a slash is still one');
+  assert.strictEqual(place({ ref: 'side/Duress', target: region('maybe') }), 'maybe', 'over the other region: that board');
+  assert.strictEqual(place({ ref: 'maybe/Fire // Ice', target: region('side') }), 'side');
+  for (const [o, why] of [
+    [{ ref: 'side/Duress', target: region('side') }, 'its own region'],
+    [{ ref: 'side/Duress', target: region(null) }, 'the side table’s rim'],
+    [{ ref: 'side/Duress', target: null }, 'the room between'],
+    [{ ref: 'main/Sol Ring', target: mat }, 'a card of the mat over the mat, which is the piles’ or the zones’'],
+    [{ ref: 'commander/Atraxa', head: true, target: region('side') }, 'the commander'],
+    [{ ref: 'commander/Atraxa', target: region('side') }, 'the commander, by its board'],
+    [{ ref: 'main/Sol Ring', target: region('side'), move: false }, 'a deck the user may only look at'],
+    [{ ref: null, target: region('side') }, 'a card the deck does not know'],
+    [{ ref: '', target: mat }, 'nor one with an empty ref'],
+  ]) {
+    assert.strictEqual(place(o), null, `nothing for ${why}`);
+  }
+  assert.match(read('public/js/tablemode.js'), /cardCarryDrop\(\[card\.ref\], place\)\s*\n\s*: typeof dbMoveCardsTo === 'function' && dbMoveCardsTo\(\[card\.ref\], place\);\s*\n\s*if \(moved\) \{ tableRelayDeck\(\); return true; \}\s*\n\s*if \(target\.table/,
+    'and every move goes through the builder’s own drop');
+});
+
+test('the side table is offered on the Deck Builder’s table, kept per browser, and only the user’s own deck moves a card on it', () => {
+  const rules = o => app.call('tableSideRules', { scope: 'deckview', deckOpen: true, canEdit: true, on: true, ...o });
+  assert.deepStrictEqual(rules({}), { toggle: true, side: true, move: true });
+  assert.deepStrictEqual(rules({ canEdit: false }), { toggle: true, side: true, move: false },
+    'somebody else’s deck has a side table to look at, and nothing on it moves');
+  assert.deepStrictEqual(rules({ on: false }), { toggle: true, side: false, move: false }, 'off, the chip is there to turn it on');
+  assert.deepStrictEqual(rules({ deckOpen: false }), { toggle: false, side: false, move: false }, 'no deck, no chip');
+  for (const scope of ['collections', 'players', 'scryfall', 'sets', 'wants', 'card', '', undefined]) {
+    assert.deepStrictEqual(rules({ scope }), { toggle: false, side: false, move: false }, `${scope} has no side table`);
+  }
+
+  const app2 = loadTableMode();
+  assert.strictEqual(app2.evaluate('readTableSide()'), false, 'off until it is turned on');
+  app2.evaluate('rememberTableSide(true)');
+  assert.strictEqual(app2.store.get('mtgtools_table_side'), '1');
+  assert.strictEqual(app2.evaluate('readTableSide()'), true);
+  app2.evaluate('rememberTableSide(false)');
+  assert.ok(!app2.store.has('mtgtools_table_side'), 'off is no key at all');
+  const locked = loadTableMode({ storage: false });
+  assert.strictEqual(locked.evaluate('readTableSide()'), false, 'unreadable storage is just off');
+  assert.doesNotThrow(() => locked.evaluate('rememberTableSide(true)'));
+
+  const hint = (pile, canEdit) => app.sandbox.tableSideHint(pile, canEdit);
+  const side = { board: 'side', hint: 'Cards you swap in between games' };
+  const maybe = { board: 'maybe', hint: 'Cards you are considering' };
+  assert.strictEqual(hint(side, true), 'Drag a card here to sideboard it');
+  assert.strictEqual(hint(maybe, true), 'Drag a card here to set it aside');
+  assert.strictEqual(hint({ board: 'considering', hint: 'Later, maybe' }, true), 'Later, maybe', 'a board with no words of its own here says its hint');
+  assert.strictEqual(hint(side, false), 'Cards you swap in between games', 'and to a deck that cannot be dropped on, what the board is for');
+  assert.strictEqual(hint({ board: 'x' }, false), '');
+});
+
+test('the side table’s cards are its own: keyed apart from the mat’s, laid again only when one changes board', () => {
+  const piles = cards => [{ board: 'side', label: 'Sideboard', cards }];
+  const keyed = app.copy(app.sandbox.tableSideKeyed(piles([
+    { name: 'Sol Ring', image: 'ring.jpg', ref: 'side/Sol Ring', qty: 2 },
+    { name: 'Duress', image: '', ref: 'side/Duress', qty: 1 },
+  ])[0]));
+  assert.deepStrictEqual(keyed.map(c => [c.key, c.ref, c.qty, c.imageUrl]), [
+    ['deckview:side/Sol Ring#1', 'side/Sol Ring', 2, 'ring.jpg'],
+    ['deckview:side/Duress#1', 'side/Duress', 1, ''],
+  ], 'known by its ref, its count on it — never the mat’s card of the same name');
+  const main = app.copy(app.sandbox.tableKeyCards([{ name: 'Sol Ring', id: 'main/Sol Ring' }], 'deckview'));
+  assert.notStrictEqual(main[0].key, keyed[0].key);
+
+  const sig = (cards, board = 'side') => app.sandbox.tableSideSig([{ board, label: board, cards }]);
+  assert.strictEqual(sig([{ ref: 'side/A', qty: 1 }]), sig([{ ref: 'side/A', qty: 4, image: 'a.jpg' }]),
+    'a count or a picture changed lays nothing again');
+  assert.notStrictEqual(sig([{ ref: 'side/A' }]), sig([{ ref: 'maybe/A' }], 'maybe'), 'a card moved to another board does');
+  assert.notStrictEqual(sig([{ ref: 'side/A' }]), sig([{ ref: 'side/A' }, { ref: 'side/B' }]), 'and so does one more card');
+});
+
+test('the Deck Builder’s source hands the side table the boards beside the deck, apart from the mat’s cards', () => {
+  const boards = [{ board: 'maybe', label: 'Maybeboard', hint: '', cards: [] },
+    { board: 'side', label: 'Sideboard', hint: '', cards: [{ name: 'Duress', image: '', ref: 'side/Duress', qty: 1 }] }];
+  const src = ask('deckview', {
+    dbShownPiles: () => [{ label: 'Ramp', cards: [{ name: 'Sol Ring', image: '', ref: 'main/Sol Ring', qty: 1 }] }],
+    dbShownCommanders: () => [],
+    dbSideBoardPiles: () => boards,
+  });
+  assert.deepStrictEqual(plain(src.side), boards);
+  assert.deepStrictEqual(plain(src.cards.map(c => c.ref)), ['main/Sol Ring'], 'the side table’s cards are not laid on the mat');
+  const old = ask('deckview', { dbShownPiles: () => [] });
+  assert.strictEqual(old.side, null, 'a builder with no getter for them has no boards to give');
+});
+
+test('the side table is built of the table’s board, stands beyond its edge in its plane, and its regions take no pointer', () => {
+  const css = read('public/css/table.css');
+  const shared = css.match(/\n\.table-plane,\s*\n\.table-side\s*\{([^}]*)\}/)?.[1] || '';
+  assert.match(shared, /grid-template-columns:\s*var\(--table-rim-side\)/, 'the same rims');
+  assert.match(shared, /grid-template-rows:\s*var\(--table-rim-far\)/, 'the same far rim, so its felt starts level with the table’s');
+  assert.match(shared, /border:\s*var\(--table-edge\) solid var\(--table-wood-edge\)/, 'the same edge');
+  assert.match(shared, /background-image:/, 'the same wood');
+  assert.match(shared, /transform-style:\s*preserve-3d/);
+  assert.doesNotMatch(shared, /rotateX/, 'and the tilt is the plane’s alone');
+  /* Its own rule, not the one it shares: no selector list before it. */
+  const side = css.match(/[^,\s]\s*\n\.table-side\s*\{([^}]*)\}/)?.[1] || '';
+  assert.match(side, /left:\s*calc\(100% \+ var\(--table-edge\) \+ var\(--table-side-gap/, 'beyond the plane’s edge and the gap');
+  assert.match(side, /top:\s*calc\(-1 \* var\(--table-edge\)\)/, 'level with its top');
+  assert.match(side, /height:\s*calc\(100% \+ 2 \* var\(--table-edge\)\)/, 'and its depth');
+  assert.match(side, /width:\s*var\(--table-side-w/, 'as wide as the script fits it');
+  assert.doesNotMatch(side, /transform/, 'a child of the plane needs no transform to lie in it');
+  assert.match(css, /\.table-side-region\s*\{[^}]*pointer-events:\s*none/, 'a region’s felt is felt');
+  assert.match(css, /\.table-side-region\.is-target\s*\{[^}]*outline:\s*1px solid var\(--accent/, 'lit as a zone is');
+  const js = read('public/js/tablemode.js');
+  assert.match(js, /tableEls\.plane\.append\(el\)/, 'the script stands it in the plane');
+  assert.match(js, /class="table-mat table-side-mat"/, 'and its felt is a mat, with the playmat on it');
 });
 
 // ── The switch ────────────────────────────────────────────────────────────
