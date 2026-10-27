@@ -112,17 +112,15 @@ html[data-tablemode] .rss-panel:not(.open) { pointer-events: none; }
    because its labels open over the mat rather than into room kept for them
    on the wood, which leaves the mat nearly the table's whole width. The far
    edge is as deep as the Deck Builder's slip and bin (--table-tool-h) and a
-   little wood round them, which is all it holds. */
-.table-plane {
-  --table-rim-side:  3.5rem;
-  --table-rim-far:   4.25rem;
-  --table-tool-h:    3.5rem;
-  --table-wood-tile: 512px;
-  position: absolute;
-  left: var(--table-x, 6vw);
-  top: var(--table-y, 12vh);
-  width: var(--table-w, 88vw);
-  height: var(--table-h, 76vh);
+   little wood round them, which is all it holds. The edge band round the
+   board is --table-edge wide.
+
+   The Deck Builder's side table (below) is built of the same board — the
+   same wood, rims and grid, so its felt starts and ends level with the
+   table's — which is why the two share this rule; where the table stands
+   and how it leans is the plane's alone, in the next. */
+.table-plane,
+.table-side {
   display: grid;
   grid-template-columns: var(--table-rim-side) minmax(0, 1fr) var(--table-rim-side);
   grid-template-rows: var(--table-rim-far) minmax(0, 1fr) 2.25rem;
@@ -130,10 +128,10 @@ html[data-tablemode] .rss-panel:not(.open) { pointer-events: none; }
     "far  far  far"
     "left mat  right"
     "near near near";
-  border: 6px solid var(--table-wood-edge);
+  border: var(--table-edge) solid var(--table-wood-edge);
   border-radius: var(--radius-md);
   outline: 1px solid var(--table-wood-lit);
-  outline-offset: -7px;
+  outline-offset: calc(-1 * var(--table-edge) - 1px);
   background-color: var(--table-wood);
   background-image:
     linear-gradient(var(--table-wood-tint), var(--table-wood-tint)),
@@ -144,6 +142,18 @@ html[data-tablemode] .rss-panel:not(.open) { pointer-events: none; }
       transparent 23px 41px);
   background-size: auto, var(--table-wood-tile) var(--table-wood-tile), auto;
   transform-style: preserve-3d;
+}
+.table-plane {
+  --table-rim-side:  3.5rem;
+  --table-rim-far:   4.25rem;
+  --table-tool-h:    3.5rem;
+  --table-wood-tile: 512px;
+  --table-edge:      6px;
+  position: absolute;
+  left: var(--table-x, 6vw);
+  top: var(--table-y, 12vh);
+  width: var(--table-w, 88vw);
+  height: var(--table-h, 76vh);
   transform: rotateX(var(--table-tilt, 24deg));
 }
 
@@ -710,6 +720,7 @@ html[data-playmat] .table-mat {
   left: calc(var(--space-3) - var(--table-rim-side) - 1px);
   right: calc(50% + min(20rem, 44%) / 2 + var(--space-3));
   justify-content: space-between;
+  container: table-far-left / inline-size;
 }
 .table-far-right {
   left: calc(50% + min(20rem, 44%) / 2 + var(--space-3));
@@ -781,8 +792,9 @@ html[data-playmat] .table-mat {
    (js/tablemode.js, tableZoneRules). Its two chips lie on the far rim,
    left of the slip, at the slip's end of the far rim's left-hand strip
    (above), made like the rim's tabs — a surface, a hairline with a
-   heavier foot, the small contact shadow — with their label always open,
-   since they are not tabs to be told apart by an icon; the Zones chip
+   heavier foot, the small contact shadow — with their label open wherever
+   the strip has room for it (below), since they are not tabs to be told
+   apart by an icon; the Zones chip
    pressed wears its tab's accent on its ink and its foot, as an open tab
    does. */
 .table-zone-chips {
@@ -792,6 +804,22 @@ html[data-playmat] .table-mat {
 }
 .table-zone-chips[hidden],
 .table-zone-chip[hidden] { display: none; }
+/* Where the strip runs too short for the chips with their words and the
+   slider beside them — the side table standing up narrows the table, and
+   with it the rim — the words fold away and the chips are their icons, as
+   the drawer's chips do on the other strip: still named to a screen reader,
+   and by their title to the pointer. */
+@container table-far-left (width < 32rem) {
+  .table-zone-chips .table-zone-chip { padding: 0 var(--space-2); }
+  .table-zone-chips .table-zone-chip > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 .table-zone-chip {
   display: flex;
   align-items: center;
@@ -953,6 +981,113 @@ html[data-playmat] .table-mat {
 .table-zone-grip svg { width: .75rem; height: .75rem; fill: currentColor; }
 .table-zone-grip:hover,
 .table-zone.is-resizing .table-zone-grip { color: var(--text); }
+
+/* ── The Deck Builder's side table ─────────────────────────────────────
+   The boards beside the deck — the sideboard and the maybeboard — on a table
+   of their own, standing to the right of the table while the Side table chip
+   is on (js/tablemode.js, tableSideRules). Its chip lies in the Zones chips'
+   box and wears their make (it carries their class).
+
+   The table is the plane's child, standing beyond its right-hand edge: so it
+   lies in the plane — the same tilt, the same camera, the same mapping from
+   the screen — and needs no transform of its own. Placed from the plane's
+   padding box: past the plane's right-hand edge band and the gap the script
+   hands over (--table-side-gap), level with the plane's own outer edges top
+   and bottom, and as wide as the script fits it (--table-side-w). The board,
+   rims and grid are the plane's (the rule they share, above), so its felt —
+   a .table-mat, with the playmat on it like the table's — starts and ends
+   level with the table's felt. It holds no tabs. */
+.table-side {
+  position: absolute;
+  left: calc(100% + var(--table-edge) + var(--table-side-gap, 0px));
+  top: calc(-1 * var(--table-edge));
+  width: var(--table-side-w, 0px);
+  height: calc(100% + 2 * var(--table-edge));
+}
+.table-side[hidden] { display: none; }
+
+/* A region of its felt, one per board, laid out by the script: a zone's
+   faint wash and hairline (--table-zone-fill, --table-zone-line), lit the
+   way a zone is while a card in hand would go into it. It takes no pointer —
+   pressed, its felt is felt. A 3D context of its own, for its label and
+   hint to lie a hair above it (--table-side-label-z, written by the
+   script). */
+.table-side-region {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  background: var(--table-zone-fill);
+  border: 1px solid var(--table-zone-line);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+.table-side-region.is-target {
+  border-color: var(--accent, var(--primary));
+  outline: 1px solid var(--accent, var(--primary));
+  outline-offset: -2px;
+}
+
+/* And the table's own felt, lit the same way while a card off the side table
+   would go back into the deck there — where no zone is lit to say so. The
+   script lends it the Deck Builder's data-tab for as long as it is lit, for
+   that tab's accent. */
+.table-mat.is-target {
+  border-color: var(--accent, var(--primary));
+  outline: 1px solid var(--accent, var(--primary));
+  outline-offset: -2px;
+}
+
+/* Its label: the board's name and its count of copies, in a zone's label's
+   make and place — the band across the region's top. */
+.table-side-label {
+  position: absolute;
+  left: var(--table-zone-pad);
+  top: calc((var(--table-zone-head) - var(--table-zone-label-h)) / 2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  max-width: calc(100% - 2 * var(--table-zone-pad));
+  height: var(--table-zone-label-h);
+  padding: 0 var(--space-2);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateZ(var(--table-side-label-z, 0px));
+}
+.table-side-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.table-side-count { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* What an empty region says, in the middle of it below its label: the mat's
+   own hint, quieter and smaller, on its own surface so it reads over the
+   playmat's art, and wrapping in a region too narrow for it on one line. */
+.table-side-hint {
+  position: absolute;
+  top: calc(var(--table-zone-head) + (100% - var(--table-zone-head)) / 2);
+  left: 50%;
+  translate: -50% -50%;
+  box-sizing: border-box;
+  max-width: calc(100% - 2 * var(--table-zone-pad));
+  width: max-content;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  text-align: center;
+  transform: translateZ(var(--table-side-label-z, 0px));
+}
+.table-side-hint[hidden] { display: none; }
 
 /* ── Panels ────────────────────────────────────────────────────────────
    One host for a tab's page, in one of two kinds — see js/tablemode.js. The
