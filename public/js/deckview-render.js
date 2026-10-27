@@ -19,7 +19,8 @@ function dbRender() {
  * showing, in the tab's sort — and which deck that paint was of. Kept so that
  * something other than the mat can lay out the same piles without grouping
  * the deck a second time: table mode's mat (js/tablemode.js) reads them
- * through dbShownPiles. */
+ * through dbShownPiles — and asks whether the paint was of the deck open now
+ * before it reads the boards beside it, through dbSideBoardPiles. */
 let _dbShownPiles = null;   // { deckId, piles: [{ label, cards }], heads: [card] }
 
 /* A card as the getters below hand it out: its name, the picture
@@ -53,6 +54,28 @@ function dbShownPiles() {
 function dbShownCommanders() {
   if (!dbDeck || _dbShownPiles?.deckId !== dbDeck.id) return null;
   return (_dbShownPiles.heads || []).map(_dbShownCard);
+}
+
+/* The boards beside the deck — every board but the mainboard and the head
+ * ones, so the sideboard, the maybeboard and whatever DB_BOARDS gains later —
+ * for table mode's side table (js/tablemode.js): each board's id, its label
+ * and its hint, and every card on it as _dbShownCard() says, by name. All of
+ * each board, whatever the builder's own board switches show and whatever the
+ * filter hides: the side table is a switch of its own, and a sideboard half
+ * gone because of a search typed for the deck would read as cards lost. A
+ * board with nothing on it is still a board, with no cards. Null on the same
+ * terms as dbShownPiles(). */
+function dbSideBoardPiles() {
+  if (!dbDeck || _dbShownPiles?.deckId !== dbDeck.id) return null;
+  return DB_BOARDS.filter(board => board.id !== DB_MAIN_BOARD && !board.head).map(board => ({
+    board: board.id,
+    label: board.label,
+    hint:  board.hint || '',
+    cards: dbBoardCards(board.id)
+      .slice()
+      .sort((a, b) => String(a.card_name).localeCompare(String(b.card_name)))
+      .map(_dbShownCard),
+  }));
 }
 
 /* What a thing on the mat is, as one string, so that it can be recognised

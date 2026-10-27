@@ -45,7 +45,12 @@
 //         .table-mat   the playmat (or the theme's felt), where cards lie,
 //                      and the landing mark of the card in hand; the Deck
 //                      Builder's slip and bin are its children too, laid out
-//                      over the far rim above it
+//                      over the far rim above it — and so are the cards on
+//                      the side table, laid in the mat's pixels past its
+//                      right-hand edge
+//         .table-side  the Deck Builder's side table, while it is up: a
+//                      second rim and felt standing beyond the plane's
+//                      right-hand edge, in its plane (tableSideBuild)
 //   .table-dim     the slight veil over the table while a panel floats
 //   .table-panel   the panel host — see "Panels" below
 //   .table-look    a card picked up to be looked at, facing the viewer
@@ -70,6 +75,12 @@
 // at the rest tilt, and tableFitTable hands them to table.css. Again on every
 // resize. The side rims are one chip wide, so nearly all of the width the
 // fit gives the table is mat.
+//
+// With the Deck Builder's side table up beside it, what is fitted is the pair
+// — the table, a gap of bare room and the side table, a third of the table's
+// width — exactly as the one table is fitted alone, and the table is the
+// narrower for it (tableFitPair). Down, the fit is the one table's, to the
+// pixel.
 //
 // ── Panning and zooming ──────────────────────────────────────────────────
 // The table never changes its angle. What moves is the camera over it: the
@@ -114,10 +125,12 @@
 // measured where the table is widest, its near edge: the table narrows
 // towards its far side, so with the view pushed to a side near the top of the
 // table a little of the room beyond shows in that corner — the page's colour,
-// the price of reaching the near corners. Zooming out to the whole table
-// still comes back to the rest view: the margin grows in from nothing over
-// the first TABLE_PAN_MARGIN_RAMP of the zoom, and at 1 the table fills the
-// window and the rest view is the only one.
+// the price of reaching the near corners. With the side table up, the table
+// is the pair: the outline runs on to the side table's right-hand edge, so it
+// can be reached zoomed in like any other part of the table. Zooming out to
+// the whole table still comes back to the rest view: the margin grows in from
+// nothing over the first TABLE_PAN_MARGIN_RAMP of the zoom, and at 1 the table
+// fills the window and the rest view is the only one.
 //
 // The wheel, the keys and the pointer only set where the zoom and the lean
 // are *going*, and what velocity the view is asked for; a frame loop eases
@@ -238,7 +251,10 @@
 //                dbShownCommanders()                         and the commander —
 //                                                            a board of its own,
 //                                                            not a category — at
-//                                                            the head of the mat
+//                                                            the head of the mat;
+//                dbSideBoardPiles()                          and the boards beside
+//                                                            the deck, for the
+//                                                            side table
 //   players      decksShown()        js/players.js      a card per deck, in its
 //                                                       folder (Mine) or under
 //                                                       its player (Everyone);
@@ -282,7 +298,8 @@
 //                  and let go there, one copy goes (tableBinAction:
 //                  dbChangeQty by -1, or dbRemoveCard for the last) and the
 //                  card goes into the bin. "Remove one" under a card being
-//                  looked at does the same. The app's notice says what went;
+//                  looked at does the same. A zone carried by its label and
+//                  let go there deletes its category (tableZoneBin). The app's notice says what went;
 //                  there is no undo beyond the deck's history. "Add one"
 //                  beside it puts one more copy in, by the builder's own
 //                  stepper (tableAddOne: dbChangeQty by +1), the count on the
@@ -303,9 +320,19 @@
 // And the deck can be laid a zone per category instead of a pile per one: the
 // Zones chip on the far rim beside the slip, kept per browser. A zone is a
 // rectangle on the felt that lays its own cards out to fit it, moved by its
-// label, resized by its grip, renamed in place; a card carried into another
+// label, resized by its grip, renamed in place, deleted by being carried into
+// the bin; a card carried into another
 // zone moves into that category by the builder's own drop. Off, the piles are
 // exactly as they were. See "The Deck Builder's zones", its own section below.
+//
+// And the boards beside the deck — the sideboard and the maybeboard — lie on a
+// side table of their own, to the right of the table: the Side table chip
+// beside the Zones chip, kept per browser. A second table built as this one
+// is, in its plane and its camera, a third of its width, its felt a region per
+// board, the sideboard's at the far half and the maybeboard's at the near; a
+// card carried from one table to the other, or from one region to the other,
+// changes board by the builder's own drop. Off, the table is exactly as it
+// was. See "The Deck Builder's side table", its own section below.
 //
 // ── The card-size slider ─────────────────────────────────────────────────
 // On the far rim's left-hand end, on every tab that lays cards: the cards
@@ -367,7 +394,11 @@
 // are laid out the first time and kept, which zone a card is let go over, and
 // who may change them; the card-size slider's range and keeping, the layouts
 // at its every size, and the pictures it asks for; the drawer's chips, where
-// its panel docks, and what it leaves untucked; and what Add one does.
+// its panel docks, and what it leaves untucked; what Add one does; and the
+// side table: the pair's fit and outline (the one table's, to the pixel, when
+// it is down), its regions and how they lay their cards, which table and which
+// region a point of the plane is over, what a card let go between them asks of
+// the deck, and who may move one.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -955,15 +986,23 @@ function tableZoomAbout(view, zoom, anchor, width, height, lean = TABLE_PAN_REST
  * across, where it is widest, the near edge — so that every part of the
  * table, its near corners and the chips by them among it, lies inside what
  * the view can be taken to (tablePanRange). Null when there is no plane to
- * measure. */
+ * measure.
+ *
+ * `plane.span`, where it is given, is how far the table reaches to the right
+ * of the plane's left-hand edge in its own pixels when that is further than
+ * the plane does — the Deck Builder's side table standing beyond it, in its
+ * plane (tableSideBuild) — and the right-hand corners are taken there, so the
+ * side table is inside the outline as the rim is. Without one, the plane's
+ * own width, as it always was. */
 function tablePanBounds({ perspective, origin, plane, tilt = TABLE_TILT_REST } = {}) {
   const w = Number(plane?.width) || 0, h = Number(plane?.height) || 0;
   if (!(w > 0 && h > 0) || !origin) return null;
+  const span = Math.max(w, Number(plane?.span) || 0);
   const m = tablePlaneMatrix({
     perspective, origin, plane, tilt, mat: { left: 0, top: 0 }, camera: { zoom: 1, tx: 0, ty: 0 },
   });
-  const fl = tableProject(m, 0, 0), fr = tableProject(m, w, 0);
-  const nl = tableProject(m, 0, h), nr = tableProject(m, w, h);
+  const fl = tableProject(m, 0, 0), fr = tableProject(m, span, 0);
+  const nl = tableProject(m, 0, h), nr = tableProject(m, span, h);
   if (!fl || !fr || !nl || !nr) return null;
   return {
     top:    Math.min(fl.y, fr.y),
@@ -2057,11 +2096,25 @@ function tableBinPose(t, held = TABLE_BIN_HELD_SHRINK) {
  * this spot (tableRelease), and the landing mark is drawn on it while the
  * card is carried (tableCastWrite): one answer, asked once a frame, so the
  * mark is where the card will lie. Null for a pointer that missed the
- * plane, or a mat with no size. */
-function tableDropSpot(hit, grab, width, height) {
+ * plane, or a mat with no size.
+ *
+ * `reach` = { left, top, right, bottom }, in the mat's pixels, holds the
+ * centre inside that instead of inside the mat: where a card in hand may be
+ * drawn while the Deck Builder's side table stands beside the mat
+ * (tableSideReach), so that a card carried across to it stays under the
+ * pointer over both tables. Without one, the mat, as it always was. */
+function tableDropSpot(hit, grab, width, height, reach = null) {
   if (!hit || !(width > 0) || !(height > 0)) return null;
-  const at = (n, size) => Math.min(1, Math.max(0, n / size));
-  return { x: at(hit.u - (Number(grab?.u) || 0), width), y: at(hit.v - (Number(grab?.v) || 0), height) };
+  const u = hit.u - (Number(grab?.u) || 0), v = hit.v - (Number(grab?.v) || 0);
+  if (!reach) {
+    const at = (n, size) => Math.min(1, Math.max(0, n / size));
+    return { x: at(u, width), y: at(v, height) };
+  }
+  const held = (n, lo, hi, size) => Math.min(Math.max(lo, hi), Math.max(lo, n)) / size;
+  return {
+    x: held(u, Number(reach.left) || 0, Number(reach.right) || width, width),
+    y: held(v, Number(reach.top) || 0, Number(reach.bottom) || height, height),
+  };
 }
 
 /* The transform that lays something card-sized on the mat: `spot` = { x, y,
@@ -2471,6 +2524,9 @@ function tableBuild() {
   tableScaleBuild();
   tableDrawerBuild();
   tableZonesBuild();
+  /* And the side table, beyond the plane's right-hand edge, with its chip
+     beside the Zones chip — after them, since it lies in their box. */
+  tableSideBuild();
 }
 
 /* The table fitted to the window: its box worked out by tableFitSize and
@@ -2479,18 +2535,31 @@ function tableBuild() {
  * so a lean towards you never carries the far rim — and the slip and bin
  * lying on it — out of the window. Everything on the rim lies flat in the
  * table's plane, so nothing on it reaches past the plane's own edges, and
- * the plane's box is all there is to fit. */
+ * the plane's box is all there is to fit.
+ *
+ * With the Deck Builder's side table up, the box is the pair's, and the
+ * plane is its left-hand part (tableFitPair): the side table's width and the
+ * gap before it go to table.css as --table-side-w and --table-side-gap, and
+ * are taken away again when it goes down, which leaves the plane's box the
+ * one it always was. */
 function tableFitTable() {
   const { scene, camera } = tableEls;
   const view = { width: scene.clientWidth, height: scene.clientHeight };
   const depth = parseFloat(getComputedStyle(camera).perspective);
   const top = TABLE_FIT_GUTTER + TABLE_PAN_REST * view.height;
-  const box = tableFitSize(view, { perspective: depth > 0 ? depth : Infinity, top });
+  const box = tableFitPair(tableFitSize(view, { perspective: depth > 0 ? depth : Infinity, top }), { side: tableSideUp });
   if (!box) return;
   scene.style.setProperty('--table-x', `${box.left.toFixed(2)}px`);
   scene.style.setProperty('--table-y', `${box.top.toFixed(2)}px`);
   scene.style.setProperty('--table-w', `${box.width.toFixed(2)}px`);
   scene.style.setProperty('--table-h', `${box.height.toFixed(2)}px`);
+  if (box.side) {
+    scene.style.setProperty('--table-side-w', `${box.side.width.toFixed(2)}px`);
+    scene.style.setProperty('--table-side-gap', `${box.side.gap.toFixed(2)}px`);
+  } else {
+    scene.style.removeProperty('--table-side-w');
+    scene.style.removeProperty('--table-side-gap');
+  }
 }
 
 /* The geometry the screen-to-mat mapping needs, read off the laid-out boxes
@@ -2498,7 +2567,14 @@ function tableFitTable() {
  * transform touches, so they say where the plane is before it is tilted. The
  * mat's content box is where its cards are placed from, so the plane's border
  * and the mat's own are counted in. The perspective is the camera's, and so
- * is the window size the pan is worked out against. */
+ * is the window size the pan is worked out against.
+ *
+ * With the Deck Builder's side table up, where it stands too, in the mat's
+ * own pixels — the mapping runs on across the whole plane, so a point of the
+ * side table is a point of the mat's coordinates past its right-hand edge:
+ * `side`, its felt, where its cards are laid and its regions lie, and
+ * `sideBox`, the whole of it, rim and all; and `plane.span`, how far the pair
+ * reaches, for the outline. Null and absent with it down. */
 function tableMeasure() {
   const { camera, plane, mat } = tableEls;
   const cameraStyle = getComputedStyle(camera);
@@ -2524,7 +2600,10 @@ function tableMeasure() {
       width:  mat.clientWidth,
       height: mat.clientHeight,
     },
+    side: null,
+    sideBox: null,
   };
+  tableSideMeasure();
   tableBounds = tablePanBounds({ ...tableGeom, tilt: TABLE_TILT_REST });
 }
 
@@ -2565,8 +2644,9 @@ function tableFrame(now) {
   if (tableZoneHold && tableZoneStep(now)) more = true;
   /* Asked every frame a card is in hand rather than on every pointer move:
      the camera can carry the bin under a pointer that is holding still —
-     and tableCarry has just asked it, for the card's own look. */
-  tableBinLight(!!tableHold?.over);
+     and tableCarry has just asked it, for the card's own look. A zone being
+     moved lights it the same way (tableZoneStep has asked it). */
+  tableBinLight(!!tableHold?.over || !!tableZoneHold?.over);
   tableSlipPlace();
   if (more) tableKick();
   else tableFrameAt = 0;
@@ -3031,6 +3111,12 @@ function tableModeLeave() {
   tableArrival = null;
   tableZoneHold = tableZoneEdit = tableZoneTarget = tableZoneLanding = tableZoneChips = null;
   tableZones = [];
+  /* The side table goes with the scene; coming back up, the table is fitted
+     alone first and the side table stood beside it again by the first cards
+     drawn, if they are the Deck Builder's (tableSideSync). */
+  tableSide = tableSideLit = tableSideLanding = tableSideSigNow = null;
+  tableSideCards = [];
+  tableSideUp = false;
   tableEls = null;
   tableGeom = tableBounds = null;
   tableGrab = tablePointer = null;
@@ -3419,9 +3505,13 @@ const TABLE_SOURCES = Object.freeze({
     const piles = typeof dbShownPiles === 'function' ? dbShownPiles() : null;
     if (!piles) return { cards: [], hint: 'Open a deck from Decks' };
     /* The commander is not one of the piles — it is a board of its own, and
-       the piles are the mainboard's categories — so it is asked for apart. */
+       the piles are the mainboard's categories — so it is asked for apart.
+       So are the boards beside the deck, which lie on the side table and
+       not on the mat (`side`, null from a builder with no getter for them);
+       only what the side table is up for reads them (tableSideFrom). */
     const heads = (typeof dbShownCommanders === 'function' && dbShownCommanders()) || [];
-    return { cards: tableDeckCards(heads, piles, tableImageOf), hint: TABLE_EMPTY_HINT, fetch: true };
+    const side = typeof dbSideBoardPiles === 'function' ? dbSideBoardPiles() : null;
+    return { cards: tableDeckCards(heads, piles, tableImageOf), hint: TABLE_EMPTY_HINT, fetch: true, side };
   },
   players() {
     const piles = (typeof decksShown === 'function' && decksShown()) || [];
@@ -3486,15 +3576,22 @@ function tablePageTab() {
 /* Lay what a tab is showing. A list the mat already holds, from the same tab
  * and in the same piles, is not laid again — only its pictures and its cards'
  * counts are brought up to date — so nothing moves when nothing changed. Returns whether cards were
- * laid; a tab that lays nothing returns false and leaves the mat alone. */
+ * laid; a tab that lays nothing returns false and leaves the mat alone.
+ *
+ * The Deck Builder's side table is asked apart, with the mat's own cards
+ * unchanged: a card moved between the sideboard and the maybeboard changes
+ * nothing on the mat, and lays the side table alone again (tableSideFrom). */
 function tableLayFor(tab) {
   const source = tableSourceFor(tab);
   if (!source) return false;
   const sig = tableListSig(source.cards, tab, source.feature);
   if (tableLaid && tableLaid.tab === tab && tableLaid.sig === sig) {
     tablePatchCards(source.cards, tab);
+    tableSideFrom(source.side);
     return false;
   }
+  /* Before the cards are laid, which lays the side table with them. */
+  tableSidePiles = source.side || null;
   tableLayCards(source.cards, { hint: source.hint, scope: tab, feature: source.feature });
   tableLaid = { tab, sig };
   if (source.fetch) tableFetchImages(tab);
@@ -3507,7 +3604,8 @@ function tableLayFor(tab) {
  * cards are still the ones lying there. */
 function tableFetchImages(tab) {
   if (typeof ensureScryfallImages !== 'function') return;
-  const names = [...new Set(tableCards.filter(card => !card.imageUrl).map(card => card.name))]
+  /* The side table's cards are the same tab's, and asked for with the mat's. */
+  const names = [...new Set([...tableCards, ...tableSideCards].filter(card => !card.imageUrl).map(card => card.name))]
     .filter(name => !tableAsked.has(name));
   if (!names.length) return;
   for (const name of names) tableAsked.add(name);
@@ -3602,7 +3700,10 @@ function tableLayCards(list, { hint, scope = '', feature = false } = {}) {
 }
 
 function tableCardZ(card) {
-  /* Laid in zones, a card lies at the height its zone gives it (tableZonesLayer). */
+  /* On the side table, a card lies at the height its region gives it
+     (tableSideArrange); laid in zones, at the height its zone gives it
+     (tableZonesLayer). */
+  if (card.side) return card.sideZ || 0;
   if (card.zoneZ != null) return card.zoneZ;
   return (card.rank + 1) * tableCardGapFor(tableCards.length);
 }
@@ -3661,7 +3762,7 @@ function tableSharpen() {
   }
   if (tableHiRes || !large) return;
   tableHiRes = true;
-  for (const card of tableCards) {
+  for (const card of [...tableCards, ...tableSideCards]) {
     const img = card.el?.isConnected && card.el.querySelector('.table-card-img');
     if (img) img.src = tableCardSrc(card);
   }
@@ -3707,6 +3808,10 @@ function tableCardEl(card) {
 
 function tableDrawCards() {
   if (!tableEls || !tableGeom) return;
+  /* First, the side table stood up or taken down for the cards about to be
+     laid — which fits the table to the window again, and so changes the mat
+     every card below is laid on. */
+  tableSideSync();
   const { mat, hint } = tableEls;
   const before = new Set([...mat.querySelectorAll('.table-card')].map(el => el.dataset.key));
   for (const old of mat.querySelectorAll('.table-card')) old.remove();
@@ -3741,6 +3846,8 @@ function tableDrawCards() {
   for (const card of tableCards) tableWriteCard(card);
   tableArrive(before);
   tableZoneLand();
+  /* And the side table's own cards, beside the mat — or none, with it down. */
+  tableSideDraw();
   hint.textContent = tableHintText;
   hint.hidden = tableCards.length > 0;
   tableSyncLane();
@@ -3772,8 +3879,10 @@ function tableResizeCards() {
     tableSizeCard(card);
     tableWriteCard(card);
   }
-  /* Zones are fractions of the mat too, and fit the new card size again. */
+  /* Zones are fractions of the mat too, and fit the new card size again; and
+     the side table's regions, which are fitted to its felt. */
   if (tableZones.length) tableZonesRefresh();
+  tableSideArrange();
 }
 
 /* The card that was picked up goes to the top of everything, and the rest
@@ -3794,9 +3903,12 @@ function tableOnCardDown(e) {
   tableSwallow = false;
   if (e.button !== 0 || e.pointerType === 'touch' || tableLooked || tableHold) return;
   const el = e.target.closest?.('.table-card');
-  const card = el && tableCards.find(c => c.el === el);
+  const card = tableCardOf(el);
   if (!card) return;
-  tableZonePickUp(card);
+  /* A card on the side table comes up over its region's layers as one off a
+     zone does over the zones' (tableSidePickUp). */
+  if (card.side) tableSidePickUp(card);
+  else tableZonePickUp(card);
   const hit = tableUnproject(tableMatrix(), e.clientX, e.clientY, tableCardZ(card));
   if (!hit) return;
   const { width, height } = tableGeom.mat;
@@ -3820,10 +3932,19 @@ function tableOnCardDown(e) {
     grab: { u: hit.u - card.x * width, v: hit.v - card.y * height },
   };
   try { el.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
-  tableRaise(card);
+  /* The side table's cards have no rank among the mat's: their height is
+     their region's, and picked up they are over everything already. */
+  if (!card.side) tableRaise(card);
   el.classList.remove('is-settling');
   el.classList.add('is-held');
   tableKick();
+}
+
+/* The card a table card's element is: one of the mat's, or one of the side
+ * table's, which lie on the mat too (tableSideDraw). */
+function tableCardOf(el) {
+  if (!el) return null;
+  return tableCards.find(c => c.el === el) || tableSideCards.find(c => c.el === el) || null;
 }
 
 /* One frame of a card in hand. It rises to its lifted height in
@@ -3848,6 +3969,10 @@ function tableCarry(now) {
      towards the bin cannot change the answer. */
   hold.over = !!hold.dragging && !!card.ref && tableOverBin(hold.pointer);
   tableZoneHover(hold);
+  /* And, with the side table up, which board it would go to if let go now —
+     the region lit, or the mat (tableSideHover). After the zones, whose lit
+     zone a card off the side table is let go into. */
+  tableSideHover(hold);
   hold.binT = tableBinProgress(hold.binT, hold.over, now - hold.binAt, motion);
   hold.binAt = now;
   const pose = tableBinPose(hold.binT,
@@ -3862,7 +3987,12 @@ function tableCarry(now) {
   const land = tableDropSpot(hit, hold.grab, width, height);
   if (land) {
     hold.land = land;
-    let u = land.x * width, v = land.y * height;
+    /* With the side table up the card is drawn under the pointer across both
+       tables, not only the mat — where it lands, if that is on the mat, is
+       still the mat's (tableSideReach). Down, the two are the one spot. */
+    const reach = tableSideReach();
+    const drawn = reach ? tableDropSpot(hit, hold.grab, width, height, reach) : land;
+    let u = drawn.x * width, v = drawn.y * height;
     /* The bin lies on the far rim, off the mat, so the card going in is
        drawn towards it unheld by the mat's edges — the spot it would land
        on, were it let go somewhere else, is still on the mat. */
@@ -3896,6 +4026,9 @@ function tableCarry(now) {
 function tableCastWrite(hold) {
   const cast = tableEls?.cast;
   if (!cast) return;
+  /* With the side table up, the mark is the side table's to say first for
+     the card in hand (tableSideCast); down, it is what it was asked. */
+  hold = tableSideCast(hold);
   if (!hold?.land || !tableGeom) { cast.hidden = true; return; }
   const card = hold.card;
   const box = tableCardBox(card);
@@ -3930,10 +4063,14 @@ function tableRelease(e) {
   const binned = hold.dragging && e?.type === 'pointerup' && !!card.ref && tableOverBin(hold.pointer);
   tableBinLight(false);
   if (binned) {
+    tableSideLight(null);
     tableSwallow = true;
     tableBinCard(card, hold.from);
     return;
   }
+  /* With the side table up, a card let go over it — or one of its own let
+     go anywhere — is the side table's to answer: another board, or back. */
+  if (hold.dragging && tableSideDrop(hold, e)) return;
   /* Laid in zones, a card carried goes into a zone or back to its own. */
   if (hold.dragging && tableZoneDrop(hold, e)) return;
   if (hold.dragging) {
@@ -3961,7 +4098,7 @@ function tableOnCardClick(e) {
   const lifted = tableLifted;
   tableLifted = null;
   if (tableSwallow) { tableSwallow = false; return; }
-  const card = tableCards.find(c => c.el === e.currentTarget);
+  const card = tableCardOf(e.currentTarget);
   if (!card) return;
   if (card.open) card.open();
   else tableLookAt(card, lifted?.card === card ? lifted.box : null);
@@ -4140,8 +4277,9 @@ function tableToolsMake() {
   bin.dataset.tab = 'deckview';
   bin.hidden = true;
   bin.setAttribute('role', 'img');
-  bin.setAttribute('aria-label', 'Bin: a card dropped here takes one copy of it out of the deck');
-  bin.title = 'Drop a card here to take one copy of it out of the deck';
+  bin.setAttribute('aria-label', 'Bin: a card dropped here takes one copy of it out of the deck; ' +
+    'a zone dropped here by its label deletes its category');
+  bin.title = 'Drop a card here to take one copy of it out of the deck, or a zone to delete its category';
   bin.innerHTML = TABLE_BIN_ICON;
 
   const input = slip.querySelector('input');
@@ -4580,6 +4718,9 @@ function tableRescaleCards() {
      place — as when the cards are laid. */
   tableZonesPlace();
   for (const card of tableCards) if (tableHold?.card !== card) tableWriteCard(card);
+  /* The side table's regions keep their felt and fit their cards to the new
+     size, as a zone does. */
+  tableSideArrange();
   if (tableHold) tableKick();
   tableSyncLane();
 }
@@ -4820,6 +4961,14 @@ function tableDrawerKeepsEscape(target) {
 //                all its cards and follows the pointer through the same
 //                screen-to-mat mapping a card in hand does, and settles where
 //                it is let go. The last one moved, or resized, lies on top.
+//   binning one  moved by its label onto the bin, which lights as it does
+//                for a card — the pointer over it, the zone being kept on
+//                the mat — and let go there: its category deleted by the
+//                builder's own delete (dbDeleteCategory), which asks first
+//                and moves its cards to Uncategorised; the zone's kept place
+//                is dropped. Cancelled, the zone goes back to where it was
+//                picked up. Uncategorised holding cards is refused — its
+//                cards would only come back to it (tableZoneBinAction).
 //   resizing     the grip: the zone's cards are fitted again every frame,
 //                which only rewrites their transforms — the cheap path.
 //   a card       carried and let go over another zone moves into that
@@ -4837,7 +4986,7 @@ function tableDrawerKeepsEscape(target) {
 //                the builder's own rename, and Escape leaves the name be.
 //
 // Somebody else's deck can be laid in zones, to be looked at that way, and
-// not changed: no zone moves, grows, is renamed or is added, and no card goes
+// not changed: no zone moves, grows, is renamed, is added or is binned, and no card goes
 // from one to another (tableZoneRules).
 //
 // Where each zone lies is kept per deck in the browser (TABLE_ZONE_RECTS_KEY
@@ -4913,6 +5062,17 @@ function tableZoneRules({ scope, deckOpen, canEdit, on }) {
   const zones  = toggle && !!on;
   const edit   = zones && !!canEdit;
   return { toggle, zones, arrange: edit, rename: edit, add: edit, move: edit };
+}
+
+/* Whether the bin takes a zone in hand — lights for it, and deletes its
+ * category if it is let go there: only a zone being moved, not resized, and
+ * dragged rather than pressed, with the pointer (never the zone, which is
+ * kept on the mat) over the bin, for a deck the user may edit. Never
+ * Uncategorised while it holds cards: its cards would only go back into it,
+ * so deleting it would only make it again. An empty one may go. */
+function tableZoneBinAction({ mode, dragging, overBin, name, count, canEdit }) {
+  if (mode !== 'move' || !dragging || !overBin || !canEdit) return false;
+  return !(name === 'Uncategorised' && (Number(count) || 0) > 0);
 }
 
 /* Which categories are zones, in the deck's own order of them: `cats` the
@@ -5470,7 +5630,7 @@ function tableZonesPlace() {
   if (held != null) {
     const zone = byName.get(held);
     if (zone) tableZoneHold.zone = zone;
-    else tableZoneHold = null;
+    else { if (tableZoneHold.over) tableBinLight(false); tableZoneHold = null; }
   }
   return true;
 }
@@ -5479,6 +5639,7 @@ function tableZonesPlace() {
  * so each card lies at the height its rank gives it in the piles. */
 function tableZonesClear() {
   tableZoneEndEdit(false, { refocus: false });
+  if (tableZoneHold?.over) tableBinLight(false);
   tableZoneHold = null;
   for (const zone of tableZones) zone.el?.remove();
   tableZones = [];
@@ -5711,8 +5872,12 @@ function tableOnZoneDown(e) {
   const resize = handle.classList.contains('table-zone-grip');
   const hit = tableUnproject(tableMatrix(), e.clientX, e.clientY, zone.z0 + zone.topZ);
   if (!hit) return;
+  /* `from` is where it lay when it was pressed, which a zone the bin was
+     refused — its delete cancelled — goes back to; `over`, whether the bin
+     would take it now (tableZoneOverBin). */
   tableZoneHold = {
-    zone, id: e.pointerId, mode: resize ? 'resize' : 'move', dragging: false, since: 0, lift: 0,
+    zone, id: e.pointerId, mode: resize ? 'resize' : 'move', dragging: false, since: 0, lift: 0, over: false,
+    from: { left: zone.left, top: zone.top },
     start: { x: e.clientX, y: e.clientY }, pointer: { x: e.clientX, y: e.clientY },
     grab: resize
       ? { u: zone.left + zone.width - hit.u, v: zone.top + zone.height - hit.v }
@@ -5763,6 +5928,9 @@ function tableZoneStep(now) {
     }
     tableZoneDraw(zone, rise);
     tableZoneCarryCards(zone, rise);
+    /* Asked every frame, as a card's is: the camera can carry the bin under
+       a pointer holding still. tableFrame lights the bin from it. */
+    hold.over = tableZoneOverBin(hold);
     return rise !== tableLiftHeight(Infinity, motion) * TABLE_ZONE_LIFT / TABLE_CARD_LIFT;
   }
   const hit = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, zone.z0 + zone.topZ);
@@ -5777,15 +5945,39 @@ function tableZoneStep(now) {
   return false;
 }
 
+/* Whether the bin would take the zone in hand now (tableZoneBinAction):
+ * the pointer's question, as it is for a card, since the zone is kept on the
+ * mat and never reaches the rim the bin lies on. */
+function tableZoneOverBin(hold) {
+  return tableZoneBinAction({
+    mode: hold.mode,
+    dragging: hold.dragging,
+    overBin: tableOverBin(hold.pointer),
+    name: hold.zone?.name,
+    count: hold.zone?.count,
+    canEdit: tableZoneRulesNow().arrange,
+  });
+}
+
 /* Let go of a zone: it comes down where it is, its cards with it, in the
  * card layer's own time, and the deck's layout is kept. A press that never
- * moved changes nothing. */
+ * moved changes nothing. Let go over the bin by a hand — not put down for
+ * one, the window losing the pointer — its category is deleted
+ * (tableZoneBin); a delete the user cancels sends it back to where it was
+ * picked up from instead, settling there as it would anywhere. */
 function tableZoneRelease(e) {
   const hold = tableZoneHold;
   if (!hold || (e && e.pointerId !== hold.id)) return;
   tableZoneHold = null;
+  const binned = e?.type === 'pointerup' && tableZoneOverBin(hold);
+  tableBinLight(false);
   if (!hold.dragging || !tableEls) return;
   const zone = hold.zone;
+  if (binned) {
+    if (tableZoneBin(zone)) return;
+    zone.left = hold.from.left;
+    zone.top  = hold.from.top;
+  }
   const settle = [zone.el, ...zone.cards.map(card => card.el)].filter(Boolean);
   zone.el?.classList.remove('is-lifted', 'is-resizing');
   for (const el of settle) el.classList.add('is-settling');
@@ -5793,6 +5985,28 @@ function tableZoneRelease(e) {
   tableZoneCarryCards(zone);
   for (const el of settle) tableAfter(el, () => el.classList.remove('is-settling'));
   tableZoneKeep(tableZoneDeck()?.id, tableZones);
+}
+
+/* A zone's category deleted through the builder's own delete, which asks
+ * first (its confirm), takes the history's snapshot, moves the cards to
+ * Uncategorised, redraws and saves — all of it the builder's. Whether it was
+ * deleted is read off the deck's categories afterwards: the confirm says
+ * nothing back. Deleted, the zone's place is dropped from the deck's kept
+ * layout, so a category made later under the same name is given a place of
+ * its own rather than this one's, and the deck is laid again — its cards
+ * coming back in an Uncategorised zone, which a new zone's free space is
+ * found for. Returns whether it was deleted. */
+function tableZoneBin(zone) {
+  const deck = tableZoneDeck();
+  if (!deck || typeof dbDeleteCategory !== 'function') return false;
+  const name = zone.name;
+  dbDeleteCategory(name);
+  const cats = typeof dbCats !== 'undefined' ? dbCats : [];
+  if (cats.some(c => c.name === name)) return false;
+  zone.el?.classList.remove('is-lifted');
+  tableZoneKeep(deck.id, tableZones.filter(z => z.name !== name));
+  tableRelayDeck();
+  return true;
 }
 
 /* A new zone: a new category through the builder's own add, under the
@@ -5904,6 +6118,691 @@ function tableZoneRename(from, to) {
   tableZoneKeep(deck?.id, tableZones);
   _dbRenameCategory(from, to);
   tableRelayDeck();
+}
+
+// ── The Deck Builder's side table ────────────────────────────────────────
+// The boards beside the deck — the sideboard and the maybeboard, and any board
+// DB_BOARDS (js/deckview-boards.js) gains that is neither the mainboard nor the
+// head of the deck — laid on a table of their own, standing to the right of
+// the table: chosen by the "Side table" chip beside the Zones chip on the far
+// rim, and kept per browser (TABLE_SIDE_KEY). With the chip off, or another
+// tab's cards on the mat, nothing here runs: the table is fitted, measured and
+// laid exactly as it was.
+//
+//   the table    a second rim and felt, built as the table is — the same wood,
+//                the same rims, the same playmat or felt — a third of the
+//                table's width (TABLE_SIDE_SHARE), with a gap of bare room
+//                between the two (TABLE_SIDE_GAP). It is a child of the
+//                plane, standing beyond its right-hand edge, so it lies in
+//                the plane: the same tilt, top and depth, the same camera, and
+//                the same mapping from the screen — a point of it is a point
+//                of the mat's own coordinates past the mat's right-hand edge
+//                (tableSideMeasure), which is what keeps a card carried across
+//                to it under the pointer. The pair is fitted to the window as
+//                the one table is (tableFitPair), so the table is the narrower
+//                for it, and the view may be taken over all of it
+//                (tablePanBounds). It holds no tabs, chips, slip, bin or
+//                slider: rim and felt.
+//   the regions  its felt split in depth, a region per board in a fixed order
+//                — the sideboard's the far half, the maybeboard's the near
+//                (tableSideBoards) — each with its label lying on the felt,
+//                its board's name and its count of copies, in a zone's make,
+//                and laying its own cards out to fit it by the zones' own fit
+//                (tableSideLayout, tableZoneFit), a card's count of copies on
+//                its face as on the mat. An empty one says what dropping a
+//                card there does (tableSideHint).
+//   its cards    ordinary table cards: the same pictures, pressed and let go
+//                to be looked at, with Details, Add one and Remove one by
+//                their ref, and the bin takes a copy of one as it does off
+//                the mat. They lie on the mat — its children, laid past its
+//                right-hand edge — so everything that carries a card carries
+//                them; but they are kept apart from the mat's own cards
+//                (tableSideCards), so none is laid in a pile, counted against
+//                the mat's ceiling or its depth, or kept where a hand put it
+//                (tableMoved): a card on the side table lies where its region
+//                lays it.
+//   moving       for a deck the user may edit (tableSideRules): a card of the
+//                deck carried from the mat and let go over a region goes to
+//                that board; a card of the side table let go over the mat goes
+//                back into the deck — into the category it kept, or into the
+//                zone it was let go over — and one let go over the other
+//                region goes to that board (tableSidePlace). Each through the
+//                builder's own drop, as the zones' is (cardCarryDrop), the deck
+//                laid again and the card coming in from where it was let go.
+//                Carried over where it would go, that place lights — a region,
+//                a zone, or the mat — and no landing mark is drawn, since
+//                where it lands there is the layout's to say. Anything else,
+//                and it goes back where it was. The commander does not go to
+//                the side table, and a deck the user may only look at moves
+//                nothing: carried over the side table, a card comes back.
+//
+// Depth: the regions and their cards share the TABLE_DEPTH the piles have, as
+// the zones do (tableCardGapFor), so the landing mark and a card in hand lie
+// over them; the side table is its own felt, apart from the mat's, so it
+// takes none of the mat's.
+
+/* The browser's copy of the Side table chip: '1' when on, nothing when off. */
+const TABLE_SIDE_KEY = 'mtgtools_table_side';
+
+/* How wide the side table is, as a share of the table beside it — both whole,
+ * rim and all — and the gap of bare room between the two, in the plane's own
+ * pixels: a side rim's width and a little more, so they read as two tables
+ * standing apart rather than one table with a seam down it. */
+const TABLE_SIDE_SHARE = 1 / 3;
+const TABLE_SIDE_GAP   = 72;
+
+/* The board whose region lies at the far side, whatever order DB_BOARDS
+ * lists the boards in; the rest follow it in that order. */
+const TABLE_SIDE_FIRST = 'side';
+
+/* What an empty region says to a user who may edit the deck: what dropping a
+ * card there does. A board not named here says its own hint (DB_BOARDS). */
+const TABLE_SIDE_HINTS = Object.freeze({
+  side:  'Drag a card here to sideboard it',
+  maybe: 'Drag a card here to set it aside',
+});
+
+/* The chip's icon, in the sidebar's own hand as the Zones chip's is: a table,
+ * and a narrower one standing beside it. */
+const TABLE_SIDE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="13" height="14" rx="1"/>' +
+  '<rect x="17" y="5" width="5" height="14" rx="1"/></svg>';
+
+// ── The side table's decisions ──
+
+/* What the side table may do, for the cards on the mat now: the chip is
+ * offered while the Deck Builder's cards lie there with a deck open — one the
+ * user may only look at too, since a sideboard is there to be looked at; the
+ * side table stands while it is on; and cards may be moved to it, from it and
+ * across it only for a deck the user may edit, the zones' rule
+ * (tableZoneRules). */
+function tableSideRules({ scope, deckOpen, canEdit, on }) {
+  const toggle = scope === 'deckview' && !!deckOpen;
+  const side   = toggle && !!on;
+  return { toggle, side, move: side && !!canEdit };
+}
+
+/* The pair fitted to the window: `box`, the one table's box as tableFitSize
+ * fits it, shared out — with `side` — between the table, the gap and the side
+ * table to its right, the side table `share` of the table's width. Both keep
+ * the box's whole height, so the two stand on one far edge and one near edge,
+ * in one plane, and the table keeps its left: the pair is what is centred and
+ * fitted now, as the one table was, its near corners at the window's bottom
+ * corners. Answers the table's box, { left, top, width, height }, and `side`
+ * — { gap, width } — or null with the side table down, when the box is the
+ * one asked with nothing changed. Null for no box. */
+function tableFitPair(box, { side = false, share = TABLE_SIDE_SHARE, gap = TABLE_SIDE_GAP } = {}) {
+  if (!box) return null;
+  if (!side) return { ...box, side: null };
+  const k = Math.max(0, Number(share) || 0);
+  const g = Math.max(0, Math.min(Number(gap) || 0, box.width));
+  const width = (box.width - g) / (1 + k);
+  return { left: box.left, top: box.top, width, height: box.height, side: { gap: g, width: box.width - g - width } };
+}
+
+/* The boards the side table lays, in the order its regions lie from the far
+ * side: `piles` as dbSideBoardPiles hands them — [{ board, label, hint,
+ * cards }] — with TABLE_SIDE_FIRST first where it is among them and the rest
+ * after it in their own order. Read from the data, never a list of ids, so a
+ * board DB_BOARDS gains is a region here the moment it exists. Anything with
+ * no board is no region. */
+function tableSideBoards(piles) {
+  const list = (Array.isArray(piles) ? piles : []).filter(pile => pile && pile.board != null && String(pile.board) !== '');
+  return [...list.filter(pile => pile.board === TABLE_SIDE_FIRST), ...list.filter(pile => pile.board !== TABLE_SIDE_FIRST)];
+}
+
+/* The side table's felt, `width` × `height`, split into a region per board,
+ * one below the next from the far side — each TABLE_ZONE_GAP in from the
+ * felt's edges and from its neighbour, as zones are laid — and each laying
+ * `counts[i]` cards w × h out to fit it by a zone's own fit (tableZoneFit):
+ * whole cards in a grid where they fit, closed up or piled where they do not,
+ * below the band its label lies in. Answers [{ left, top, width, height,
+ * mode, spots }], the region in the felt's own pixels from its top-left
+ * corner and its cards' centres in the region's. */
+function tableSideLayout(counts, width, height, cardW, cardH) {
+  const list = Array.isArray(counts) ? counts : [];
+  const n = list.length;
+  if (!n) return [];
+  const gap = TABLE_ZONE_GAP;
+  const W = Math.max(0, Number(width) || 0), H = Math.max(0, Number(height) || 0);
+  const rw = Math.max(0, W - 2 * gap);
+  const rh = Math.max(0, (H - (n + 1) * gap) / n);
+  return list.map((count, i) => {
+    const fit = tableZoneFit(count, rw, rh, cardW, cardH);
+    return { left: gap, top: gap + i * (rh + gap), width: rw, height: rh, mode: fit.mode, spots: fit.spots };
+  });
+}
+
+/* Which table, and which region of the side table, a point of the plane is
+ * over: `point` = { u, v } in the mat's own pixels — the pointer mapped
+ * through the camera, as a card in hand is carried — `width` × `height` the
+ * mat, `side` the side table's felt and `box` the whole side table in the same
+ * pixels, and `boards` the boards its regions stand for, from the far side.
+ *
+ *   { table: 'main' }                on the mat
+ *   { table: 'side', board }         on the side table's felt, over the
+ *                                    region whose share of its depth holds
+ *                                    the point — the whole share, the gap
+ *                                    round the region as it is drawn included
+ *   { table: 'side', board: null }   on the side table off its felt — its
+ *                                    rim — or on a felt with no regions
+ *   null                             anywhere else: the table's own rim, and
+ *                                    the room between the two and round them
+ *
+ * With no side table, nothing is over it. */
+function tableSideTarget(point, { width, height, side, box = null, boards = [] } = {}) {
+  if (!point || !side) return null;
+  const u = Number(point.u), v = Number(point.v);
+  if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
+  if (tableInMatRect(point, { left: 0, top: 0, width, height })) return { table: 'main' };
+  const list = Array.isArray(boards) ? boards : [];
+  if (list.length && side.height > 0 && tableInMatRect(point, side)) {
+    const i = Math.floor((v - side.top) / (side.height / list.length));
+    return { table: 'side', board: String(list[Math.min(list.length - 1, Math.max(0, i))]) };
+  }
+  if (tableInMatRect(point, box || side)) return { table: 'side', board: null };
+  return null;
+}
+
+/* What a card let go over `target` (tableSideTarget) asks of the deck, as the
+ * place the builder's drop is given (dbPlace's grammar: a board alone, or
+ * "board/category", a pile of it) — or null for nothing, when the card goes
+ * back where it was. `ref` is the card's, board first (dbCardRef), `head`
+ * whether it lies at the head of the mat, `zone` the zone it is let go over
+ * with zones on, and `move` whether the deck may be changed (tableSideRules):
+ *
+ *   a card of the deck over a region         that board alone, so the card
+ *                                            keeps the category it is filed
+ *                                            under
+ *   a card of the side table over the mat    the mainboard alone — back into
+ *                                            the category it kept — or, over
+ *                                            a zone, that zone's pile of it
+ *   a card of the side table over the        that board
+ *     other region
+ *
+ * And nothing over its own region, over the side table off its felt, over
+ * the room between, for a commander — what the deck is built around does not
+ * go to the side table — or for a deck the user may only look at. */
+function tableSidePlace({ ref, head = false, target = null, zone = null, move = false } = {}) {
+  if (!move || !target || ref == null || String(ref) === '' || head) return null;
+  const main = typeof DB_MAIN_BOARD === 'string' ? DB_MAIN_BOARD : 'main';
+  const commander = typeof DB_COMMANDER_BOARD === 'string' ? DB_COMMANDER_BOARD : 'commander';
+  const text = String(ref);
+  const cut = text.indexOf('/');
+  const board = cut < 0 ? text : text.slice(0, cut);
+  if (board === commander) return null;
+  if (target.table === 'side') return target.board && String(target.board) !== board ? String(target.board) : null;
+  if (target.table !== 'main' || board === main) return null;
+  if (zone == null || zone === '') return main;
+  return typeof dbPlace === 'function' ? dbPlace(main, String(zone)) : `${main}/${zone}`;
+}
+
+/* What an empty region says: what dropping a card there does, to a user who
+ * may edit the deck (TABLE_SIDE_HINTS, or the board's own hint for a board
+ * not named there); and the board's own hint to one who may only look, who
+ * can drop nothing there. `pile` is the board as dbSideBoardPiles hands it. */
+function tableSideHint(pile, canEdit) {
+  const id = String(pile?.board ?? '');
+  const own = String(pile?.hint || '');
+  if (!canEdit) return own;
+  return Object.prototype.hasOwnProperty.call(TABLE_SIDE_HINTS, id) ? TABLE_SIDE_HINTS[id] : own;
+}
+
+/* What the side table's cards are to it, as one string: which cards lie on
+ * which board, in what order. Two piles of boards that answer the same are
+ * laid the same way, so only their pictures and their counts can differ
+ * (tableSidePatch). */
+function tableSideSig(piles) {
+  return JSON.stringify(tableSideBoards(piles).map(pile =>
+    [String(pile.board), (Array.isArray(pile.cards) ? pile.cards : []).map(card => card?.ref ?? card?.name ?? '')]));
+}
+
+/* A board's cards as the side table holds them: one table card an entry, its
+ * count on it, known by its ref (tableKeyCards, under the Deck Builder's
+ * scope, so a side table card and a mat card of one name are two cards, as
+ * their refs are) — the deck's own printing, or the picture the app has for
+ * the name. */
+function tableSideKeyed(pile) {
+  return tableKeyCards((Array.isArray(pile?.cards) ? pile.cards : []).map(card => ({
+    name: card.name, id: card.ref, ref: card.ref, imageUrl: card.image || tableImageOf(card.name), qty: card.qty,
+  })), 'deckview');
+}
+
+function readTableSide() {
+  try { return localStorage.getItem(TABLE_SIDE_KEY) === '1'; }
+  catch { return false; }
+}
+
+function rememberTableSide(on) {
+  try {
+    if (on) localStorage.setItem(TABLE_SIDE_KEY, '1');
+    else    localStorage.removeItem(TABLE_SIDE_KEY);
+  } catch {}
+}
+
+// ── The side table on the table ──
+
+let tableSide        = null;   // { el, mat, chip, regions: [{ board, label, hint, cards, el, left, top, width, height, mode }] }: made with each scene
+let tableSideUp      = false;  // whether it stands beside the table now — and so whether the fit is the pair's
+let tableSidePiles   = null;   // the boards beside the deck, as the source last read them (dbSideBoardPiles)
+let tableSideCards   = [];     // [{ key, name, imageUrl, ref, qty, board, side: true, sideZ, x, y, turn, el }]
+let tableSideSigNow  = null;   // tableSideSig of what lies on it now
+let tableSideLit     = null;   // what is lit under the card in hand: a region, or 'main' for the mat
+let tableSideLanding = null;   // { key, x, y, until }: a card just let go onto it, on its way
+
+/* The rules as they stand for the cards on the mat and the deck open now. */
+function tableSideRulesNow() {
+  const deck = tableZoneDeck();
+  return tableSideRules({
+    scope: tableScope,
+    deckOpen: !!deck && !tableFeature,
+    canEdit: !!deck && typeof isMyPlayer === 'function' && isMyPlayer(deck.playerId),
+    on: readTableSide(),
+  });
+}
+
+/* The side table, made with each scene: a rim and a felt built as the
+ * table's are — table.css gives .table-side the plane's wood, rims and grid,
+ * and its felt is a .table-mat, with the playmat on it — a child of the plane,
+ * standing beyond its right-hand edge, hidden until it is up. And its chip,
+ * in the Zones chips' box beside them and in their make, saying whether it is
+ * on by aria-pressed and its tab's accent; a press on it is a press on a
+ * control, as the box already says of anything in it (tableZonesBuild). */
+function tableSideBuild() {
+  const el = document.createElement('div');
+  el.className = 'table-side';
+  el.id = 'tableSide';
+  el.hidden = true;
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', 'Side table: the boards beside the deck');
+  el.innerHTML = '<div class="table-mat table-side-mat" id="tableSideMat"></div>';
+  tableEls.plane.append(el);
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'table-zone-chip table-side-chip';
+  chip.hidden = true;
+  chip.setAttribute('aria-pressed', 'false');
+  chip.title = 'Lay the sideboard and the maybeboard on a table of their own, beside this one';
+  chip.innerHTML = `${TABLE_SIDE_ICON}<span>Side table</span>`;
+  chip.addEventListener('click', () => tableSideToggle());
+  (tableZoneChips?.box || tableFarStrip('left')).append(chip);
+  tableSide = { el, mat: el.firstElementChild, chip, regions: [] };
+}
+
+/* The chip shown and pressed as the rules say, and the side table stood up
+ * or taken down to match — asked first thing every time cards are drawn. Up
+ * or down, the table is fitted to the window again (tableSideRefit), so the
+ * cards drawn next are laid on the mat as it now is. Answers whether it went
+ * up or down. */
+function tableSideSync() {
+  const side = tableSide;
+  if (!side) return false;
+  const rules = tableSideRulesNow();
+  side.chip.hidden = !rules.toggle;
+  side.chip.setAttribute('aria-pressed', String(rules.side));
+  if (rules.side === tableSideUp) return false;
+  tableSideUp = rules.side;
+  side.el.hidden = !tableSideUp;
+  tableSideRefit();
+  return true;
+}
+
+/* The chip pressed: the side table up, or down — the table fitted to the
+ * window again and the deck laid on it again (tableDrawCards, which stands it
+ * up or takes it down before anything is laid). */
+function tableSideToggle() {
+  rememberTableSide(!readTableSide());
+  tableDrawCards();
+}
+
+/* The table fitted to the window again for the side table going up or down,
+ * as a resize fits it (tableOnResize): its box, its geometry, the view held
+ * inside the new outline and drawn there, and the panels fitted to the rim
+ * where it now lies. */
+function tableSideRefit() {
+  if (!tableEls) return;
+  tableFitTable();
+  tableMeasure();
+  if (!tableGeom) return;
+  const { width, height } = tableGeom.view;
+  tableAt = { ...tableAt, ...tableClampPan(tableAt, tableAt, tableBounds, width, height, { strict: true }) };
+  tableEls.camera.style.transform = tableCameraTransform(tableCam());
+  tableFitPanel();
+  tableDrawerFit();
+  tableSlipPlace();
+  tableKick();
+}
+
+/* Where the side table stands, in the mat's own pixels, read off the laid-out
+ * boxes as the mat's place is (tableMeasure) — through the plane's border,
+ * the side table's own and its felt's: `side`, the felt, and `sideBox`, the
+ * whole of it, rim and all; and `plane.span`, how far the pair reaches from
+ * the plane's left-hand edge, for the outline the pan is held inside. Nothing
+ * while it is down. */
+function tableSideMeasure() {
+  const side = tableSide;
+  if (!tableGeom || !side || !tableSideUp || side.el.hidden) return;
+  const { plane } = tableEls;
+  const { mat } = tableGeom;
+  const left = plane.clientLeft + side.el.offsetLeft;
+  const top  = plane.clientTop  + side.el.offsetTop;
+  tableGeom.plane.span = left + side.el.offsetWidth;
+  tableGeom.sideBox = { left: left - mat.left, top: top - mat.top, width: side.el.offsetWidth, height: side.el.offsetHeight };
+  tableGeom.side = {
+    left:   left + side.el.clientLeft + side.mat.offsetLeft + side.mat.clientLeft - mat.left,
+    top:    top  + side.el.clientTop  + side.mat.offsetTop  + side.mat.clientTop  - mat.top,
+    width:  side.mat.clientWidth,
+    height: side.mat.clientHeight,
+  };
+}
+
+/* Where a card in hand may be drawn with the side table up, in the mat's own
+ * pixels (tableDropSpot's `reach`): from the mat's left-hand edge to the far
+ * edge of the side table's felt, across the room between, and down the depth
+ * the two felts share. Null with it down, which leaves the mat. */
+function tableSideReach() {
+  const side = tableSideUp ? tableGeom?.side : null;
+  if (!side) return null;
+  const { height } = tableGeom.mat;
+  return { left: 0, top: Math.min(0, side.top), right: side.left + side.width, bottom: Math.max(height, side.top + side.height) };
+}
+
+/* The boards beside the deck as the source has just read them, with the mat's
+ * own cards unchanged (tableLayFor): kept for the next time the side table is
+ * laid, and — while it is up — laid on it now if which cards lie on which
+ * board has changed, or only their pictures and counts brought up to date if
+ * not. A card of the side table in hand is put down first, as one is when
+ * the mat is laid again. */
+function tableSideFrom(piles) {
+  tableSidePiles = piles || null;
+  if (!tableSideUp || !tableSide) return;
+  if (tableSideSig(tableSidePiles) === tableSideSigNow) { tableSidePatch(); return; }
+  if (tableHold?.card?.side) tableRelease({ pointerId: tableHold.id });
+  tableSideDraw();
+  tableFetchImages('deckview');
+}
+
+/* The side table's regions and cards made afresh for the boards beside the
+ * deck (tableSidePiles): a region per board on its felt, and the boards'
+ * cards on the mat, past its right-hand edge, in the side table's own keeping
+ * (tableSideCards) — then placed (tableSideArrange), and a card just let go
+ * onto it brought in from where it was let go (tableSideLand). With it down,
+ * whatever was on it is taken away, and nothing else is touched. */
+function tableSideDraw() {
+  const side = tableSide;
+  if (!side || !tableEls) return;
+  for (const card of tableSideCards) card.el?.remove();
+  for (const region of side.regions) region.el?.remove();
+  tableSideCards = [];
+  side.regions = [];
+  tableSideLight(null);
+  if (!tableSideUp || !tableGeom?.side) { tableSideSigNow = null; return; }
+  const canEdit = tableSideRulesNow().move;
+  const cards = document.createDocumentFragment();
+  side.regions = tableSideBoards(tableSidePiles).map(pile => {
+    const region = {
+      board: String(pile.board), label: String(pile.label || pile.board), hint: tableSideHint(pile, canEdit),
+      cards: tableSideKeyed(pile).map(card => ({ ...card, board: String(pile.board), side: true, sideZ: 0, x: 0, y: 0, turn: 0, el: null })),
+      el: tableSideRegionEl(),
+    };
+    for (const card of region.cards) {
+      card.el = tableCardEl(card);
+      cards.append(card.el);
+      tableSideCards.push(card);
+    }
+    side.mat.append(region.el);
+    return region;
+  });
+  tableEls.mat.insertBefore(cards, tableEls.hint);
+  tableSideSigNow = tableSideSig(tableSidePiles);
+  tableSideArrange();
+  tableSideLand();
+}
+
+/* A region's element, lying on the side table's felt: its label — the
+ * board's name and its count of copies, in a zone's label's make — and the
+ * hint an empty one gives. It takes no pointer: the felt under it is felt. */
+function tableSideRegionEl() {
+  const el = document.createElement('div');
+  el.className = 'table-side-region';
+  el.dataset.tab = 'deckview';
+  el.innerHTML = `
+    <div class="table-side-label"><span class="table-side-name"></span><span class="table-side-count"></span></div>
+    <p class="table-side-hint"></p>`;
+  return el;
+}
+
+/* A region saying what is on it: its board's name, its count of copies, and
+ * its hint while nothing is. */
+function tableSideRegionSay(region) {
+  const { el } = region;
+  if (!el) return;
+  const count = region.cards.reduce((sum, card) => sum + tableQty(card.qty), 0);
+  el.dataset.board = region.board;
+  el.querySelector('.table-side-name').textContent = region.label;
+  el.querySelector('.table-side-count').textContent = String(count);
+  const hint = el.querySelector('.table-side-hint');
+  hint.textContent = region.hint;
+  hint.hidden = region.cards.length > 0 || !region.hint;
+}
+
+/* The side table's regions and cards placed on its felt as it is now: each
+ * region where tableSideLayout puts it, and each card where its region lays
+ * it — at the size the mat's cards are drawn at, so the card-size slider is
+ * the side table's too; square to its region, as a zone's cards are — and at
+ * its height: the regions' depth shared out as the zones' is
+ * (tableCardGapFor), each region's felt a gap above the side table's, its
+ * label and hint half a gap over that, and every card a layer of its own
+ * above them all. A card in hand is left where the hand has it. Asked
+ * whenever the cards are laid, resized, or sized by the slider. */
+function tableSideArrange() {
+  const side = tableSide;
+  const felt = tableSideUp ? tableGeom?.side : null;
+  if (!side || !felt) return;
+  const { width, height } = tableGeom.mat;
+  const layout = tableSideLayout(side.regions.map(region => region.cards.length), felt.width, felt.height,
+    tableCardSize.w, tableCardSize.h);
+  const g = tableCardGapFor(2 + tableSideCards.length);
+  let layer = 2;
+  side.regions.forEach((region, i) => {
+    const at = layout[i];
+    Object.assign(region, { left: at.left, top: at.top, width: at.width, height: at.height, mode: at.mode });
+    const { el } = region;
+    el.dataset.fit = at.mode;
+    el.style.width  = `${at.width.toFixed(2)}px`;
+    el.style.height = `${at.height.toFixed(2)}px`;
+    el.style.transform = `translate3d(${at.left.toFixed(2)}px, ${at.top.toFixed(2)}px, ${g.toFixed(3)}px)`;
+    el.style.setProperty('--table-side-label-z', `${(g / 2).toFixed(3)}px`);
+    tableSideRegionSay(region);
+    region.cards.forEach((card, j) => {
+      const z = layer++ * g;
+      tableSizeCard(card);
+      if (tableHold?.card === card) return;
+      card.sideZ = z;
+      card.x = (felt.left + at.left + at.spots[j].x) / width;
+      card.y = (felt.top + at.top + at.spots[j].y) / height;
+      card.turn = 0;
+      tableWriteCard(card);
+    });
+  });
+}
+
+/* The same cards as lie on the side table, some of them with a picture now
+ * or another count of copies — one taken out by the bin, one more by Add one:
+ * each put on its card where it lies, and its region's count said again.
+ * Nothing moves. */
+function tableSidePatch() {
+  const side = tableSide;
+  if (!side) return;
+  const fresh = new Map();
+  for (const pile of tableSideBoards(tableSidePiles)) for (const card of tableSideKeyed(pile)) fresh.set(card.key, card);
+  for (const card of tableSideCards) {
+    const now = fresh.get(card.key);
+    if (!now) continue;
+    const url = now.imageUrl || card.imageUrl;
+    if (url === card.imageUrl && now.qty === card.qty) continue;
+    card.imageUrl = url;
+    card.qty = now.qty;
+    if (!card.el) continue;
+    card.el.innerHTML = tableCardFace(card);
+    card.el.setAttribute('aria-label', tableCardLabel(card));
+  }
+  for (const region of side.regions) tableSideRegionSay(region);
+}
+
+/* What is lit under a card in hand: a region of the side table, or the mat
+ * itself ('main') for a card off the side table going back into the deck
+ * where no zone is lit to say so — in its tab's accent, as a zone is lit
+ * (table.css) — or nothing. Written only when that changes. */
+function tableSideLight(target) {
+  const next = target || null;
+  if (next === tableSideLit) return;
+  const mat = tableEls?.mat;
+  if (tableSideLit === 'main') {
+    mat?.classList.remove('is-target');
+    mat?.removeAttribute('data-tab');
+  } else {
+    tableSideLit?.el?.classList.remove('is-target');
+  }
+  tableSideLit = next;
+  if (next === 'main') {
+    mat?.classList.add('is-target');
+    if (mat) mat.dataset.tab = 'deckview';
+  } else {
+    next?.el?.classList.add('is-target');
+  }
+}
+
+/* A card picked up off the side table comes up over every layer of it, so
+ * that held without a lift — cards still — it lies over the cards round it,
+ * as one off a zone does (tableZonePickUp). Its place is given back the next
+ * time the side table is placed. */
+function tableSidePickUp(card) {
+  card.sideZ = TABLE_DEPTH + TABLE_CARD_GAP;
+}
+
+/* Which table and region the window point `pointer` is over, through the
+ * camera as it is now, at the felt's height (tableSideTarget). */
+function tableSideTargetAt(pointer) {
+  if (!pointer || !tableGeom?.side || !tableSide) return null;
+  const hit = tableUnproject(tableMatrix(), pointer.x, pointer.y, 0);
+  const { width, height } = tableGeom.mat;
+  return tableSideTarget(hit, {
+    width, height, side: tableGeom.side, box: tableGeom.sideBox, boards: tableSide.regions.map(region => region.board),
+  });
+}
+
+/* A frame of a card carried with the side table up: where it would go if let
+ * go now — its place in the deck's terms (tableSidePlace), or null for back
+ * where it was — kept on the hold as `sideMove`, with what it is over as
+ * `sideTarget`; and that place lit: the region, or the mat for a card off the
+ * side table — unless a zone there is the place, which the zones light
+ * (tableZoneHover). Not over the bin, which has a look of its own. Down,
+ * nothing. */
+function tableSideHover(hold) {
+  if (!tableSideUp) return;
+  const card = hold.card;
+  const target = hold.dragging && !hold.over ? tableSideTargetAt(hold.pointer) : null;
+  const zone = card.side && target?.table === 'main' && tableZonesActive() ? (hold.zone?.name ?? null) : null;
+  hold.sideTarget = target;
+  hold.sideMove = tableSidePlace({ ref: card.ref, head: card.head, target, zone, move: tableSideRulesNow().move });
+  let lit = null;
+  if (hold.sideMove && target.table === 'side') lit = tableSide.regions.find(region => region.board === target.board) || null;
+  else if (hold.sideMove && zone == null) lit = 'main';
+  tableSideLight(lit);
+}
+
+/* The landing mark for the card in hand, `hold`, with the side table up —
+ * `cast`, what the zones or the piles would mark (tableZoneCast), asked of
+ * it in the frame (tableCastWrite) — which is always where the card will
+ * lie: going to another board, or back into the deck from the side table,
+ * nowhere this side of the layout, so no mark, the lit place says it; a card
+ * of the side table going nowhere, its own place on it, where it goes back
+ * to; a card of the mat over the side table with nothing to do there, its
+ * own place on the mat; and anything else as the zones or the piles mark it.
+ * Down, or with nothing in hand, `cast` as it was asked. */
+function tableSideCast(cast, hold = tableHold) {
+  if (!tableSideUp || !cast || !hold) return cast;
+  if (hold.sideMove) return null;
+  if (hold.card.side || hold.sideTarget?.table === 'side') return { card: hold.card, lift: hold.lift, land: hold.from };
+  return cast;
+}
+
+/* A card let go with the side table up, when it is the side table's to answer
+ * — one of its own, or one of the mat's let go over it — answering true; any
+ * other is the mat's, the zones' or the piles', as it always was, and false.
+ *
+ * Only a hand letting go moves a card (a pointerup): to the place its target
+ * asks (tableSidePlace), through the builder's own drop as the zones' is, the
+ * deck then laid again and the card coming in from where it was let go
+ * (tableSideLand, or tableZoneLand for one that went back into the deck).
+ * Anything else, and it goes back where it was: a card of the side table to
+ * its place on it, and a card of the mat to its place on the mat — laid in
+ * zones, by the zones' own way back (tableZoneDrop). */
+function tableSideDrop(hold, e) {
+  const card = hold.card;
+  if (!tableSideUp && !card.side) return false;
+  const target = tableSideUp ? tableSideTargetAt(hold.pointer) : null;
+  tableSideLight(null);
+  if (!card.side && target?.table !== 'side') return false;
+  /* A zone lit under a card off the side table is the side table's to put
+     out: the zones' own drop is never asked about one of its cards. */
+  tableZoneLight(null);
+  const up = e?.type === 'pointerup';
+  const zone = up && card.side && target?.table === 'main' && tableZonesActive()
+    ? (tableZoneUnder(hold.pointer)?.name ?? null) : null;
+  const place = up ? tableSidePlace({ ref: card.ref, head: card.head, target, zone, move: tableSideRulesNow().move }) : null;
+  if (place) {
+    tableSwallow = true;
+    /* The card it will be once it is there: its ref on its new board, keyed
+       as the mat or the side table keys it (tableKeyCards). */
+    const cut = place.indexOf('/');
+    const board = cut < 0 ? place : place.slice(0, cut);
+    const name = String(card.ref).slice(String(card.ref).indexOf('/') + 1);
+    const landing = { key: `deckview:${board}/${name}#1`, x: card.x, y: card.y, until: Date.now() + TABLE_ARRIVAL_MS };
+    if (target.table === 'side') tableSideLanding = landing;
+    else tableZoneLanding = landing;
+    const moved = typeof cardCarryDrop === 'function' ? cardCarryDrop([card.ref], place)
+      : typeof dbMoveCardsTo === 'function' && dbMoveCardsTo([card.ref], place);
+    if (moved) { tableRelayDeck(); return true; }
+    if (target.table === 'side') tableSideLanding = null;
+    else tableZoneLanding = null;
+  }
+  if (!card.side && tableZonesActive() && card.zoneSpot) return false;
+  tableSwallow = true;
+  card.x = hold.from.x;
+  card.y = hold.from.y;
+  const el = card.el;
+  el?.classList.remove('is-held');
+  el?.classList.add('is-settling');
+  if (card.side) tableSideArrange();
+  else tableWriteCard(card);
+  if (el) tableAfter(el, () => el.classList.remove('is-settling'));
+  return true;
+}
+
+/* The card just let go onto the side table, among the cards just laid on it:
+ * drawn first where the hand let it go, then let settle to its place in its
+ * region, in the card layer's own time, as one let go into a zone does
+ * (tableZoneLand). Not when cards may not move. */
+function tableSideLand() {
+  const landing = tableSideLanding;
+  tableSideLanding = null;
+  if (!landing || Date.now() > landing.until || !cardMotionOn()) return;
+  const card = tableSideCards.find(c => c.key === landing.key && c.el);
+  if (!card) return;
+  const at = { x: card.x, y: card.y };
+  card.x = landing.x;
+  card.y = landing.y;
+  tableWriteCard(card);
+  void card.el.offsetWidth;
+  card.x = at.x;
+  card.y = at.y;
+  card.el.classList.add('is-settling');
+  tableWriteCard(card);
+  const el = card.el;
+  tableAfter(el, () => el.classList.remove('is-settling'));
 }
 
 // ── What main.js tells the table ─────────────────────────────────────────

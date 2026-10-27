@@ -208,8 +208,8 @@ same rules, so the suite passes on both.
   `ownedName`/`ownedQty`/`holdersOf` rather than `cards.has`.
 - **Table mode reaches into the tabs through silent `typeof` guards**: the getters in
   `TABLE_SOURCES` (`tablemode.js`: `colShownPiles`, `dbShownPiles`,
-  `dbShownCommanders`, `decksShown`, `sfShownCards`, `setShownPiles`, `wantShownLists`,
-  `cardDetailShown`), deck functions (`dbMoveCardsTo`, `dbPlace`, `dbAutoCategory`,
+  `dbShownCommanders`, `dbSideBoardPiles`, `decksShown`, `sfShownCards`, `setShownPiles`,
+  `wantShownLists`, `cardDetailShown`), deck functions (`dbMoveCardsTo`, `dbPlace`, `dbAutoCategory`,
   `dbOpenSearchPanel`, `_dbRenameCategory`) and element ids/classes (`dbSearchPanel`,
   `dbAddCardInput`, `.db-drawer`, `.db-stats-bar`). Renaming any of them breaks table
   mode with no error, and the tests stub the getters so they won't catch it. Table mode
