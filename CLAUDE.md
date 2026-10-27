@@ -246,10 +246,22 @@ same rules, so the suite passes on both.
   gives, in plain prose (`fix: the Card sheet on the table closes back to the view it
   was opened over`). A feature usually lands as separate `feat`, `test` and `docs`
   commits.
-- **Docs move with the code.** A new module gets its line in the
-  [architecture.md](docs/architecture.md) tree; a user-visible change gets its place in
-  [features.md](docs/features.md); a large effort gets a record in
-  [docs/records/](docs/records/) once it lands.
+- **Docs move with the code, in the same change.** Before calling work done, update
+  whichever of these it made wrong — nothing tests them, so a stale doc stays stale
+  until somebody notices:
+  - [docs/architecture.md](docs/architecture.md): a file added, removed, renamed or
+    repurposed gets its line in the tree; a change to the set index or state revision
+    gets its prose updated.
+  - [docs/features.md](docs/features.md): a user-visible change gets its place under its
+    tab, or under General.
+  - [README.md](README.md): a new tab or headline feature joins the feature list; a
+    change to how the app is run, built or deployed goes in Getting Started.
+  - [docs/configuration.md](docs/configuration.md): a new or changed environment
+    variable, role rule or data location.
+  - [docs/testing.md](docs/testing.md): a new script, test seam or ratchet.
+  - This file: a new rule, trap or list that must move together, or one of these
+    statements coming untrue. Fix a line here rather than working around it.
+  - A large effort gets a record in [docs/records/](docs/records/) once it lands.
 - **Large work is planned first**: a spec in `docs/design/` or `docs/plans/`, then
   tickets under `docs/tickets/<effort>/` while it's in flight, retired into a record
   afterwards.
@@ -288,8 +300,8 @@ Small issues found but not fixed — not intended design:
   second time, so a '%' in an id gives a 500 (`routes/proxy.js` has the fixed pattern).
 - Availability is keyed by player name, so renaming a player orphans their future days;
   "today" is UTC.
-- Docs that lag the code: architecture.md's tree lacks `public/js/owned.js` and
-  `faq.js` and says imports checkpoint every page (it's every 10th); testing.md says
-  "in-memory SQLite" (it's a temp-dir file) and doesn't mention that `check:contrast`
-  runs via `themes.test.js`; configuration.md lacks `PORT`, `DATA_FILE`, the
-  `APP_PASSWORD` alias and the `ARCHIDEKT_*` variables.
+- Docs that lag the code: testing.md says "in-memory SQLite" (it's a temp-dir file) and
+  doesn't mention that `check:contrast` runs via `themes.test.js`; configuration.md
+  lacks `PORT`, `DATA_FILE`, the `APP_PASSWORD` alias and the `ARCHIDEKT_*` variables.
+  The comment at the top of `set-index.js` says "~750 browsable sets"; Scryfall lists
+  about 320 of the types it indexes (checked October 2026), as architecture.md says.

@@ -13,7 +13,7 @@ mtgtools/
 ├── scryfall-queue.js  # One rate-limited Scryfall queue for the whole process (~9 req/s, Retry-After)
 ├── set-index.js       # What is in each set — background-filled, for the Set Browser's owned counts
 ├── backup.js         # Daily copy of available.db into data/backups/, the newest few kept
-├── collection-import.js # Server-side collection imports, checkpointed page by page
+├── collection-import.js # Server-side collection imports, checkpointed every tenth page
 ├── archidekt-queue.js # Archidekt's paced request queue for those imports
 ├── playmat-store.js   # Uploaded playmat images — one file per user, under data/playmats/
 ├── middleware/
@@ -84,13 +84,16 @@ mtgtools/
 │   │   ├── tabs.css       # Rules owned by a single tab
 │   │   └── table.css      # Table mode (experimental): the switch's row, and the
 │   │                      # scene, rim, mat, panels and cards — all behind
-│   │                      # html[data-tablemode]. Last, so a pane lying in a
-│   │                      # panel can be told what the page used to tell it
+│   │                      # html[data-tablemode]. Last of the app's own sheets
+│   │                      # (only vendor/mana.min.css follows), so a pane lying
+│   │                      # in a panel can be told what the page used to tell it
 │   └── js/
 │       ├── playmat.js     # Loaded in <head>: paints the background before first paint, and its picker
 │       ├── motion.js      # Loaded in <head>: resolves the card-motion preference against the OS
 │       ├── state.js       # App state, storage, shared helpers (renderMana, renderPrice, …)
 │       ├── modal.js       # Every centred dialog's open/close: focus in, Tab kept inside, Escape, focus back
+│       ├── owned.js       # Whose shelf holds a card — one answer for the whole app: the Mine / The group's /
+│       │                  # Everyone's scope, the shelf it resolves to, who else has a card, the strip's colour
 │       ├── sortui.js      # The sort model — a chain of criteria, what each field is worth, what a
 │       │                  # field seeds, what is stored — plus the shared controls: the sort button
 │       │                  # and its popover, columns menu, view toggle, card-size control, "⋯" kebab menus
@@ -129,6 +132,8 @@ mtgtools/
 │       ├── deckview-optimize.js # Deck Builder: picking a printing for every card at once — the three modes, the admissible pool, the preview and the bulk apply
 │       ├── pick.js        # Pick Night tab (random deck assignment, restrictable by bracket)
 │       ├── rss.js         # RSS feed panel (sidebar/header toggle, fetch, render)
+│       ├── faq.js         # The note each tab opens once to say what it is for, its keys, and the ? that reopens
+│       │                  # it — the FAQ registry, mirrored by FAQ_TABS in state.js and routes/prefs.js
 │       ├── tablemode.js   # Table mode (experimental): the app as a 3D table seen from a seat — the
 │       │                  # switch, the table fitted to the window, the tabs lying down the rim's
 │       │                  # two sides round a wide mat, panes lifted into panels and put back, the
@@ -148,21 +153,29 @@ mtgtools/
 │       │                  # every tab's cards; the Card sheet closing back to the view it was
 │       │                  # opened over; window.tableMode for anything else
 │       └── main.js        # Init, theme, tabs, sidebar nav, mobile nav, tooltips, card-click routing, state polling
+├── CLAUDE.md          # Orientation for AI models working on the code — read first, kept current
 ├── docs/
-│   ├── design/          # What was planned — briefs and PRDs, kept as context
+│   ├── architecture.md, features.md, configuration.md, testing.md  # This file and its siblings
+│   ├── design/          # What was planned — briefs, PRDs and research, kept as context
 │   │   ├── ui.md                    # The "Cards on a Table" interactivity brief — the
 │   │   │                            # design intent behind how cards behave; built
-│   │   ├── spec-cards-as-objects.md # The PRD that work was specified from
-│   │   ├── spec-sorting.md          # The PRD for multi-criteria sorting
-│   │   └── spec-deckbuilder-depth.md # What the deck builder still couldn't do, surveyed
-│   │                                 # against Moxfield, Archidekt and the rest
+│   │   ├── spec-*.md                # The PRDs: cards as objects, sorting, deckbuilder depth
+│   │   │                            # (surveyed against Moxfield, Archidekt and the rest),
+│   │   │                            # deck grid and folders, FAQ and keys, land base,
+│   │   │                            # printings, the physical interface
+│   │   ├── research-*.md            # Research behind them: buttons and motion, the land
+│   │   │                            # base, ownership shown everywhere
+│   │   └── proto-owned-flag.html    # A throwaway prototype of the ownership strip
+│   ├── plans/           # Implementation plans for particular efforts (printings and lands,
+│   │                    # printing-aware collections)
 │   └── records/         # …and what was actually built, written after delivery
 │       ├── ui-redesign.md           # The visual redesign that came first
 │       ├── cards-as-objects.md
 │       ├── sorting.md               # A sort becomes a sentence of up to three criteria
 │       ├── piles-expanded.md        # A table of stacks arrives spread
 │       ├── collection-query.md      # Scryfall syntax, run against the cards you own
-│       └── deckbuilder-depth.md     # The deck builder answers questions about the deck
+│       ├── deckbuilder-depth.md     # The deck builder answers questions about the deck
+│       └── deck-grid-and-folders.md # The Decks tab as a grid of your own decks, in folders
 ├── Dockerfile
 ├── docker-compose.yml
 └── data/              # Created at runtime inside the container (Docker volume)
@@ -196,7 +209,7 @@ The first counter is the `version` on the `app_state` row, which already existed
 
 The viewer is the third part because the payload is not one payload: private decks are filtered per requester, so two sessions holding the same two counters are not owed the same answer.
 
-An import is the one thing that moves the counter often — it checkpoints every page for four minutes — and it is in there deliberately: a tab that did not start it learns about it the same way it always did, from the `imports` list riding along in the payload. That does mean a full payload on each poll while an import runs, which is exactly what every poll cost before this change, and only while something really is arriving. A tab watching an import does not wait on it: that has its own two-second `/api/imports` poll.
+An import is the one thing that moves the counter often — it checkpoints every tenth page for as long as it runs — and it is in there deliberately: a tab that did not start it learns about it the same way it always did, from the `imports` list riding along in the payload. That does mean a full payload on each poll while an import runs, which is exactly what every poll cost before this change, and only while something really is arriving. A tab watching an import does not wait on it: that has its own two-second `/api/imports` poll.
 
 `version` and `rev` are not interchangeable and neither can stand in for the other: `version` is the concurrency check's, handed back on a POST and answered with a 409 on a mismatch, and it stays the players blob's alone.
 

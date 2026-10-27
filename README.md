@@ -20,8 +20,9 @@ A quick tour of the tabs — see [docs/features.md](docs/features.md) for the fu
 - **Mana Base Calculator** — recommended land split from your deck's pip counts.
 - **Pick Night** — randomly assign one unique deck per player for game night.
 - **RSS panel** — merged MTG news feeds, configured via `RSS_FEEDS`.
+- **Table mode (experimental)** — the whole app as a 3D card table seen from a seat: tabs along the rim, each tab's cards laid on the mat to pick up and move, and the Deck Builder's deck laid out a zone per category. Desktop only, switched on from the Appearance popover.
 
-Across every tab: 5 themes, per-tab mana-colour accents, a card-as-object hover treatment with a reduced-motion switch, custom playmats, card-name hover previews, URL hash routing, and a mobile-friendly layout. See [docs/features.md](docs/features.md) for detail.
+Across every tab: 5 themes, per-tab mana-colour accents, a card-as-object hover treatment with a reduced-motion switch, custom playmats, card-name hover previews, a once-per-tab note saying what the tab is for (`?` reopens it), "whose shelf is this on" marks on every card, URL hash routing, and a mobile-friendly layout. See [docs/features.md](docs/features.md) for detail.
 
 ## Getting Started
 
@@ -51,6 +52,25 @@ Set `ADMIN_PASSWORD` (via `.env`) to enable per-player accounts with **player** 
 docker compose down
 ```
 
+### Backups
+
+The server copies its database to `data/backups/` once a day and keeps the newest seven. Those copies sit on the same disk, so include the data folder in whatever backs up the host. Restoring is covered in [docs/configuration.md](docs/configuration.md#backups).
+
+### Developing without Docker
+
+Needs Node 22 (what CI and the image use).
+
+```bash
+npm install
+npm start
+```
+
+```bash
+npm test
+```
+
+`npm start` serves on [http://localhost:3000](http://localhost:3000) in open mode unless `ADMIN_PASSWORD` is set. `npm test` runs the whole suite with no browser and no network. Every push and pull request runs the tests on GitHub Actions, and a push to `main` also publishes the Docker image to Docker Hub. AI models working on the code should start with [CLAUDE.md](CLAUDE.md).
+
 ## Documentation
 
 | Document | What's in it |
@@ -60,6 +80,7 @@ docker compose down
 | [docs/architecture.md](docs/architecture.md) | Project structure, the set index, and the design-record index |
 | [docs/testing.md](docs/testing.md) | The test suite, the token-contract linter, and the screenshot / measurement tooling |
 | [docs/records/](docs/records/) | What was actually built for each large effort — supersedes the plans in [docs/design/](docs/design/) |
+| [CLAUDE.md](CLAUDE.md) | Orientation for AI models: the rules, traps and lists that must move together |
 
 ## Tech Stack & Credits
 
