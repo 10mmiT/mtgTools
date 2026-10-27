@@ -2,7 +2,7 @@
 /**
  * MTG Tools — Integration Tests
  * Run: npm test
- * Uses node:test (Node 18+) + supertest.
+ * Uses node:test (Node 22, as the project requires) + supertest.
  */
 const { test, describe, before, after, beforeEach } = require('node:test');
 const assert   = require('node:assert/strict');
@@ -11,7 +11,7 @@ const path      = require('path');
 const fs        = require('fs');
 const Database  = require('better-sqlite3');
 
-// ── Test database (isolated in-memory) ────────────────────────────────────────
+// ── Test database (isolated, in a temp dir) ───────────────────────────────────
 // We patch DATA_FILE to a temp dir and override the db path before requiring server.
 const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mtgtest-'));
 process.env.DATA_FILE      = path.join(tmpDir, 'state.json');

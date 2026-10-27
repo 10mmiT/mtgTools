@@ -300,8 +300,3 @@ Small issues found but not fixed — not intended design:
   second time, so a '%' in an id gives a 500 (`routes/proxy.js` has the fixed pattern).
 - Availability is keyed by player name, so renaming a player orphans their future days;
   "today" is UTC.
-- Docs that lag the code: testing.md says "in-memory SQLite" (it's a temp-dir file) and
-  doesn't mention that `check:contrast` runs via `themes.test.js`; configuration.md
-  lacks `PORT`, `DATA_FILE`, the `APP_PASSWORD` alias and the `ARCHIDEKT_*` variables.
-  The comment at the top of `set-index.js` says "~750 browsable sets"; Scryfall lists
-  about 320 of the types it indexes (checked October 2026), as architecture.md says.

@@ -12,7 +12,7 @@
 //
 // So the set's contents are fetched from Scryfall's search API and kept here:
 // one row per (set, card name). It is slow to build once — roughly 1,400
-// paged requests for the ~750 browsable sets, a few minutes at the shared
+// paged requests for the ~320 browsable sets, a few minutes at the shared
 // queue's pace — and then effectively permanent, because a released set does
 // not change. Sets that do change (a spoiler-season set growing week by week)
 // are re-indexed when Scryfall's card_count for them moves.
