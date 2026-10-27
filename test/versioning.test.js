@@ -36,7 +36,8 @@ const os        = require('node:os');
 const vm        = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
+// Line endings normalised, so a checkout with CRLF reads as the LF the tests match.
+const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n/g, '\n');
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mtgversion-'));
 process.env.DATA_FILE      = path.join(tmpDir, 'state.json');

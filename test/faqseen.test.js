@@ -66,7 +66,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mtgfaq-'));
   legacy.prepare(`INSERT INTO user_prefs
       (username, theme, playmat_kind, playmat_ref, playmat_url, card_motion, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .run('olive', 'sepia', 'scryfall', 'abc-123', 'https://img.example/art.jpg', 'off', 1);
+    .run('olive', 'sepia', 'scryfall', 'abc-123', 'https://cards.scryfall.io/art_crop/front/a/b/abc-123.jpg', 'off', 1);
   legacy.close();
 }
 
@@ -200,7 +200,7 @@ describe('the seam', () => {
     const cookie = await loginAs('bob', 'bpw');
     await put(cookie, {
       theme: 'contrast', cardMotion: 'off',
-      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://cards.scryfall.io/art_crop/front/a/b/abc-123.jpg',
     });
     const res = await put(cookie, { faqSeen: ['available'] });
     assert.deepEqual(res.body.faqSeen, ['available']);

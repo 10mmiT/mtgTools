@@ -1,6 +1,6 @@
 # Testing & tooling
 
-The test suite, the token-contract linter, and the screenshot/measurement scripts used to review changes.
+The test suite, the token-contract linter, the contrast check, and the screenshot/measurement scripts used to review changes.
 
 ## Testing
 
@@ -12,7 +12,7 @@ npm test
 
 Tests are written at three seams, all of which assert externally observable behaviour rather than which function called which:
 
-- **The HTTP seam** drives the Express app through a client against an isolated in-memory SQLite database and a temporary state file, so they never touch production data. It covers auth, state, admin, deck and preference routes — anything that is request/response behaviour, including the whole playmat and the card-motion preference.
+- **The HTTP seam** drives the Express app through a client against its own SQLite database in a temporary directory (each file points `DATA_FILE` there before it first requires the server), so they never touch production data. It covers auth, state, admin, deck and preference routes — anything that is request/response behaviour, including the whole playmat and the card-motion preference.
 - **The static seam** is the token linter below, because a visual contract cannot be asserted over HTTP and its most valuable guarantee is a property of the delivered stylesheet.
 - **The vm seam** loads a shipped browser file into a `vm` context and calls its decisions directly. Everything the card behaviour decides about *where something goes* is written as a pure function of its inputs and exported from the file that ships — how thick a stack of *n* cards is, what angle a card's name gives it, which pile a card belongs in for the sort's first criterion, how far a card leans, which pile a released card would land in, where each card lies in a carried fan, where a menu asked for at a point is drawn. Sorting is the same seam pointed at the same file: what a chain orders, what a field seeds, what makes a chain somebody's own, what a stored preference from an older version means now, and that no gesture on a table header can reach a chain the control's label cannot say. So those are asserted at their boundaries rather than eyeballed through a browser.
 
@@ -20,7 +20,7 @@ Nothing asserts appearance: markup and stylesheets churn deliberately, and a tes
 
 ## Token-contract linter
 
-`npm test` also runs `scripts/lint-tokens.js`, which reads the CSS the browser is actually served — plus the inline `style=` attributes in the HTML and JS — and fails on anything that has drifted off the design token contract:
+`npm test` also runs `scripts/lint-tokens.js` (through `test/tokens.test.js`), which reads the CSS the browser is actually served — plus the inline `style=` attributes in the HTML and JS — and fails on anything that has drifted off the design token contract:
 
 | rule | fails on |
 | --- | --- |
@@ -33,7 +33,11 @@ Nothing asserts appearance: markup and stylesheets churn deliberately, and a tes
 | `overshoot` | a curve that passes its mark and comes back, applied to a property that affects layout rather than one the compositor owns. Mass on a `width` grows the element past its own token mid-flight and reflows the page on the way |
 | `important` | an `!important` outside the allowlist in the script |
 
-Run it alone with `npm run lint:tokens`. The scales are read out of `tokens.css` at startup rather than duplicated in the script, so that file stays the single written-down definition.
+Run it alone with `npm run lint:tokens`. The scales are read out of `tokens.css` at startup rather than duplicated in the script, so that file stays the single written-down definition. It lints the stylesheets named in its `CSS_FILES` list, so a new stylesheet has to be added there before it is checked.
+
+## Contrast check
+
+`scripts/check-contrast.js` measures every text/background pair in each of the five themes against its floor (`FLOORS` in the script): 4.5:1 for body text and controls and 3:1 for subtle marks, raised in High Contrast to 7:1 for body text and 4.5:1 for everything else. It reads the palettes out of `tokens.css`, but the themes, surfaces, mana colours and player colours it pairs are listed in the script by hand, so a new theme or surface has to be added there. `npm test` runs it through `test/themes.test.js`; run it alone with `npm run check:contrast` to see the table of measurements.
 
 A genuine one-off escapes with a CSS comment containing `EXEMPT`, which must say **which rule** it is escaping and **why** — `/* EXEMPT from the colour rule: this sits over card artwork. */`. The scope is the rest of the enclosing rule, or the next rule if the comment is at the top level, or an explicit `EXEMPT-BEGIN` … `EXEMPT-END` span. Naming no rule escapes all of them, which is almost never what you want. `!important` can never be excused this way; it has an allowlist instead, so the count stays visible in one place. Both allowlists are ratchets — they only ever shrink, and a test asserts their current size. `overshoot` cannot be excused either, and has no allowlist for the opposite reason: it is not a house style with exceptions, it is a description of a bug.
 

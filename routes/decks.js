@@ -201,7 +201,7 @@ router.post('/players/:playerId/decks/:deckId/cards/add', requirePlayerAccess, r
 router.delete('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerAccess, requireDeckWrite, (req, res) => {
   const { deckId, cardName } = req.params;
   db.prepare('DELETE FROM deck_cards WHERE deck_id = ? AND board = ? AND card_name = ?')
-    .run(deckId, boardOf(req.query.board), decodeURIComponent(cardName));
+    .run(deckId, boardOf(req.query.board), cardName);
   res.json({ ok: true });
 });
 
@@ -209,7 +209,7 @@ router.delete('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerA
 router.patch('/players/:playerId/decks/:deckId/cards/:cardName', requirePlayerAccess, requireDeckWrite,
   express.json(), (req, res) => {
   const { deckId, cardName } = req.params;
-  const name    = decodeURIComponent(cardName);
+  const name    = cardName;
   const body    = req.body && typeof req.body === 'object' ? { ...req.body } : {};
   const bad     = (body.qty !== undefined && numberFields(body, ['qty'], 'A card\'s'))
     || textFields(body, ['category', 'board'], 'A card\'s');

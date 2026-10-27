@@ -26,7 +26,8 @@ const vm     = require('node:vm');
 const { parsePalettes, THEMES: PALETTE_THEMES } = require('../scripts/check-contrast.js');
 
 const ROOT = path.join(__dirname, '..');
-const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
+// Line endings normalised, so a checkout with CRLF reads as the LF the tests match.
+const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n/g, '\n');
 
 /** The page as tablemode.js finds it at boot, reduced to what it asks of it:
  *  an <html> to put the switch on, storage to read it from, and a window that

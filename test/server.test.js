@@ -2,7 +2,7 @@
 /**
  * MTG Tools — Integration Tests
  * Run: npm test
- * Uses node:test (Node 18+) + supertest.
+ * Uses node:test (Node 22, as the project requires) + supertest.
  */
 const { test, describe, before, after, beforeEach } = require('node:test');
 const assert   = require('node:assert/strict');
@@ -11,7 +11,7 @@ const path      = require('path');
 const fs        = require('fs');
 const Database  = require('better-sqlite3');
 
-// ── Test database (isolated in-memory) ────────────────────────────────────────
+// ── Test database (isolated, in a temp dir) ───────────────────────────────────
 // We patch DATA_FILE to a temp dir and override the db path before requiring server.
 const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mtgtest-'));
 process.env.DATA_FILE      = path.join(tmpDir, 'state.json');
@@ -1074,7 +1074,7 @@ describe('User preferences: /api/prefs', () => {
   test('a body carrying only the theme leaves the playmat alone', async () => {
     const cookie = await loginAs('alice', 'apw');
     await request.put('/api/prefs').set('Cookie', cookie).send({
-      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://cards.scryfall.io/art_crop/front/a/b/abc-123.jpg',
     });
     const res = await request.put('/api/prefs').set('Cookie', cookie).send({ theme: 'light' });
     assert.equal(res.body.theme, 'light');
@@ -1085,7 +1085,7 @@ describe('User preferences: /api/prefs', () => {
   test('clearing the playmat clears what it pointed at', async () => {
     const cookie = await loginAs('alice', 'apw');
     await request.put('/api/prefs').set('Cookie', cookie).send({
-      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://cards.scryfall.io/art_crop/front/a/b/abc-123.jpg',
     });
     const res = await request.put('/api/prefs').set('Cookie', cookie).send({ playmatKind: 'none' });
     assert.equal(res.body.playmatRef, null);
@@ -1121,7 +1121,7 @@ describe('User preferences: /api/prefs', () => {
     const cookie = await loginAs('alice', 'apw');
     await request.put('/api/prefs').set('Cookie', cookie).send({
       theme: 'sepia',
-      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://cards.scryfall.io/art_crop/front/a/b/abc-123.jpg',
     });
     const res = await request.put('/api/prefs').set('Cookie', cookie).send({ cardMotion: 'off' });
     assert.equal(res.body.cardMotion, 'off');
@@ -1138,7 +1138,7 @@ describe('User preferences: /api/prefs', () => {
     assert.equal(themed.body.cardMotion, 'off');
 
     const matted = await request.put('/api/prefs').set('Cookie', cookie).send({
-      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://img.example/art.jpg',
+      playmatKind: 'scryfall', playmatRef: 'abc-123', playmatUrl: 'https://cards.scryfall.io/art_crop/front/a/b/abc-123.jpg',
     });
     assert.equal(matted.body.cardMotion, 'off');
 
@@ -1365,6 +1365,30 @@ describe('Playmat uploads: /api/prefs/playmat', () => {
     assert.deepEqual(filesOnDisk(), [], 'the file a preference no longer points at is storage nobody can reach');
   });
 
+  test('a playmat a client names must be card art from Scryfall\'s image CDN', async () => {
+    const cookie = await loginAs('alice', 'apw');
+    for (const bad of [
+      'https://evil.example/x.jpg', 'http://cards.scryfall.io/x.jpg', '/playmat/bob',
+      'javascript:alert(1)', 'https://cards.scryfall.io.evil.example/x.jpg',
+      'https://user@cards.scryfall.io/x.jpg', 'https://cards.scryfall.io/x.jpg")', 42,
+    ]) {
+      const res = await request.put('/api/prefs').set('Cookie', cookie)
+        .send({ playmatKind: 'scryfall', playmatRef: 'Sol Ring', playmatUrl: bad });
+      // ")" is percent-encoded by the URL parser, so that one is a fine CDN URL.
+      if (typeof bad === 'string' && bad.endsWith('")')) { assert.equal(res.status, 200); continue; }
+      assert.equal(res.status, 400, `${JSON.stringify(bad)} should not be storable`);
+    }
+    const long = await request.put('/api/prefs').set('Cookie', cookie)
+      .send({ playmatKind: 'scryfall', playmatRef: 'x'.repeat(201) });
+    assert.equal(long.status, 400);
+    const ok = await request.put('/api/prefs').set('Cookie', cookie).send({
+      playmatKind: 'scryfall', playmatRef: 'Sol Ring',
+      playmatUrl: 'https://cards.scryfall.io/art_crop/front/x.jpg',
+    });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.playmatUrl, 'https://cards.scryfall.io/art_crop/front/x.jpg');
+  });
+
   test('a client cannot claim an upload it never made', async () => {
     const cookie = await loginAs('alice', 'apw');
     const res = await request.put('/api/prefs').set('Cookie', cookie)
@@ -1553,6 +1577,60 @@ describe('Hardening: proxy, RSS and calendar input', () => {
       <item><title>c</title><link>data:text/html,hi</link></item>
     </channel></rss>`, 'https://example.com/feed');
     assert.deepEqual(feed.items.map(i => i.link), ['', 'https://example.com/b', '']);
+  });
+
+  test('a name or key with a % in it is a name, not a 500', async () => {
+    const cookie = await loginAs('admin', 'testpass');
+    await request.post('/api/state').set('Cookie', cookie).send({
+      players: [{ id: 'p1', name: 'P1', decks: [], wantList: ['100% Sol Ring'] }], version: 0,
+    });
+    const want = await request.delete(`/api/players/p1/wants/${encodeURIComponent('100% Sol Ring')}`)
+      .set('Cookie', cookie);
+    assert.equal(want.status, 200);
+    const state = await request.get('/api/state').set('Cookie', cookie);
+    assert.deepEqual(state.body.players.find(p => p.id === 'p1').wantList, []);
+
+    const { DEFAULT_CAL_ID } = dbModule;
+    const person = await request
+      .delete(`/available/api/calendars/${DEFAULT_CAL_ID}/persons/${encodeURIComponent('50% Bob')}`)
+      .set('Cookie', cookie);
+    assert.equal(person.status, 200);
+    for (const url of ['/api/collections/a%25E0', '/api/imports/a%25E0']) {
+      const res = await request.delete(url).set('Cookie', cookie);
+      assert.ok(res.status < 500, `${url} answered ${res.status}`);
+    }
+  });
+
+  test('a renamed player keeps their marked days', async () => {
+    const cookie = await loginAs('admin', 'testpass');
+    const { DEFAULT_CAL_ID } = dbModule;
+    const toggle = (person_name, date) => request.post(`/available/api/calendars/${DEFAULT_CAL_ID}/toggle`)
+      .set('Cookie', cookie).send({ person_name, date });
+    const days = async () => (await request.get(`/available/api/calendars/${DEFAULT_CAL_ID}`)
+      .set('Cookie', cookie)).body.availability.map(a => `${a.person_name}@${a.date}`).sort();
+    const player = (id, name) => ({ id, name, decks: [], wantList: [] });
+
+    const r1 = await request.post('/api/state').set('Cookie', cookie)
+      .send({ players: [player('p1', 'Ann'), player('p2', 'Bo')], version: 0 });
+    await toggle('Ann', '2999-01-01');
+    await toggle('Ann', '2999-01-02');
+    await toggle('Bo',  '2999-01-03');
+    await toggle('Guest', '2999-01-04'); // a name no player has is left alone
+
+    // Two players swapping names in one write swap days rather than pooling them.
+    const r2 = await request.post('/api/state').set('Cookie', cookie)
+      .send({ players: [player('p1', 'Bo'), player('p2', 'Ann')], version: r1.body.version });
+    assert.equal(r2.status, 200);
+    assert.deepEqual(await days(),
+      ['Ann@2999-01-03', 'Bo@2999-01-01', 'Bo@2999-01-02', 'Guest@2999-01-04']);
+
+    // Renamed onto a name that already marked a day: one row for it, not two.
+    await toggle('Cy', '2999-01-01');
+    const r3 = await request.post('/api/state').set('Cookie', cookie)
+      .send({ players: [player('p1', 'Cy'), player('p2', 'Ann')], version: r2.body.version });
+    assert.equal(r3.status, 200);
+    assert.deepEqual(await days(),
+      ['Ann@2999-01-03', 'Cy@2999-01-01', 'Cy@2999-01-02', 'Guest@2999-01-04']);
   });
 
   test('an availability toggle needs a real YYYY-MM-DD date', async () => {

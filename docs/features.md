@@ -164,6 +164,13 @@ A tab-by-tab tour of what MTG Tools does. For setup and configuration see [confi
 - All feeds are merged and sorted newest-first; each item is tagged with its source feed name
 - Feed data is fetched server-side and cached for 10 minutes; supports HTTP redirects
 
+## Table mode (experimental)
+- The whole app as a 3D card table seen from a seat. Switched on from the **Appearance** popover ("Table mode (experimental)"), kept per browser rather than per account, and offered only at desktop width with a pointer that hovers
+- The tabs lie along the rim's two sides as icon chips that open their label when pointed at; a tab's own controls open in a panel beside the mat
+- Each tab's cards are laid on the felt — Collections, Players & Decks, Scryfall Search, Set Browser, Want Lists, the Card view and the Deck Builder — where they can be picked up, carried (a ringed mark shows where a card will land) and put down in another pile
+- The Deck Builder's table lays the commander at the head of the mat, a slip on the far rim to add a card and a bin to drop one in, and can lay the deck a zone per category: zones are moved, resized and renamed on the felt, and carrying a card between them changes its category. Chips open the builder's Search, EDHREC and Lands drawer in a panel docked beside the table
+- The mouse wheel zooms about the pointer; zoomed in, the view is moved by the window's edges, by a hand on bare felt (or the middle button), or by W A S D and the arrow keys, never further than a little past the rim. A card-size slider on the far rim sizes every tab's cards from half to one and a half times their size
+
 ## General
 - **Every tab says what it is for, once.** Arrive on one of the seven tabs that has a note — Available@, Collections, Scryfall Search, Set Browser, Mana Base, Pick Night, Deck Builder — and a short dialog opens over it: what the tab is, three or four things you would otherwise have to discover by poking, and the keys it answers to. Dismiss it (**Got it**, ✕, `Escape`, or a click outside) and **it never opens again on any device you sign in on** — the set of notes you have read is saved to your account beside the theme, and kept in the browser in open mode. Press `?`, or the **?** on the tab's control strip, to read it again; reading it again does not un-dismiss it. The four tabs left out — Card, Players, Want Lists, Admin — would only be saying their own heading back
 - **`f` turns the card under the pointer over** — anywhere in the app, on any double-faced card, without reaching for its turn button. With the pointer over no card and a card open in the detail dialog, that card is the one that turns. A card with one face does nothing

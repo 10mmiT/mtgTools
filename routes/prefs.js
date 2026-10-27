@@ -17,6 +17,21 @@ const THEMES        = ['dark', 'light', 'contrast', 'sepia', 'dusk'];
 const THEME_ALIASES = { forest: 'dusk' };
 const PLAYMAT_KINDS = ['none', 'scryfall', 'preset', 'upload'];
 
+// A playmat a client names is card art on Scryfall's image CDN, the one origin
+// js/playmat.js will draw from besides this app's own /playmat/ route — and
+// that route's URL is only ever written by the upload below, never by a client.
+// The browser checks again where the string becomes CSS; this check is what
+// keeps a value it would refuse from following the user onto every device.
+const PLAYMAT_ART_HOST = 'cards.scryfall.io';
+const PLAYMAT_REF_MAX  = 200;
+
+function isPlaymatArtUrl(raw) {
+  if (typeof raw !== 'string' || raw.length > 2048) return false;
+  let url;
+  try { url = new URL(raw); } catch { return false; }
+  return url.protocol === 'https:' && url.hostname === PLAYMAT_ART_HOST && !url.username && !url.password;
+}
+
 // Whether cards move. Two values and not a boolean, for the reason the theme
 // is a name: the effective value the client puts on <html> is the preference
 // resolved against the operating system, and 'off' is a word both sides can
@@ -151,8 +166,18 @@ router.put('/prefs', requireAuth, express.json(), (req, res) => {
     if (next.playmatKind === 'none') { next.playmatRef = null; next.playmatUrl = null; }
   }
   if (next.playmatKind !== 'none') {
-    if ('playmatRef' in body) next.playmatRef = body.playmatRef || null;
-    if ('playmatUrl' in body) next.playmatUrl = body.playmatUrl || null;
+    if ('playmatRef' in body) {
+      const ref = body.playmatRef || null;
+      if (ref !== null && (typeof ref !== 'string' || ref.length > PLAYMAT_REF_MAX))
+        return res.status(400).json({ error: 'Invalid playmat reference' });
+      next.playmatRef = ref;
+    }
+    if ('playmatUrl' in body) {
+      const url = body.playmatUrl || null;
+      if (url !== null && !isPlaymatArtUrl(url))
+        return res.status(400).json({ error: `A playmat must be card art from ${PLAYMAT_ART_HOST}` });
+      next.playmatUrl = url;
+    }
   }
 
   // Open mode accepts and validates the same body, and stores nothing: the

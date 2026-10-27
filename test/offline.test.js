@@ -200,7 +200,7 @@ test('every local file a stylesheet names is shipped', () => {
       if (url.startsWith('data:')) continue;
       const file = path.resolve(path.join(ROOT, 'public/css'), url);
       assert.ok(fs.existsSync(file), `${sheet}: url(${url}) is not in the repository`);
-      named.add(path.relative(ROOT, file));
+      named.add(path.relative(ROOT, file).split(path.sep).join('/'));
     }
   }
   for (const wood of ['public/textures/table-wood-dark.webp', 'public/textures/table-wood-light.webp']) {

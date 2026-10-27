@@ -109,7 +109,9 @@ const setMeta = (key, value) => db.prepare(
 ).run(key, value);
 
 before(() => { realFetch = global.fetch; });
-after(() => { global.fetch = realFetch; fs.rmSync(tmpDir, { recursive: true, force: true }); });
+// The database is closed first: Windows will not remove a directory with an
+// open file in it.
+after(() => { global.fetch = realFetch; db.close(); fs.rmSync(tmpDir, { recursive: true, force: true }); });
 beforeEach(() => { db.exec('DELETE FROM cards; DELETE FROM meta;'); });
 
 // ── The three new facts ───────────────────────────────────────────────────
