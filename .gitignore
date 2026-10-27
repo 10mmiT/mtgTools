@@ -22,12 +22,12 @@ data.bak/
 # docs/records/ instead.
 .scratch/
 
-# Agent tooling. The skill configuration under docs/agents/ and the CLAUDE.md
-# that points at it are local aids, not part of what the app is.
+# Agent tooling. The skill configuration under docs/agents/ is a local aid, not
+# part of what the app is. CLAUDE.md is committed: it is the orientation an AI
+# model reads first, and it states what it needs from docs/agents/ itself.
 .claude/
 .agents/
 skills-lock.json
-CLAUDE.md
 docs/agents/
 
 # Run output
