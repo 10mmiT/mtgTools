@@ -20,7 +20,7 @@ A quick tour of the tabs — see [docs/features.md](docs/features.md) for the fu
 - **Mana Base Calculator** — recommended land split from your deck's pip counts.
 - **Pick Night** — randomly assign one unique deck per player for game night.
 - **RSS panel** — merged MTG news feeds, configured via `RSS_FEEDS`.
-- **Table mode (experimental)** — the whole app as a 3D card table seen from a seat: tabs along the rim, each tab's cards laid on the mat to pick up and move, and the Deck Builder's deck laid out a zone per category. Desktop only, switched on from the Appearance popover.
+- **Table mode (experimental)** — the whole app as a 3D card table seen from a seat: tabs along the rim, each tab's cards laid on the mat to pick up and move, and the Deck Builder's deck laid out a zone per category, with its sideboard and maybeboard on a side table beside it. Desktop only, switched on from the Appearance popover.
 
 Across every tab: 5 themes, per-tab mana-colour accents, a card-as-object hover treatment with a reduced-motion switch, custom playmats, card-name hover previews, a once-per-tab note saying what the tab is for (`?` reopens it), "whose shelf is this on" marks on every card, URL hash routing, and a mobile-friendly layout. See [docs/features.md](docs/features.md) for detail.
 

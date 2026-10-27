@@ -59,7 +59,10 @@ mtgtools/
 │                            # slider — its range and keeping, every layout at 50/100/150%
 │                            # (100% as before, none off the mat), moved cards kept, the
 │                            # pictures it asks for; the drawer's chips, its docked panel and
-│                            # what it leaves untucked; Add one through the builder's stepper
+│                            # what it leaves untucked; Add one through the builder's stepper;
+│                            # the side table — the pair's fit and outline (the one table's
+│                            # when down), its regions, which table and region a point is
+│                            # over, the board a card let go between them asks for
 ├── scripts/
 │   ├── capture-screens.js # Screenshot harness — every tab × theme × viewport
 │   ├── measure-layout.js  # Layout measurement — horizontal chrome, prose measure
@@ -119,7 +122,9 @@ mtgtools/
 │       ├── admin.js       # Admin panel (user management, account requests)
 │       ├── deckview-boards.js   # Deck Builder: what a card's place in a deck is — the boards, and the strings that name a card and a pile
 │       ├── deckview-core.js    # Deck Builder: state, init, deck selection, board visibility, Archidekt import, auto-categorize
-│       ├── deckview-render.js   # Deck Builder: rendering, tiles/rows, multiselect, stats, view toggle
+│       ├── deckview-render.js   # Deck Builder: rendering, tiles/rows, multiselect, stats, view toggle;
+│       │                        # the getters table mode lays the deck from (dbShownPiles, dbShownCommanders,
+│       │                        # dbSideBoardPiles)
 │       ├── deckview-edit.js     # Deck Builder: card/category edits, move modal, autosave
 │       ├── deckview-panels.js   # Deck Builder: search/autocomplete, drag/drop, EDHREC, import/export
 │       ├── deckview-history.js  # Deck Builder: snapshots, the History drawer, restoring
@@ -147,7 +152,9 @@ mtgtools/
 │       │                  # at the head, and on the far rim a slip to add a card and a bin to
 │       │                  # drop one in, and a chip laying the deck a zone per category — zones
 │       │                  # moved, resized and renamed on the felt, a card carried between them
-│       │                  # moving category — chips opening the builder's own Search, EDHREC
+│       │                  # moving category — and a chip standing a side table beside it for
+│       │                  # the sideboard and maybeboard, a card carried between the tables
+│       │                  # moving board — chips opening the builder's own Search, EDHREC
 │       │                  # and Lands drawer in a panel docked beside the table, and Add one on
 │       │                  # a card picked up to look at; a card-size slider on the far rim for
 │       │                  # every tab's cards; the Card sheet closing back to the view it was
