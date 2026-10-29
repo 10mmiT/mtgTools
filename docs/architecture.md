@@ -51,7 +51,11 @@ mtgtools/
 │                            # what each tab lays and in which piles, where a re-laid card
 │                            # goes, when a panel tucks, where a card in hand lands and its
 │                            # landing mark lies — drawn above the piles without moving on
-│                            # screen; the Deck Builder's commander at the head of the mat,
+│                            # screen; the Deck Builder's commander slot — when it stands,
+│                            # its fit beyond the far-left corner (wholly in the window, off the
+│                            # rim, the head size where the room allows), how a card stands,
+│                            # what a point over it is over and what a drop on it asks — the
+│                            # piles and zones over the whole felt with no head band,
 │                            # and when its slip and bin show, the bin's hit on the far rim
 │                            # and what a card put in it does to the deck; its zones — how
 │                            # one fits its cards, the first layout, the kept rects, the
@@ -149,7 +153,10 @@ mtgtools/
 │       │                  # tab's own cards laid there
 │       │                  # (read through a small getter beside each tab's renderer) with its
 │       │                  # panel tucked out of their way — the Deck Builder's with its commander
-│       │                  # at the head, and on the far rim a slip to add a card and a bin to
+│       │                  # standing propped on a stand beyond the table's far-left corner (a
+│       │                  # card dropped there becomes the commander or its partner; carried off
+│       │                  # onto the felt it goes back into the deck), and on the far rim a
+│       │                  # slip to add a card and a bin to
 │       │                  # drop one in, and a chip laying the deck a zone per category — zones
 │       │                  # moved, resized and renamed on the felt, a card carried between them
 │       │                  # moving category — and a chip standing a side table beside it for
