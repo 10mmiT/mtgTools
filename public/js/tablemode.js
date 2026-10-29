@@ -2296,7 +2296,8 @@ let tableHold     = null;    // the card under a pressed pointer
 let tableSwallow  = false;   // the click a drag ends with is not a click
 let tableLifted   = null;    // { card, box }: a pressed card, as it was drawn held
 let tableLooked   = null;    // the card picked up to be looked at
-let tableDecodeK  = 1;       // how much larger than its card a picture is laid out
+let tableMenu     = null;    // { card }: the card whose right-click menu is open
+let tableDecodeK = 1;       // how much larger than its card a picture is laid out
 let tableHiRes    = false;   // whether the cards are drawn from Scryfall's large pictures
 let tableLookSeq  = 0;
 let tableScope    = '';      // the tab the cards on the mat were laid for, '' through the API
@@ -2442,6 +2443,13 @@ function tableBuild() {
       <button type="button" class="btn-secondary table-look-remove" hidden>Remove one</button>
     </div>`;
 
+  /* A card's right-click menu (tableMenuOpen): fixed on the window, outside
+     the scene so no transform of the table's reaches it. */
+  const menu = document.createElement('div');
+  menu.className = 'col-menu db-card-menu table-card-menu';
+  menu.id = 'tableCardMenu';
+  menu.setAttribute('role', 'menu');
+
   /* The panel the Deck Builder's drawer is lent to (tableDrawerOpen): a
      host and nothing else, since the drawer brings its own header — its
      tabs, where its + puts a card, its ✕. Fixed, with no z-index and no
@@ -2465,13 +2473,13 @@ function tableBuild() {
      page buys the table nothing in the stacking order. */
   const tools = tableToolsMake();
   const shell = document.querySelector('.site-main');
-  if (shell) shell.after(scene, dim, panel, drawerHost, look, tools.pop);
-  else body.append(scene, dim, panel, drawerHost, look, tools.pop);
+  if (shell) shell.after(scene, dim, panel, drawerHost, look, menu, tools.pop);
+  else body.append(scene, dim, panel, drawerHost, look, menu, tools.pop);
   scene.querySelector('#tableMat').append(tools.slip, tools.bin);
   tableToolsMount();
 
   tableEls = {
-    scene, dim, panel, look, drawerHost,
+    scene, dim, panel, look, drawerHost, menu,
     camera:     scene.querySelector('#tableCamera'),
     plane:      scene.querySelector('#tablePlane'),
     mat:        scene.querySelector('#tableMat'),
@@ -2518,6 +2526,9 @@ function tableBuild() {
   tableEls.lookDetails.addEventListener('click', () => tableOpenDetails());
   tableEls.lookAdd.addEventListener('click', () => tableLookAdd());
   tableEls.lookRemove.addEventListener('click', () => tableLookRemove());
+  scene.addEventListener('contextmenu', tableOnContextMenu);
+  menu.addEventListener('click', tableMenuAct);
+  menu.addEventListener('contextmenu', e => e.preventDefault());
   /* The card-size slider, and the Deck Builder's drawer chips, on the far
      rim; the zones' chips beside the slip, and their own listeners on the
      mat. */
@@ -2853,6 +2864,7 @@ function tableGrabRelease(e) {
  * over the Deck Builder's slip, which is a field being typed in; its
  * suggestions float outside the scene and are never asked. */
 function tableOnWheel(e) {
+  tableMenuClose();
   if (e.ctrlKey || e.target.closest?.('.table-panel, .table-slip')) return;
   e.preventDefault();
   /* Nor over the card-size slider, a control lying on the rim: a wheel
@@ -2863,6 +2875,22 @@ function tableOnWheel(e) {
   tableAnchor = { x: e.clientX, y: e.clientY };
   tableTo.zoom = tableWheelZoom(tableTo.zoom, e.deltaY, e.deltaMode, tableGeom.view.height);
   tableKick();
+}
+
+/* Whether opening tab `to` with tab `from` showing zooms the camera back out
+ * to the whole table: for any tab but the one already showing. */
+function tableZoomsOutFor(from, to) {
+  return !!to && to !== from;
+}
+
+/* The camera back out to the whole table, easing there about the window's
+ * middle like the 0 key — the pan comes back to its rest with it, since at
+ * the whole table the rest view is the only one (tablePanRange). */
+function tableZoomOut() {
+  if (!(tableTo.zoom > TABLE_ZOOM_MIN)) return;
+  tableAnchor = null;
+  tableTo.zoom = TABLE_ZOOM_MIN;
+  if (tableGeom) tableKick();
 }
 
 /* A field being typed in keeps its keys: + − 0 are characters there. */
@@ -2963,6 +2991,8 @@ function tableOnResize() {
 function tableOnKeyCapture(e) {
   if (e.key === '/') { if (tableSlipKey(e)) e.stopPropagation(); return; }
   if (e.key !== 'Escape') return;
+  /* A card's menu open is what Escape is for, and nothing behind it goes. */
+  if (tableMenu) { tableMenuClose(); tableEscTaken = true; return; }
   const dialog = (typeof modalIsOpen === 'function' && modalIsOpen())
               || (typeof faqIsOpen === 'function' && faqIsOpen());
   if (dialog) { tableEscTaken = true; return; }
@@ -3006,6 +3036,7 @@ function tableOnBlur() {
 function tableListen(on) {
   const method = on ? 'addEventListener' : 'removeEventListener';
   window[method]('pointermove', tableOnPointerMove, { passive: true });
+  window[method]('pointerdown', tableOnMenuDown, true);
   window[method]('pointerup', tableRelease);
   window[method]('pointercancel', tableRelease);
   window[method]('pointerup', tableZoneRelease);
@@ -3089,6 +3120,7 @@ function tableModeLeave() {
   if (!tableOn) return;
   if (tableHold) tableRelease({ pointerId: tableHold.id });
   tableLookAway(true);
+  tableMenuClose();
   /* The drawer first: it goes home into the Deck Builder's pane, which the
      panel is about to put home in its turn. */
   tableDrawerClose({ refocus: false });
@@ -3105,7 +3137,7 @@ function tableModeLeave() {
   tableScaleHeld = false;
   for (const card of tableCards) card.el = null;
   tableTools?.ac?.close();
-  for (const el of [tableEls.scene, tableEls.dim, tableEls.panel, tableEls.drawerHost, tableEls.look, tableTools?.pop]) el?.remove();
+  for (const el of [tableEls.scene, tableEls.dim, tableEls.panel, tableEls.drawerHost, tableEls.look, tableEls.menu, tableTools?.pop]) el?.remove();
   tableSlider = tableDrawerChips = null;
   tableToolsOn = tableBinOver = false;
   tableArrival = null;
@@ -4485,6 +4517,164 @@ function tableLookAdd() {
   const card = tableLooked;
   if (!card) return;
   tableAddOne(card);
+}
+
+// ── A card's menu ────────────────────────────────────────────────────────
+// A right-click on a card on the table opens a menu at the pointer: the
+// things most often done to a card, without picking it up first. It is the
+// app's own card menu (.col-menu.db-card-menu, the Deck Builder's), made for
+// the table rather than borrowed — the builder's #dbCardMenu lives in its
+// pane, which is hidden or folded into a panel while the table is up, and its
+// Move to… opens a dialog that lives there too.
+//
+// Every tab's card offers Pick up and Details (or Open, for a card that
+// stands for something to open: a deck on the Decks tab). A card of a deck
+// the user may edit, on the Deck Builder's table (tableLookActions's rule),
+// adds the builder's stepper — − ×n + in one row, pressed over and over with
+// the menu left standing — and Make commander, Add as partner and Remove from
+// deck, each through the builder's own edit. A commander has no stepper and
+// no Make commander, as on the builder's menu (dbCardMenuItems).
+//
+// It closes on any press outside it, on Escape, on the wheel, on another tab
+// opening and on the mode going away; every entry but the stepper closes it.
+
+/* What the menu offers for a card, as entries: { act, label, title?, danger? },
+ * or { act: 'step', qty } for the stepper's row. A function of what it is
+ * handed — `toolsOn` the slip and bin's rule, `ref` the builder's board/name,
+ * `opens` whether a click on the card opens something, `canLook` whether it
+ * has a picture to pick up, `commanders` how many lie on the commander board,
+ * `qty` the copies the deck runs — so it can be asked without a page. */
+function tableCardMenuItems({ toolsOn = false, ref = null, opens = false, canLook = true, commanders = 0, qty = 1 } = {}) {
+  const items = [];
+  if (opens) items.push({ act: 'open', label: 'Open' });
+  else {
+    if (canLook) items.push({ act: 'look', label: 'Pick up', title: 'Pick the card up to look at it' });
+    items.push({ act: 'details', label: 'Details', title: 'Open the card on the Card tab' });
+  }
+  const acts = tableLookActions({ toolsOn, ref });
+  if (!acts.remove) return items;
+  const isCommander = !acts.add;
+  if (!isCommander) items.push({ act: 'step', qty: Math.max(1, Number(qty) || 1) });
+  if (!isCommander) {
+    items.push({ act: 'commander', label: '♛ Make commander',
+      title: 'Build the deck around this card — whatever is on the commander board goes back into the deck' });
+  }
+  if (!isCommander && Number(commanders) === 1) {
+    items.push({ act: 'partner', label: '♛ Add as partner',
+      title: 'Run this card as a second commander alongside the one you have' });
+  }
+  items.push({ act: 'remove', label: '× Remove from deck', title: 'Take every copy out of the deck', danger: true });
+  return items;
+}
+
+/* The entries as the menu's markup: a button each, its act in data-act, and
+ * the stepper's row as the builder draws it. */
+function tableCardMenuHtml(items) {
+  return items.map(item => {
+    if (item.act === 'step') {
+      return `<div class="col-menu-item db-menu-step">
+        <button type="button" class="db-step-btn" data-act="less" title="One fewer — the last one takes the card out of the deck"
+          aria-label="One fewer">−</button>
+        <span class="db-step-count">×${item.qty}</span>
+        <button type="button" class="db-step-btn" data-act="more" title="One more" aria-label="One more">＋</button>
+      </div>`;
+    }
+    const title = item.title ? ` title="${esc(item.title)}"` : '';
+    return `<button type="button" class="col-menu-item${item.danger ? ' db-menu-danger' : ''}" role="menuitem"
+      data-act="${item.act}"${title}>${esc(item.label)}</button>`;
+  }).join('');
+}
+
+/* The menu opened on a card at a window point: written for the card as the
+ * deck has it now, shown, then placed — a menu not displayed has no size —
+ * at the point, flipped back from any edge it would cross (dbMenuPlacement,
+ * the builder's own placing, where it is loaded). */
+function tableMenuOpen(card, x, y) {
+  const menu = tableEls?.menu;
+  if (!menu || !card) return;
+  const row = card.ref && typeof dbFindCard === 'function' ? dbFindCard(card.ref) : null;
+  const items = tableCardMenuItems({
+    toolsOn: tableToolsOn && !!row,
+    ref: card.ref ?? null,
+    opens: typeof card.open === 'function',
+    canLook: !!card.imageUrl,
+    commanders: typeof dbCommanderCards === 'function' ? dbCommanderCards().length : 0,
+    qty: row?.qty || card.qty || 1,
+  });
+  menu.innerHTML = tableCardMenuHtml(items);
+  menu.setAttribute('aria-label', `${card.name}`);
+  menu.classList.add('open');
+  tableMenu = { card };
+  const box = menu.getBoundingClientRect();
+  const view = { width: window.innerWidth, height: window.innerHeight };
+  const at = typeof dbMenuPlacement === 'function'
+    ? dbMenuPlacement({ x, y }, { width: box.width, height: box.height }, view)
+    : { left: Math.max(4, Math.min(x, view.width - box.width - 4)), top: Math.max(4, Math.min(y, view.height - box.height - 4)) };
+  menu.style.left = `${at.left}px`;
+  menu.style.top  = `${at.top}px`;
+  menu.querySelector('button')?.focus({ preventScroll: true });
+}
+
+function tableMenuClose() {
+  if (!tableMenu) return;
+  tableMenu = null;
+  tableEls?.menu.classList.remove('open');
+}
+
+/* A right-click on a card opens its menu; anywhere else on the table the
+ * browser keeps its own. Not while a card or a zone is in hand, or the table
+ * is held by a hand on the felt. */
+function tableOnContextMenu(e) {
+  const card = tableCardOf(e.target.closest?.('.table-card'));
+  if (!card) return;
+  e.preventDefault();
+  if (tableHold || tableZoneHold || tableGrab || tableLooked) return;
+  tableMenuOpen(card, e.clientX, e.clientY);
+}
+
+/* A press anywhere but the menu puts it away — a right-press on another card
+ * included, whose own menu then opens. */
+function tableOnMenuDown(e) {
+  if (tableMenu && !tableEls?.menu.contains(e.target)) tableMenuClose();
+}
+
+/* An entry pressed. The stepper's two leave the menu up and write the count
+ * the deck has now into it; the last copy taken out takes the menu with it. */
+function tableMenuAct(e) {
+  const btn = e.target.closest?.('[data-act]');
+  const card = tableMenu?.card;
+  if (!btn || !card) return;
+  const act = btn.dataset.act;
+  if (act === 'more' || act === 'less') {
+    if (act === 'more') tableAddOne(card);
+    else tableRemoveOne(card);
+    const row = card.ref && typeof dbFindCard === 'function' ? dbFindCard(card.ref) : null;
+    if (!row) { tableMenuClose(); return; }
+    const count = tableEls.menu.querySelector('.db-step-count');
+    if (count) count.textContent = `×${row.qty || 1}`;
+    return;
+  }
+  tableMenuClose();
+  tableMenuRun(act, card);
+}
+
+/* What each other entry does. A deck edit goes through the builder's own
+ * function, which saves the deck and keeps its history, and the mat is laid
+ * again from the deck at once (tableRelayDeck). */
+function tableMenuRun(act, card) {
+  if (act === 'open') { card.open?.(); return; }
+  if (act === 'look') { if (card.el?.isConnected) tableLookAt(card); return; }
+  if (act === 'details') {
+    if (typeof openCardPage === 'function') openCardPage(card.name);
+    return;
+  }
+  if (!tableToolsOn || !card.ref) return;
+  const edit = { commander: 'dbMakeCommander', partner: 'dbAddPartner', remove: 'dbRemoveCard' }[act];
+  const fn = edit && globalThis[edit];
+  if (typeof fn !== 'function') return;
+  const done = fn(card.ref);
+  if (act === 'remove' && typeof showToast === 'function') showToast(`✓  Removed "${card.name}"`);
+  Promise.resolve(done).catch(() => {}).then(tableRelayDeck);
 }
 
 /* A card added from the slip: one copy, through the builder's own add —
@@ -7086,6 +7276,12 @@ function tableSideLand() {
  * is up has its pane carried into a panel before its init draws into it. */
 function tableModeBeforeTab(tab) {
   if (!tableOn) return;
+  tableMenuClose();
+  /* Another tab's table is seen whole: the camera zooms back out, so a view
+     zoomed in on the last tab's cards does not open the next one zoomed in
+     — over the Card sheet, which is a page that scrolls, the wheel would
+     scroll it rather than zoom back out. */
+  if (tableZoomsOutFor(tablePanel?.tab ?? tableLaid?.tab ?? tablePageTab(), tab)) tableZoomOut();
   /* The view the Card sheet was opened over, arrived at again — by the
      sheet's own close, or by Back — comes back as it was left rather than
      as a freshly opened panel. */
