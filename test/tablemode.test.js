@@ -2289,7 +2289,41 @@ const ZONE_DECK = [['Artifacts', 1], ['Clones', 1], ['Counters', 4], ['Creatures
   ['Finisher', 1], ['Lands', 51], ['Protection', 1], ['Pump', 2], ['Ramp', 8], ['Recursion', 5], ['Removal', 8],
   ['Theft', 2], ['Tokens', 8], ['Tutor', 2]].map(([name, count]) => ({ name, count }));
 
-const zoneFull = (n, w, h, maxW, maxH) => app.call('tableZoneFullSize', n, w, h, maxW, maxH);
+const zoneFull = (n, w, h, maxW, maxH, aspect) => app.call('tableZoneFullSize', n, w, h, maxW, maxH, aspect);
+
+/* The shape a first layout chose, and how far along each zone is: the one
+   of TABLE_ZONE_ASPECTS, squarest first, for which every zone lies on the
+   line from its smallest size to its full size in that shape — the same
+   share of the way across as down, which shrinking alike and then growing
+   along that line both keep. `shares` is each zone's share (1 for a zone
+   whose smallest is its full size), `share` the least of them — what they
+   were all shrunk to, unless every zone grew. Null when there is none. */
+function zoneShape(rects, counts, W, H, w, h) {
+  const min = zoneMin(w, h);
+  for (const aspect of app.evaluate('TABLE_ZONE_ASPECTS')) {
+    const shares = rects.map((r, i) => {
+      const f = zoneFull(counts[i], w, h, W - 2 * ZONE.gap, H - 2 * ZONE.gap, aspect);
+      const mine = [];
+      if (f.width - min.width > 1e-6) mine.push((r.width - min.width) / (f.width - min.width));
+      else if (!near(r.width, min.width)) mine.push(NaN);
+      if (f.height - min.height > 1e-6) mine.push((r.height - min.height) / (f.height - min.height));
+      else if (!near(r.height, min.height)) mine.push(NaN);
+      if (!mine.every(s => near(s, mine[0], 1e-6) && s >= -1e-9 && s <= 1 + 1e-9)) return NaN;
+      return mine.length ? mine[0] : 1;
+    });
+    if (shares.every(s => !Number.isNaN(s))) return { aspect, shares, share: Math.min(...shares) };
+  }
+  return null;
+}
+
+/* A deck's zones in its order along shelves: each next zone to the right of
+   the one before it, or on a shelf further down. */
+function assertShelfOrder(rects, what) {
+  for (let i = 0; i + 1 < rects.length; i++) {
+    const a = rects[i], b = rects[i + 1];
+    assert.ok(b.left >= a.left + a.width + ZONE.gap - 1e-6 || b.top > a.top + 1e-6, `${what}: ${b.name} laid before ${a.name}`);
+  }
+}
 
 test('a zone’s full size is the smallest grid, nearest square, that shows every one of its cards', () => {
   const w = 100, h = 140, gap = app.evaluate('TABLE_ZONE_CARD_GAP');
@@ -2324,6 +2358,26 @@ test('a zone’s full size is the smallest grid, nearest square, that shows ever
   assert.deepStrictEqual(zoneFull(60, w, h, 500, 400), { width: 500, height: 400 });
   assert.deepStrictEqual(zoneFull(60, w, h, 10, 10), min);
   assert.deepStrictEqual(zoneFull(2, w, h, 5000, 5000), zoneFull(2, w, h), 'room to spare changes nothing');
+
+  /* Aimed at another shape: the way to lay them nearest it by the same
+     measure, the fewer rows of two as near; square unless asked. */
+  for (let n = 1; n <= 60; n++) {
+    assert.deepStrictEqual(zoneFull(n, w, h, Infinity, Infinity, 1), zoneFull(n, w, h), `${n} cards: an aspect of 1 is the square`);
+    for (const aspect of [1.25, 1.5, 2, 2.5, 3]) {
+      const size = zoneFull(n, w, h, Infinity, Infinity, aspect);
+      const off = s => Math.abs(Math.log(s.width / s.height) - Math.log(aspect));
+      const rows = s => Math.round((s.height - ZONE.head - ZONE.pad + gap) / (h + gap));
+      for (let c = 1; c <= n; c++) {
+        const r = Math.ceil(n / c);
+        if (c > 1 && Math.ceil(n / (c - 1)) === r) continue;
+        const way = { width: 2 * ZONE.pad + c * w + (c - 1) * gap, height: ZONE.head + ZONE.pad + r * h + (r - 1) * gap };
+        assert.ok(off(size) <= off(way) + 1e-9, `${n} cards at ${aspect}: ${way.width}×${way.height} is nearer than ${size.width}×${size.height}`);
+        if (Math.abs(off(size) - off(way)) <= 1e-9) assert.ok(rows(size) <= r, `${n} cards at ${aspect}: of two as near, the fewer rows`);
+      }
+    }
+  }
+  const wide = zoneFull(24, w, h, Infinity, Infinity, 2);
+  assert.ok(wide.width > wide.height && wide.width > zoneFull(24, w, h).width, 'twenty-four cards made wider when asked');
 });
 
 test('the first time, each zone is sized for its cards and packed in order: apart, on the mat, and clear of the commander', () => {
@@ -2356,23 +2410,20 @@ test('the first time, each zone is sized for its cards and packed in order: apar
     }
     for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
       assert.ok(!app.sandbox.tableZoneOverlap(rects[i], rects[j], ZONE.gap - 1e-6), `${what}: ${rects[i].name} not a gap from ${rects[j].name}`);
-      /* In the deck's order: along a shelf, or on a shelf further down. */
-      const a = rects[i], b = rects[j];
-      assert.ok(b.top > a.top + 1e-6 || (near(a.top, b.top) && b.left > a.left), `${what}: ${b.name} laid before ${a.name}`);
     }
-    /* Each zone the same share of the way from its smallest to its full
-       size, across and down: all shrunk alike, or none. */
-    const shares = [];
-    rects.forEach((r, i) => {
-      const f = zoneFull(zones[i].count, w, h, W - 2 * ZONE.gap, H - 2 * ZONE.gap);
-      if (f.width - min.width > 1e-6) shares.push((r.width - min.width) / (f.width - min.width));
-      else assert.ok(near(r.width, min.width), `${what}: ${r.name} as wide as one card`);
-      if (f.height - min.height > 1e-6) shares.push((r.height - min.height) / (f.height - min.height));
-      else assert.ok(near(r.height, min.height), `${what}: ${r.name} as tall as one card`);
-    });
-    for (const s of shares) assert.ok(near(s, shares[0], 1e-6) && s >= -1e-9 && s <= 1 + 1e-9, `${what}: shrunk alike, ${shares}`);
+    /* Laid from the top left: the deck's first zone in the mat's corner,
+       unless the commander's box is in the way of it there. */
+    const corner = { ...rects[0], left: ZONE.gap, top: ZONE.gap };
+    if (!keep || !app.sandbox.tableZoneOverlap(corner, keep, ZONE.gap)) {
+      assert.ok(near(rects[0].left, ZONE.gap) && near(rects[0].top, ZONE.gap), `${what}: ${rects[0].name} in the top-left corner`);
+    }
+    assertShelfOrder(rects, what);
+    /* Every zone the one shape, each on the line from its smallest to its
+       full size in that shape: shrunk alike, and grown along that line. */
+    const shape = zoneShape(rects, zones.map(z => z.count), W, H, w, h);
+    assert.ok(shape, `${what}: one shape, each zone on its own line`);
     if (full) {
-      assert.ok(shares.every(s => near(s, 1)), `${what}: room for every zone at its full size`);
+      assert.ok(near(shape.share, 1) && shape.aspect === 1, `${what}: room for every zone at its full, squarest size`);
       rects.forEach((r, i) => assert.strictEqual(zoneFit(zones[i].count, r.width, r.height, w, h).mode, 'grid', `${what}: ${r.name} shows every card`));
     }
   }
@@ -2383,6 +2434,161 @@ test('the first time, each zone is sized for its cards and packed in order: apar
   const lands = crowd.find(r => r.name === 'Lands'), one = crowd.find(r => r.name === 'Artifacts');
   assert.ok(lands.width * lands.height > one.width * one.height, 'fifty-one lands are given more room than one artifact');
   assert.notStrictEqual(zoneFit(51, lands.width, lands.height, w, h).mode, 'grid', 'and close up in it');
+});
+
+/* What a first layout packed before it grew, and what it grew each zone
+   towards: tableZoneGrow stood in for, for one call, by one that keeps
+   what it is handed. */
+function zonePacked(zones, W, H, w, h, keep) {
+  const grow = app.sandbox.tableZoneGrow;
+  let handed = null;
+  app.sandbox.tableZoneGrow = (rects, fulls, mins) => { handed = app.copy({ rects, fulls, mins }); return rects; };
+  try { app.sandbox.tableZoneAutoLayout(zones, W, H, w, h, keep); } finally { app.sandbox.tableZoneGrow = grow; }
+  return handed;
+}
+
+/* Whether rects lie a gap apart, a gap inside the mat and a gap clear of
+   the commander's box. */
+function assertZonesApart(rects, W, H, keep, what) {
+  for (const r of rects) {
+    assert.ok(r.left >= ZONE.gap - 1e-6 && r.top >= ZONE.gap - 1e-6 && r.left + r.width <= W - ZONE.gap + 1e-6
+      && r.top + r.height <= H - ZONE.gap + 1e-6, `${what}: ${r.name} inside the mat's margin`);
+    if (keep) assert.ok(!app.sandbox.tableZoneOverlap(keep, r, ZONE.gap - 1e-6), `${what}: ${r.name} a gap clear of the commander's box`);
+  }
+  for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+    assert.ok(!app.sandbox.tableZoneOverlap(rects[i], rects[j], ZONE.gap - 1e-6), `${what}: ${rects[i].name} not a gap from ${rects[j].name}`);
+  }
+}
+
+test('a zone grows towards its full size into the room round it: never over another, never smaller, never past full', () => {
+  const grow = (rects, fulls, mins, W, H, keep = null) => app.call('tableZoneGrow', rects, fulls, mins, W, H, keep);
+  /* Alone on a mat with room: all the way, its corner where it was. */
+  const lone = grow([{ name: 'A', left: 40, top: 30, width: 150, height: 200 }], [{ width: 400, height: 300 }], [{ width: 150, height: 200 }], 1000, 800);
+  assert.deepStrictEqual(lone, [{ name: 'A', left: 40, top: 30, width: 400, height: 300 }]);
+  /* Already full, or handed a full size smaller than it is: left be. */
+  const same = [{ name: 'A', left: 12, top: 12, width: 200, height: 200 }];
+  assert.deepStrictEqual(grow(same, [{ width: 200, height: 200 }], [{ width: 200, height: 200 }], 1000, 800), same);
+  assert.deepStrictEqual(grow(same, [{ width: 100, height: 100 }], [{ width: 200, height: 200 }], 1000, 800), same);
+  /* Hemmed in on every side: not grown, and not shrunk. */
+  const hemmed = [
+    { name: 'A', left: 12, top: 12, width: 100, height: 100 },
+    { name: 'B', left: 124, top: 12, width: 100, height: 100 },
+    { name: 'C', left: 12, top: 124, width: 100, height: 100 },
+  ];
+  assert.deepStrictEqual(grow(hemmed, hemmed.map(() => ({ width: 300, height: 300 })), hemmed, 236, 236), hemmed, 'no room, so nothing moves');
+
+  /* Shelves of zones of every size, some round a commander's box: each
+     grown zone a gap clear of everything, no smaller than it was laid,
+     no larger than its full size, on the line between the two, never
+     moved down, and still in the deck's order along the shelves. */
+  let seed = 3, grew = 0, whole = 0;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 40; k++) {
+    const W = 700 + Math.floor(rnd() * 900), H = 500 + Math.floor(rnd() * 500);
+    const keep = k % 2 ? { left: W / 2 - 60, top: 30, width: 120, height: 170 } : null;
+    const below = keep ? keep.top + keep.height + ZONE.gap : 0;
+    const rects = [], fulls = [];
+    let x = ZONE.gap, y = ZONE.gap, shelf = 0;
+    for (let i = 0; i < 12; i++) {
+      const width = 120 + Math.floor(rnd() * 200), height = 180 + Math.floor(rnd() * 150);
+      let at = { name: `Z${i}`, left: x, top: y, width, height };
+      if (keep && app.sandbox.tableZoneOverlap(at, keep, ZONE.gap)) at.left = keep.left + keep.width + ZONE.gap;
+      if (at.left + width > W - ZONE.gap) {
+        y = Math.max(y + shelf + ZONE.gap, below);
+        shelf = 0;
+        at = { ...at, left: ZONE.gap, top: y };
+      }
+      if (y + height > H - ZONE.gap) break;
+      rects.push(at);
+      fulls.push({ width: width * (1 + rnd()), height: height * (1 + rnd()) });
+      x = at.left + width + ZONE.gap;
+      shelf = Math.max(shelf, height);
+    }
+    const what = `case ${k}, ${rects.length} zones on ${W}×${H}`;
+    assertZonesApart(rects, W, H, keep, `${what}, as laid`);
+    const grown = grow(rects, fulls, rects, W, H, keep);
+    assert.deepStrictEqual(grow(rects, fulls, rects, W, H, keep), grown, `${what}: the same every time`);
+    assertZonesApart(grown, W, H, keep, what);
+    assertShelfOrder(rects, `${what}, as laid`);
+    assertShelfOrder(grown, what);
+    grown.forEach((r, i) => {
+      const p = rects[i], f = fulls[i];
+      assert.ok(r.width >= p.width - 1e-9 && r.height >= p.height - 1e-9, `${what}: ${r.name} shrank`);
+      assert.ok(r.width <= f.width + 1e-6 && r.height <= f.height + 1e-6, `${what}: ${r.name} past its full size`);
+      assert.ok(near((r.width - p.width) / (f.width - p.width), (r.height - p.height) / (f.height - p.height), 1e-6), `${what}: ${r.name} off its line`);
+      assert.ok(r.top <= p.top + 1e-9, `${what}: ${r.name} moved down`);
+      if (r.width > p.width + 1) grew++;
+      if (near(r.width, f.width)) whole++;
+    });
+  }
+  assert.ok(grew > 40 && whole > 10, `zones grew (${grew}) and some to full size (${whole})`);
+});
+
+/* The deck the table was looked at with on a 1440×900 window — a mat of
+   1102×827, cards 110×154, a commander, and categories of twenty-four,
+   ten, eight, six, three and one. Their full sizes add up to more than the
+   mat in every shape, so they are shrunk alike onto shelves in the deck's
+   order; the ten-card zone, beside the commander, then grows down into
+   the height the twenty-four gives the first shelf. */
+test('zones too large for the mat are shrunk alike onto shelves in the deck’s order, then each grows into the room round it', () => {
+  const W = 1102, H = 827, w = 110, h = 154;
+  const six = [24, 10, 8, 6, 3, 1];
+  const zones = six.map((count, i) => ({ name: `Cat ${i}`, count }));
+  const keep = app.call('tableZoneHeadRect', 1, W, H, w, h);
+  for (const aspect of app.evaluate('TABLE_ZONE_ASPECTS')) {
+    const area = six.reduce((sum, n) => { const f = zoneFull(n, w, h, W - 2 * ZONE.gap, H - 2 * ZONE.gap, aspect); return sum + f.width * f.height; }, 0);
+    assert.ok(area > (W - 2 * ZONE.gap) * (H - 2 * ZONE.gap), `at ${aspect}, ${area} would fit the mat whole`);
+  }
+  const packed = zonePacked(zones, W, H, w, h, keep);
+  assert.ok(packed, 'shrunk, and handed on to grow');
+  assertShelfOrder(packed.rects, 'as packed');
+  assertZonesApart(packed.rects, W, H, keep, 'as packed');
+  const before = zoneShape(packed.rects, six, W, H, w, h);
+  /* All shrunk alike — but the one-card zone, whose smallest is its full size. */
+  assert.ok(before && before.shares.every((s, i) => six[i] === 1 || near(s, before.share, 1e-6)), `packed all shrunk alike: ${before?.shares}`);
+  assert.ok(before.share > 0.55, `shrunk no further than ${before.share}`);
+
+  const rects = app.call('tableZoneAutoLayout', zones, W, H, w, h, keep);
+  assert.deepStrictEqual(app.call('tableZoneAutoLayout', zones, W, H, w, h, keep), rects, 'the same every time');
+  assertShelfOrder(rects, 'grown');
+  assertZonesApart(rects, W, H, keep, 'grown');
+  const after = zoneShape(rects, six, W, H, w, h);
+  assert.ok(after && after.aspect === before.aspect, 'grown in the shape it was packed in');
+  rects.forEach((r, i) => {
+    assert.ok(after.shares[i] >= before.shares[i] - 1e-9, `${r.name} smaller than it was packed`);
+    assert.ok(r.width >= packed.rects[i].width - 1e-9 && r.height >= packed.rects[i].height - 1e-9, `${r.name} shrank`);
+  });
+  const cover = list => list.reduce((sum, r) => sum + r.width * r.height, 0);
+  assert.ok(cover(rects) > cover(packed.rects) * 1.1, `the grown zones cover more of the mat: ${cover(packed.rects)} → ${cover(rects)}`);
+  /* The second shelf's zones grow down to the mat's foot, the one-card zone
+     at its end slid right to give them the room across: most of the mat
+     covered, and each of them at least 0.4 of the way from its packed size
+     to its full size, or at it. */
+  const usable = (W - 2 * ZONE.gap) * (H - 2 * ZONE.gap);
+  assert.ok(cover(rects) / usable >= 0.84, `${(cover(rects) / usable).toFixed(3)} of the mat covered`);
+  rects.forEach((r, i) => {
+    const p = packed.rects[i], f = packed.fulls[i];
+    if (!(p.top > packed.rects[0].top + 1e-6)) return;
+    const whole = near(r.width, f.width) && near(r.height, f.height);
+    const t = f.width - p.width > 1e-6 ? (r.width - p.width) / (f.width - p.width) : (r.height - p.height) / (f.height - p.height);
+    assert.ok(whole || t >= 0.4, `${r.name} on the second shelf grew only ${t}`);
+  });
+  assert.ok(after.shares[1] > 0.85, `the ten-card zone grows into its shelf: ${before.shares[1]} → ${after.shares[1]}`);
+});
+
+test('zones are made wider before they are made smaller', () => {
+  /* Twelve cards and five small categories round a commander on a laptop's
+     mat: square, the twelve-card zone makes the first shelf so tall that
+     the next runs off the mat; wider, all six lie whole. */
+  const W = 1114, H = 830, w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
+  const counts = [12, 6, 4, 2, 1, 1];
+  const keep = app.call('tableZoneHeadRect', 1, W, H, w, h);
+  const rects = app.call('tableZoneAutoLayout', counts.map((count, i) => ({ name: `Cat ${i}`, count })), W, H, w, h, keep);
+  assertShelfOrder(rects, 'wider');
+  assertZonesApart(rects, W, H, keep, 'wider');
+  const shape = zoneShape(rects, counts, W, H, w, h);
+  assert.ok(shape && shape.aspect > 1 && near(shape.share, 1), `whole and wider, not ${shape?.share} at ${shape?.aspect}`);
+  rects.forEach((r, i) => assert.strictEqual(zoneFit(counts[i], r.width, r.height, w, h).mode, 'grid', `${r.name} shows every card`));
 });
 
 test('more zones than the mat holds even at their smallest are still laid on it', () => {
