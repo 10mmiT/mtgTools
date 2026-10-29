@@ -4998,11 +4998,13 @@ function tableDrawerKeepsEscape(target) {
 // and the deck's id), as fractions of the mat, so a window of another size
 // lays them in proportion. The first time a deck is laid in zones each is
 // sized for its cards — the smallest zone, near square, that shows all of
-// them (tableZoneFullSize) — and they are packed in the deck's order across
-// the mat round the commander, all shrunk alike when that is more than the
-// mat holds (tableZoneAutoLayout); a category that turns up later is given a
-// zone sized the same way in free space, and one the deck no longer has
-// loses its zone. A layout once kept is never laid out again.
+// them (tableZoneFullSize) — and they are laid in the deck's order in rows
+// round the commander; made wider when they do not fit square, shrunk alike
+// only when no shape fits them, and then each grown into the free space
+// round it (tableZoneAutoLayout, tableZoneGrow);
+// a category that turns up later is given a zone sized the same way in free
+// space, and one the deck no longer has loses its zone. A layout once kept
+// is never laid out again.
 //
 // Depth: the zones and their cards share the TABLE_DEPTH of height the piles
 // have (tableCardGapFor), each zone a run of it — its felt, its
@@ -5216,20 +5218,25 @@ function tableZoneFit(count, zoneW, zoneH, cardW, cardH, {
  * across before it reads down. No cards, or no card size, is the smallest a
  * zone is (tableZoneMinSize). Held to `maxW` × `maxH` — the mat's room — and
  * never below the smallest, so a category too large for the mat is given all
- * the mat has and closes its cards up in it. */
-function tableZoneFullSize(count, cardW, cardH, maxW = Infinity, maxH = Infinity) {
+ * the mat has and closes its cards up in it. `aspect` is the shape aimed at
+ * instead of a square — width over height, 2 for twice as wide as tall —
+ * nearest by the same measure; the first layout asks for wider zones when
+ * square ones do not fit the mat (tableZoneAutoLayout), and everything else
+ * asks for the square. */
+function tableZoneFullSize(count, cardW, cardH, maxW = Infinity, maxH = Infinity, aspect = 1) {
   const min = tableZoneMinSize(cardW, cardH);
   const n = Math.max(0, Math.floor(Number(count) || 0));
   const w = Number(cardW) || 0, h = Number(cardH) || 0;
   let size = min;
   if (n > 0 && w > 0 && h > 0) {
+    const aim = Number(aspect) > 0 ? Math.log(Number(aspect)) : 0;
     let best = null;
     for (let c = 1; c <= n; c++) {
       const r = Math.ceil(n / c);
       if (c > 1 && Math.ceil(n / (c - 1)) === r) continue;
       const width  = 2 * TABLE_ZONE_PAD + c * w + (c - 1) * TABLE_ZONE_CARD_GAP;
       const height = TABLE_ZONE_HEAD + TABLE_ZONE_PAD + r * h + (r - 1) * TABLE_ZONE_CARD_GAP;
-      const skew = Math.abs(Math.log(width / height));
+      const skew = Math.abs(Math.log(width / height) - aim);
       /* Read in order of more columns and so fewer rows: a tie goes to the
          later one. */
       if (!best || skew <= best.skew + 1e-9) best = { skew, width, height };
@@ -5298,6 +5305,129 @@ function tableZoneHeadRect(count, width, height, cardW, cardH) {
   return { left, top, width: Math.max(...xs) + W / 2 - left, height: Math.max(...ys) + H / 2 - top };
 }
 
+/* The shapes the first layout tries its zones at, width over height, the
+ * squarest first (tableZoneAutoLayout), and how much larger a wider shape's
+ * share must be, when none fits at full size, to be taken over a squarer
+ * one's. */
+const TABLE_ZONE_ASPECTS = [1, 1.25, 1.5, 2, 2.5, 3];
+const TABLE_ZONE_BETTER  = 0.01;
+
+/* Zones laid out and shrunk alike (`rects`, [{ left, top, width, height,
+ * … }]), each grown back towards its full size (`fulls`, [{ width, height
+ * }]) into the free space round it, on a mat `width` × `height` round the
+ * commander's box (`keepOut`, or null). Never below `mins` — the sizes it
+ * was laid at — and never past its full size.
+ *
+ * Each zone grows with its top-left corner where it is, along the line from
+ * its size to its full size, so it keeps the shape it was given: as far
+ * along as stays inside the mat less a TABLE_ZONE_GAP and a gap clear of
+ * every other zone and the commander's box, found by halving — the larger
+ * a zone grows the more it covers, so whether it is clear only goes one way
+ * along the line. In the deck's order, and then once more in it, since a
+ * zone grown short of something that grew later may have room by then.
+ * Then each zone still short of its full size is slid left, and then up, as
+ * far as it goes clear — to the mat's margin or a gap from what is in the
+ * way, never past it — and grown again, kept where it was unless that lets
+ * it grow further; then from the last zone back to the first, each slid
+ * right, full or not, when that lets the zone before it grow into the room
+ * it leaves; then left and up once more, in order. No slide takes a zone
+ * past the one before or after it on its shelf, so the deck still reads in
+ * order. Returns new rects, in the order given. */
+function tableZoneGrow(rects, fulls, mins, width, height, keepOut = null) {
+  const W = Number(width) || 0, H = Number(height) || 0;
+  const gap = TABLE_ZONE_GAP, g = gap - 1e-9;
+  const out = (rects || []).map(r => ({ ...r }));
+  const others = i => [...(keepOut ? [keepOut] : []), ...out.filter((_, j) => j !== i)];
+  const clear = (r, around) => r.left >= g && r.top >= g
+    && r.left + r.width <= W - g && r.top + r.height <= H - g
+    && !around.some(o => tableZoneOverlap(r, o, g));
+  /* The furthest along from `from` to the zone's full size that is clear,
+     and how far that is: 0 when it cannot grow at all. */
+  const grown = (i, from, around) => {
+    const floor = mins?.[i] || from;
+    const base = { ...from, width: Math.max(from.width, floor.width), height: Math.max(from.height, floor.height) };
+    const f = fulls?.[i] || base;
+    const dw = Math.max(0, f.width - base.width), dh = Math.max(0, f.height - base.height);
+    const at = t => ({ ...base, width: base.width + t * dw, height: base.height + t * dh });
+    if (!(dw > 1e-9 || dh > 1e-9)) return { rect: base, t: 1 };
+    if (clear(at(1), around)) return { rect: at(1), t: 1 };
+    let lo = 0, hi = 1;
+    for (let k = 0; k < 12; k++) {
+      const mid = (lo + hi) / 2;
+      if (clear(at(mid), around)) lo = mid; else hi = mid;
+    }
+    return { rect: at(lo), t: lo };
+  };
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < out.length; i++) out[i] = grown(i, out[i], others(i)).rect;
+  }
+  /* Whether `b` reads after `a` along shelves: to its right, or lower. */
+  const rightOf = (a, b) => b.left >= a.left + a.width + gap - 1e-6;
+  const lower   = (a, b) => b.top > a.top + 1e-6;
+  /* Zone i, `r`, slid one way as far as it goes clear — to the mat's
+     margin, or to a gap from what is in the way, never through it — and no
+     further than keeps the deck reading in order: still to the right of or
+     below the zone before it, and the zone after it still to its right or
+     below it. Left and up it may come only so far as the zone before it
+     allows, right only so far as the zone after it does. */
+  const slide = (r, around, dir, i) => {
+    const prev = out[i - 1], next = out[i + 1];
+    let stops;
+    if (dir === 'right') {
+      let most = W - gap - r.width;
+      if (next && !lower(r, next)) most = Math.min(most, next.left - gap - r.width);
+      stops = [most, ...around.map(o => o.left - gap - r.width)].filter(p => p > r.left + 1e-9 && p <= most + 1e-9).sort((a, b) => a - b);
+    } else {
+      const pos = dir === 'left' ? 'left' : 'top', len = dir === 'left' ? 'width' : 'height';
+      let least = gap;
+      if (prev && dir === 'left' && !lower(prev, r)) least = prev.left + prev.width + gap;
+      if (prev && dir === 'up' && !rightOf(prev, r)) least = prev.top + 2e-6;
+      stops = [least, ...around.map(o => o[pos] + o[len] + gap)].filter(p => p < r[pos] - 1e-9 && p >= least - 1e-9).sort((a, b) => b - a);
+    }
+    const pos = dir === 'up' ? 'top' : 'left', len = dir === 'up' ? 'height' : 'width';
+    let best = r;
+    for (const p of stops) {
+      /* Every place between where it is and there must be clear too: a
+         zone is never slid through another. */
+      const from = Math.min(p, r[pos]), to = Math.max(p, r[pos]);
+      if (!clear({ ...r, [pos]: from, [len]: r[len] + (to - from) }, around)) break;
+      best = { ...r, [pos]: p };
+    }
+    return best;
+  };
+  /* Zone i, if short of its full size, grown where it is, or slid `dirs`
+     and grown there when that grows it further. */
+  const settle = (i, dirs) => {
+    const around = others(i);
+    const here = grown(i, out[i], around);
+    if (here.t >= 1) { out[i] = here.rect; return; }
+    let moved = out[i];
+    for (const dir of dirs) moved = slide(moved, around, dir, i);
+    const there = moved === out[i] ? null : grown(i, moved, around);
+    out[i] = there && there.t > here.t + 1e-6 ? there.rect : here.rect;
+  };
+  for (let i = 0; i < out.length; i++) settle(i, ['left', 'up']);
+  /* Then from the last zone back to the first, each — a full one too —
+     slid right towards the margin or the zone after it, kept there only
+     when that lets the zone before it grow further, which it then does: a
+     shelf's zones lie a gap apart, so none can grow until the one past it
+     makes room, and the last on a shelf, often a one-card zone already
+     full, is the one with room to give. And forward once more, left and
+     up, so a zone can take the room the one before it gave up. */
+  for (let i = out.length - 1; i > 0; i--) {
+    const was = out[i];
+    const moved = slide(was, others(i), 'right', i);
+    if (moved === was) continue;
+    const before = grown(i - 1, out[i - 1], others(i - 1));
+    out[i] = moved;
+    const after = grown(i - 1, out[i - 1], others(i - 1));
+    if (after.t > before.t + 1e-6) out[i - 1] = after.rect;
+    else out[i] = was;
+  }
+  for (let i = 0; i < out.length; i++) settle(i, ['left', 'up']);
+  return out;
+}
+
 /* A deck's zones laid out for the first time, on a mat of the given size for
  * cards w × h: `zones` = [{ name, count }], in the deck's order, round the
  * commander's box (`keepOut`, tableZoneHeadRect, or null).
@@ -5314,15 +5444,29 @@ function tableZoneHeadRect(count, width, height, cardW, cardH) {
  * starts a shelf just below it. The order is never changed to fill a hole:
  * the deck reads the way the builder lists it.
  *
- * When that runs off the foot of the mat, every zone is shrunk from its full
- * size towards its smallest (tableZoneMinSize) by the same share — the one
- * share `s` of the way from smallest to full, in each direction — the
- * largest that still packs, found by halving: so the zones keep their sizes'
- * proportions to each other, and a zone shrunk below its full size closes
- * its cards up (tableZoneFit). More zones than fit even at their smallest
- * are laid below the commander in rows that overlap, still on the mat.
- * Returns [{ name, left, top, width, height }] in the order asked, in
- * pixels. */
+ * Square is only the shape aimed at: when the zones at full size do not
+ * fit the mat that way, they are tried wider, all of them aimed at the one
+ * shape, each of TABLE_ZONE_ASPECTS in turn — a zone made wider before any
+ * is made smaller, since a category four cards across and two down shows
+ * its cards as well as one three by three, and a wide zone fits beside the
+ * commander's box and along a shelf where a square one does not. The first
+ * shape that fits is the layout.
+ *
+ * When no shape fits them, every zone is shrunk from its full size towards
+ * its smallest (tableZoneMinSize) by the same share — the one share `s` of
+ * the way from smallest to full, in each direction — the largest that still
+ * packs, found by halving and then by a walk down in twentieths from a
+ * quarter above that, since shelves are not sure to fit smaller zones where
+ * they fitted larger ones (a zone a little narrower can pull the next onto
+ * a shelf it then makes too tall); and of the shapes, the one with the
+ * largest share, the squarer of two within TABLE_ZONE_BETTER of each other.
+ * Then each zone grows back towards its full size into whatever room is
+ * free round it (tableZoneGrow): a shelf's shorter zones down into the
+ * height its tallest gives it, the last on a shelf into the room past it.
+ * A zone short of its full size closes its cards up (tableZoneFit). More
+ * zones than fit even at their smallest are laid below the commander in
+ * rows that overlap, still on the mat. Returns [{ name, left, top, width,
+ * height }] in the order asked, in pixels. */
 function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null) {
   const list = zones || [];
   const W = Number(width) || 0, H = Number(height) || 0;
@@ -5331,11 +5475,18 @@ function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null)
   const gap = TABLE_ZONE_GAP;
   const min = tableZoneMinSize(cardW, cardH);
   const fits = len => Math.max(0, Math.floor((len + gap + 1e-9) / (min.width + gap)));
-  const full = list.map(z => tableZoneFullSize(z.count, cardW, cardH, W - 2 * gap, H - 2 * gap));
-  const sizeAt = s => full.map(f => ({
-    width:  min.width  + s * (f.width  - min.width),
-    height: min.height + s * (f.height - min.height),
-  }));
+  /* For full sizes aimed at `aspect`: those sizes, and the zones' sizes a
+     share `s` of the way to them from their smallest. */
+  const sizesFor = aspect => {
+    const full = list.map(z => tableZoneFullSize(z.count, cardW, cardH, W - 2 * gap, H - 2 * gap, aspect));
+    return {
+      full,
+      at: s => full.map(f => ({
+        width:  min.width  + s * (f.width  - min.width),
+        height: min.height + s * (f.height - min.height),
+      })),
+    };
+  };
 
   /* The zones of these sizes on shelves, or null when they run off the mat.
      A zone that does not fit across what is left of its shelf starts the
@@ -5345,7 +5496,7 @@ function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null)
      starts just below it instead — a shelf reaching a few pixels down past
      the box would otherwise lose the box's width for those few pixels, which
      can be the one shelf too few. Tried without it first. */
-  const pack = (sizes, under) => {
+  const shelve = (sizes, under) => {
     const below = keepOut ? keepOut.top + keepOut.height + gap : 0;
     const rects = new Array(n);
     let x = gap, y = gap, shelf = 0;
@@ -5371,18 +5522,45 @@ function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null)
     }
     return rects;
   };
-  const packs = sizes => pack(sizes, false) || pack(sizes, true);
+  const packs = sizes => shelve(sizes, false) || shelve(sizes, true);
 
-  let rects = packs(sizeAt(1));
-  if (!rects && packs(sizeAt(0))) {
-    let lo = 0, hi = 1;
-    for (let k = 0; k < 20; k++) {
-      const mid = (lo + hi) / 2;
-      if (packs(sizeAt(mid))) lo = mid; else hi = mid;
-    }
-    rects = packs(sizeAt(lo));
+  /* Each shape in turn, the squarest first: the first whose full sizes
+     pack is the layout. */
+  const ways = TABLE_ZONE_ASPECTS.map(sizesFor);
+  for (const way of ways) {
+    const rects = packs(way.at(1));
+    if (rects) return rects;
   }
-  if (rects) return rects;
+
+  /* None does: each shape's largest share, and the shape with the largest
+     of those — a wider one only for a share TABLE_ZONE_BETTER larger, so
+     the squarer is kept when there is little in it. A zone at its smallest
+     is the same whatever its shape, so whether anything packs at all is
+     asked once. A shape that does not pack at the best share so far plus
+     that margin is passed over without a search. After halving, a coarser
+     walk down takes any larger share that also packs. */
+  if (packs(ways[0].at(0))) {
+    let best = null;
+    for (const way of ways) {
+      let lo = best ? best.s + TABLE_ZONE_BETTER : 0;
+      if (best && (lo >= 1 || !packs(way.at(lo)))) continue;
+      let hi = 1;
+      for (let k = 0; k < 12; k++) {
+        const mid = (lo + hi) / 2;
+        if (packs(way.at(mid))) lo = mid; else hi = mid;
+      }
+      /* The walk reaches a quarter above the share found, not all the way
+         from full size: what halving misses is a share a little larger
+         that fits after one that did not, and the steps far above it are
+         the costly ones that fail. */
+      const top = Math.min(19, Math.floor((lo + 0.25) * 20));
+      for (let k = top; k / 20 > lo + 1e-9; k--) {
+        if (packs(way.at(k / 20))) { lo = k / 20; break; }
+      }
+      best = { s: lo, way, rects: packs(way.at(lo)) };
+    }
+    return tableZoneGrow(best.rects, best.way.full, best.way.at(best.s), W, H, keepOut);
+  }
 
   /* Too many for the mat at their smallest: below the commander, as many
      across as fit, and the rows stepped down the room there is,
