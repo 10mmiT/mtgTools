@@ -3408,6 +3408,59 @@ test('Add one goes through the builder’s own stepper, says what it did, and is
   }
 });
 
+test('a card’s right-click menu offers looking at it everywhere, and the deck’s edits only on a deck the user may edit', () => {
+  const sb = app.sandbox;
+  const acts = o => plain(sb.tableCardMenuItems(o)).map(i => i.act);
+  assert.deepStrictEqual(acts({}), ['look', 'details'], 'any tab’s card');
+  assert.deepStrictEqual(acts({ canLook: false }), ['details'], 'nothing to pick up without a picture');
+  assert.deepStrictEqual(acts({ opens: true }), ['open'], 'a deck on the Decks tab opens');
+  assert.deepStrictEqual(acts({ toolsOn: true, ref: 'main/Forest' }),
+    ['look', 'details', 'step', 'commander', 'remove']);
+  assert.deepStrictEqual(acts({ toolsOn: true, ref: 'main/Forest', commanders: 1 }),
+    ['look', 'details', 'step', 'commander', 'partner', 'remove'], 'a partner only beside one commander');
+  assert.deepStrictEqual(acts({ toolsOn: true, ref: 'main/Forest', commanders: 2 }),
+    ['look', 'details', 'step', 'commander', 'remove'], 'never a third');
+  assert.deepStrictEqual(acts({ toolsOn: true, ref: 'commander/Atraxa', commanders: 1 }),
+    ['look', 'details', 'remove'], 'a commander has no stepper and is already the commander');
+  assert.deepStrictEqual(acts({ toolsOn: false, ref: 'main/Forest' }), ['look', 'details'],
+    'nothing to change on a deck the user may not edit');
+  const step = plain(sb.tableCardMenuItems({ toolsOn: true, ref: 'main/Forest', qty: 3 })).find(i => i.act === 'step');
+  assert.strictEqual(step.qty, 3);
+});
+
+test('the menu is wired to the table: opened by a right-click on a card, closed by Escape, the wheel and another tab', () => {
+  const js = read('public/js/tablemode.js');
+  const fn = name => js.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))[0];
+  assert.match(fn('tableBuild'), /scene\.addEventListener\('contextmenu', tableOnContextMenu\)/);
+  assert.match(fn('tableBuild'), /menu\.addEventListener\('click', tableMenuAct\)/);
+  assert.match(fn('tableListen'), /\('pointerdown', tableOnMenuDown, true\)/, 'a press outside it puts it away');
+  assert.match(fn('tableOnKeyCapture'), /if \(tableMenu\) \{ tableMenuClose\(\); tableEscTaken = true; return; \}/);
+  assert.match(fn('tableOnWheel'), /tableMenuClose\(\)/);
+  assert.match(fn('tableModeBeforeTab'), /tableMenuClose\(\)/);
+  assert.match(fn('tableModeLeave'), /tableMenuClose\(\)/);
+  assert.match(fn('tableModeLeave'), /tableEls\.menu,/, 'and its element goes with the scene');
+});
+
+test('opening another tab zooms the table back out, and the same tab leaves the zoom alone', () => {
+  const t = loadTableMode();
+  assert.strictEqual(t.evaluate(`tableZoomsOutFor('deckview', 'card')`), true);
+  assert.strictEqual(t.evaluate(`tableZoomsOutFor(null, 'sets')`), true);
+  assert.strictEqual(t.evaluate(`tableZoomsOutFor('deckview', 'deckview')`), false);
+  assert.strictEqual(t.evaluate(`tableZoomsOutFor('deckview', null)`), false);
+  t.evaluate(`
+    tableOn = true;
+    tablePanel = { tab: 'deckview', kind: 'float' };
+    tableShowPane = () => true;
+    tableTo = { zoom: 2, leanX: 0, leanY: 0 };
+    tableAnchor = { x: 10, y: 10 };
+    tableModeBeforeTab('deckview');
+  `);
+  assert.strictEqual(t.evaluate('tableTo.zoom'), 2, 'the tab already showing keeps its zoom');
+  t.evaluate(`tableModeBeforeTab('card')`);
+  assert.strictEqual(t.evaluate('tableTo.zoom'), 1, 'another tab is seen whole');
+  assert.strictEqual(t.evaluate('tableAnchor'), null, 'about the window’s middle');
+});
+
 test('the slider’s own input is left to it, and the drawer is lent rather than copied', () => {
   const js = read('public/js/tablemode.js');
   const fn = name => js.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))[0];
