@@ -47,7 +47,8 @@
 //                      Builder's slip and bin are its children too, laid out
 //                      over the far rim above it — and so are the cards on
 //                      the side table, laid in the mat's pixels past its
-//                      right-hand edge
+//                      right-hand edge, and the commander slot's stand,
+//                      past its top-left edge beyond the rim (tableSlotBuild)
 //         .table-side  the Deck Builder's side table, while it is up: a
 //                      second rim and felt standing beyond the plane's
 //                      right-hand edge, in its plane (tableSideBuild)
@@ -250,8 +251,8 @@
 //   deckview     dbShownPiles()      js/deckview-render.js  a pile per category,
 //                dbShownCommanders()                         and the commander —
 //                                                            a board of its own,
-//                                                            not a category — at
-//                                                            the head of the mat;
+//                                                            not a category — in
+//                                                            its slot off the felt;
 //                dbSideBoardPiles()                          and the boards beside
 //                                                            the deck, for the
 //                                                            side table
@@ -283,9 +284,15 @@
 // in js/deckview-edit.js so that the category rules, the save and the
 // history stay the builder's:
 //
-//   the commander  lies at the head of the mat, at the far side, a tenth
-//                  larger than the rest (TABLE_HEAD_SCALE), with its partner
-//                  beside it; the piles are laid below it, never across it
+//   the commander  stands off the felt, in the commander slot: propped up
+//                  on a stand of its own beyond the table's far-left corner,
+//                  facing the viewer, a tenth larger than the rest
+//                  (TABLE_HEAD_SCALE) where the room there allows, with its
+//                  partner beside it — so the piles and the zones have the
+//                  whole felt. A card carried onto the stand is made the
+//                  commander, or its partner beside a lone one; a commander
+//                  carried off it onto the felt goes back into the deck. See
+//                  "The Deck Builder's commander slot", its own section below.
 //   the slip       lies on the far rim, in the middle: a field on the app's
 //                  own card autocomplete, whose suggestions float flat over
 //                  the window below it. Enter, or a suggestion, adds one
@@ -386,7 +393,7 @@
 // how the edges, a hand and the keys move the view and when they may, and
 // how far it may go, how large a card's picture is laid out and which file
 // it comes from, the lift, the screen-to-mat mapping through the camera, the
-// floating panel's box, the layout and its head band, what each tab lays and
+// floating panel's box, the layout, what each tab lays and
 // how it is piled, where a re-laid card goes, when a panel tucks, where a
 // card in hand lands and its landing mark lies, and the Deck Builder's slip and
 // bin: when they show, the bin's hit on the rim, and what a card put in it
@@ -398,7 +405,11 @@
 // side table: the pair's fit and outline (the one table's, to the pixel, when
 // it is down), its regions and how they lay their cards, which table and which
 // region a point of the plane is over, what a card let go between them asks of
-// the deck, and who may move one.
+// the deck, and who may move one; and the commander slot: when it stands, how
+// many places it is laid with, its fit to the room beyond the far-left corner
+// and the size of its cards, how a card stands on it, which part of it a
+// point of the plane is over, and what a card let go onto it — or a
+// commander carried off it — asks of the deck.
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -718,17 +729,18 @@ const TABLE_CARD_RATIO = 88 / 63;
  * so ten presses cross the whole range.
  *
  * Larger is bounded by the mat as well as by the slider: a card grown past
- * what a pile — and the commander's band above it — can lie on the mat whole
- * in is grown only as far as that (tableCardWidthFor), never shrunk below
- * the size at 1. TABLE_HEAD_PAD is the padding the layout keeps round the
- * piles and above the head band, as a share of a card's width — the number
- * tableLayout and tableHeadSpots pad by, and the reckoning counts. */
+ * what a pile can lie on the mat whole in is grown only as far as that
+ * (tableCardWidthFor), never shrunk below the size at 1. TABLE_PILE_PAD is
+ * the padding the layout keeps round the piles, as a share of a card's width
+ * — the number tableLayout pads by. (It once padded a band across the mat's
+ * far side for the commander too; the commander stands in a slot of its own
+ * off the felt now, and the piles have the whole mat.) */
 const TABLE_CARD_SCALE_KEY   = 'mtgtools_table_card_scale';
 const TABLE_CARD_SCALE_MIN   = 0.5;
 const TABLE_CARD_SCALE_MAX   = 1.5;
 const TABLE_CARD_SCALE_STEP  = 0.05;
 const TABLE_CARD_SCALE_NUDGE = 0.1;
-const TABLE_HEAD_PAD         = 0.35;
+const TABLE_PILE_PAD         = 0.35;
 
 /* The fans the layout draws. A pile's slot is about this many times as wide as
  * it is tall, because a fan spreads sideways. The step between two cards in a
@@ -815,13 +827,13 @@ const TABLE_FEATURE_PAD   = 0.12;
 const TABLE_FEATURE_FIT   = 0.96;
 const TABLE_FEATURE_WIDE  = 0.5;
 
-/* A card at the head of the mat — the Deck Builder's commander, or both of a
- * pair of partners — lies front and centre at the far side, a tenth larger
- * than the cards in the piles: it is what the deck is built around, and the
- * eye should find it first. Two lie side by side, a quarter of a card apart.
- * The piles are laid below them, never across them (tableLayout). */
+/* A head card — the Deck Builder's commander, or both of a pair of partners —
+ * is drawn a tenth larger than the cards in the piles: it is what the deck is
+ * built around, and the eye should find it first. It no longer lies on the
+ * felt at all: it stands in the commander slot beyond the table's far-left
+ * corner, at this size wherever the room there allows it (tableSlotFit, "The
+ * Deck Builder's commander slot", below). */
 const TABLE_HEAD_SCALE = 1.1;
-const TABLE_HEAD_GAP   = 0.25;
 
 /* How long after something done in a pane the cards it lays still count as
  * its answer, for tucking the panel out of their way: long enough for a
@@ -1510,21 +1522,18 @@ function tableCardWidth(matWidth, scale = 1) {
 
 /* The width a card is drawn at on a mat of the given size, at `scale`, for
  * the piles: tableCardWidth's, except that a card grown past 1 is grown no
- * further than lets it lie on the mat whole — `head`, whether a commander
- * lies at the head of the mat, decides how much of the mat's height the
- * piles have. With no head, a card no taller than the mat; with one, the
- * head band — its padding and the head card, TABLE_HEAD_SCALE times a card
- * — and a whole card of pile below it, which is what tableLayout needs to
- * keep every centre a half card inside the mat (its clamp). And no wider
- * than the mat, nor the head card either. Never smaller than at 1: the cap
- * only holds the growth back, so at 1 and below it is tableCardWidth. */
-function tableCardWidthFor(matWidth, matHeight, scale = 1, { head = false } = {}) {
+ * further than lets it lie on the mat whole — no taller than the mat, which
+ * is what tableLayout needs to keep every centre a half card inside it (its
+ * clamp), and no wider. Never smaller than at 1: the cap only holds the
+ * growth back, so at 1 and below it is tableCardWidth. The commander asks
+ * nothing of the mat's height: it stands in its slot off the felt, and is
+ * fitted to the room there instead (tableSlotFit). */
+function tableCardWidthFor(matWidth, matHeight, scale = 1) {
   const base = tableCardWidth(matWidth);
   const want = tableCardWidth(matWidth, scale);
   if (!(want > base)) return want;
   const width = Math.max(0, Number(matWidth) || 0), height = Math.max(0, Number(matHeight) || 0);
-  const tall = head ? TABLE_HEAD_PAD + (TABLE_HEAD_SCALE + 1) * TABLE_CARD_RATIO : TABLE_CARD_RATIO;
-  const fit = Math.min(width / (head ? TABLE_HEAD_SCALE : 1), height / tall);
+  const fit = Math.min(width, height / TABLE_CARD_RATIO);
   return Math.max(base, Math.min(want, Math.floor(fit)));
 }
 
@@ -1576,19 +1585,22 @@ function tableScaleShown(scope) {
  * js/cardstack.js) on top of its place in the fan, so a card lies the same way
  * on the table as it does in a pile anywhere else in the app.
  *
- * A card marked `head` is not in a pile: it lies at the head of the mat, in a
- * band across its far side, TABLE_HEAD_SCALE times the size of the rest and
- * side by side with any other head card (tableHeadSpots); the piles share out
- * the mat below that band, so none of them reaches into it. And `reserve` =
+ * A card marked `head` is not in a pile, and not on the mat: it stands in the
+ * commander slot beyond the table's far-left corner, where the slot places it
+ * once the table has been measured (tableSlotPlace) — so it takes nothing of
+ * the mat, and the piles are laid exactly as they would be without it. Its
+ * spot here only holds its place in the list: the middle of the mat, flat,
+ * the placeholder a mat with no size gives every card. And `reserve` =
  * { bottom } keeps a band of that many pixels clear along the mat's near
  * edge, for anything laid there instead of cards — nothing is, now that the
- * Deck Builder's slip and bin lie on the far rim, off the mat. With no head
- * card and nothing reserved, the piles have the whole mat.
+ * Deck Builder's slip and bin lie on the far rim, off the mat. With nothing
+ * reserved, the piles have the whole mat.
  *
  * At most TABLE_DECK_CARDS_MAX cards; a centre is kept far enough inside the mat
- * that the card does not hang off it, or into either band. Returns the card's
+ * that the card does not hang off it, or into the band. Returns the card's
  * size in pixels too, since that is decided here — the size of a card in a
- * pile; a head card is drawn TABLE_HEAD_SCALE times it.
+ * pile; a head card is drawn TABLE_HEAD_SCALE times it, as far as the slot
+ * has room for.
  *
  * `scale` is the card-size slider's (tableCardWidthFor): at 1 every answer
  * is the one this has always given. Larger or smaller, everything below is
@@ -1598,39 +1610,31 @@ function tableScaleShown(scope) {
 function tableLayout(cards, width, height, reserve = {}, scale = 1) {
   const list = (cards || []).slice(0, TABLE_DECK_CARDS_MAX);
   const below = Math.max(0, Number(reserve?.bottom) || 0);
-  const w = tableCardWidthFor(width, Math.max(0, (Number(height) || 0) - below), scale,
-    { head: list.some(card => card && card.head) });
+  const w = tableCardWidthFor(width, Math.max(0, (Number(height) || 0) - below), scale);
   const h = w * TABLE_CARD_RATIO;
   if (!list.length || !(width > 0) || !(height > 0)) {
     return { width: w, height: h, spots: list.map(() => ({ x: 0.5, y: 0.5, turn: 0 })) };
   }
-  const pad   = w * TABLE_HEAD_PAD;
+  const pad   = w * TABLE_PILE_PAD;
   const spots = new Array(list.length);
 
-  /* The head band first: what it holds decides where the piles may begin. */
-  const heads = [];
-  list.forEach((card, i) => { if (card.head) heads.push(i); });
-  const head = tableHeadSpots(heads.length, width, height, w, h);
-  heads.forEach((index, j) => {
-    const turn = typeof stackJitter === 'function' ? stackJitter(list[index].name) : 0;
-    spots[index] = { ...head.spots[j], turn: Math.round(turn * 10) / 10 || 0 };
-  });
-
+  /* A head card holds its place in the list and nothing of the mat: the
+     slot stands it off the felt (tableSlotPlace). */
   const piles = [];
   const byGroup = new Map();
   list.forEach((card, i) => {
-    if (card.head) return;
+    if (card.head) { spots[i] = { x: 0.5, y: 0.5, turn: 0 }; return; }
     const key = card.group == null ? '' : String(card.group);
     if (!byGroup.has(key)) { byGroup.set(key, []); piles.push(byGroup.get(key)); }
     byGroup.get(key).push(i);
   });
   if (!piles.length) return { width: w, height: h, spots };
 
-  /* The part of the mat the piles share: below the head band, and above the
-     band kept clear along the near edge — both held inside the mat, so a
-     reserve asked for past it is the mat's height and no more. */
-  const areaTop = Math.min(height, head.bottom);
-  const areaBot = Math.max(areaTop, height - Math.max(0, Number(reserve?.bottom) || 0));
+  /* The part of the mat the piles share: all of it, but the band kept clear
+     along the near edge — held inside the mat, so a reserve asked for past
+     it is the mat's height and no more. */
+  const areaTop = 0;
+  const areaBot = Math.max(areaTop, height - below);
   const areaH   = areaBot - areaTop;
   const cols  = Math.max(1, Math.min(piles.length,
     Math.round(Math.sqrt(piles.length * (width / Math.max(1, areaH)) / TABLE_SLOT_ASPECT)) || 1));
@@ -1667,27 +1671,6 @@ function tableLayout(cards, width, height, reserve = {}, scale = 1) {
     });
   });
   return { width: w, height: h, spots };
-}
-
-/* Where `count` head cards lie on a mat of the given size, for cards w × h in
- * the piles: drawn TABLE_HEAD_SCALE times that, side by side across the
- * middle of the far side a pile's padding in from the edge, TABLE_HEAD_GAP of
- * a card apart. `spots` are their centres, as fractions of the mat; `bottom`
- * is where the band they lie in ends, in pixels from the far edge — the
- * cards' foot, and 0 with none to lay, which leaves the whole mat to the
- * piles. */
-function tableHeadSpots(count, width, height, w, h) {
-  const n = Math.max(0, Math.floor(Number(count) || 0));
-  if (!n || !(width > 0) || !(height > 0)) return { spots: [], bottom: 0 };
-  const pad = w * TABLE_HEAD_PAD;
-  const W = w * TABLE_HEAD_SCALE, H = h * TABLE_HEAD_SCALE;
-  const step = W + w * TABLE_HEAD_GAP;
-  const y = Math.min(height / 2, pad + H / 2);
-  const spots = Array.from({ length: n }, (_, i) => {
-    const cx = width / 2 + (i - (n - 1) / 2) * step;
-    return { x: Math.min(width - W / 2, Math.max(W / 2, cx)) / width, y: y / height };
-  });
-  return { spots, bottom: y + H / 2 };
 }
 
 /* How many rows a pile of `count` cards is laid in, in a slot `room` pixels
@@ -1781,8 +1764,8 @@ function tableFromPiles(piles, cardOf, max = TABLE_TAB_CARDS_MAX) {
  * (tableCardsMaxFor), the nameless dropped, each known by a key that is the
  * same whenever the same card is laid by the same tab — its scope, its id or
  * else its name, and how many times that has come up already in the list,
- * for the second copy of a card. A card may carry `head`, which lays it at
- * the head of the mat (tableLayout), `ref`, which is what the tab knows it by
+ * for the second copy of a card. A card may carry `head`, which stands it in
+ * the commander slot off the felt (tableSlotPlace), `ref`, which is what the tab knows it by
  * to edit it — the Deck Builder's board and name — or null for a card
  * nothing can edit from the table, and `qty`, how many copies of it the one
  * card stands for: 1 unless a deck entry says more, which the card then
@@ -1812,7 +1795,7 @@ function tableQty(qty) {
 }
 
 /* What a list of cards is to the mat, as one string: which cards lie in which
- * piles, or at the head of the mat, in what order, laid by whom and how. Two
+ * piles, or stand in the commander slot, in what order, laid by whom and how. Two
  * lists that answer the same are laid the same way, so only their pictures
  * can differ — which is what lets a redraw that only brought pictures leave
  * every card where it lies. */
@@ -1821,8 +1804,8 @@ function tableListSig(list, scope = '', feature = false) {
     tableKeyCards(list, scope).map(card => [card.key, card.group, card.head])]);
 }
 
-/* The Deck Builder's cards as the mat lays them: the commanders first, at the
- * head of the mat, then a pile per category — every entry of the deck, one
+/* The Deck Builder's cards as the mat lays them: the commanders first, for
+ * the commander slot, then a pile per category — every entry of the deck, one
  * table card an entry with its count on it, up to TABLE_DECK_CARDS_MAX; only
  * a deck past that has the room left after the commanders shared out among
  * its categories. Each card is known by its ref — so a card in the mainboard
@@ -1868,8 +1851,8 @@ function tableScaledPlaces(cards, width, height, scale = 1, moved = new Map(), f
 }
 
 /* How a card's picture is drawn, for cards `cardW` wide on the mat — the
- * width the card-size slider has laid them at; a head card is drawn
- * TABLE_HEAD_SCALE times it — under a camera at `zoom` on a screen of `dpr`
+ * width the card-size slider has laid them at; a head card is drawn at most
+ * TABLE_HEAD_SCALE times it, in its slot — under a camera at `zoom` on a screen of `dpr`
  * device pixels to the pixel: `k`, how much larger than its card the picture
  * is laid out (tableDecodeScale), and `large`, whether it is drawn from
  * Scryfall's large file (tableNeedsLarge).
@@ -2536,8 +2519,10 @@ function tableBuild() {
   tableDrawerBuild();
   tableZonesBuild();
   /* And the side table, beyond the plane's right-hand edge, with its chip
-     beside the Zones chip — after them, since it lies in their box. */
+     beside the Zones chip — after them, since it lies in their box. And the
+     commander slot, beyond the far-left corner. */
   tableSideBuild();
+  tableSlotBuild();
 }
 
 /* The table fitted to the window: its box worked out by tableFitSize and
@@ -2658,6 +2643,8 @@ function tableFrame(now) {
      and tableCarry has just asked it, for the card's own look. A zone being
      moved lights it the same way (tableZoneStep has asked it). */
   tableBinLight(!!tableHold?.over || !!tableZoneHold?.over);
+  /* And the commander slot, by the same rule, for a card over it. */
+  tableSlotLight(tableHold?.slot || null);
   tableSlipPlace();
   if (more) tableKick();
   else tableFrameAt = 0;
@@ -2737,13 +2724,14 @@ function tablePanAsk() {
 /* Whether the pointer's edge band scrolls the view now. Carrying a card or a
  * zone it always does — that is how a card is taken to a part of the table
  * out of sight — but for a card held over the bin, which lies on the rim and
- * must stay under it to be let go into. A card pressed and not yet carried
+ * must stay under it to be let go into, or over the commander slot, for the
+ * same reason. A card pressed and not yet carried
  * does not: it may be about to be looked at. Otherwise, as long as the
  * pointer is over the table itself and not a control on it. */
 function tableEdgeLive() {
   const p = tablePointer;
   if (!p) return false;
-  if (tableHold) return tableHold.dragging && !tableHold.over;
+  if (tableHold) return tableHold.dragging && !tableHold.over && !tableHold.slot;
   if (tableZoneHold) return tableZoneHold.dragging;
   return !tableScrollPaused(p.el, tableEls.scene);
 }
@@ -3141,6 +3129,8 @@ function tableModeLeave() {
   tableSlider = tableDrawerChips = null;
   tableToolsOn = tableBinOver = false;
   tableArrival = null;
+  /* The commander slot goes with the mat it lies on. */
+  tableSlot = tableSlotLit = tableSlotLanding = null;
   tableZoneHold = tableZoneEdit = tableZoneTarget = tableZoneLanding = tableZoneChips = null;
   tableZones = [];
   /* The side table goes with the scene; coming back up, the table is fitted
@@ -3734,16 +3724,23 @@ function tableLayCards(list, { hint, scope = '', feature = false } = {}) {
 function tableCardZ(card) {
   /* On the side table, a card lies at the height its region gives it
      (tableSideArrange); laid in zones, at the height its zone gives it
-     (tableZonesLayer). */
+     (tableZonesLayer); in the commander slot, its feet on the stand's wood,
+     a hair above the floor it stands on — in hand too, the lift counted
+     from there. */
   if (card.side) return card.sideZ || 0;
+  if (card.head && tableSlot?.fit) return TABLE_SLOT_Z;
   if (card.zoneZ != null) return card.zoneZ;
   return (card.rank + 1) * tableCardGapFor(tableCards.length);
 }
 
-/* The size a card is drawn at: a pile's card size, or TABLE_HEAD_SCALE times
- * it for a card at the head of the mat. Laid out at that size rather than
- * scaled to it, so its picture is decoded for the size it is drawn at. */
+/* The size a card is drawn at: a pile's card size, or for a commander the
+ * size its slot has room for (tableSlotFit) — TABLE_HEAD_SCALE times a pile's
+ * where there is the room, and before the slot has been fitted. Laid out at
+ * that size rather than scaled to it, so its picture is decoded for the size
+ * it is drawn at; and kept while it is in hand, so a commander taken off its
+ * stand is the card it was standing there. */
 function tableCardBox(card) {
+  if (card?.head && tableSlot?.fit) return { w: tableSlot.fit.w, h: tableSlot.fit.h };
   const k = card?.head ? TABLE_HEAD_SCALE : 1;
   return { w: tableCardSize.w * k, h: tableCardSize.h * k };
 }
@@ -3758,9 +3755,15 @@ function tableSizeCard(card) {
 /* A card's transform: where it lies, how high above the felt, the angle it
  * lies at, and how far it leans back towards the viewer — and `shrink`, how
  * small it has become going into the bin. One string, so a card settling
- * eases every part of it at once. */
+ * eases every part of it at once. A commander standing in its slot is stood
+ * there instead, propped on the stand's ledge (tableStandTransform); taken
+ * off it by a hand, or on its way into the bin, it lies like any card. */
 function tableWriteCard(card, lift = 0, lean = 0, shrink = 1) {
   if (!card.el || !tableGeom) return;
+  if (card.head && card.standing && card.slotAt && tableSlot?.fit) {
+    card.el.style.transform = tableStandTransform(card.slotAt, tableCardBox(card), tableCardZ(card) + lift);
+    return;
+  }
   card.el.style.transform =
     tableLieTransform(card, tableCardBox(card), tableGeom.mat, tableCardZ(card) + lift, lean, shrink);
 }
@@ -3873,11 +3876,14 @@ function tableDrawCards() {
   });
   mat.insertBefore(cards, hint);
   /* Laid in zones instead, when they are on: the zones place every card
-     they hold over the piles' places. */
+     they hold over the piles' places. And the commander stood in its slot,
+     off the felt, fitted to the room beyond the table's far-left corner. */
   tableZonesPlace();
+  tableSlotPlace();
   for (const card of tableCards) tableWriteCard(card);
   tableArrive(before);
   tableZoneLand();
+  tableSlotLand();
   /* And the side table's own cards, beside the mat — or none, with it down. */
   tableSideDraw();
   hint.textContent = tableHintText;
@@ -3902,10 +3908,13 @@ function tableResizeCards() {
   /* The large card's place is worked out from the lane, which a new mat
      width moves, so it is laid again rather than resized where it was. */
   if (tableFeature) { tableDrawCards(); return; }
-  const w = tableCardWidthFor(tableGeom.mat.width, tableGeom.mat.height, tableCardScale,
-    { head: tableCards.some(card => card.head) });
+  const w = tableCardWidthFor(tableGeom.mat.width, tableGeom.mat.height, tableCardScale);
   tableCardSize = { w, h: w * TABLE_CARD_RATIO };
   tableSharpen();
+  /* The slot is fitted to the new window first: the room beyond the
+     table's far-left corner is the window's, and the commanders standing in
+     it are sized and written with the rest below. */
+  tableSlotPlace();
   for (const card of tableCards) {
     if (!card.el) continue;
     tableSizeCard(card);
@@ -3960,8 +3969,14 @@ function tableOnCardDown(e) {
        across the mat, and a card only looked at is put back where it was. */
     from:    { x: card.x, y: card.y },
     /* Where on the card the hand closed, in the mat's pixels: the card is kept
-       with that point under the pointer for the rest of the journey. */
-    grab: { u: hit.u - card.x * width, v: hit.v - card.y * height },
+       with that point under the pointer for the rest of the journey. A
+       commander is pressed standing up, where no point of the plane under the
+       pointer is a point of its face: taken off its stand, it comes to the
+       hand by its middle. */
+    grab: card.head && card.standing ? { u: 0, v: 0 } : { u: hit.u - card.x * width, v: hit.v - card.y * height },
+    /* What the card in hand is over in the commander slot, if anything
+       (tableSlotHover). */
+    slot: null,
   };
   try { el.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
   /* The side table's cards have no rank among the mat's: their height is
@@ -3994,17 +4009,33 @@ function tableCarry(now) {
   const motion = cardMotionOn();
   const rise = tableLiftHeight(now - hold.since, motion);
 
+  /* A commander pressed on its stand stays standing there until the press
+     becomes a carry: it may be about to be picked up to be looked at, which
+     rises from where it stands. Carried, it is taken off the stand and lies
+     in the hand like any card. */
+  if (card.head && card.standing) {
+    if (!hold.dragging) return false;
+    card.standing = false;
+  }
+
   /* Over the bin, the card goes over to the look that says it is going in
      (tableBinPose): down towards the bin, smaller, fainter and drawn towards
      its middle — eased both ways in the lift's time. Whether it is over is
      the pointer's question, never the card's, so the card being drawn
      towards the bin cannot change the answer. */
   hold.over = !!hold.dragging && !!card.ref && tableOverBin(hold.pointer);
+  /* Over the commander slot, which part of it, for a card that could stand
+     there (tableSlotHover) — before the zones and the side table, which a
+     card over the slot is over neither of. */
+  tableSlotHover(hold);
   tableZoneHover(hold);
   /* And, with the side table up, which board it would go to if let go now —
      the region lit, or the mat (tableSideHover). After the zones, whose lit
      zone a card off the side table is let go into. */
   tableSideHover(hold);
+  /* A commander carried off its stand: the place on the felt it would go
+     back into the deck at, lit (tableSlotLeaveHover). */
+  tableSlotLeaveHover(hold);
   hold.binT = tableBinProgress(hold.binT, hold.over, now - hold.binAt, motion);
   hold.binAt = now;
   const pose = tableBinPose(hold.binT,
@@ -4021,9 +4052,15 @@ function tableCarry(now) {
     hold.land = land;
     /* With the side table up the card is drawn under the pointer across both
        tables, not only the mat — where it lands, if that is on the mat, is
-       still the mat's (tableSideReach). Down, the two are the one spot. */
+       still the mat's (tableSideReach). Down, the two are the one spot. A
+       commander in hand never lies where it is let go — it goes into the
+       deck, or back onto its stand — and a card over the slot goes onto the
+       stand or back, so both are drawn under the pointer wherever it is,
+       unheld by the mat's edges: the slot stands off them. */
     const reach = tableSideReach();
-    const drawn = reach ? tableDropSpot(hit, hold.grab, width, height, reach) : land;
+    const free = card.head || !!hold.slot;
+    const drawn = free ? { x: (hit.u - (Number(hold.grab?.u) || 0)) / width, y: (hit.v - (Number(hold.grab?.v) || 0)) / height }
+      : reach ? tableDropSpot(hit, hold.grab, width, height, reach) : land;
     let u = drawn.x * width, v = drawn.y * height;
     /* The bin lies on the far rim, off the mat, so the card going in is
        drawn towards it unheld by the mat's edges — the spot it would land
@@ -4059,8 +4096,10 @@ function tableCastWrite(hold) {
   const cast = tableEls?.cast;
   if (!cast) return;
   /* With the side table up, the mark is the side table's to say first for
-     the card in hand (tableSideCast); down, it is what it was asked. */
-  hold = tableSideCast(hold);
+     the card in hand (tableSideCast); down, it is what it was asked. And the
+     slot's after it: a commander in hand, and a card over the slot, lie
+     nowhere they are let go, so neither has a mark (tableSlotCast). */
+  hold = tableSlotCast(tableSideCast(hold));
   if (!hold?.land || !tableGeom) { cast.hidden = true; return; }
   const card = hold.card;
   const box = tableCardBox(card);
@@ -4094,12 +4133,18 @@ function tableRelease(e) {
      there for the next time the deck is laid (tableBinCard). */
   const binned = hold.dragging && e?.type === 'pointerup' && !!card.ref && tableOverBin(hold.pointer);
   tableBinLight(false);
+  tableSlotLight(null);
   if (binned) {
     tableSideLight(null);
+    tableSlotOffer(false);
     tableSwallow = true;
     tableBinCard(card, hold.from);
     return;
   }
+  /* A card let go over the commander slot, or a commander carried off it,
+     is the slot's to answer first (tableSlotRelease): it stands there, goes
+     into the deck, or goes back where it was. */
+  if (hold.dragging && tableSlotRelease(hold, e)) return;
   /* With the side table up, a card let go over it — or one of its own let
      go anywhere — is the side table's to answer: another board, or back. */
   if (hold.dragging && tableSideDrop(hold, e)) return;
@@ -4427,6 +4472,10 @@ function tableBinCard(card, from) {
   const rect = tableBinRect();
   el.classList.remove('is-held', 'is-settling');
   el.classList.add('is-binned');
+  /* A commander goes in lying down, off its stand, as one carried there
+     would; and if it is still the deck's after, it stands back up. */
+  const stood = !!(card.head && card.slotAt);
+  card.standing = false;
   card.x = (rect.left + rect.width / 2) / width;
   card.y = (rect.top + rect.height / 2) / height;
   tableWriteCard(card, Math.max(0, tableToolsZ() - tableCardZ(card)), 0, TABLE_BIN_SHRINK);
@@ -4434,6 +4483,7 @@ function tableBinCard(card, from) {
     const action = tableRemoveOne(card);
     card.x = from.x;
     card.y = from.y;
+    card.standing = stood;
     if (action === 'remove' && !el.isConnected) return;
     if (action === 'remove') { tableWriteCard(card, 0, 0, TABLE_BIN_SHRINK); return; }
     /* Still in the deck — a copy to spare, or the edit refused: it fades
@@ -4765,8 +4815,8 @@ function tableSlipKey(e) {
 // size the table lays its cards at. On every tab that lays cards
 // (tableScaleShown), and kept per browser (TABLE_CARD_SCALE_KEY).
 //
-// Every layout takes the size from it — the piles, the commander's head spot
-// (still a tenth larger than the piles), the zones' fit, the Card tab's one
+// Every layout takes the size from it — the piles, the commander in its slot
+// (still a tenth larger than the piles, where the room there allows), the zones' fit, the Card tab's one
 // card and the Decks tab — and a hand dragging it is answered every frame at
 // most, and cheaply: the cards are resized and moved where they are, never
 // made again (tableRescaleCards). A card a hand has moved keeps its centre and
@@ -4905,8 +4955,10 @@ function tableRescaleCards() {
   });
   tableSharpen();
   /* With zones on, every card a zone holds is placed in it over the piles'
-     place — as when the cards are laid. */
+     place — as when the cards are laid; and the commander stood in its slot
+     at the slider's size, as far as the room there allows. */
   tableZonesPlace();
+  tableSlotPlace();
   for (const card of tableCards) if (tableHold?.card !== card) tableWriteCard(card);
   /* The side table's regions keep their felt and fit their cards to the new
      size, as a zone does. */
@@ -5145,8 +5197,9 @@ function tableDrawerKeepsEscape(target) {
 //                kept for it however empty it is — not every category the
 //                deck has ever had, which would be nine default ones lying
 //                empty on a deck that never used them (tableZoneNames). The
-//                commander keeps its spot at the head of the mat and is no
-//                zone.
+//                commander stands in its slot off the felt and is no zone;
+//                carried off it and let go over a zone, it goes back into
+//                the deck in that zone's category (tableSlotRelease).
 //   moving one   the label, pressed and dragged: the zone rises a little with
 //                all its cards and follows the pointer through the same
 //                screen-to-mat mapping a card in hand does, and settles where
@@ -5189,7 +5242,8 @@ function tableDrawerKeepsEscape(target) {
 // lays them in proportion. The first time a deck is laid in zones each is
 // sized for its cards — the smallest zone, near square, that shows all of
 // them (tableZoneFullSize) — and they are laid in the deck's order in rows
-// round the commander; made wider when they do not fit square, shrunk alike
+// across the whole felt from its far corner, the commander standing off it
+// in its slot; made wider when they do not fit square, shrunk alike
 // only when no shape fits them, and then each grown into the free space
 // round it (tableZoneAutoLayout, tableZoneGrow);
 // a category that turns up later is given a zone sized the same way in free
@@ -5455,8 +5509,10 @@ function tableZoneOverlap(a, b, gap = 0) {
 }
 
 /* Where a zone `size` = { width, height } goes on a mat of the given size,
- * among the zones there already (`rects`) and round the commander's box
- * (`keepOut`, tableZoneHeadRect, or null): the first place, reading across
+ * among the zones there already (`rects`) and round a box kept clear of zones
+ * (`keepOut`, or null — the table asks for none now: the commander, which
+ * once lay at the head of the felt, stands in its slot off it, so the zones
+ * have the whole felt): the first place, reading across
  * and down from the mat's far corner, that is clear of every one of them by
  * a TABLE_ZONE_GAP — and with no such place, the one overlapping them the
  * least. Returns its top-left corner, { left, top }. */
@@ -5483,18 +5539,6 @@ function tableZoneFree(rects, size, width, height, keepOut = null) {
   return best ? { left: best.left, top: best.top } : { left: 0, top: top0 };
 }
 
-/* The box the commander lies in — or both of a pair, side by side — on a mat
- * of the given size for cards w × h in the piles: what no zone is laid over
- * the first time, nor a new zone put on. Null with no commander. */
-function tableZoneHeadRect(count, width, height, cardW, cardH) {
-  const head = tableHeadSpots(count, width, height, cardW, cardH);
-  if (!head.spots.length) return null;
-  const W = cardW * TABLE_HEAD_SCALE, H = cardH * TABLE_HEAD_SCALE;
-  const xs = head.spots.map(s => s.x * width), ys = head.spots.map(s => s.y * height);
-  const left = Math.min(...xs) - W / 2, top = Math.min(...ys) - H / 2;
-  return { left, top, width: Math.max(...xs) + W / 2 - left, height: Math.max(...ys) + H / 2 - top };
-}
-
 /* The shapes the first layout tries its zones at, width over height, the
  * squarest first (tableZoneAutoLayout), and how much larger a wider shape's
  * share must be, when none fits at full size, to be taken over a squarer
@@ -5504,14 +5548,14 @@ const TABLE_ZONE_BETTER  = 0.01;
 
 /* Zones laid out and shrunk alike (`rects`, [{ left, top, width, height,
  * … }]), each grown back towards its full size (`fulls`, [{ width, height
- * }]) into the free space round it, on a mat `width` × `height` round the
- * commander's box (`keepOut`, or null). Never below `mins` — the sizes it
+ * }]) into the free space round it, on a mat `width` × `height` round a box
+ * kept clear (`keepOut`, or null — see tableZoneFree). Never below `mins` — the sizes it
  * was laid at — and never past its full size.
  *
  * Each zone grows with its top-left corner where it is, along the line from
  * its size to its full size, so it keeps the shape it was given: as far
  * along as stays inside the mat less a TABLE_ZONE_GAP and a gap clear of
- * every other zone and the commander's box, found by halving — the larger
+ * every other zone and the box kept clear, found by halving — the larger
  * a zone grows the more it covers, so whether it is clear only goes one way
  * along the line. In the deck's order, and then once more in it, since a
  * zone grown short of something that grew later may have room by then.
@@ -5619,8 +5663,11 @@ function tableZoneGrow(rects, fulls, mins, width, height, keepOut = null) {
 }
 
 /* A deck's zones laid out for the first time, on a mat of the given size for
- * cards w × h: `zones` = [{ name, count }], in the deck's order, round the
- * commander's box (`keepOut`, tableZoneHeadRect, or null).
+ * cards w × h: `zones` = [{ name, count }], in the deck's order, round a box
+ * kept clear of them (`keepOut`, or null). The table asks for none: the
+ * commander, whose box this once was, stands in its slot off the felt, so a
+ * deck's zones are laid over the whole felt from its far corner
+ * (tableZonesPlace). The box is still honoured for whoever passes one.
  *
  * Each zone is first given the size that shows every one of its cards whole
  * (tableZoneFullSize, held to the mat less a TABLE_ZONE_GAP all round): a
@@ -5628,9 +5675,9 @@ function tableZoneGrow(rects, fulls, mins, width, height, keepOut = null) {
  * one, each near square. They are packed in the deck's order onto shelves
  * down the mat — across, a TABLE_ZONE_GAP apart and from the mat's edges,
  * each shelf as tall as its tallest zone and its zones lying along its top —
- * and a zone that would lie over the commander's box (or within a gap of
+ * and a zone that would lie over the box kept clear (or within a gap of
  * it) is put past its right-hand side instead, so a shelf level with the
- * commander runs round it — and one too wide for the room either side of it
+ * box runs round it — and one too wide for the room either side of it
  * starts a shelf just below it. The order is never changed to fill a hole:
  * the deck reads the way the builder lists it.
  *
@@ -5638,8 +5685,8 @@ function tableZoneGrow(rects, fulls, mins, width, height, keepOut = null) {
  * fit the mat that way, they are tried wider, all of them aimed at the one
  * shape, each of TABLE_ZONE_ASPECTS in turn — a zone made wider before any
  * is made smaller, since a category four cards across and two down shows
- * its cards as well as one three by three, and a wide zone fits beside the
- * commander's box and along a shelf where a square one does not. The first
+ * its cards as well as one three by three, and a wide zone fits beside a
+ * box kept clear and along a shelf where a square one does not. The first
  * shape that fits is the layout.
  *
  * When no shape fits them, every zone is shrunk from its full size towards
@@ -5654,8 +5701,9 @@ function tableZoneGrow(rects, fulls, mins, width, height, keepOut = null) {
  * free round it (tableZoneGrow): a shelf's shorter zones down into the
  * height its tallest gives it, the last on a shelf into the room past it.
  * A zone short of its full size closes its cards up (tableZoneFit). More
- * zones than fit even at their smallest are laid below the commander in
- * rows that overlap, still on the mat. Returns [{ name, left, top, width,
+ * zones than fit even at their smallest are laid below the box kept clear
+ * (or from the mat's far edge) in rows that overlap, still on the mat.
+ * Returns [{ name, left, top, width,
  * height }] in the order asked, in pixels. */
 function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null) {
   const list = zones || [];
@@ -5680,9 +5728,9 @@ function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null)
 
   /* The zones of these sizes on shelves, or null when they run off the mat.
      A zone that does not fit across what is left of its shelf starts the
-     next one; one that would lie over the commander is put past it, and
+     next one; one that would lie over the box kept clear is put past it, and
      may then not fit across, and so start the next shelf too. `under`: a
-     shelf after the first that would start beside the commander's box
+     shelf after the first that would start beside the box
      starts just below it instead — a shelf reaching a few pixels down past
      the box would otherwise lose the box's width for those few pixels, which
      can be the one shelf too few. Tried without it first. */
@@ -5699,7 +5747,7 @@ function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null)
         if (keepOut && tableZoneOverlap(at, keepOut, gap)) x = Math.max(x, keepOut.left + keepOut.width + gap);
         if (x + zw <= W - gap + 1e-9) break;
         /* No room across: the next shelf — or, with nothing on this one
-           yet, which only the commander's box can leave too narrow, the
+           yet, which only the box kept clear can leave too narrow, the
            shelf just below that box. */
         y = shelf ? y + shelf + gap : Math.max(y + 1, keepOut ? below : y + zh + gap);
         if (under && keepOut && y < below) y = below;
@@ -5752,7 +5800,7 @@ function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null)
     return tableZoneGrow(best.rects, best.way.full, best.way.at(best.s), W, H, keepOut);
   }
 
-  /* Too many for the mat at their smallest: below the commander, as many
+  /* Too many for the mat at their smallest: below the box kept clear, as many
      across as fit, and the rows stepped down the room there is,
      overlapping, each kept on the mat. */
   const top0 = keepOut ? keepOut.top + keepOut.height + gap : gap;
@@ -5937,16 +5985,6 @@ function tableZoneCounts() {
   return counts;
 }
 
-/* The commander's box on the mat now (tableZoneHeadRect), which the zones
- * are laid round the first time and a new zone is kept off; null with no
- * commander lying there. */
-function tableZoneKeepOut() {
-  const heads = tableCards.filter(card => card.head).length;
-  if (!heads || !tableGeom) return null;
-  const { width, height } = tableGeom.mat;
-  return tableZoneHeadRect(heads, width, height, tableCardSize.w, tableCardSize.h);
-}
-
 /* The chips on the far rim, beside the slip, made with each scene: Zones,
  * which says whether it is on by aria-pressed and its tab's accent, and
  * + Zone. Their own listeners go with them. A press on either is a press on
@@ -6005,9 +6043,16 @@ function tableZonesToggle() {
  * written. With zones on, each zone is placed — as kept, or laid out afresh —
  * and every card the zones hold is given its place in its zone and its
  * height in the zones' depth (card.zoneZ, which tableCardZ answers with); the
- * commander, which is no zone's, keeps its place at the head of the mat, and
- * is given a height over the zones. With zones off there are none, and every
- * card keeps the place the piles gave it. Returns whether zones are laid. */
+ * commander, which is no zone's, stands in its slot off the felt and asks
+ * nothing of it. With zones off there are none, and every card keeps the
+ * place the piles gave it. Returns whether zones are laid.
+ *
+ * Nothing on the felt is kept clear of the zones: a deck laid in zones for
+ * the first time has the whole felt, from its far corner, and a new zone is
+ * put in the first free space of all of it (keepOut null). A layout kept from
+ * before the commander had its slot — laid round the commander's old place
+ * at the head of the felt — is a kept layout like any other, and stays as it
+ * is: a kept layout is never laid out again. */
 function tableZonesPlace() {
   const rules = tableZoneRulesNow();
   tableZonesSyncChips(rules);
@@ -6030,7 +6075,7 @@ function tableZonesPlace() {
   const laid = new Map();
   for (const card of tableCards) if (!card.head) laid.set(String(card.group), (laid.get(String(card.group)) || 0) + 1);
   const { rects, changed } = tableZoneReconcile(kept, names.map(name => ({ name, count: laid.get(name) || 0 })),
-    width, height, w, h, tableZoneKeepOut(), tableZoneMinFor(width, w, h));
+    width, height, w, h, null, tableZoneMinFor(width, w, h));
   if (changed) tableZoneKeep(deck.id, rects);
 
   const before = new Map(tableZones.map(zone => [zone.name, zone]));
@@ -6067,13 +6112,14 @@ function tableZonesClear() {
 
 /* The zones' depth, shared out in order: for each zone a layer for its
  * felt, one for each of its cards and one for its label and grip; then one
- * for each card no zone holds — the commander — over all of them. The
- * first layer is a gap above the mat, never on it. However many zones and
- * cards there are, they fit in TABLE_DEPTH (tableCardGapFor), under the
- * landing mark and the rim. */
+ * for each card on the felt that no zone holds, over all of them. The
+ * commander is not on the felt — it stands in its slot (tableCardZ) — and
+ * takes no layer. The first layer is a gap above the mat, never on it.
+ * However many zones and cards there are, they fit in TABLE_DEPTH
+ * (tableCardGapFor), under the landing mark and the rim. */
 function tableZonesLayer() {
   const zoned = new Set(tableZones.flatMap(zone => zone.cards));
-  const loose = tableCards.filter(card => !zoned.has(card));
+  const loose = tableCards.filter(card => !zoned.has(card) && !card.head);
   const g = tableCardGapFor(1 + tableZones.reduce((s, zone) => s + zone.cards.length + 2, 0) + loose.length);
   let at = 1;
   for (const zone of tableZones) {
@@ -6225,11 +6271,12 @@ function tableZonePickUp(card) {
 }
 
 /* A frame of a card carried over the zones: the zone under the pointer, lit
- * if the card can be moved into it — not over the bin, not the commander,
- * and only for a deck the user may edit. */
+ * if the card can be moved into it — not over the bin or the commander slot,
+ * and only for a deck the user may edit. A commander carried off its stand
+ * lights the zone it would go back into the deck in (tableSlotRelease). */
 function tableZoneHover(hold) {
   const rules = tableZonesActive() ? tableZoneRulesNow() : null;
-  const zone = rules && hold.dragging && !hold.over && !hold.card.head ? tableZoneUnder(hold.pointer) : null;
+  const zone = rules && hold.dragging && !hold.over && !hold.slot ? tableZoneUnder(hold.pointer) : null;
   hold.zone = zone;
   tableZoneLight(rules?.move ? zone : null);
 }
@@ -6487,7 +6534,7 @@ function tableZoneAdd() {
   for (let n = 1; !name || cats.some(c => c.name === name); n++) name = n === 1 ? 'New category' : `New category ${n}`;
   const { width, height } = tableGeom.mat;
   const size = tableZoneDefaultSize(0, tableCardSize.w, tableCardSize.h, width, height);
-  const at = tableZoneFree(tableZones, size, width, height, tableZoneKeepOut());
+  const at = tableZoneFree(tableZones, size, width, height, null);
   const before = tableZones.map(({ name: n, left, top, width: w, height: h }) => ({ name: n, left, top, width: w, height: h }));
   tableZoneKeep(deck.id, [...before, { name, ...at, ...size }]);
   if (!_dbAddCategoryByName(name)) { tableZoneKeep(deck.id, before); return; }
@@ -6774,7 +6821,7 @@ function tableSideTarget(point, { width, height, side, box = null, boards = [] }
  * place the builder's drop is given (dbPlace's grammar: a board alone, or
  * "board/category", a pile of it) — or null for nothing, when the card goes
  * back where it was. `ref` is the card's, board first (dbCardRef), `head`
- * whether it lies at the head of the mat, `zone` the zone it is let go over
+ * whether it stands in the commander slot, `zone` the zone it is let go over
  * with zones on, and `move` whether the deck may be changed (tableSideRules):
  *
  *   a card of the deck over a region         that board alone, so the card
@@ -7168,7 +7215,11 @@ function tableSideTargetAt(pointer) {
 function tableSideHover(hold) {
   if (!tableSideUp) return;
   const card = hold.card;
-  const target = hold.dragging && !hold.over ? tableSideTargetAt(hold.pointer) : null;
+  /* A commander carried off its stand is the slot's to light, and goes to
+     no board of the side table (tableSidePlace); a card over the slot is
+     over neither table. */
+  if (card.head) { hold.sideTarget = hold.sideMove = null; return; }
+  const target = hold.dragging && !hold.over && !hold.slot ? tableSideTargetAt(hold.pointer) : null;
   const zone = card.side && target?.table === 'main' && tableZonesActive() ? (hold.zone?.name ?? null) : null;
   hold.sideTarget = target;
   hold.sideMove = tableSidePlace({ ref: card.ref, head: card.head, target, zone, move: tableSideRulesNow().move });
@@ -7267,6 +7318,636 @@ function tableSideLand() {
   card.el.classList.add('is-settling');
   tableWriteCard(card);
   const el = card.el;
+  tableAfter(el, () => el.classList.remove('is-settling'));
+}
+
+// ── The Deck Builder's commander slot ────────────────────────────────────
+// The deck's commander — or both, with a partner or a Background — does not
+// lie on the felt. It stands on a stand of its own beyond the table's
+// far-left corner, in room the perspective leaves bare: the table's far edge
+// is drawn narrower than its near edge, so beside the far end of the left rim
+// there is window and no table, and a card the deck is built around can
+// stand there to be seen whole, apart from the piles and the zones, taking
+// none of the felt from them.
+//
+//   the stand   a board of the table's darker wood lying in the table's
+//               plane, a gap of bare room (TABLE_SLOT_GAP) left of the left
+//               rim, its back on the line of the table's far edge and running
+//               leftwards from the far-left outer corner, with a ledge across
+//               its front and the small shadow a thing standing on the floor
+//               casts. In the plane, so it pans and zooms with the table and
+//               is mapped from the screen as the rim is; a child of the mat,
+//               laid out past its top-left edge as the slip and the bin are
+//               past its top one, so its box is in the mat's own pixels.
+//   its cards   the mat's own cards (tableCards, `head`), stood on the ledge
+//               rather than laid: each turned about its bottom edge by
+//               TABLE_SLOT_STAND, which in the tilted plane stands it up to
+//               face the viewer, leaning back by TABLE_SLOT_LEAN against the
+//               stand (tableStandTransform). Two stand side by side, and the
+//               stand widens for them. TABLE_HEAD_SCALE times a pile's card,
+//               following the card-size slider, where the room allows it, and
+//               smaller where it does not, down to TABLE_SLOT_MIN_W
+//               (tableSlotFit): the table is never refitted or shrunk for it.
+//   empty       a deck open with no commander has the stand show an empty
+//               card-shaped place, labelled "Commander".
+//
+// The fit is worked out from the table's own measure at rest — the camera's
+// matrix at the whole table, the far-left outer corner in the mat's pixels,
+// the card size and the window's gutter (tableSlotFit). The ledge is put as
+// near the far edge as lets the cards' tops stand no higher on the screen
+// than the table's own far edge, so the slot is in the window whenever the
+// far rim is, beside the left rim's tabs and the far rim's slider and never
+// over them; and its cards are as large as fit between there and the
+// window's left gutter. With the side table up the table is fitted narrower
+// (tableFitPair) and lays smaller cards, and the slot is fitted again for
+// them as every layout is.
+//
+// What a hand does there, on a deck the user may edit (tableToolsOn), each
+// through the builder's own edit, the deck laid again after it
+// (tableRelayDeck):
+//
+//   a card of the deck — off the felt, a zone or the side table — carried
+//   over the stand lights it (is-over, as the bin is lit, hit-tested in the
+//   table's plane by the pointer mapped through the camera, tableSlotWhere),
+//   and let go there:
+//     onto a commander, or the empty place   it is made the commander
+//                                            (dbMakeCommander), whatever
+//                                            stood there going back into the
+//                                            deck
+//     onto the place beside a lone           it is added as its partner
+//     commander                              (dbAddPartner)
+//   (tableSlotDrop). The room beside the far-left corner holds one card at
+//   the head size, not two, so the place beside a lone commander is made when
+//   it is wanted: while a card is carried over the stand, the commander moves
+//   along it and an empty place labelled "Partner" stands beside it, and when
+//   the card goes it closes up again (tableSlotOffer).
+//
+//   a commander carried off the stand and let go on the felt goes back into
+//   the deck: over a zone, in that zone's category; anywhere else on the
+//   felt, in the one the builder would file it under (dbAutoCategory) — the
+//   zone or the felt lit as it is carried (tableSlotLeave). Let go anywhere
+//   else — the stand, the room, the rim, the side table — it goes back onto
+//   its stand. The bin takes it as it takes any card.
+//
+// And it is still a table card: pressed and let go, it is picked up to be
+// looked at, rising from where it stands; right-clicked, it opens the card's
+// menu, which has always known a commander (tableCardMenuItems); Details
+// opens it on the Card tab. On a deck the user may only look at, the slot
+// only shows it. Only on the Deck Builder's table with a deck open: every
+// other tab has no slot.
+
+/* The stand's measure, in the mat's own pixels — the table's plane: the bare
+ * room between the table's left edge and the stand, so the two read as a
+ * table and a stand beside it rather than one board; the stand's wood either
+ * side of its cards; the gap between two cards standing on it, a share of a
+ * card's width, close, since the room is narrow; and the ledge across its
+ * front, in front of the cards' feet. table.css is handed the ledge's depth
+ * (--table-slot-lip). */
+const TABLE_SLOT_GAP      = 16;
+const TABLE_SLOT_PAD      = 8;
+const TABLE_SLOT_CARD_GAP = 0.08;
+const TABLE_SLOT_LIP      = 12;
+
+/* How a card stands on it: turned about its bottom edge by the table's own
+ * tilt, which would face the viewer exactly, less TABLE_SLOT_LEAN degrees,
+ * so that it leans back a little against the stand and reads as standing on
+ * one rather than as a picture laid over the window. */
+const TABLE_SLOT_LEAN  = 4;
+const TABLE_SLOT_STAND = TABLE_TILT_REST - TABLE_SLOT_LEAN;
+
+/* The smallest a card in the slot is drawn, however little room the window
+ * leaves it — a card whose art can still be told at a glance, and small
+ * enough that a laptop's window (1280×800, 1366×768) still stands a pair of
+ * partners whole, at about 50 — and how high its feet stand off the stand's
+ * wood: a card's gap, as the slip and the bin lie on the rim. */
+const TABLE_SLOT_MIN_W = 48;
+const TABLE_SLOT_Z     = TABLE_CARD_GAP;
+
+// ── The commander slot's decisions ──
+
+/* Whether the slot stands at all: while the Deck Builder's cards are the
+ * ones on the mat (`scope`) with a deck open, and not for the Card tab's one
+ * large card. The deck may be one the user may only look at: the slot then
+ * shows its commander and takes nothing. */
+function tableSlotShown({ scope, deckOpen, feature = false } = {}) {
+  return scope === 'deckview' && !!deckOpen && !feature;
+}
+
+/* How many places the stand is laid with: one for each commander standing
+ * on it (`laid`, the head cards on the mat), and one more beside a lone one
+ * while a card is carried over it (`offer`, tableSlotOffer); for a deck with
+ * none — `held`, the commander board's own count, says none — one, the empty
+ * place; and none for a deck whose commander the builder is not showing, its
+ * board switched off or the filter hiding it, so that the stand is away
+ * rather than saying the deck has no commander. */
+function tableSlotCount({ laid = 0, held = 0, offer = false } = {}) {
+  const n = Math.max(0, Math.floor(Number(laid) || 0));
+  if (n) return n + (offer && n === 1 ? 1 : 0);
+  return (Number(held) || 0) > 0 ? 0 : 1;
+}
+
+/* Where the slot stands and how large its cards are drawn, for `count`
+ * places (tableSlotCount) of cards that would be `card.w` wide where there is
+ * room — TABLE_HEAD_SCALE times a pile's card. Worked out from the table's
+ * measure: `m`, the matrix taking the mat's pixels to the window with the
+ * camera at rest (tablePlaneMatrix); `corner`, the table's far-left outer
+ * corner in the mat's pixels, { u, v } — the plane's border box's corner;
+ * and `gutter`, how far in from the window's left edge the stand is kept.
+ * Everything it answers is in the mat's own pixels, in the table's plane.
+ *
+ * The stand runs leftwards from TABLE_SLOT_GAP beyond the table's left edge,
+ * its back on the line of the table's far edge. Its cards stand on a ledge
+ * across it, as near the far edge as lets a card's top stand no higher on
+ * the screen than the table's far-left corner (found by halving: the nearer
+ * the ledge, the lower the card stands on the screen) — never above the
+ * table, so never out of a window the far rim is in. A card is as large as
+ * asked while the stand's outermost corner on the screen is still `gutter` in
+ * from the window's left edge, and smaller where it would not be, found by
+ * halving too: a smaller card stands its ledge nearer the far edge, where the
+ * room beside the table is wider, so the answer only goes one way with the
+ * size. Never smaller than `min`, where a window too narrow for even that
+ * lets the stand run past its edge rather than draw a card nobody can read.
+ * A size it shrinks to is held to the half pixel, so a slider dragged across
+ * a size the room caps does not set the slot moving by fractions.
+ *
+ * Answers null with nothing to fit, or { w, h, ledge, places, stand, hit,
+ * splits }:
+ *
+ *   w, h     the size each card is drawn at
+ *   ledge    the line across the plane the cards' bottom edges stand on
+ *   places   each card's box before it stands, { left, top } — its bottom
+ *            edge on the ledge — from the left; the first commander's first
+ *   stand    the stand's box, { left, top, width, height }: from the far
+ *            edge's line to the front of the ledge
+ *   hit      the box of the plane, at the felt's height, whose picture on
+ *            the screen covers the stand and every card standing on it —
+ *            what a pointer is hit-tested against (tableSlotWhere). A box of
+ *            the plane, not of the screen, so it holds however the camera
+ *            pans and zooms: the camera moves the one picture the plane and
+ *            the cards standing off it are both drawn into.
+ *   splits   between each two places, the line of the plane, at the felt's
+ *            height, under the middle of the gap between them as the screen
+ *            sees it — { a, b }, two points of it, from the cards' feet up
+ *            to their tops. A card stands upright on the screen, so what is
+ *            under the gap is a line on the screen; under it on the plane, the
+ *            perspective slants it, and a point is put on one side or the
+ *            other by that line rather than by how far across it is
+ *            (tableSlotWhere). */
+function tableSlotFit({ m, corner, count = 1, card, gutter = TABLE_FIT_GUTTER, min = TABLE_SLOT_MIN_W } = {}) {
+  const n = Math.max(1, Math.floor(Number(count) || 1));
+  const want = Number(card?.w) || 0;
+  const cu = Number(corner?.u), cv = Number(corner?.v);
+  if (!m || !(want > 0) || !Number.isFinite(cu) || !Number.isFinite(cv)) return null;
+  const far = tableProject(m, cu, cv);
+  if (!far) return null;
+  const a = TABLE_SLOT_STAND * TABLE_RAD;
+  const back = Math.cos(a), up = Math.sin(a);
+  const right = cu - TABLE_SLOT_GAP;
+  /* The stand laid for cards `w` wide: its ledge, and whether its outermost
+     corner on the screen — the ledge's front at its left-hand end, the
+     nearest and furthest out of anything on it — keeps the gutter. */
+  const lay = w => {
+    const h = w * TABLE_CARD_RATIO, g = w * TABLE_SLOT_CARD_GAP;
+    const width = n * w + (n - 1) * g + 2 * TABLE_SLOT_PAD;
+    const left = right - width;
+    /* A card's top, standing on a ledge at v: a line across the plane, so
+       one height on the screen wherever along it it is asked. */
+    const topY = v => tableProject(m, left, v - h * back, TABLE_SLOT_Z + h * up)?.y ?? -Infinity;
+    let lo = cv, hi = cv + 8 * h;
+    if (topY(lo) < far.y) {
+      for (let k = 0; k < 40; k++) {
+        const mid = (lo + hi) / 2;
+        if (topY(mid) >= far.y) hi = mid; else lo = mid;
+      }
+      lo = hi;
+    }
+    const ledge = lo;
+    const xs = [[left, ledge + TABLE_SLOT_LIP, 0], [left, cv, 0],
+      [left + TABLE_SLOT_PAD, ledge - h * back, TABLE_SLOT_Z + h * up]]
+      .map(([u, v, z]) => tableProject(m, u, v, z)?.x ?? -Infinity);
+    return { w, h, g, width, left, ledge, fits: Math.min(...xs) >= gutter - 1e-9 };
+  };
+  let best = lay(want);
+  if (!best.fits) {
+    const floor = Math.min(want, Math.max(1, Number(min) || 1));
+    let lo = floor, hi = want;
+    if (lay(lo).fits) {
+      for (let k = 0; k < 24; k++) {
+        const mid = (lo + hi) / 2;
+        if (lay(mid).fits) lo = mid; else hi = mid;
+      }
+      lo = Math.max(floor, Math.floor(lo * 2) / 2);
+    }
+    best = lay(lo);
+  }
+  const { w, h, g, width, left, ledge } = best;
+  const places = Array.from({ length: n }, (_, i) => ({ left: left + TABLE_SLOT_PAD + i * (w + g), top: ledge - h }));
+  const stand = { left, top: cv, width, height: ledge + TABLE_SLOT_LIP - cv };
+  /* The hit box: the stand, and each card's four corners as the screen sees
+     them, taken back down onto the plane at the felt's height. */
+  const us = [stand.left, stand.left + stand.width], vs = [stand.top, stand.top + stand.height];
+  for (const p of places) {
+    for (const [u, v, z] of [[p.left, ledge, TABLE_SLOT_Z], [p.left + w, ledge, TABLE_SLOT_Z],
+      [p.left, ledge - h * back, TABLE_SLOT_Z + h * up], [p.left + w, ledge - h * back, TABLE_SLOT_Z + h * up]]) {
+      const seen = tableProject(m, u, v, z);
+      const under = seen && tableUnproject(m, seen.x, seen.y, 0);
+      if (under) { us.push(under.u); vs.push(under.v); }
+    }
+  }
+  const hit = { left: Math.min(...us), top: Math.min(...vs) };
+  hit.width = Math.max(...us) - hit.left;
+  hit.height = Math.max(...vs) - hit.top;
+  const splits = [];
+  for (let i = 0; i + 1 < n; i++) {
+    const mid = places[i].left + w + g / 2;
+    const foot = tableProject(m, mid, ledge, TABLE_SLOT_Z);
+    const top = tableProject(m, mid, ledge - h * back, TABLE_SLOT_Z + h * up);
+    const a = foot && tableUnproject(m, foot.x, foot.y, 0);
+    const b = top && tableUnproject(m, foot.x, top.y, 0);
+    splits.push(a && b ? { a, b } : { a: { u: mid, v: ledge }, b: { u: mid, v: ledge - h } });
+  }
+  return { w, h, ledge, places, stand, hit, splits };
+}
+
+/* The transform that stands a card — or the empty place — on the stand:
+ * `place` its box's top-left before it stands, { left, top }, in the pixels
+ * of whatever it is laid in; `box` its size, { w, h }; `z` how high off the
+ * wood its feet are. It is put there and turned about its bottom edge by
+ * TABLE_SLOT_STAND — the element's own origin is its middle, so the turn is
+ * put about its foot by moving half its height down first and back after —
+ * which in the table's tilted plane stands it up to face the viewer. */
+function tableStandTransform(place, box, z = 0) {
+  const half = (Number(box?.h) || 0) / 2;
+  const at = n => (Number(n) || 0).toFixed(2);
+  return `translate3d(${at(place?.left)}px, ${at(place?.top)}px, ${at(z)}px) ` +
+    `translateY(${at(half)}px) rotateX(${at(-TABLE_SLOT_STAND)}deg) translateY(${at(-half)}px)`;
+}
+
+/* What a point of the plane — the pointer, mapped onto it through the camera
+ * at the felt's height — is over in the slot fitted as `fit` (tableSlotFit),
+ * with `commanders` standing on it: 'empty', anywhere over a stand with none;
+ * 'card', over a commander's place; 'beside', over a place laid beside the
+ * commanders, where none stands (tableSlotCount's `offer`); or null, off the
+ * slot. Which place is counted by the splits between them the point lies
+ * past — the lines under the gaps as the screen sees them — so the room
+ * between two cards belongs to the nearer, and the top of a card, which the
+ * perspective takes furthest across on the plane, is still its own. */
+function tableSlotWhere(point, fit, commanders = 0) {
+  if (!point || !fit || !tableInMatRect(point, fit.hit)) return null;
+  const n = Math.max(0, Math.floor(Number(commanders) || 0));
+  if (!n) return 'empty';
+  const u = Number(point.u), v = Number(point.v);
+  /* Past a split is to its right as it runs from the feet up: the sign of
+     the cross product of its run and the point's offset from its foot. */
+  const place = (fit.splits || []).filter(({ a, b }) => (b.u - a.u) * (v - a.v) - (b.v - a.v) * (u - a.u) > 0).length;
+  return place < n ? 'card' : 'beside';
+}
+
+/* What a card of the deck let go over the slot asks of it (tableSlotWhere's
+ * answer as `over`, with `commanders` standing there): 'commander' — make it
+ * the commander, whatever stands there going back into the deck
+ * (dbMakeCommander) — over a commander or the empty place; 'partner' — run
+ * it beside the one there (dbAddPartner) — over the place beside a lone
+ * commander; and null anywhere else, when the card goes back where it was. */
+function tableSlotDrop({ commanders = 0, over = null } = {}) {
+  const n = Math.max(0, Math.floor(Number(commanders) || 0));
+  if (over === 'empty' || over === 'card') return 'commander';
+  if (over === 'beside') return n === 1 ? 'partner' : null;
+  return null;
+}
+
+/* Where a commander carried off its stand and let go goes in the deck, as
+ * the place the builder's drop is given (dbPlace's grammar) — or null, when
+ * it goes back onto its stand. Let go on the felt (`felt`) of a deck that may
+ * be changed (`move`): into the mainboard, in the category of the zone it is
+ * over (`zone`), or — over bare felt, or with zones off — the one the
+ * builder would file it under (`auto`, dbAutoCategory's answer). Off the
+ * felt — the stand, the room, the rim, the side table — nothing. */
+function tableSlotLeave({ move = false, felt = false, zone = null, auto = '' } = {}) {
+  if (!move || !felt) return null;
+  const main = typeof DB_MAIN_BOARD === 'string' ? DB_MAIN_BOARD : 'main';
+  const pile = zone != null && String(zone) !== '' ? String(zone) : String(auto || '');
+  if (!pile) return main;
+  return typeof dbPlace === 'function' ? dbPlace(main, pile) : `${main}/${pile}`;
+}
+
+// ── The commander slot on the table ──
+
+let tableSlot        = null;   // { el, commander, partner, fit, shown, offer, oneHit }: made with each scene
+let tableSlotLit     = null;   // what the slot is lit for under the card in hand: 'card' | 'beside' | 'empty'
+let tableSlotLanding = null;   // { key, x, y, until }: a card just let go onto the stand, on its way
+
+/* The stand, made with each scene and laid on the mat, hidden until a deck
+ * is laid: its base, its ledge, and the two empty places it can show — the
+ * commander's, for a deck with none, and the partner's, made beside a lone
+ * commander while a card is carried over it. The cards standing on it are
+ * the mat's own, made with the rest (tableDrawCards). */
+function tableSlotBuild() {
+  const { mat, scene, hint } = tableEls;
+  scene.style.setProperty('--table-slot-lip', `${TABLE_SLOT_LIP}px`);
+  const el = document.createElement('div');
+  el.className = 'table-slot';
+  el.dataset.tab = 'deckview';
+  el.hidden = true;
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', 'Commander');
+  el.innerHTML = `
+    <div class="table-slot-base"></div>
+    <div class="table-slot-ledge"></div>
+    <div class="table-slot-empty" data-place="commander" hidden><span class="table-slot-label">Commander</span></div>
+    <div class="table-slot-empty" data-place="partner" hidden><span class="table-slot-label">Partner</span></div>`;
+  mat.insertBefore(el, hint);
+  const [commander, partner] = el.querySelectorAll('.table-slot-empty');
+  tableSlot = { el, commander, partner, fit: null, shown: false, offer: false, oneHit: null };
+}
+
+/* The slot fitted and laid for the cards on the mat now — asked whenever
+ * they are drawn, resized, or sized by the slider, once the piles and the
+ * zones have their places: shown or not (tableSlotShown, tableSlotCount),
+ * fitted to the room beyond the table's far-left corner as the table stands
+ * at rest (tableSlotFit), and each commander given its place on the ledge,
+ * its size and its place as fractions of the mat — its middle — for whatever
+ * asks where a card is. A commander in hand is left in the hand. The hit box
+ * of the stand without the partner's place is kept, so that a card carried
+ * over the stand's first answer does not close the place again as it is
+ * made (tableSlotHover). */
+function tableSlotPlace() {
+  const slot = tableSlot;
+  if (!slot || !tableEls || !tableGeom) return;
+  const heads = tableCards.filter(card => card.head);
+  const deck = tableZoneDeck();
+  const shown = tableSlotShown({ scope: tableScope, deckOpen: !!deck, feature: tableFeature });
+  const held = typeof dbCommanderCards === 'function' ? dbCommanderCards().length : heads.length;
+  if (!shown || heads.length !== 1) slot.offer = false;
+  const count = shown ? tableSlotCount({ laid: heads.length, held, offer: slot.offer }) : 0;
+  const { mat } = tableGeom;
+  const fit = count ? tableSlotFit({
+    m: tablePlaneMatrix({ ...tableGeom, tilt: TABLE_TILT_REST, camera: { zoom: 1, tx: 0, ty: 0 } }),
+    corner: { u: -mat.left, v: -mat.top }, count, card: { w: tableCardSize.w * TABLE_HEAD_SCALE },
+  }) : null;
+  slot.fit = fit;
+  slot.shown = !!fit;
+  slot.el.hidden = !fit;
+  if (!fit) {
+    slot.offer = false;
+    tableSlotLight(null);
+    for (const card of heads) card.standing = false;
+    return;
+  }
+  if (!slot.offer) slot.oneHit = fit.hit;
+  const { stand } = fit;
+  const style = slot.el.style;
+  style.left   = `${stand.left.toFixed(2)}px`;
+  style.top    = `${stand.top.toFixed(2)}px`;
+  style.width  = `${stand.width.toFixed(2)}px`;
+  style.height = `${stand.height.toFixed(2)}px`;
+  /* The empty places, stood on the ledge as a card is, in the stand's own
+     pixels. */
+  const empty = (node, i, on, title) => {
+    node.hidden = !on;
+    if (!on) return;
+    const p = fit.places[i];
+    node.style.width  = `${fit.w.toFixed(2)}px`;
+    node.style.height = `${fit.h.toFixed(2)}px`;
+    node.style.transform = tableStandTransform({ left: p.left - stand.left, top: p.top - stand.top }, fit, TABLE_SLOT_Z);
+    if (title && tableToolsOn) node.title = title;
+    else node.removeAttribute('title');
+  };
+  empty(slot.commander, 0, !heads.length, 'Drop a card here to make it the commander');
+  empty(slot.partner, 1, slot.offer && heads.length === 1, 'Drop the card here to run it beside the commander');
+  heads.forEach((card, i) => {
+    const p = fit.places[i];
+    card.slotAt = p;
+    if (!(tableHold?.card === card && tableHold.dragging)) {
+      card.standing = true;
+      card.x = (p.left + fit.w / 2) / mat.width;
+      card.y = (p.top + fit.h / 2) / mat.height;
+      card.turn = 0;
+    }
+    tableSizeCard(card);
+  });
+}
+
+/* The slot lit — its ledge, and an empty place being aimed at, in the Deck
+ * Builder's accent — while a card in hand is over it, for what it is over
+ * ('card', 'beside', 'empty'), or put out. Written only when that changes. */
+function tableSlotLight(over) {
+  const next = over || null;
+  if (next === tableSlotLit) return;
+  tableSlotLit = next;
+  const el = tableSlot?.el;
+  if (!el) return;
+  el.classList.toggle('is-over', !!next);
+  if (next) el.dataset.over = next;
+  else delete el.dataset.over;
+}
+
+/* The place beside a lone commander made, or closed up again: the slot laid
+ * again for it (tableSlotPlace) and its commander moved along the stand in
+ * the card layer's own time. Written only when that changes. */
+function tableSlotOffer(on) {
+  const slot = tableSlot;
+  if (!slot || !!on === slot.offer) return;
+  slot.offer = !!on;
+  tableSlotPlace();
+  for (const card of tableCards) {
+    if (!card.head || !card.el || tableHold?.card === card) continue;
+    const el = card.el;
+    el.classList.add('is-settling');
+    tableWriteCard(card);
+    tableAfter(el, () => el.classList.remove('is-settling'));
+  }
+}
+
+/* A frame of a card carried with the slot standing: what of it the pointer
+ * is over (tableSlotWhere), kept on the hold as `slot` — for a card of the
+ * deck that could stand there, carried rather than pressed, not over the bin,
+ * on a deck the user may edit; for anything else, nothing. With one
+ * commander standing, the place beside it is made while the pointer is over
+ * the stand — as it stood before the place was made, or as it stands with
+ * it, so the place made under the pointer does not close itself again — and
+ * closed when it goes (tableSlotOffer). */
+function tableSlotHover(hold) {
+  const slot = tableSlot;
+  if (!tableSlotTakes(hold) || hold.over) {
+    hold.slot = null;
+    tableSlotOffer(false);
+    return;
+  }
+  const at = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, 0);
+  const heads = tableCards.filter(c => c.head).length;
+  if (heads === 1) tableSlotOffer(tableInMatRect(at, slot.oneHit) || (slot.offer && tableInMatRect(at, slot.fit.hit)));
+  hold.slot = slot.fit ? tableSlotWhere(at, slot.fit, heads) : null;
+}
+
+/* Whether the card in hand could be stood on the slot: a card of the deck,
+ * carried rather than pressed, not a commander already, with the slot
+ * standing on a deck the user may edit. */
+function tableSlotTakes(hold) {
+  const card = hold?.card;
+  return !!tableSlot?.fit && tableToolsOn && !!hold.dragging && !!card && !card.head && !!card.ref;
+}
+
+/* What of the slot the pointer of the card in hand is over now
+ * (tableSlotWhere), as the slot is laid now — asked again as it is let go,
+ * since a hand quick enough lets go before a frame has asked it. */
+function tableSlotOverNow(hold) {
+  if (!tableSlotTakes(hold) || !hold.pointer) return null;
+  const at = tableUnproject(tableMatrix(), hold.pointer.x, hold.pointer.y, 0);
+  return tableSlotWhere(at, tableSlot.fit, tableCards.filter(c => c.head).length);
+}
+
+/* Where a commander carried off its stand is over: the felt, and the zone on
+ * it, by the pointer mapped onto the plane through the camera — the zones'
+ * own question (tableZoneUnder) — or neither. */
+function tableSlotLeaveAt(pointer) {
+  if (!pointer || !tableGeom) return { felt: false, zone: null };
+  const hit = tableUnproject(tableMatrix(), pointer.x, pointer.y, 0);
+  const { width, height } = tableGeom.mat;
+  const felt = tableInMatRect(hit, { left: 0, top: 0, width, height });
+  const zone = felt && tableZonesActive() ? (tableZoneUnder(pointer)?.name ?? null) : null;
+  return { felt, zone };
+}
+
+/* A frame of a commander carried off its stand: the felt lit — in the Deck
+ * Builder's accent, as for a card off the side table going back into the
+ * deck — where it would go back into the deck and no zone is lit to say so
+ * (tableZoneHover lights the zone). Nothing over the bin, off the felt, or
+ * on a deck the user may only look at. */
+function tableSlotLeaveHover(hold) {
+  const card = hold.card;
+  if (!card.head || !hold.dragging) return;
+  const at = hold.over ? { felt: false, zone: null } : tableSlotLeaveAt(hold.pointer);
+  const goes = tableSlotLeave({ move: tableToolsOn && !!card.ref, felt: at.felt, zone: at.zone, auto: '' });
+  tableSideLight(goes && at.zone == null ? 'main' : null);
+}
+
+/* The landing mark, with the slot standing: none for a commander in hand —
+ * it lies nowhere it is let go: it goes into the deck, where the layout
+ * says, or back onto its stand — nor for a card over the slot, which stands
+ * on the stand or goes back. Anything else, `cast` as it was asked. */
+function tableSlotCast(cast, hold = tableHold) {
+  if (!cast || !hold) return cast;
+  return hold.card.head || hold.slot ? null : cast;
+}
+
+/* A card let go when it is the slot's to answer — a card over the slot, or a
+ * commander carried off it — answering true; any other is the side table's,
+ * the zones' or the piles', and false.
+ *
+ * Only a hand letting go changes the deck (a pointerup), and only on a deck
+ * the user may edit. A card over the slot is made the commander or its
+ * partner (tableSlotDrop), through the builder's own edit, the deck then laid
+ * again and the card coming in to its stand from where it was let go
+ * (tableSlotLand); refused, or put down for it, it goes back where it was
+ * carried from (tableSlotPutBack). A commander goes back into the deck
+ * (tableSlotPutDown). */
+function tableSlotRelease(hold, e) {
+  const card = hold.card;
+  const up = e?.type === 'pointerup';
+  if (card.head) return tableSlotPutDown(hold, up);
+  const over = tableSlotOverNow(hold);
+  hold.slot = null;
+  if (!over || !tableSlot?.fit) { tableSlotOffer(false); return false; }
+  tableZoneLight(null);
+  tableSideLight(null);
+  const heads = tableCards.filter(c => c.head).length;
+  const act = up && tableToolsOn ? tableSlotDrop({ commanders: heads, over }) : null;
+  const edit = act === 'partner' ? 'dbAddPartner' : act === 'commander' ? 'dbMakeCommander' : null;
+  const fn = edit ? globalThis[edit] : null;
+  if (typeof fn === 'function' && card.ref) {
+    const board = typeof DB_COMMANDER_BOARD === 'string' ? DB_COMMANDER_BOARD : 'commander';
+    const name = String(card.ref).slice(String(card.ref).indexOf('/') + 1);
+    tableSlotLanding = { key: `deckview:${board}/${name}#1`, x: card.x, y: card.y, until: Date.now() + TABLE_ARRIVAL_MS };
+    const done = fn(card.ref);
+    if (done) {
+      tableSwallow = true;
+      tableSlotOffer(false);
+      Promise.resolve(done).catch(() => {}).then(tableRelayDeck);
+      return true;
+    }
+    tableSlotLanding = null;
+  }
+  tableSlotOffer(false);
+  tableSlotPutBack(hold);
+  return true;
+}
+
+/* A card carried over the slot and not stood there: back where it was
+ * carried from — its place on the felt, in its zone or on the side table —
+ * coming down in the card layer's own time. */
+function tableSlotPutBack(hold) {
+  const card = hold.card;
+  tableSwallow = true;
+  card.x = hold.from.x;
+  card.y = hold.from.y;
+  const el = card.el;
+  el?.classList.remove('is-held');
+  el?.classList.add('is-settling');
+  if (card.side) tableSideArrange();
+  else if (tableZonesActive() && card.zoneSpot) { if (tableZonesPlace()) tableZonesWrite(); }
+  else tableWriteCard(card);
+  if (el) tableAfter(el, () => el.classList.remove('is-settling'));
+}
+
+/* A commander carried off its stand, let go: into the deck where
+ * tableSlotLeave says — through the builder's own drop, as a card carried
+ * into a zone is (cardCarryDrop), into a category made first if the deck has
+ * none of that name yet — the deck laid again and the card coming in from
+ * where it was let go (tableZoneLand); or, anywhere else, back onto its
+ * stand. Always the slot's to answer. */
+function tableSlotPutDown(hold, up) {
+  const card = hold.card;
+  tableSideLight(null);
+  tableZoneLight(null);
+  tableSwallow = true;
+  const at = up ? tableSlotLeaveAt(hold.pointer) : { felt: false, zone: null };
+  const ref = String(card.ref ?? '');
+  const name = ref.slice(ref.indexOf('/') + 1);
+  const auto = at.felt && at.zone == null && typeof dbAutoCategory === 'function' ? dbAutoCategory(name) : '';
+  const place = tableSlotLeave({ move: up && tableToolsOn && !!ref, felt: at.felt, zone: at.zone, auto });
+  if (place) {
+    if (auto && typeof dbEnsureCat === 'function') dbEnsureCat(auto);
+    const main = typeof DB_MAIN_BOARD === 'string' ? DB_MAIN_BOARD : 'main';
+    tableZoneLanding = { key: `deckview:${main}/${name}#1`, x: card.x, y: card.y, until: Date.now() + TABLE_ARRIVAL_MS };
+    const moved = typeof cardCarryDrop === 'function' ? cardCarryDrop([ref], place)
+      : typeof dbMoveCardsTo === 'function' && dbMoveCardsTo([ref], place);
+    if (moved) { tableRelayDeck(); return true; }
+    tableZoneLanding = null;
+  }
+  card.x = hold.from.x;
+  card.y = hold.from.y;
+  card.standing = !!card.slotAt;
+  const el = card.el;
+  el?.classList.remove('is-held');
+  el?.classList.add('is-settling');
+  tableWriteCard(card);
+  if (el) tableAfter(el, () => el.classList.remove('is-settling'));
+  return true;
+}
+
+/* The card just stood on the stand, among the cards just laid: drawn first
+ * lying where the hand let it go, then let stand up onto its place in the
+ * card layer's own time, as one let go into a zone comes in to its place
+ * (tableZoneLand). Not when cards may not move. */
+function tableSlotLand() {
+  const landing = tableSlotLanding;
+  tableSlotLanding = null;
+  if (!landing || Date.now() > landing.until || !cardMotionOn()) return;
+  const card = tableCards.find(c => c.key === landing.key && c.el && c.head);
+  if (!card || !card.standing) return;
+  const at = { x: card.x, y: card.y };
+  card.standing = false;
+  card.x = landing.x;
+  card.y = landing.y;
+  tableWriteCard(card);
+  void card.el.offsetWidth;
+  card.x = at.x;
+  card.y = at.y;
+  card.standing = true;
+  const el = card.el;
+  el.classList.add('is-settling');
+  tableWriteCard(card);
   tableAfter(el, () => el.classList.remove('is-settling'));
 }
 
