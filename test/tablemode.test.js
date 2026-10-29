@@ -1678,7 +1678,9 @@ test('another tab opened over the sheet is opened, and the way back is not taken
 // ── The Deck Builder's table: the commander, the slip and the bin ──────────
 
 /* A card's box on the mat, in the mat's pixels, unturned: its centre from its
- * spot and its size from the layout, a head card's TABLE_HEAD_SCALE times. */
+ * spot and its size from the layout, a head card's TABLE_HEAD_SCALE times —
+ * though a head card lies nowhere on the mat now, its spot a placeholder in
+ * the middle of it until the commander slot stands it off the felt. */
 const HEAD_SCALE = app.evaluate('TABLE_HEAD_SCALE');
 function boxOf(list, laid, i, mat = MAT) {
   const k = list[i].head ? HEAD_SCALE : 1;
@@ -1686,55 +1688,38 @@ function boxOf(list, laid, i, mat = MAT) {
   const cx = laid.spots[i].x * mat.width, cy = laid.spots[i].y * mat.height;
   return { left: cx - w / 2, right: cx + w / 2, top: cy - h / 2, bottom: cy + h / 2, w, h };
 }
-const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 const deckList = (heads, n, groups = 4) => [
   ...Array.from({ length: heads }, (_, i) => ({ name: `Commander ${i}`, head: true, group: 'commander' })),
   ...cards(n, i => `cat${i % groups}`),
 ];
 
-test('the commander lies front and centre at the far side, a tenth larger than the rest', () => {
-  assert.ok(near(HEAD_SCALE, 1.1), 'about a tenth larger');
-  const list = deckList(1, 40);
-  const laid = layout(list);
-  const head = boxOf(list, laid, 0);
-  assert.ok(near(laid.spots[0].x, 0.5, 1e-9), 'centred across the mat');
-  for (let i = 1; i < list.length; i++) {
-    assert.ok(head.top <= boxOf(list, laid, i).top, `${list[i].name} lies further back than the commander`);
-  }
-  assert.ok(head.top >= 0, 'and it is on the mat');
-  assert.ok(near(head.w, laid.width * 1.1) && near(head.h / head.w, 88 / 63), 'in a card’s shape, scaled');
-});
-
-test('no pile reaches into the commander’s place, however full the deck', () => {
-  for (const [heads, n, groups] of [[1, 59, 8], [2, 58, 8], [1, 59, 1], [2, 20, 3], [1, 5, 2]]) {
+test('the commander takes nothing of the felt: the piles are laid exactly as if it were not there', () => {
+  assert.ok(near(HEAD_SCALE, 1.1), 'drawn about a tenth larger, in its slot');
+  for (const [heads, n, groups] of [[1, 40, 4], [1, 59, 8], [2, 58, 8], [1, 59, 1], [2, 20, 3], [1, 5, 2]]) {
     const list = deckList(heads, n, groups);
     const laid = layout(list);
-    for (let h = 0; h < heads; h++) {
-      const head = boxOf(list, laid, h);
-      for (let i = heads; i < list.length; i++) {
-        assert.ok(!overlaps(head, boxOf(list, laid, i)),
-          `${heads} commander(s), ${n} cards in ${groups} piles: ${list[i].name} lies across ${list[h].name}`);
-      }
-    }
+    const without = layout(cards(n, i => `cat${i % groups}`));
+    const what = `${heads} commander(s), ${n} cards in ${groups} piles`;
+    assert.strictEqual(laid.width, without.width, `${what}: the same card size`);
+    assert.deepStrictEqual(laid.spots.slice(heads), without.spots, `${what}: every pile where it lies with no commander`);
+    /* Its spot only holds its place in the list: the slot stands it off the
+       felt once the table is measured (tableSlotPlace). */
+    for (let h = 0; h < heads; h++) assert.deepStrictEqual(laid.spots[h], { x: 0.5, y: 0.5, turn: 0 }, `${what}: a placeholder`);
+  }
+  /* And the slider's growth is no longer held back by a band above the piles. */
+  for (const scale of [1, 1.5]) {
+    const at = list => app.copy(app.evaluate(`tableLayout(${JSON.stringify(list)}, 1102, 827, {}, ${scale})`));
+    assert.strictEqual(at(deckList(2, 60, 6)).width, at(cards(60, i => `cat${i % 6}`)).width, `at ${scale * 100}%`);
   }
 });
 
-test('two commanders lie side by side, apart, and centred together', () => {
-  const list = deckList(2, 30);
-  const laid = layout(list);
-  const [a, b] = [boxOf(list, laid, 0), boxOf(list, laid, 1)];
-  assert.ok(near(laid.spots[0].y, laid.spots[1].y, 1e-9), 'on one line');
-  assert.ok(a.right < b.left, 'not overlapping, the first on the left');
-  assert.ok(near(b.left - a.right, laid.width * app.evaluate('TABLE_HEAD_GAP')), 'a quarter of a card apart');
-  assert.ok(near((laid.spots[0].x + laid.spots[1].x) / 2, 0.5, 1e-9), 'the pair centred across the mat');
-});
-
-test('a deck with no commander is laid exactly as before', () => {
+test('a deck with no commander is laid exactly as before, and the head band is gone', () => {
   const list = cards(40, i => `cat${i % 5}`);
   const plainLaid = layout(list);
   assert.deepStrictEqual(app.copy(app.evaluate(`tableLayout(${JSON.stringify(list)}, ${MAT.width}, ${MAT.height}, {})`)), plainLaid);
-  assert.deepStrictEqual(app.call('tableHeadSpots', 0, MAT.width, MAT.height, 87, 120), { spots: [], bottom: 0 },
-    'no head band at all');
+  for (const gone of ['tableHeadSpots', 'tableZoneHeadRect', 'tableZoneKeepOut', 'TABLE_HEAD_PAD', 'TABLE_HEAD_GAP']) {
+    assert.strictEqual(app.evaluate(`typeof ${gone}`), 'undefined', `${gone} has retired with the head band`);
+  }
 });
 
 test('a band kept along the near edge has no pile card in it', () => {
@@ -2380,7 +2365,23 @@ test('a zone’s full size is the smallest grid, nearest square, that shows ever
   assert.ok(wide.width > wide.height && wide.width > zoneFull(24, w, h).width, 'twenty-four cards made wider when asked');
 });
 
-test('the first time, each zone is sized for its cards and packed in order: apart, on the mat, and clear of the commander', () => {
+/* A box on the felt kept clear of zones (`keepOut`): the place the commander
+ * lay before it had a slot of its own off the felt — across the middle of the
+ * far side, a pile's padding in from it, a tenth larger than a card, and two
+ * a quarter of a card apart. Nothing on the table asks for one now: the
+ * commander stands in its slot, and the zones are laid over the whole felt
+ * (keepOut null, asserted below). But the packing still honours a box it is
+ * handed, and a real box, of the shape the commander's was, keeps that honest. */
+function keptBox(count, W, H, w, h) {
+  if (!count) return null;
+  const cw = w * 1.1, ch = h * 1.1, step = cw + w * 0.25;
+  const y = Math.min(H / 2, w * 0.35 + ch / 2);
+  const xs = Array.from({ length: count }, (_, i) => Math.min(W - cw / 2, Math.max(cw / 2, W / 2 + (i - (count - 1) / 2) * step)));
+  const left = Math.min(...xs) - cw / 2;
+  return { left, top: y - ch / 2, width: Math.max(...xs) + cw / 2 - left, height: ch };
+}
+
+test('the first time, each zone is sized for its cards and packed in order: apart, on the mat, and clear of a box kept clear', () => {
   const cases = [
     { W: 1114, H: 830, zones: ZONE_DECK, heads: 2 },
     { W: 1114, H: 830, zones: ZONE_DECK.slice(0, 3), heads: 1, full: true },
@@ -2391,8 +2392,7 @@ test('the first time, each zone is sized for its cards and packed in order: apar
   ];
   for (const { W, H, zones, heads, full } of cases) {
     const w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
-    const band = app.call('tableHeadSpots', heads, W, H, w, h);
-    const keep = heads ? app.call('tableZoneHeadRect', heads, W, H, w, h) : null;
+    const keep = keptBox(heads, W, H, w, h);
     const rects = app.call('tableZoneAutoLayout', zones, W, H, w, h, keep);
     const what = `${zones.length} zones on ${W}×${H}`;
     assert.deepStrictEqual(rects.map(r => r.name), zones.map(z => z.name), `${what}: one zone per category, in order`);
@@ -2401,18 +2401,13 @@ test('the first time, each zone is sized for its cards and packed in order: apar
     for (const r of rects) {
       assert.ok(r.left >= 0 && r.top >= 0 && r.left + r.width <= W + 1e-6 && r.top + r.height <= H + 1e-6, `${what}: ${r.name} inside the mat`);
       assert.ok(r.width >= min.width - 1e-6 && r.height >= min.height - 1e-6, `${what}: ${r.name} no smaller than a card`);
-      for (const s of band.spots) {
-        const cw = w * 1.1, ch = h * 1.1;
-        const head = { left: s.x * W - cw / 2, top: s.y * H - ch / 2, width: cw, height: ch };
-        assert.ok(!app.sandbox.tableZoneOverlap(head, r), `${what}: ${r.name} over the commander`);
-      }
-      if (keep) assert.ok(!app.sandbox.tableZoneOverlap(keep, r), `${what}: ${r.name} over the commander's box`);
+      if (keep) assert.ok(!app.sandbox.tableZoneOverlap(keep, r), `${what}: ${r.name} over the box kept clear`);
     }
     for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
       assert.ok(!app.sandbox.tableZoneOverlap(rects[i], rects[j], ZONE.gap - 1e-6), `${what}: ${rects[i].name} not a gap from ${rects[j].name}`);
     }
     /* Laid from the top left: the deck's first zone in the mat's corner,
-       unless the commander's box is in the way of it there. */
+       unless the box kept clear is in the way of it there. */
     const corner = { ...rects[0], left: ZONE.gap, top: ZONE.gap };
     if (!keep || !app.sandbox.tableZoneOverlap(corner, keep, ZONE.gap)) {
       assert.ok(near(rects[0].left, ZONE.gap) && near(rects[0].top, ZONE.gap), `${what}: ${rects[0].name} in the top-left corner`);
@@ -2430,7 +2425,7 @@ test('the first time, each zone is sized for its cards and packed in order: apar
   /* More of the deck than a laptop's mat holds at full size: shrunk, and
      its larger categories still the larger zones. */
   const W = 1114, H = 830, w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
-  const crowd = app.call('tableZoneAutoLayout', ZONE_DECK.slice(0, 9), W, H, w, h, app.call('tableZoneHeadRect', 1, W, H, w, h));
+  const crowd = app.call('tableZoneAutoLayout', ZONE_DECK.slice(0, 9), W, H, w, h, keptBox(1, W, H, w, h));
   const lands = crowd.find(r => r.name === 'Lands'), one = crowd.find(r => r.name === 'Artifacts');
   assert.ok(lands.width * lands.height > one.width * one.height, 'fifty-one lands are given more room than one artifact');
   assert.notStrictEqual(zoneFit(51, lands.width, lands.height, w, h).mode, 'grid', 'and close up in it');
@@ -2448,12 +2443,12 @@ function zonePacked(zones, W, H, w, h, keep) {
 }
 
 /* Whether rects lie a gap apart, a gap inside the mat and a gap clear of
-   the commander's box. */
+   the box kept clear. */
 function assertZonesApart(rects, W, H, keep, what) {
   for (const r of rects) {
     assert.ok(r.left >= ZONE.gap - 1e-6 && r.top >= ZONE.gap - 1e-6 && r.left + r.width <= W - ZONE.gap + 1e-6
       && r.top + r.height <= H - ZONE.gap + 1e-6, `${what}: ${r.name} inside the mat's margin`);
-    if (keep) assert.ok(!app.sandbox.tableZoneOverlap(keep, r, ZONE.gap - 1e-6), `${what}: ${r.name} a gap clear of the commander's box`);
+    if (keep) assert.ok(!app.sandbox.tableZoneOverlap(keep, r, ZONE.gap - 1e-6), `${what}: ${r.name} a gap clear of the box kept clear`);
   }
   for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
     assert.ok(!app.sandbox.tableZoneOverlap(rects[i], rects[j], ZONE.gap - 1e-6), `${what}: ${rects[i].name} not a gap from ${rects[j].name}`);
@@ -2477,7 +2472,7 @@ test('a zone grows towards its full size into the room round it: never over anot
   ];
   assert.deepStrictEqual(grow(hemmed, hemmed.map(() => ({ width: 300, height: 300 })), hemmed, 236, 236), hemmed, 'no room, so nothing moves');
 
-  /* Shelves of zones of every size, some round a commander's box: each
+  /* Shelves of zones of every size, some round a box kept clear: each
      grown zone a gap clear of everything, no smaller than it was laid,
      no larger than its full size, on the line between the two, never
      moved down, and still in the deck's order along the shelves. */
@@ -2525,16 +2520,17 @@ test('a zone grows towards its full size into the room round it: never over anot
 });
 
 /* The deck the table was looked at with on a 1440×900 window — a mat of
-   1102×827, cards 110×154, a commander, and categories of twenty-four,
-   ten, eight, six, three and one. Their full sizes add up to more than the
-   mat in every shape, so they are shrunk alike onto shelves in the deck's
-   order; the ten-card zone, beside the commander, then grows down into
-   the height the twenty-four gives the first shelf. */
+   1102×827, cards 110×154, and categories of twenty-four, ten, eight, six,
+   three and one — laid round the box the commander lay in at the head of
+   the felt before it had a slot of its own. Their full sizes add up to more
+   than the mat in every shape, so they are shrunk alike onto shelves in the
+   deck's order; the ten-card zone, beside the box, then grows down into the
+   height the twenty-four gives the first shelf. */
 test('zones too large for the mat are shrunk alike onto shelves in the deck’s order, then each grows into the room round it', () => {
   const W = 1102, H = 827, w = 110, h = 154;
   const six = [24, 10, 8, 6, 3, 1];
   const zones = six.map((count, i) => ({ name: `Cat ${i}`, count }));
-  const keep = app.call('tableZoneHeadRect', 1, W, H, w, h);
+  const keep = keptBox(1, W, H, w, h);
   for (const aspect of app.evaluate('TABLE_ZONE_ASPECTS')) {
     const area = six.reduce((sum, n) => { const f = zoneFull(n, w, h, W - 2 * ZONE.gap, H - 2 * ZONE.gap, aspect); return sum + f.width * f.height; }, 0);
     assert.ok(area > (W - 2 * ZONE.gap) * (H - 2 * ZONE.gap), `at ${aspect}, ${area} would fit the mat whole`);
@@ -2576,13 +2572,35 @@ test('zones too large for the mat are shrunk alike onto shelves in the deck’s 
   assert.ok(after.shares[1] > 0.85, `the ten-card zone grows into its shelf: ${before.shares[1]} → ${after.shares[1]}`);
 });
 
+/* The same deck as the table lays it now: the commander stands in its slot
+   off the felt, so nothing is kept clear — the zones have the whole felt,
+   from its far corner. */
+test('with the commander in its slot, a deck’s zones are laid over the whole felt from its far corner', () => {
+  const W = 1102, H = 827, w = 110, h = 154;
+  const six = [24, 10, 8, 6, 3, 1];
+  const zones = six.map((count, i) => ({ name: `Cat ${i}`, count }));
+  const rects = app.call('tableZoneAutoLayout', zones, W, H, w, h, null);
+  assertShelfOrder(rects, 'the whole felt');
+  assertZonesApart(rects, W, H, null, 'the whole felt');
+  assert.ok(near(rects[0].left, ZONE.gap) && near(rects[0].top, ZONE.gap), 'the first zone in the felt’s far corner, where the commander lay');
+  const cover = rects.reduce((sum, r) => sum + r.width * r.height, 0) / ((W - 2 * ZONE.gap) * (H - 2 * ZONE.gap));
+  assert.ok(cover >= 0.84, `${cover.toFixed(3)} of the felt covered`);
+  /* And the table asks for no box: the zones are laid, and a new one put,
+     with keepOut null — a layout kept from before is kept as it is. */
+  const js = read('public/js/tablemode.js');
+  assert.match(js, /tableZoneReconcile\(kept, names\.map\(name => \(\{ name, count: laid\.get\(name\) \|\| 0 \}\)\),\s*width, height, w, h, null, tableZoneMinFor\(width, w, h\)\)/,
+    'the deck’s zones are reconciled with no box kept clear');
+  assert.match(js, /const at = tableZoneFree\(tableZones, size, width, height, null\);/, 'and + Zone finds free space in the whole felt');
+  assert.match(js, /if \(!Array\.isArray\(kept\)\) \{\s*return \{ rects: tableZoneAutoLayout\(/, 'only a deck never laid in zones is laid out afresh');
+});
+
 test('zones are made wider before they are made smaller', () => {
   /* Twelve cards and five small categories round a commander on a laptop's
      mat: square, the twelve-card zone makes the first shelf so tall that
      the next runs off the mat; wider, all six lie whole. */
   const W = 1114, H = 830, w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
   const counts = [12, 6, 4, 2, 1, 1];
-  const keep = app.call('tableZoneHeadRect', 1, W, H, w, h);
+  const keep = keptBox(1, W, H, w, h);
   const rects = app.call('tableZoneAutoLayout', counts.map((count, i) => ({ name: `Cat ${i}`, count })), W, H, w, h, keep);
   assertShelfOrder(rects, 'wider');
   assertZonesApart(rects, W, H, keep, 'wider');
@@ -2594,7 +2612,7 @@ test('zones are made wider before they are made smaller', () => {
 test('more zones than the mat holds even at their smallest are still laid on it', () => {
   const W = 760, H = 560, w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
   const zones = Array.from({ length: 40 }, (_, i) => ({ name: `Cat ${i}`, count: 3 }));
-  const rects = app.call('tableZoneAutoLayout', zones, W, H, w, h, app.call('tableZoneHeadRect', 1, W, H, w, h));
+  const rects = app.call('tableZoneAutoLayout', zones, W, H, w, h, keptBox(1, W, H, w, h));
   assert.strictEqual(rects.length, 40);
   const min = zoneMin(w, h);
   for (const r of rects) {
@@ -2675,7 +2693,7 @@ test('a zone kept is laid where it was on a mat of any size, as fractions of it'
 
 test('a category new since the layout was kept gets a zone in free space; one gone loses its zone', () => {
   const W = 1114, H = 830, w = 111, h = 155;
-  const keep = app.call('tableZoneHeadRect', 1, W, H, w, h);
+  const keep = keptBox(1, W, H, w, h);
   const first = app.call('tableZoneReconcile', null, ZONE_DECK.slice(0, 4), W, H, w, h, keep);
   assert.strictEqual(first.changed, true, 'laid out for the first time, it is kept');
   assert.deepStrictEqual(first.rects.map(r => r.name), ZONE_DECK.slice(0, 4).map(z => z.name));
@@ -3186,7 +3204,7 @@ test('at 100% every layout is the one the table has always laid', () => {
     const before = Math.round(Math.min(150, Math.max(72, w * 0.1)));
     assert.strictEqual(app.sandbox.tableCardWidth(w), before, `card width on a ${w}px mat`);
     assert.strictEqual(app.sandbox.tableCardWidth(w, 1), before);
-    assert.strictEqual(app.sandbox.tableCardWidthFor(w, 600, 1, { head: true }), before);
+    assert.strictEqual(app.sandbox.tableCardWidthFor(w, 600, 1), before);
   }
   for (const [W, H] of [[MAT.width, MAT.height], [1102, 827], [764, 686], [1500, 420], [400, 300]]) {
     for (const list of [cards(60, i => `g${i % 6}`), deckList(1, 99, 7), deckList(2, 200, 9), cards(30)]) {
@@ -3200,7 +3218,7 @@ test('at 100% every layout is the one the table has always laid', () => {
   }
 });
 
-test('at 50%, 100% and 150% every card — the commander a tenth larger still — lies whole on the mat', () => {
+test('at 50%, 100% and 150% every card in the piles lies whole on the mat', () => {
   /* The mats the table is fitted to at 1440×900, 1280×800 and 1024×768, a
      big window's, a short one's, and the suite's own. */
   const mats = [MAT, { width: 1102, height: 827 }, { width: 984, height: 721 }, { width: 764, height: 686 },
@@ -3214,14 +3232,15 @@ test('at 50%, 100% and 150% every card — the commander a tenth larger still �
         if (scale < 1) assert.strictEqual(laid.width, Math.round(Math.min(150, Math.max(72, mat.width * 0.1)) * scale));
         if (scale > 1) assert.ok(laid.width >= base, 'larger is never smaller than the table’s own size');
         if (scale === 1.5 && mat.height >= 600) assert.ok(laid.width > base * 1.4, `room enough on ${mat.width}×${mat.height} to grow`);
+        /* The commander is not on the mat — it stands in its slot, sized
+           there (tableSlotFit) — so what must lie whole is every pile. */
         for (let i = 0; i < list.length; i++) {
+          if (list[i].head) continue;
           const box = boxOf(list, laid, i, mat);
           const where = `${list[i].name} of ${list.length} at ${scale * 100}% on ${mat.width}×${mat.height}`;
           assert.ok(box.left >= -1e-6 && box.right <= mat.width + 1e-6, `${where} runs off the side`);
           assert.ok(box.top >= -1e-6 && box.bottom <= mat.height + 1e-6, `${where} runs off the end`);
         }
-        const heads = list.map((c, i) => (c.head ? i : -1)).filter(i => i >= 0);
-        for (const i of heads) assert.ok(near(boxOf(list, laid, i, mat).w, laid.width * HEAD_SCALE), 'the head keeps its tenth');
       }
     }
     /* The Card tab's one card, at the slider's top: whole on the mat, its lane
@@ -3485,4 +3504,231 @@ test('the slider’s own input is left to it, and the drawer is lent rather than
   for (const rule of ['.table-scale', '.table-scale[hidden]', '.table-drawer-chips', '.table-drawer[hidden]', '.table-look-add[hidden]', '.table-far-left', '.table-far-right']) {
     assert.ok(css.includes(rule), `table.css has no ${rule}`);
   }
+});
+
+// ── The Deck Builder's commander slot ────────────────────────────────────
+
+/* The table as tableFitTable fits it at rest to a window `vw` × `vh` — the
+ * plane's box by tableFitSize, or the pair's with the side table up
+ * (tableFitPair) — with the mat set in it as table.css lays it out (a 6px
+ * edge band, 3.5rem side rims, a 4.25rem far rim, the mat's 1px border), and
+ * the camera at rest, or at `cam`: the matrix the slot is fitted through and
+ * hit-tested by, the plane's far-left outer corner in the mat's pixels, and
+ * the pile card the mat lays. */
+function restTable(vw, vh, { side = false, cam = { zoom: 1, tx: 0, ty: 0 } } = {}) {
+  const box = app.call('tableFitPair', app.call('tableFitSize', { width: vw, height: vh }, { perspective: 1400, top: 8 + 0.02 * vh }), { side });
+  const mat = { left: 6 + 56 + 1, top: 6 + 68 + 1 };
+  const matrixAt = c => app.evaluate(`tablePlaneMatrix(${JSON.stringify({
+    perspective: 1400, origin: { x: vw / 2, y: vh / 2 }, tilt: REST, mat, camera: c,
+    plane: { left: box.left, top: box.top, origin: { x: box.width / 2, y: box.height / 2 } },
+  })})`);
+  return {
+    vw, vh, box, mat, matrixAt, m: matrixAt(cam),
+    corner: { u: -mat.left, v: -mat.top },
+    card: app.sandbox.tableCardWidth(box.width - 2 * 6 - 2 * 56 - 2),
+  };
+}
+const slotFit = (t, count, w = t.card * HEAD_SCALE) => app.call('tableSlotFit', { m: t.m, corner: t.corner, count, card: { w } });
+const SLOT_STAND = app.evaluate('TABLE_SLOT_STAND') * Math.PI / 180;
+const SLOT_Z = app.evaluate('TABLE_SLOT_Z');
+
+/* Every corner of the stand and of each card standing on it, as the screen
+ * sees them through `m`: a card's feet on the ledge, its top turned up off
+ * the plane by TABLE_SLOT_STAND about them. */
+function slotPoints(m, fit) {
+  const { stand, ledge, w, h } = fit;
+  const pts = [];
+  for (const u of [stand.left, stand.left + stand.width]) {
+    for (const v of [stand.top, stand.top + stand.height]) pts.push({ what: 'the stand', ...project(m, u, v, 0) });
+  }
+  fit.places.forEach((p, i) => {
+    for (const u of [p.left, p.left + w]) {
+      pts.push({ what: `card ${i}'s foot`, ...project(m, u, ledge, SLOT_Z) });
+      pts.push({ what: `card ${i}'s top`, ...project(m, u, ledge - h * Math.cos(SLOT_STAND), SLOT_Z + h * Math.sin(SLOT_STAND)) });
+    }
+  });
+  return pts;
+}
+
+test('the commander slot stands beyond the far-left corner: wholly in the window, never above the table or over its rim', () => {
+  for (const [vw, vh, side] of [[1440, 900, false], [1440, 900, true], [1280, 800, false], [1920, 1080, false], [1280, 800, true]]) {
+    const t = restTable(vw, vh, { side });
+    /* The table's own far-left corner and its left edge on the screen: the
+       rim's tabs, and the far rim's card-size slider, lie inside it. */
+    const far = project(t.m, t.corner.u, t.corner.v);
+    const nearCorner = project(t.m, t.corner.u, t.box.height - t.mat.top);
+    const edgeX = y => far.x + (nearCorner.x - far.x) * (y - far.y) / (nearCorner.y - far.y);
+    for (const count of [1, 2]) {
+      const fit = slotFit(t, count);
+      const what = `${count} card(s) on ${vw}×${vh}${side ? ' with the side table up' : ''}`;
+      for (const p of slotPoints(t.m, fit)) {
+        assert.ok(p.x >= 8 - 0.5 && p.x <= vw && p.y <= vh, `${what}: ${p.what} at ${p.x.toFixed(1)},${p.y.toFixed(1)} is off the window`);
+        assert.ok(p.y >= far.y - 0.5, `${what}: ${p.what} stands above the table's far edge, ${p.y.toFixed(1)} < ${far.y.toFixed(1)}`);
+        assert.ok(p.x < edgeX(p.y) - 1, `${what}: ${p.what} reaches over the table's left edge, where the tabs and the slider lie`);
+      }
+      /* The stand: its back on the line of the far edge, running leftwards
+         from a gap beyond the left rim; the cards' feet on its ledge. */
+      assert.ok(near(fit.stand.top, t.corner.v, 1e-9), `${what}: its back on the far edge's line`);
+      assert.ok(near(fit.stand.left + fit.stand.width, t.corner.u - app.evaluate('TABLE_SLOT_GAP'), 1e-9), `${what}: a gap left of the rim`);
+      assert.ok(near(fit.stand.top + fit.stand.height, fit.ledge + app.evaluate('TABLE_SLOT_LIP'), 1e-9), `${what}: to the ledge's front`);
+      fit.places.forEach((p, i) => assert.ok(near(p.top + fit.h, fit.ledge, 1e-9), `${what}: card ${i} stands on the ledge`));
+      /* As near the far edge as lets the cards' tops stand level with it. */
+      const top = project(t.m, fit.places[0].left, fit.ledge - fit.h * Math.cos(SLOT_STAND), SLOT_Z + fit.h * Math.sin(SLOT_STAND));
+      assert.ok(near(top.y, far.y, 0.05), `${what}: its cards' tops level with the far edge, ${top.y} against ${far.y}`);
+      assert.ok(near(fit.h / fit.w, 88 / 63), `${what}: in a card's shape`);
+    }
+  }
+});
+
+test('the slot’s cards are the head size where the room allows it, smaller where it does not, and never below their floor', () => {
+  const min = app.evaluate('TABLE_SLOT_MIN_W');
+  /* With the side table up the table lays smaller cards, and the commander
+     stands at the head size; a big window's has the room for it too. */
+  for (const [vw, vh, side] of [[1440, 900, true], [1920, 1080, false]]) {
+    const t = restTable(vw, vh, { side });
+    assert.ok(near(slotFit(t, 1).w, t.card * HEAD_SCALE, 1e-9), `${vw}×${vh}: a tenth larger than a pile's card, ${t.card}`);
+  }
+  /* On a 1440×900 window the room is a hair short of the head size: as large
+     as fits, to the half pixel, its outer corner on the window's gutter. */
+  const t = restTable(1440, 900);
+  const one = slotFit(t, 1);
+  assert.ok(one.w < t.card * HEAD_SCALE && one.w >= t.card * HEAD_SCALE - 5, `nearly the head size, ${one.w}`);
+  assert.strictEqual(one.w * 2 % 1, 0, 'held to the half pixel');
+  const outer = project(t.m, one.stand.left, one.stand.top + one.stand.height);
+  assert.ok(outer.x >= 8 - 1e-6 && outer.x < 8 + 3, `as large as fits: its outer corner at ${outer.x}`);
+  /* Two side by side on the one stand, which widens: each smaller, the same
+     size, a close gap apart, on one ledge. */
+  const two = slotFit(t, 2);
+  assert.ok(two.w < one.w && two.w >= min, `two at ${two.w}`);
+  assert.ok(two.stand.width > one.stand.width, 'the stand widens for two');
+  assert.ok(near(two.places[1].left - (two.places[0].left + two.w), two.w * app.evaluate('TABLE_SLOT_CARD_GAP'), 1e-9), 'a close gap apart');
+  assert.strictEqual(two.places[0].top, two.places[1].top, 'on one ledge');
+  /* The card-size slider: a card asked smaller is given as asked; asked
+     larger than the room, it is the room's. */
+  assert.strictEqual(slotFit(t, 1, 60).w, 60, 'smaller than the room is as asked');
+  assert.deepStrictEqual(slotFit(t, 1, 165 * HEAD_SCALE), one, 'at 150%, still what the room holds');
+  /* A window with no room even for that: the floor, the stand running past
+     the window's edge rather than a card too small to tell. */
+  assert.strictEqual(slotFit(restTable(1000, 700), 2).w, min);
+  assert.strictEqual(slotFit(restTable(900, 700), 3).w, min);
+  /* Nothing to fit. */
+  assert.strictEqual(app.sandbox.tableSlotFit({ m: null, corner: t.corner, card: { w: 100 } }), null);
+  assert.strictEqual(app.sandbox.tableSlotFit({ m: t.m, corner: t.corner, card: { w: 0 } }), null);
+  assert.strictEqual(app.sandbox.tableSlotFit({ m: t.m, corner: null, card: { w: 100 } }), null);
+});
+
+test('a card stands on the stand facing the viewer, leaning back a little against it', () => {
+  const lean = app.evaluate('TABLE_SLOT_LEAN');
+  assert.strictEqual(app.evaluate('TABLE_SLOT_STAND'), REST - lean, 'turned up by the table’s tilt, less the lean');
+  assert.ok(lean > 0 && lean <= 8, `a few degrees of lean, not ${lean}`);
+  assert.strictEqual(app.sandbox.tableStandTransform({ left: 10, top: 20 }, { w: 70, h: 100 }, 0.25),
+    `translate3d(10.00px, 20.00px, 0.25px) translateY(50.00px) rotateX(${(-(REST - lean)).toFixed(2)}deg) translateY(-50.00px)`,
+    'put in place and turned about its bottom edge');
+  /* Upright on the screen: its top barely narrower than its foot, and as
+     tall on the screen as its width there says a card is. */
+  const t = restTable(1440, 900);
+  const fit = slotFit(t, 1);
+  const [footL, topL, footR, topR] = slotPoints(t.m, fit).filter(p => p.what.startsWith('card'));
+  const wide = footR.x - footL.x, tall = footL.y - topL.y;
+  assert.ok(Math.abs((topR.x - topL.x) - wide) < 0.03 * wide, 'its top as wide as its foot, near enough');
+  assert.ok(Math.abs(tall / wide - 88 / 63) < 0.08, `a card's shape on the screen, ${(tall / wide).toFixed(3)}`);
+});
+
+test('a point over the slot is over a commander, the place beside it, or the empty place — through any camera', () => {
+  const t = restTable(1440, 900);
+  const where = (fit, x, y, m, commanders) => app.sandbox.tableSlotWhere(app.copy(app.sandbox.tableUnproject(m, x, y, 0)), fit, commanders);
+  for (const cam of [{ zoom: 1, tx: 0, ty: 0 }, camera(120, 80, 2.5), camera(300, 200, 1.6)]) {
+    const m = t.matrixAt(cam);
+    for (const [count, commanders, says] of [[1, 1, ['card']], [2, 2, ['card', 'card']], [2, 1, ['card', 'beside']], [1, 0, ['empty']]]) {
+      const fit = slotFit(t, count);
+      /* Each card's picture on the screen, a few pixels in from its corners
+         and at its middle, is over its place: the hit box, kept in the
+         plane, holds however the camera has moved the picture. */
+      const pts = slotPoints(m, fit).filter(p => p.what.startsWith('card'));
+      fit.places.forEach((_, i) => {
+        const [fl, tl, fr, tr] = pts.slice(i * 4, i * 4 + 4);
+        const cx = (fl.x + fr.x) / 2, cy = (fl.y + tl.y) / 2, k = 3 * cam.zoom;
+        for (const [x, y] of [[cx, cy], [tl.x + k, tl.y + k], [tr.x - k, tr.y + k], [fl.x + k, fl.y - k], [fr.x - k, fr.y - k]]) {
+          assert.strictEqual(where(fit, x, y, m, commanders), says[i],
+            `${count} place(s), ${commanders} commander(s), zoom ${cam.zoom}: place ${i} at ${x.toFixed(1)},${y.toFixed(1)}`);
+        }
+      });
+      /* And well clear of it is over nothing. */
+      const off = project(m, t.corner.u + 300, t.corner.v + 300);
+      assert.strictEqual(where(fit, off.x, off.y, m, commanders), null, 'the felt is no part of the slot');
+    }
+  }
+  assert.strictEqual(app.sandbox.tableSlotWhere(null, slotFit(t, 1), 1), null, 'a pointer off the plane');
+  assert.strictEqual(app.sandbox.tableSlotWhere({ u: 0, v: 0 }, null, 1), null, 'no slot standing');
+});
+
+test('what a card let go on the slot asks of the deck, and where a commander carried off it goes', () => {
+  const drop = (commanders, over) => app.sandbox.tableSlotDrop({ commanders, over });
+  assert.strictEqual(drop(0, 'empty'), 'commander', 'onto the empty place: the commander');
+  assert.strictEqual(drop(1, 'card'), 'commander', 'onto the commander: in its stead');
+  assert.strictEqual(drop(2, 'card'), 'commander', 'onto either of a pair: in their stead');
+  assert.strictEqual(drop(1, 'beside'), 'partner', 'beside a lone commander: its partner');
+  assert.strictEqual(drop(2, 'beside'), null, 'there is no third');
+  assert.strictEqual(drop(0, 'beside'), null);
+  assert.strictEqual(drop(1, null), null, 'off the slot, nothing');
+  assert.strictEqual(app.sandbox.tableSlotDrop(), null);
+
+  const leave = o => app.sandbox.tableSlotLeave(o);
+  assert.strictEqual(leave({ move: true, felt: true, zone: 'Ramp', auto: 'Creatures' }), 'main/Ramp', 'over a zone: into its category');
+  assert.strictEqual(leave({ move: true, felt: true, zone: null, auto: 'Creatures' }), 'main/Creatures', 'over bare felt: the category it would be filed under');
+  assert.strictEqual(leave({ move: true, felt: true, zone: '', auto: '' }), 'main', 'and with none to say, the mainboard alone');
+  assert.strictEqual(leave({ move: true, felt: false, zone: null, auto: 'Creatures' }), null, 'off the felt: back onto its stand');
+  assert.strictEqual(leave({ move: false, felt: true, zone: 'Ramp', auto: 'Creatures' }), null, 'a deck the user may only look at: back');
+  assert.strictEqual(leave(), null);
+});
+
+test('when the slot stands, and how many places it is laid with', () => {
+  const shown = o => app.sandbox.tableSlotShown(o);
+  assert.strictEqual(shown({ scope: 'deckview', deckOpen: true }), true);
+  assert.strictEqual(shown({ scope: 'deckview', deckOpen: false }), false, 'no deck, no slot');
+  assert.strictEqual(shown({ scope: 'collections', deckOpen: true }), false, 'only on the Deck Builder’s table');
+  assert.strictEqual(shown({ scope: 'deckview', deckOpen: true, feature: true }), false, 'not under the Card tab’s card');
+  const count = o => app.sandbox.tableSlotCount(o);
+  assert.strictEqual(count({ laid: 1, held: 1 }), 1);
+  assert.strictEqual(count({ laid: 2, held: 2 }), 2);
+  assert.strictEqual(count({ laid: 1, held: 1, offer: true }), 2, 'the place beside a lone commander');
+  assert.strictEqual(count({ laid: 2, held: 2, offer: true }), 2, 'and none beside a pair');
+  assert.strictEqual(count({ laid: 0, held: 0 }), 1, 'a deck with none: the empty place');
+  assert.strictEqual(count({ laid: 0, held: 0, offer: true }), 1);
+  assert.strictEqual(count({ laid: 0, held: 1 }), 0, 'a commander the builder is not showing: no stand, rather than an empty one');
+});
+
+test('a commander is the slot’s: sized and raised by it, and given no landing mark', () => {
+  const run = expr => app.copy(app.evaluate(`(() => { const was = tableSlot; tableSlot = { fit: { w: 50, h: 70 } };
+    try { return ${expr}; } finally { tableSlot = was; } })()`));
+  assert.deepStrictEqual(run('tableCardBox({ head: true })'), { w: 50, h: 70 }, 'the size its slot has room for');
+  assert.strictEqual(run('tableCardZ({ head: true, rank: 3, zoneZ: 9 })'), app.evaluate('TABLE_SLOT_Z'), 'its feet on the stand');
+  assert.deepStrictEqual(run('tableCardBox({ head: false })'), app.copy(app.evaluate('tableCardBox({})')), 'a pile card is untouched');
+  const cast = { land: { x: 0.5, y: 0.5 } };
+  const slotCast = hold => app.copy(app.sandbox.tableSlotCast(cast, hold));
+  assert.strictEqual(slotCast({ card: { head: true } }), null, 'a commander in hand lies nowhere it is let go');
+  assert.strictEqual(slotCast({ card: {}, slot: 'card' }), null, 'nor a card over the slot');
+  assert.deepStrictEqual(slotCast({ card: {}, slot: null }), cast, 'anything else is marked as it was');
+
+  /* Wired: the slot is asked before the side table and the zones when a card
+     is let go, its mark goes through tableSlotCast, it lights each frame, the
+     edges do not scroll a card held over it, and it is made with the scene. */
+  const js = read('public/js/tablemode.js');
+  const release = js.slice(js.indexOf('function tableRelease('), js.indexOf('function tableOnCardClick('));
+  const at = s => release.indexOf(s);
+  assert.ok(at('tableSlotRelease(hold, e)') > at('tableBinCard(card, hold.from)'), 'after the bin');
+  assert.ok(at('tableSlotRelease(hold, e)') < at('tableSideDrop(hold, e)') && at('tableSideDrop(hold, e)') < at('tableZoneDrop(hold, e)'),
+    'and before the side table and the zones');
+  assert.match(js, /hold = tableSlotCast\(tableSideCast\(hold\)\);/);
+  assert.match(js, /tableSlotLight\(tableHold\?\.slot \|\| null\);/);
+  assert.match(js, /if \(tableHold\) return tableHold\.dragging && !tableHold\.over && !tableHold\.slot;/);
+  assert.match(js, /tableSideBuild\(\);\s*tableSlotBuild\(\);/);
+  assert.match(js, /tableZonesPlace\(\);\s*tableSlotPlace\(\);\s*for \(const card of tableCards\) tableWriteCard\(card\);/,
+    'stood in its slot once the piles and zones have their places, before any card is written');
+  /* A 3D context nothing flattens: the empty place stands up off it. */
+  const css = read('public/css/table.css');
+  const slot = css.match(/\.table-slot \{[^}]*\}/)[0];
+  assert.match(slot, /transform-style: preserve-3d/);
+  assert.doesNotMatch(slot, /filter|opacity|overflow/, 'nothing on the stand itself that flattens it');
+  assert.match(css, /\.table-slot-base \{[^}]*filter: drop-shadow\([^)]*var\(--card-cast\)\)/, 'the shadow is the base’s, a leaf');
 });
