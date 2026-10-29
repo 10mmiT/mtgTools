@@ -881,7 +881,9 @@ html[data-playmat] .table-mat {
 }
 
 /* A zone: a rectangle lying on the felt, a faint wash and a hairline of the
-   theme's ink (--table-zone-fill, --table-zone-line), under its cards. The
+   theme's ink (--table-zone-fill, --table-zone-line), with a halo ring of
+   the opposite ink outside it (below), under its cards — readable over
+   playmat art of any lightness. The
    script lays it out at its size and places it, and the height its label
    and grip lie at over its cards, --table-zone-top. It takes no pointer —
    pressed, its empty felt is felt — only its label and its grip do. A 3D
@@ -897,6 +899,27 @@ html[data-playmat] .table-mat {
   border-radius: var(--radius-md);
   pointer-events: none;
   transform-style: preserve-3d;
+}
+/* The other tone of its edge: a 1px ring of the theme's opposite ink
+   (--table-zone-halo) just outside the hairline. A playmat lays art of any
+   lightness behind the felt, and a hairline of one colour vanishes over art
+   its own lightness; with the halo beside it one of the two always
+   contrasts. Drawn as a pseudo-element because the elevation rule bans a
+   border and a box-shadow on one element, and an outline is .is-target's.
+   It has no transform, so it lies flat at the zone's own height, under its
+   cards, and keeps the 3D context intact. The side table's regions carry
+   the same edge. */
+.table-zone::before,
+.table-side-region::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 1px solid var(--table-zone-halo);
+  /* EXEMPT from the radius scale: the ring is concentric with the zone's
+     --radius-md corner, lying outside it, so its corner is that step plus
+     the offset — a scale step of its own would leave a gap at the corners. */
+  border-radius: calc(var(--radius-md) + 1px);
+  pointer-events: none;
 }
 /* A card in hand over it, to be put into it: lit in its tab's accent, the
    hairline drawn twice as heavy by an outline just inside it. */
@@ -982,6 +1005,44 @@ html[data-playmat] .table-mat {
 .table-zone-grip:hover,
 .table-zone.is-resizing .table-zone-grip { color: var(--text); }
 
+/* Its size button: a square the label's height at the right-hand end of the
+   label's band, in the label's make, its mark the muted ink until it is
+   pointed at or focused. Pressed, the zone shrinks to one card or grows to
+   show every card (js/tablemode.js, tableZoneToggleRect). Only on a zone that
+   may be changed, as the grip is — and there the label stops short of it,
+   its name cut short by its ellipsis rather than running under it. */
+.table-zone-size {
+  position: absolute;
+  right: var(--table-zone-pad);
+  top: calc((var(--table-zone-head) - var(--table-zone-label-h)) / 2);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--table-zone-label-h);
+  height: var(--table-zone-label-h);
+  padding: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transform: translateZ(var(--table-zone-top, 0px));
+  pointer-events: auto;
+  cursor: pointer;
+}
+.table-zone[data-editable] .table-zone-size { display: flex; }
+/* Nothing to change on a zone of one card; and while its name is being typed
+   the field may lie over it, where a press would only end the rename. */
+.table-zone-size:disabled { opacity: .4; cursor: default; }
+.table-zone.is-renaming .table-zone-size { visibility: hidden; }
+.table-zone[data-editable] .table-zone-label {
+  max-width: calc(100% - 3 * var(--table-zone-pad) - var(--table-zone-label-h));
+}
+.table-zone-size svg { width: .75rem; height: .75rem; }
+.table-zone-size:hover,
+.table-zone-size:focus-visible { color: var(--text); }
+.table-zone-size:focus-visible { outline: 2px solid var(--accent, var(--primary)); outline-offset: 2px; }
+
 /* ── The Deck Builder's side table ─────────────────────────────────────
    The boards beside the deck — the sideboard and the maybeboard — on a table
    of their own, standing to the right of the table while the Side table chip
@@ -1007,7 +1068,8 @@ html[data-playmat] .table-mat {
 .table-side[hidden] { display: none; }
 
 /* A region of its felt, one per board, laid out by the script: a zone's
-   faint wash and hairline (--table-zone-fill, --table-zone-line), lit the
+   faint wash and two-tone edge (--table-zone-fill, --table-zone-line, and
+   the --table-zone-halo ring drawn with .table-zone's), lit the
    way a zone is while a card in hand would go into it. It takes no pointer —
    pressed, its felt is felt. A 3D context of its own, for its label and
    hint to lie a hair above it (--table-side-label-z, written by the

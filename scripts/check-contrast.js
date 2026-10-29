@@ -267,18 +267,29 @@ function pairs(palette) {
   add('mark', '--table-land-ink', '--mat', 'landing mark on the felt');
   add('mark', '--table-land-ink', '--table-land-halo', 'landing mark against its own halo, over art');
   /* And the Deck Builder's zones: the hairline round each, on the felt it
-   * lies on, as its alpha composites it there. */
+   * lies on, as its alpha composites it there; and the halo ring of the
+   * opposite ink just outside it, over the art it is there for. The halo is
+   * the theme's other ink — near-black in a dark room, white in a lit one —
+   * so on the felt itself it sits at the felt's own lightness and cannot
+   * clear a floor there (1.05–1.14:1, and at most 1.10:1 on the contrast
+   * theme's near-black felt even fully opaque). Its job is the playmat art
+   * the hairline's own lightness, where the hairline vanishes: the
+   * brightest art under a dark halo, the darkest under a light one. */
   add('chrome', { token: '--table-zone-line', over: '--mat' }, '--mat', 'a zone’s hairline on the felt');
+  const haloArt = luminance(colourOf(palette, '--table-zone-halo')) < .5 ? '#ffffff' : '#000000';
+  add('chrome', { token: '--table-zone-halo', over: haloArt }, haloArt,
+    `a zone’s halo ring over ${haloArt === '#ffffff' ? 'the brightest' : 'the darkest'} art`);
 
   return out.map(p => ({ ...p, palette }));
 }
 
 /* A pair's side is a token, or a mix of one over another. `over` is a token
  * name, or a literal colour for the two the palette cannot name — white and
- * black art under the playmat's veil. `pct` is the mix, defaulting to the
+ * black art under the playmat's veil — and a bare side may be such a literal
+ * too, the art itself. `pct` is the mix, defaulting to the
  * token's own alpha, which is what a veil carries and no other token does. */
 const resolve = (palette, spec) => {
-  if (typeof spec === 'string') return colourOf(palette, spec);
+  if (typeof spec === 'string') return spec.startsWith('--') ? colourOf(palette, spec) : parseColour(spec);
   const fg = colourOf(palette, spec.token);
   const bg = spec.over.startsWith('--') ? colourOf(palette, spec.over) : parseColour(spec.over);
   return mix(fg, bg, spec.pct ?? (fg.a ?? 1) * 100);

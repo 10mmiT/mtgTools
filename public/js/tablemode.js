@@ -529,12 +529,12 @@ const TABLE_FRAME_MAX_MS       = 100;
 
 /* What a pointer resting in an edge band may be over without the view
  * scrolling: a control lying on the table — a tab, the slider, the slip and
- * bin, a zone's label and grip, the chips — or a page over it. Reaching for a
- * tab at the window's edge must not carry it away. Over anything outside the
+ * bin, a zone's label, grip and size button, the chips — or a page over it.
+ * Reaching for a tab at the window's edge must not carry it away. Over anything outside the
  * scene altogether — a floating panel, the tucked bar, the docked drawer, a
  * popover — the view is still too (tableScrollPaused). */
 const TABLE_SCROLL_PAUSE = '.table-tab, .table-scale, .table-slip, .table-bin, .table-zone-label, ' +
-  '.table-zone-grip, .table-zone-rename, .table-zone-chips, .table-drawer-chips, .table-panel, ' +
+  '.table-zone-grip, .table-zone-size, .table-zone-rename, .table-zone-chips, .table-drawer-chips, .table-panel, ' +
   '.table-drawer, .table-look';
 
 /* And what a press of the main button cannot take hold of the table by: all
@@ -4971,6 +4971,11 @@ function tableDrawerKeepsEscape(target) {
 //                cards would only come back to it (tableZoneBinAction).
 //   resizing     the grip: the zone's cards are fitted again every frame,
 //                which only rewrites their transforms — the cheap path.
+//   its button   at the label band's right-hand end: a zone showing every
+//                card whole shrinks to one card's size, the rest piled on
+//                it; any other grows to the size that shows them all
+//                (tableZoneToggleRect). It keeps its corner where the mat
+//                lets it, comes to the top as a moved one does, and settles.
 //   a card       carried and let go over another zone moves into that
 //                category through the builder's own drop (cardCarryDrop, the
 //                same call a card carried between piles in the builder makes,
@@ -4991,10 +4996,13 @@ function tableDrawerKeepsEscape(target) {
 //
 // Where each zone lies is kept per deck in the browser (TABLE_ZONE_RECTS_KEY
 // and the deck's id), as fractions of the mat, so a window of another size
-// lays them in proportion. The first time a deck is laid in zones they are
-// laid out for it in a tidy grid below the commander (tableZoneAutoLayout); a
-// category that turns up later is given a zone in free space, and one the
-// deck no longer has loses its zone.
+// lays them in proportion. The first time a deck is laid in zones each is
+// sized for its cards — the smallest zone, near square, that shows all of
+// them (tableZoneFullSize) — and they are packed in the deck's order across
+// the mat round the commander, all shrunk alike when that is more than the
+// mat holds (tableZoneAutoLayout); a category that turns up later is given a
+// zone sized the same way in free space, and one the deck no longer has
+// loses its zone. A layout once kept is never laid out again.
 //
 // Depth: the zones and their cards share the TABLE_DEPTH of height the piles
 // have (tableCardGapFor), each zone a run of it — its felt, its
@@ -5049,6 +5057,16 @@ const TABLE_ZONE_GRIP_ICON =
   '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="10" cy="4" r="1.2"/><circle cx="7" cy="7" r="1.2"/>' +
   '<circle cx="4" cy="10" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="7" cy="10" r="1.2"/>' +
   '<circle cx="10" cy="10" r="1.2"/></svg>';
+
+/* The size button's two marks, in the chips' hand: four corners turned out,
+ * to grow the zone to show every card, and four turned in, to shrink it to
+ * one. */
+const TABLE_ZONE_GROW_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>';
+const TABLE_ZONE_SHRINK_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>';
 
 // ── The zones' decisions ──
 
@@ -5114,10 +5132,10 @@ function tableZoneMinSize(cardW, cardH) {
  *
  * And when not even one pile of all of them fits — a zone at its smallest
  * size — one pile whose step closes up to whatever the padding leaves.
- * `mode` says which; `visible` is how much of each card shows, 0…1, which is
- * what the layout of a whole deck weighs (tableZoneAutoLayout). A zone no
- * larger than a card, which its smallest size never is, lays every card at
- * its corner. */
+ * `mode` says which — a zone's size button asks it whether every card shows
+ * whole (tableZoneToggleRect) — and `visible` how much of each card shows,
+ * 0…1. A zone no larger than a card, which its smallest size never is, lays
+ * every card at its corner. */
 function tableZoneFit(count, zoneW, zoneH, cardW, cardH, {
   pad = TABLE_ZONE_PAD, head = TABLE_ZONE_HEAD, gap = TABLE_ZONE_CARD_GAP,
 } = {}) {
@@ -5187,14 +5205,50 @@ function tableZoneFit(count, zoneW, zoneH, cardW, cardH, {
   return { mode: 'stack', visible: 1 / n, spots: pile(1, () => ({ x: pad + w / 2, y: head + h / 2 }), step) };
 }
 
-/* A zone a new category is given: wide enough for a few of its cards side by
- * side — three, or as many as it has, at least one — on a mat `width` wide,
- * and a row of cards tall. */
-function tableZoneDefaultSize(count, cardW, cardH, width = Infinity) {
+/* The smallest zone that shows all `count` cards w × h whole, as
+ * tableZoneFit's grid lays them: c columns and the rows they need, each a
+ * TABLE_ZONE_CARD_GAP apart, inside the padding and below the label's band.
+ * Of the ways to lay them — one column for every number of rows, the fewest
+ * that give that many rows, since another column that saves no row is only
+ * wider — the one whose outline is nearest square (by how far the log of its
+ * width over its height is from nothing, so twice as wide and twice as tall
+ * count the same), and of two as near, the one with fewer rows: a zone reads
+ * across before it reads down. No cards, or no card size, is the smallest a
+ * zone is (tableZoneMinSize). Held to `maxW` × `maxH` — the mat's room — and
+ * never below the smallest, so a category too large for the mat is given all
+ * the mat has and closes its cards up in it. */
+function tableZoneFullSize(count, cardW, cardH, maxW = Infinity, maxH = Infinity) {
   const min = tableZoneMinSize(cardW, cardH);
-  const cols = Math.min(3, Math.max(1, Math.floor(Number(count) || 0)));
-  const w = 2 * TABLE_ZONE_PAD + cols * cardW + (cols - 1) * TABLE_ZONE_CARD_GAP;
-  return { width: Math.max(min.width, Math.min(w, Number(width) - 2 * TABLE_ZONE_GAP)), height: min.height };
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  const w = Number(cardW) || 0, h = Number(cardH) || 0;
+  let size = min;
+  if (n > 0 && w > 0 && h > 0) {
+    let best = null;
+    for (let c = 1; c <= n; c++) {
+      const r = Math.ceil(n / c);
+      if (c > 1 && Math.ceil(n / (c - 1)) === r) continue;
+      const width  = 2 * TABLE_ZONE_PAD + c * w + (c - 1) * TABLE_ZONE_CARD_GAP;
+      const height = TABLE_ZONE_HEAD + TABLE_ZONE_PAD + r * h + (r - 1) * TABLE_ZONE_CARD_GAP;
+      const skew = Math.abs(Math.log(width / height));
+      /* Read in order of more columns and so fewer rows: a tie goes to the
+         later one. */
+      if (!best || skew <= best.skew + 1e-9) best = { skew, width, height };
+    }
+    size = { width: best.width, height: best.height };
+  }
+  const most = m => (Number.isNaN(Number(m)) ? Infinity : Number(m));
+  return {
+    width:  Math.max(min.width,  Math.min(size.width,  most(maxW))),
+    height: Math.max(min.height, Math.min(size.height, most(maxH))),
+  };
+}
+
+/* A zone a category is given when it turns up after its deck was laid —
+ * or a new one, by + Zone, with no cards yet: the smallest that shows every
+ * card it has (tableZoneFullSize), held inside a mat `width` × `height`
+ * less a TABLE_ZONE_GAP all round. */
+function tableZoneDefaultSize(count, cardW, cardH, width = Infinity, height = Infinity) {
+  return tableZoneFullSize(count, cardW, cardH, Number(width) - 2 * TABLE_ZONE_GAP, Number(height) - 2 * TABLE_ZONE_GAP);
 }
 
 /* Whether two rects overlap, `gap` apart counting as touching. */
@@ -5248,18 +5302,27 @@ function tableZoneHeadRect(count, width, height, cardW, cardH) {
  * cards w × h: `zones` = [{ name, count }], in the deck's order, round the
  * commander's box (`keepOut`, tableZoneHeadRect, or null).
  *
- * In rows of one height, a TABLE_ZONE_GAP apart and from the mat's edges;
- * a row level with the commander is two runs, one each side of it. The
- * categories are shared out over the rows in order — no row given more
- * zones than fit across it at their smallest — so that the cards to a pixel
- * of width are as even as they can be from row to row, and in each run a
- * zone is as wide as its share of the run's cards: sized in proportion to
- * them. Of the numbers of rows that fit, the one whose zones show the most
- * of their cards (tableZoneFit, weighed by how many cards that is) — and of
- * those, the one whose zones are nearest square. More zones than fit at
- * their smallest are laid below the commander in rows that overlap, still
- * on the mat. Returns [{ name, left, top, width, height }] in the order
- * asked, in pixels. */
+ * Each zone is first given the size that shows every one of its cards whole
+ * (tableZoneFullSize, held to the mat less a TABLE_ZONE_GAP all round): a
+ * category of fifty lands is a large zone and a one-card category a small
+ * one, each near square. They are packed in the deck's order onto shelves
+ * down the mat — across, a TABLE_ZONE_GAP apart and from the mat's edges,
+ * each shelf as tall as its tallest zone and its zones lying along its top —
+ * and a zone that would lie over the commander's box (or within a gap of
+ * it) is put past its right-hand side instead, so a shelf level with the
+ * commander runs round it — and one too wide for the room either side of it
+ * starts a shelf just below it. The order is never changed to fill a hole:
+ * the deck reads the way the builder lists it.
+ *
+ * When that runs off the foot of the mat, every zone is shrunk from its full
+ * size towards its smallest (tableZoneMinSize) by the same share — the one
+ * share `s` of the way from smallest to full, in each direction — the
+ * largest that still packs, found by halving: so the zones keep their sizes'
+ * proportions to each other, and a zone shrunk below its full size closes
+ * its cards up (tableZoneFit). More zones than fit even at their smallest
+ * are laid below the commander in rows that overlap, still on the mat.
+ * Returns [{ name, left, top, width, height }] in the order asked, in
+ * pixels. */
 function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null) {
   const list = zones || [];
   const W = Number(width) || 0, H = Number(height) || 0;
@@ -5267,92 +5330,59 @@ function tableZoneAutoLayout(zones, width, height, cardW, cardH, keepOut = null)
   if (!n || !(W > 0) || !(H > 0)) return [];
   const gap = TABLE_ZONE_GAP;
   const min = tableZoneMinSize(cardW, cardH);
-  const weight = list.map(z => Math.max(1, Number(z.count) || 0));
   const fits = len => Math.max(0, Math.floor((len + gap + 1e-9) / (min.width + gap)));
-  const AH = H - 2 * gap;
-  let best = null;
+  const full = list.map(z => tableZoneFullSize(z.count, cardW, cardH, W - 2 * gap, H - 2 * gap));
+  const sizeAt = s => full.map(f => ({
+    width:  min.width  + s * (f.width  - min.width),
+    height: min.height + s * (f.height - min.height),
+  }));
 
-  for (let R = 1; R <= n; R++) {
-    const rowH = (AH - (R - 1) * gap) / R;
-    if (rowH + 1e-9 < min.height) break;
-    /* Each row's runs: the whole width, or the two sides of the commander. */
-    const rows = Array.from({ length: R }, (_, r) => {
-      const top = gap + r * (rowH + gap);
-      const level = keepOut && top < keepOut.top + keepOut.height + gap && keepOut.top < top + rowH + gap;
-      const runs = level
-        ? [[gap, keepOut.left - gap], [keepOut.left + keepOut.width + gap, W - gap]]
-        : [[gap, W - gap]];
-      const spans = runs.map(([a, b]) => ({ left: a, width: Math.max(0, b - a) }));
-      return { top, spans, cap: spans.reduce((s, sp) => s + fits(sp.width), 0), room: spans.reduce((s, sp) => s + sp.width, 0) };
-    });
-    if (rows.reduce((s, row) => s + row.cap, 0) < n) continue;
-
-    /* The categories over the rows, in order: the cut that keeps the most
-       cards to a pixel of any row lowest, each row within its capacity. */
-    const prefix = [0];
-    weight.forEach((wt, i) => prefix.push(prefix[i] + wt));
-    const cost = Array.from({ length: R + 1 }, () => new Array(n + 1).fill(Infinity));
-    const from = Array.from({ length: R + 1 }, () => new Array(n + 1).fill(-1));
-    cost[0][0] = 0;
-    for (let r = 1; r <= R; r++) {
-      const row = rows[r - 1];
-      for (let j = 0; j <= n; j++) {
-        for (let i = Math.max(0, j - row.cap); i <= j; i++) {
-          if (cost[r - 1][i] === Infinity) continue;
-          const load = j > i ? (prefix[j] - prefix[i]) / Math.max(1, row.room) : 0;
-          const c = Math.max(cost[r - 1][i], load);
-          if (c < cost[r][j] - 1e-12) { cost[r][j] = c; from[r][j] = i; }
-        }
-      }
-    }
-    if (cost[R][n] === Infinity) continue;
-    const cuts = [n];
-    for (let r = R; r > 0; r--) cuts.unshift(from[r][cuts[0]]);
-
+  /* The zones of these sizes on shelves, or null when they run off the mat.
+     A zone that does not fit across what is left of its shelf starts the
+     next one; one that would lie over the commander is put past it, and
+     may then not fit across, and so start the next shelf too. `under`: a
+     shelf after the first that would start beside the commander's box
+     starts just below it instead — a shelf reaching a few pixels down past
+     the box would otherwise lose the box's width for those few pixels, which
+     can be the one shelf too few. Tried without it first. */
+  const pack = (sizes, under) => {
+    const below = keepOut ? keepOut.top + keepOut.height + gap : 0;
     const rects = new Array(n);
-    let ok = true;
-    rows.forEach((row, r) => {
-      const idx = [];
-      for (let i = cuts[r]; i < cuts[r + 1]; i++) idx.push(i);
-      /* A row in two runs: its zones split between them where the cards to
-         a pixel come out most even, in order, each run within its fit. */
-      let parts = [idx];
-      if (row.spans.length === 2) {
-        let pick = null;
-        for (let k = 0; k <= idx.length; k++) {
-          const a = idx.slice(0, k), b = idx.slice(k);
-          if (a.length > fits(row.spans[0].width) || b.length > fits(row.spans[1].width)) continue;
-          const wa = a.reduce((s, i) => s + weight[i], 0), wb = b.reduce((s, i) => s + weight[i], 0);
-          const skew = Math.abs(wa / Math.max(1, row.spans[0].width) - wb / Math.max(1, row.spans[1].width));
-          if (!pick || skew < pick.skew - 1e-12) pick = { skew, parts: [a, b] };
-        }
-        if (!pick) { ok = false; return; }
-        parts = pick.parts;
+    let x = gap, y = gap, shelf = 0;
+    for (let i = 0; i < n; i++) {
+      const { width: zw, height: zh } = sizes[i];
+      if (zw > W - 2 * gap + 1e-9) return null;
+      for (;;) {
+        if (y + zh > H - gap + 1e-9) return null;
+        const at = { left: x, top: y, width: zw, height: zh };
+        if (keepOut && tableZoneOverlap(at, keepOut, gap)) x = Math.max(x, keepOut.left + keepOut.width + gap);
+        if (x + zw <= W - gap + 1e-9) break;
+        /* No room across: the next shelf — or, with nothing on this one
+           yet, which only the commander's box can leave too narrow, the
+           shelf just below that box. */
+        y = shelf ? y + shelf + gap : Math.max(y + 1, keepOut ? below : y + zh + gap);
+        if (under && keepOut && y < below) y = below;
+        x = gap;
+        shelf = 0;
       }
-      parts.forEach((part, s) => {
-        const span = row.spans[s];
-        const partWeight = part.reduce((sum, i) => sum + weight[i], 0);
-        const spare = span.width - part.length * min.width - (part.length - 1) * gap;
-        let x = span.left;
-        for (const i of part) {
-          const zw = min.width + Math.max(0, spare) * weight[i] / Math.max(1, partWeight);
-          rects[i] = { name: list[i].name, left: x, top: row.top, width: zw, height: rowH };
-          x += zw + gap;
-        }
-      });
-    });
-    if (!ok) continue;
-
-    let score = 0, square = 0;
-    rects.forEach((rect, i) => {
-      score  += weight[i] * tableZoneFit(list[i].count, rect.width, rect.height, cardW, cardH).visible;
-      square += Math.min(rect.width / rect.height, rect.height / rect.width);
-    });
-    if (!best || score > best.score + 1e-6 || (Math.abs(score - best.score) <= 1e-6 && square > best.square)) {
-      best = { rects, score, square };
+      rects[i] = { name: list[i].name, left: x, top: y, width: zw, height: zh };
+      x += zw + gap;
+      shelf = Math.max(shelf, zh);
     }
+    return rects;
+  };
+  const packs = sizes => pack(sizes, false) || pack(sizes, true);
+
+  let rects = packs(sizeAt(1));
+  if (!rects && packs(sizeAt(0))) {
+    let lo = 0, hi = 1;
+    for (let k = 0; k < 20; k++) {
+      const mid = (lo + hi) / 2;
+      if (packs(sizeAt(mid))) lo = mid; else hi = mid;
+    }
+    rects = packs(sizeAt(lo));
   }
-  if (best) return best.rects;
+  if (rects) return rects;
 
   /* Too many for the mat at their smallest: below the commander, as many
      across as fit, and the rows stepped down the room there is,
@@ -5414,7 +5444,7 @@ function tableZoneReconcile(kept, zones, width, height, cardW, cardH, keepOut = 
   let changed = rects.length !== kept.length;
   for (const z of list) {
     if (have.has(z.name)) continue;
-    const size = tableZoneDefaultSize(z.count, cardW, cardH, width);
+    const size = tableZoneDefaultSize(z.count, cardW, cardH, width, height);
     rects.push({ name: z.name, ...tableZoneFree(rects, size, width, height, keepOut), ...size });
     have.add(z.name);
     changed = true;
@@ -5434,6 +5464,27 @@ function tableZoneMinFor(width, cardW, cardH) {
   const base = tableCardWidth(width);
   if (!((Number(cardW) || 0) > base)) return tableZoneMinSize(cardW, cardH);
   return tableZoneMinSize(base, base * TABLE_CARD_RATIO);
+}
+
+/* Where a zone `zone` = { left, top } lies once its size button is pressed,
+ * on a mat matW × matH for cards cardW × cardH, its cards laid in `mode`
+ * (tableZoneFit's) and `cardsLaid` of them: showing them all whole — a grid
+ * — it shrinks to its smallest (tableZoneMinFor, one card's size, the rest
+ * piled on it); closed up or piled, it grows to the size that shows them all
+ * (tableZoneFullSize, held to the mat less a TABLE_ZONE_GAP all round). Its
+ * top-left corner stays where it was, moved left and up only as far as the
+ * new size needs to stay on the mat. Returns { left, top, width, height }. */
+function tableZoneToggleRect(zone, mode, cardsLaid, matW, matH, cardW, cardH) {
+  const W = Number(matW) || 0, H = Number(matH) || 0;
+  const size = mode === 'grid'
+    ? tableZoneMinFor(W, cardW, cardH)
+    : tableZoneFullSize(cardsLaid, cardW, cardH, W - 2 * TABLE_ZONE_GAP, H - 2 * TABLE_ZONE_GAP);
+  const width = Math.min(W, size.width), height = Math.min(H, size.height);
+  return {
+    left: Math.max(0, Math.min(Number(zone?.left) || 0, W - width)),
+    top:  Math.max(0, Math.min(Number(zone?.top)  || 0, H - height)),
+    width, height,
+  };
 }
 
 /* Which zone a point of the mat — the pointer, mapped onto it — is over: the
@@ -5708,12 +5759,35 @@ function tableZoneDraw(zone, lift = 0, rules = tableZoneRulesNow()) {
     el.dataset.tab = 'deckview';
     el.innerHTML = `
       <div class="table-zone-label"><span class="table-zone-name"></span><span class="table-zone-count"></span></div>
+      <button type="button" class="table-zone-size"></button>
       <span class="table-zone-grip" title="Drag to resize the zone">${TABLE_ZONE_GRIP_ICON}</span>`;
+    /* The size button's own listeners, made with it: a press on it is a
+       press on a control, never a zone taken in hand nor a card under it;
+       and a click asks for the zone by its element, since the zone's record
+       is made again each time the deck is laid and the element is not. */
+    const size = el.querySelector('.table-zone-size');
+    size.addEventListener('pointerdown', e => e.stopPropagation());
+    size.addEventListener('click', () => tableZoneToggleSize(tableZones.find(z => z.el === el)));
     zone.el = el;
     tableEls.mat.insertBefore(el, tableEls.hint);
   }
   const { el } = zone;
   const label = el.querySelector('.table-zone-label');
+  /* Its size button says what a press will do now, which the fit just made
+     decides (tableZoneToggleRect); its mark is written only when that
+     changes, not every frame of a resize. */
+  const sizeBtn = el.querySelector('.table-zone-size');
+  const shrink = (zone.mode || 'grid') === 'grid';
+  if (sizeBtn.dataset.act !== (shrink ? 'shrink' : 'grow')) {
+    sizeBtn.dataset.act = shrink ? 'shrink' : 'grow';
+    sizeBtn.innerHTML = shrink ? TABLE_ZONE_SHRINK_ICON : TABLE_ZONE_GROW_ICON;
+    const say = shrink ? 'Shrink the zone to one card' : 'Grow the zone to show every card';
+    sizeBtn.setAttribute('aria-label', say);
+    sizeBtn.title = say;
+  }
+  /* A zone of one card, or none, is already the size that shows them all
+     and the smallest: a press would change nothing. */
+  sizeBtn.disabled = zone.cards.length <= 1;
   el.dataset.zone = zone.name;
   el.dataset.fit = zone.mode || 'grid';
   el.toggleAttribute('data-editable', rules.arrange);
@@ -5987,6 +6061,29 @@ function tableZoneRelease(e) {
   tableZoneKeep(tableZoneDeck()?.id, tableZones);
 }
 
+/* A zone's size button pressed: it shrinks to one card or grows to show
+ * every card (tableZoneToggleRect), comes to the top of the zones as a zone
+ * taken in hand does, has its cards fitted to its new size, and settles
+ * there with them in the card layer's own time, as a zone let go does; the
+ * deck's layout is kept. Only for a zone that may be changed, and not while
+ * a card or a zone is in hand or a name is being typed: the hand's release,
+ * or the rename's end, lays the zones next. */
+function tableZoneToggleSize(zone) {
+  if (!zone || !tableEls || !tableGeom || tableHold || tableZoneHold || tableZoneEdit) return;
+  const rules = tableZoneRulesNow();
+  if (!rules.zones || !rules.arrange) return;
+  const { width: W, height: H } = tableGeom.mat;
+  Object.assign(zone, tableZoneToggleRect(zone, zone.mode, zone.cards.length, W, H, tableCardSize.w, tableCardSize.h));
+  tableZones = [...tableZones.filter(z => z !== zone), zone];
+  tableZonesLayer();
+  tableZoneFitCards(zone);
+  const settle = [zone.el, ...zone.cards.map(card => card.el)].filter(Boolean);
+  for (const el of settle) el.classList.add('is-settling');
+  tableZonesWrite(rules);
+  for (const el of settle) tableAfter(el, () => el.classList.remove('is-settling'));
+  tableZoneKeep(tableZoneDeck()?.id, tableZones);
+}
+
 /* A zone's category deleted through the builder's own delete, which asks
  * first (its confirm), takes the history's snapshot, moves the cards to
  * Uncategorised, redraws and saves — all of it the builder's. Whether it was
@@ -6021,7 +6118,7 @@ function tableZoneAdd() {
   let name = typeof _dbNewCategoryName === 'function' ? _dbNewCategoryName() : '';
   for (let n = 1; !name || cats.some(c => c.name === name); n++) name = n === 1 ? 'New category' : `New category ${n}`;
   const { width, height } = tableGeom.mat;
-  const size = tableZoneDefaultSize(0, tableCardSize.w, tableCardSize.h, width);
+  const size = tableZoneDefaultSize(0, tableCardSize.w, tableCardSize.h, width, height);
   const at = tableZoneFree(tableZones, size, width, height, tableZoneKeepOut());
   const before = tableZones.map(({ name: n, left, top, width: w, height: h }) => ({ name: n, left, top, width: w, height: h }));
   tableZoneKeep(deck.id, [...before, { name, ...at, ...size }]);
