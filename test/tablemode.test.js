@@ -2289,21 +2289,60 @@ const ZONE_DECK = [['Artifacts', 1], ['Clones', 1], ['Counters', 4], ['Creatures
   ['Finisher', 1], ['Lands', 51], ['Protection', 1], ['Pump', 2], ['Ramp', 8], ['Recursion', 5], ['Removal', 8],
   ['Theft', 2], ['Tokens', 8], ['Tutor', 2]].map(([name, count]) => ({ name, count }));
 
-test('the first time, the zones are laid in a tidy grid: apart, on the mat, and clear of the commander', () => {
+const zoneFull = (n, w, h, maxW, maxH) => app.call('tableZoneFullSize', n, w, h, maxW, maxH);
+
+test('a zone’s full size is the smallest grid, nearest square, that shows every one of its cards', () => {
+  const w = 100, h = 140, gap = app.evaluate('TABLE_ZONE_CARD_GAP');
+  const min = zoneMin(w, h);
+  assert.deepStrictEqual(zoneFull(0, w, h), min, 'no cards: the smallest a zone is');
+  assert.deepStrictEqual(zoneFull(1, w, h), min, 'one card: the same');
+  const skew = s => Math.abs(Math.log(s.width / s.height));
+  for (let n = 1; n <= 60; n++) {
+    const size = zoneFull(n, w, h);
+    const fit = zoneFit(n, size.width, size.height, w, h);
+    assert.strictEqual(fit.mode, 'grid', `${n} cards in their full size lie as a grid`);
+    assertFitInside(fit, n, size.width, size.height, w, h, `${n} at full size`);
+    /* Every way to lay them: c columns, the rows they need — the fewest
+       columns that give those rows. */
+    const ways = [];
+    for (let c = 1; c <= n; c++) {
+      const r = Math.ceil(n / c);
+      if (c > 1 && Math.ceil(n / (c - 1)) === r) continue;
+      ways.push({ r, width: 2 * ZONE.pad + c * w + (c - 1) * gap, height: ZONE.head + ZONE.pad + r * h + (r - 1) * gap });
+    }
+    const mine = ways.find(way => near(way.width, size.width) && near(way.height, size.height));
+    assert.ok(mine, `${n} cards: ${JSON.stringify(size)} is one of the ways to lay them`);
+    for (const way of ways) {
+      assert.ok(skew(size) <= skew(way) + 1e-9, `${n} cards: ${way.width}×${way.height} is nearer square than ${size.width}×${size.height}`);
+      if (Math.abs(skew(size) - skew(way)) <= 1e-9) assert.ok(mine.r <= way.r, `${n} cards: of two as near square, the fewer rows`);
+    }
+  }
+  /* Larger with its cards. */
+  const area = n => { const s = zoneFull(n, w, h); return s.width * s.height; };
+  for (const [a, b] of [[1, 4], [4, 9], [9, 30], [30, 60]]) assert.ok(area(a) < area(b), `${b} cards are given more room than ${a}`);
+  /* Held to the room given, and never below one card. */
+  assert.deepStrictEqual(zoneFull(60, w, h, 500, 400), { width: 500, height: 400 });
+  assert.deepStrictEqual(zoneFull(60, w, h, 10, 10), min);
+  assert.deepStrictEqual(zoneFull(2, w, h, 5000, 5000), zoneFull(2, w, h), 'room to spare changes nothing');
+});
+
+test('the first time, each zone is sized for its cards and packed in order: apart, on the mat, and clear of the commander', () => {
   const cases = [
     { W: 1114, H: 830, zones: ZONE_DECK, heads: 2 },
-    { W: 1114, H: 830, zones: ZONE_DECK.slice(0, 3), heads: 1 },
+    { W: 1114, H: 830, zones: ZONE_DECK.slice(0, 3), heads: 1, full: true },
     { W: 1500, H: 1000, zones: ZONE_DECK.slice(0, 9), heads: 0 },
+    { W: 1500, H: 1000, zones: ZONE_DECK.slice(0, 4), heads: 0, full: true },
     { W: 760, H: 560, zones: ZONE_DECK.slice(0, 5), heads: 1 },
     { W: 1114, H: 830, zones: [{ name: 'Lands', count: 38 }], heads: 1 },
   ];
-  for (const { W, H, zones, heads } of cases) {
+  for (const { W, H, zones, heads, full } of cases) {
     const w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
     const band = app.call('tableHeadSpots', heads, W, H, w, h);
     const keep = heads ? app.call('tableZoneHeadRect', heads, W, H, w, h) : null;
     const rects = app.call('tableZoneAutoLayout', zones, W, H, w, h, keep);
     const what = `${zones.length} zones on ${W}×${H}`;
     assert.deepStrictEqual(rects.map(r => r.name), zones.map(z => z.name), `${what}: one zone per category, in order`);
+    assert.deepStrictEqual(app.call('tableZoneAutoLayout', zones, W, H, w, h, keep), rects, `${what}: the same every time`);
     const min = zoneMin(w, h);
     for (const r of rects) {
       assert.ok(r.left >= 0 && r.top >= 0 && r.left + r.width <= W + 1e-6 && r.top + r.height <= H + 1e-6, `${what}: ${r.name} inside the mat`);
@@ -2316,16 +2355,90 @@ test('the first time, the zones are laid in a tidy grid: apart, on the mat, and 
       if (keep) assert.ok(!app.sandbox.tableZoneOverlap(keep, r), `${what}: ${r.name} over the commander's box`);
     }
     for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
-      assert.ok(!app.sandbox.tableZoneOverlap(rects[i], rects[j]), `${what}: ${rects[i].name} overlaps ${rects[j].name}`);
+      assert.ok(!app.sandbox.tableZoneOverlap(rects[i], rects[j], ZONE.gap - 1e-6), `${what}: ${rects[i].name} not a gap from ${rects[j].name}`);
+      /* In the deck's order: along a shelf, or on a shelf further down. */
+      const a = rects[i], b = rects[j];
+      assert.ok(b.top > a.top + 1e-6 || (near(a.top, b.top) && b.left > a.left), `${what}: ${b.name} laid before ${a.name}`);
     }
-    /* Sized by their cards: along a row — on one side of the commander —
-       the larger category is never the narrower zone. */
-    const side = r => (keep && near(r.top, rects[0].top) ? (r.left < keep.left ? -1 : 1) : 0);
-    for (const a of rects) for (const b of rects) {
-      const ca = zones.find(z => z.name === a.name).count, cb = zones.find(z => z.name === b.name).count;
-      if (near(a.top, b.top) && side(a) === side(b) && ca > cb) assert.ok(a.width >= b.width - 1e-6, `${what}: ${a.name} (${ca}) narrower than ${b.name} (${cb})`);
+    /* Each zone the same share of the way from its smallest to its full
+       size, across and down: all shrunk alike, or none. */
+    const shares = [];
+    rects.forEach((r, i) => {
+      const f = zoneFull(zones[i].count, w, h, W - 2 * ZONE.gap, H - 2 * ZONE.gap);
+      if (f.width - min.width > 1e-6) shares.push((r.width - min.width) / (f.width - min.width));
+      else assert.ok(near(r.width, min.width), `${what}: ${r.name} as wide as one card`);
+      if (f.height - min.height > 1e-6) shares.push((r.height - min.height) / (f.height - min.height));
+      else assert.ok(near(r.height, min.height), `${what}: ${r.name} as tall as one card`);
+    });
+    for (const s of shares) assert.ok(near(s, shares[0], 1e-6) && s >= -1e-9 && s <= 1 + 1e-9, `${what}: shrunk alike, ${shares}`);
+    if (full) {
+      assert.ok(shares.every(s => near(s, 1)), `${what}: room for every zone at its full size`);
+      rects.forEach((r, i) => assert.strictEqual(zoneFit(zones[i].count, r.width, r.height, w, h).mode, 'grid', `${what}: ${r.name} shows every card`));
     }
   }
+  /* More of the deck than a laptop's mat holds at full size: shrunk, and
+     its larger categories still the larger zones. */
+  const W = 1114, H = 830, w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
+  const crowd = app.call('tableZoneAutoLayout', ZONE_DECK.slice(0, 9), W, H, w, h, app.call('tableZoneHeadRect', 1, W, H, w, h));
+  const lands = crowd.find(r => r.name === 'Lands'), one = crowd.find(r => r.name === 'Artifacts');
+  assert.ok(lands.width * lands.height > one.width * one.height, 'fifty-one lands are given more room than one artifact');
+  assert.notStrictEqual(zoneFit(51, lands.width, lands.height, w, h).mode, 'grid', 'and close up in it');
+});
+
+test('more zones than the mat holds even at their smallest are still laid on it', () => {
+  const W = 760, H = 560, w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
+  const zones = Array.from({ length: 40 }, (_, i) => ({ name: `Cat ${i}`, count: 3 }));
+  const rects = app.call('tableZoneAutoLayout', zones, W, H, w, h, app.call('tableZoneHeadRect', 1, W, H, w, h));
+  assert.strictEqual(rects.length, 40);
+  const min = zoneMin(w, h);
+  for (const r of rects) {
+    assert.ok(r.left >= 0 && r.top >= 0 && r.left + r.width <= W + 1e-6 && r.top + r.height <= H + 1e-6, `${r.name} inside the mat`);
+    assert.ok(near(r.width, min.width) && near(r.height, min.height), `${r.name} at its smallest`);
+  }
+  assert.deepStrictEqual(app.call('tableZoneAutoLayout', [], W, H, w, h, null), []);
+  assert.deepStrictEqual(app.call('tableZoneAutoLayout', zones, 0, H, w, h, null), []);
+});
+
+test('a zone’s size button shrinks one showing every card to one card, and grows any other to show them all', () => {
+  const W = 1114, H = 830, w = app.evaluate(`tableCardWidth(${W})`), h = w * 88 / 63;
+  const toggle = (zone, mode, n) => app.call('tableZoneToggleRect', zone, mode, n, W, H, w, h);
+  const grown = zoneFull(12, w, h, W - 2 * ZONE.gap, H - 2 * ZONE.gap);
+  const small = app.call('tableZoneMinFor', W, w, h);
+
+  /* Closed up or piled: grown, its corner where it was. */
+  for (const mode of ['overlap', 'stack']) {
+    assert.deepStrictEqual(toggle({ left: 100, top: 300 }, mode, 12), { left: 100, top: 300, ...grown }, mode);
+  }
+  assert.strictEqual(zoneFit(12, grown.width, grown.height, w, h).mode, 'grid', 'grown, it shows every card');
+  /* Showing every card: shrunk to one card's size, its corner where it was. */
+  assert.deepStrictEqual(toggle({ left: 100, top: 300 }, 'grid', 12), { left: 100, top: 300, ...small });
+  assert.notStrictEqual(zoneFit(12, small.width, small.height, w, h).mode, 'grid', 'shrunk, its cards pile');
+  /* Near the mat's far corner, moved back only as far as it must be. */
+  const edge = toggle({ left: 1000, top: 700 }, 'stack', 12);
+  assert.ok(near(edge.left, W - grown.width) && near(edge.top, H - grown.height), JSON.stringify(edge));
+  const room = toggle({ left: 1000, top: 20 }, 'stack', 12);
+  assert.ok(near(room.left, W - grown.width) && near(room.top, 20), 'a direction with room is left as it is');
+  /* More cards than the mat shows whole: all the mat has, a gap all round, and still on it. */
+  const huge = toggle({ left: 400, top: 400 }, 'stack', 300);
+  assert.ok(near(huge.width, W - 2 * ZONE.gap) && near(huge.height, H - 2 * ZONE.gap), JSON.stringify(huge));
+  assert.ok(huge.left >= 0 && huge.top >= 0 && huge.left + huge.width <= W + 1e-6 && huge.top + huge.height <= H + 1e-6);
+  /* And an empty zone is always the smallest. */
+  assert.deepStrictEqual(toggle({ left: 50, top: 60 }, 'grid', 0), { left: 50, top: 60, ...small });
+});
+
+test('the size button lies in each editable zone’s label band, and a press on it is never a drag', () => {
+  const js = read('public/js/tablemode.js');
+  const css = read('public/css/table.css');
+  assert.match(js, /<button type="button" class="table-zone-size"><\/button>/, 'every zone is made with its button');
+  assert.match(js, /size\.addEventListener\('pointerdown', e => e\.stopPropagation\(\)\)/, 'its press stops at it');
+  assert.match(js, /size\.addEventListener\('click', \(\) => tableZoneToggleSize\(/);
+  assert.ok(app.evaluate('TABLE_SCROLL_PAUSE').includes('.table-zone-size'), 'the edges stand still over it');
+  const onIt = { closest: sel => (sel.split(',').map(s => s.trim()).includes('.table-zone-size') ? {} : null) };
+  assert.strictEqual(app.sandbox.tableGrabbable(onIt, { contains: () => true }, 0), false, 'the main button cannot take hold of the table by it');
+  assert.match(css, /\.table-zone-size \{[^}]*display: none;/, 'hidden on a zone that may not be changed');
+  assert.match(css, /\.table-zone\[data-editable\] \.table-zone-size \{ display: flex; \}/, 'shown on one that may');
+  assert.match(css, /\.table-zone\[data-editable\] \.table-zone-label \{\s*max-width: calc\(100% - 3 \* var\(--table-zone-pad\) - var\(--table-zone-label-h\)\);/,
+    'the label stops short of it');
 });
 
 test('a zone kept is laid where it was on a mat of any size, as fractions of it', () => {
@@ -2789,7 +2902,7 @@ test('every palette says what its table is made of', () => {
   const palettes = parsePalettes(read('public/css/tokens.css'));
   for (const theme of PALETTE_THEMES) {
     for (const token of ['--table-wood', '--table-wood-edge', '--table-wood-img', '--table-wood-tint', '--table-wood-lit',
-      '--table-land-ink', '--table-land-halo', '--table-land-fill', '--table-zone-fill', '--table-zone-line']) {
+      '--table-land-ink', '--table-land-halo', '--table-land-fill', '--table-zone-fill', '--table-zone-line', '--table-zone-halo']) {
       assert.ok(palettes[theme][token], `the ${theme} palette does not name ${token}`);
     }
   }
